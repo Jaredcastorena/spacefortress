@@ -1,6 +1,6 @@
 # First public repository — release readiness
 
-**Status: publication preparation in progress.** Updated 2026-09-23 UTC. This checklist describes the first public source release of an early playable build, not completion of SPACEFORTRESS. Record the publication URL and account identity only after root verifies them.
+**Status: published and verified.** Updated 2026-09-23 UTC. The first public source release is at [Jaredcastorena/spacefortress](https://github.com/Jaredcastorena/spacefortress). This checklist describes an early playable build, not completion of SPACEFORTRESS.
 
 `Verified` means the stated scoped check has evidence. `Pending` means the release check has not yet been accepted. Historical results do not substitute for current release verification.
 
@@ -19,18 +19,18 @@
 
 | Check | Status | Evidence / remaining work |
 | --- | --- | --- |
-| Current full test suite | Pending | Historical expedition acceptance: 775/775 passed 2026-09-16; three later pre-outpost fixture tests passed separately. Record a full current release run. |
-| Clean-copy/clone start and playability | Pending | Verify README commands from intended release files, without local QA helpers/profiles/preexisting saves. Keep `tests/fixtures/*.json.gz`. |
-| Browser smoke and player flow | Verified — worker report; final-tree acceptance pending | Release UI worker tested fresh colony/lab, new colony, save/export/download/import/reload with no scoped app errors; all 165 recorded page requests were local. Root reviews final-tree acceptance. Historical journey evidence remains in [verification status](verification-status.md). |
-| Server safety/portability | Pending | Root is coordinating a server allowlist fix; verify it and the published commands before acceptance. Windows/macOS execution remains unverified. |
-| Secrets/privacy/generated files | Pending | Inspect candidate tracked files; exclude profiles, personal saves, QA output, logs, credentials and private machine/account details. |
-| Asset/source provenance | Verified — audit, packaging pending | Conservation audit found project code-native Canvas/CSS artwork, geometric inline favicon and system fonts; no bundled image/font/audio/model packs or vendored libraries. Twelve compressed fixture files are project save data. Final tree review remains required. |
+| Current full test suite | Verified | Final local release gate: Node simulation tests **778/778**, Python server tests **7/7**, and JavaScript syntax **137/137**, all with zero failures. The published GitHub Actions run below repeated the automated gates. |
+| Clean-copy/clone start and playability | Verified | A fresh clone of published commit `06d5260` contained 223 tracked files, retained all 17 fixture files, discovered all 778 Node tests, passed 7 Python tests, served both entrypoints/modules with correct MIME types and denied sensitive/traversal paths. |
+| Browser smoke and player flow | Verified | Fresh isolated Firefox tested colony/lab, hidden drawers, new colony, save/export/download/import/reload and independent lab stepping with no scoped app errors; all 165 recorded requests were local. The schema 36 save roundtrip was byte-identical. Historical journey evidence remains in [verification status](verification-status.md). |
+| Server safety/portability | Verified on Linux | The centralized GET/HEAD allowlist rejects literal/encoded traversal, private files, directories and symlinks; 7 focused regressions and clean-clone HTTP probes pass. The server binds to loopback. Windows/macOS execution remains unverified. |
+| Secrets/privacy/generated files | Verified | Final 223-file tree and decompressed fixtures had no credential/private-key/token hits or personal home paths. Browser profiles, private continuity/handoffs, saves, recordings, logs, env/key files, caches, dependencies and coverage output are ignored. |
+| Asset/source provenance | Verified | Audit found project code-native Canvas/CSS artwork, geometric inline favicon and system fonts; no bundled image/font/audio/model packs or vendored libraries. The README screenshot is a reviewed capture of the game; compressed fixtures are project save data. [Asset sources](../ASSET_SOURCES.md) records the scope. |
 | License and attribution | Verified — files reviewed | `LICENSE` is MIT, copyright 2026 Jared Castorena, using root-confirmed holder. README links the actual file. Public account/remote verification remains separate. |
-| Contribution/security/community files | Verified — files present; publication channels pending | CONTRIBUTING, CODE_OF_CONDUCT, SECURITY and issue/PR templates landed. Root must verify public reporting channels after remote creation. |
-| CI configuration | Pending | Review workflow dependencies/pinning and commands; local checks do not establish a remote CI pass. |
-| Final publication tree/documentation | Pending | Root reviews included files, links, status claims and a clean checkout of the final commit. |
-| Public remote and identity | Pending | Root verifies authenticated owner, commits/pushes reviewed files and records actual public URL/commit. No public repository is claimed yet. |
-| Post-publication check | Pending | Confirm public access and clean clone/run instructions; record remote CI separately if available. |
+| Contribution/security/community files | Verified | CONTRIBUTING, CODE_OF_CONDUCT, SECURITY and issue/PR templates are public; private vulnerability reporting is enabled on the repository. |
+| CI configuration | Verified | Official checkout/setup-node actions are pinned to full commit SHAs with read-only contents permission. [Published run 35802686651](https://github.com/Jaredcastorena/spacefortress/actions/runs/35802686651) passed syntax, 778 Node tests, 7 Python tests and HTTP smoke. |
+| Final publication tree/documentation | Verified | Independent review approved 223 files / 2,417,893 bytes; 359 local public links resolved. The original screenshot contains only normal PNG chunks. No ignored private/runtime artifact is tracked. |
+| Public remote and identity | Verified | Public repository owner is `Jaredcastorena`; MIT holder and commit author are Jared Castorena. Initial playable commit: `06d5260378dbee840151c4c41838f9fc0a3f701c`. |
+| Post-publication check | Verified | An unauthenticated GitHub API request reported public visibility/default branch `main`, and unauthenticated `git ls-remote` returned the published commit for both `HEAD` and `refs/heads/main`. |
 
 ## Limits that remain after publication
 
@@ -40,6 +40,6 @@
 - Saves live in a browser profile/origin; JSON export is the portable backup path. Publication adds no cloud saves or multiplayer service.
 - Local recordings contain observations/actions, not training rewards or proven causality. No model download or training integration is included.
 
-## Evidence ownership and handoff
+## Maintaining this record
 
-Root owns publication, identity/license decisions, Git/remote changes and final status. Workers provide scoped evidence; update rows only from actual results. Keep detailed logs, browser profiles and local test saves outside the publication tree. [Verification status](verification-status.md) retains historical feature evidence.
+Update rows only from actual results. Keep detailed logs, browser profiles and local test saves outside the publication tree. [Verification status](verification-status.md) retains historical feature evidence.
