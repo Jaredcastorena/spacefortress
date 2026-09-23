@@ -1,0 +1,361 @@
+{
+  "capturedAt": "2026-09-16T21:41:45.768Z",
+  "originalSchema": 36,
+  "validatedWithOriginalSchema36": true,
+  "fixtureOrigin": "Normal createGame/launch/step/recall APIs before explicit team selection changes. Captured loading with carried supplies, boarding with actual ship stores, outbound transit and recalled returning transit. Every old36 save roundtrip byte-identical; all source hashes unchanged across capture. No state or serialized field rewriting.",
+  "seed": 36171,
+  "sourceHashes": {
+    "src/animal-transport.js": "c6eb6553b0a138d266cb26fac34f95acf483cf80e51831836ebdd68d3a6b62a1",
+    "src/app.js": "ca33908e5f5ba6c16e61eed0cb730ab476a7d0e86a6aecfdbbf713f440a236b7",
+    "src/atmosphere-panels.js": "3584711663a0f35169494f7588f48ae8ec59796e48374ba4af767b0d6983c4fd",
+    "src/atmosphere.js": "4cd9b8c9e94bc337a72ce4907c5a42695af319956ecfe35300c094f05c9e790a",
+    "src/breaker-panels.js": "26fadbc4c319af66f6c067e39ad8a4231a7617589ef36de76924ef3e58331e5f",
+    "src/breakers.js": "22dc4d83a9681ad5d67d642e83d01d3d66cd2fb4c25c039f39efbc41736162cd",
+    "src/breeding.js": "03a1c80aeeda3d137fae3a15966f1e2ad53f0cfc9a872ac6ca5bc8df7e2453d6",
+    "src/comfort-panels.js": "21efac50209af4c500a672f41d2b26ece9ca69a2ac7359461d25dc2c0b8febe5",
+    "src/comfort.js": "d8a528b84caebc2fab9b69c98538553672ec3a320cc0e9897b4e81cc0290e60e",
+    "src/construction.js": "3d0d899d57934277ca1b465a947066f2be844d289c18153714ed84bd01d84554",
+    "src/controls.js": "0256abd1f70b9a707b8118737b36c58b4b52bc643ab37d7b603cb37cb9245848",
+    "src/crew-life-panels.js": "f75eeef5679de2806bd2a2faff7745da2ddfd4b612fb54e28d8a1db14b96b222",
+    "src/crew-life.js": "8f9b2352edbd5bbb65b241769cff156dc6c036d3801561e109982117eee6256f",
+    "src/crew-panels.js": "bf01c937e8151f7ffdce09f3adafc12afc5add606d1913efff62cd6a1bdd1ed5",
+    "src/crew.js": "202581081dac7a61db618874d72e41cf49b4a2b9962774efc5b9544eb793f2f3",
+    "src/data.js": "8a8c53b6fdda6fc7194bf5c424a82e0b52de3ded179073ca5b6fd896c9161cb7",
+    "src/elements-app.js": "e98aa6e8259f1af238d4486489ff4fb58190f3014b62f345b9c88ce867cb9867",
+    "src/elements.js": "5ba6b975c1981e22fff3faf4fc12c072a3389b92b64e96d2a28063685a16d1c2",
+    "src/expedition-panels.js": "bdf702e0e183e7b50e25e59d18926de3c652b5e3b2f0ab714baa124f1fe2ff5f",
+    "src/expedition.js": "00fe0165b05d8b6334e41aba3fc6d7c9b149dad28fb3d371e902d1f32548d3a4",
+    "src/fire-panels.js": "065835564b0a7f15beff30c3bf16adf9c730f017ef84b720a20762fbe466987f",
+    "src/fire.js": "3f49b549900aa8684025707c787c1609231dca698c26d91110bd8b19c312804b",
+    "src/food-lots.js": "bcd2bc9aada041cbdc506157c65e47b49d2baf7717bf7005633d4858c23daaae",
+    "src/food-panels.js": "6685303ea35a89620238034681edd0bdd4aa631d97e4ec6b1b829478eaea18ec",
+    "src/gas-networks.js": "9ce6e14eceb14e9d8b94252f2668b6dede2d976934e2f5c73c627c35ab355969",
+    "src/gas-panels.js": "cb8d2da031f353c8f00f85de22ff1ed3dcff57a9c118eb77e282b964b6ef1b74",
+    "src/housing-panels.js": "b86bd44af48fe4bccfbc9dfdc874e29ffde89f7025b2fd2d6d91f3739d93a4ec",
+    "src/housing.js": "953b8df127d0f5793734133f8b935385953bc420f9e3f00cfcd283e2d9d40bae",
+    "src/husbandry-panels.js": "20e03fbf49adc49ed41aa5c7c1b297a4bc0429251a0e8d3726e9d86260026162",
+    "src/husbandry.js": "6776469b6ce444a93bd3829b6f4f58c762e01775e9efe0bad737488963e872b4",
+    "src/hygiene.js": "e2a477d3009efc4ee4618724325b3483e1f2d8fc0009803d6490c09e14ecbd31",
+    "src/industry-panels.js": "329e2f02101cd67f882848ea765c98c44614b8643b31defc298afaaffabb56db",
+    "src/industry.js": "a8849851b45c7b0cb4954ad03643fe0c4ce0f350e7790dafd07fee5b0d49ac57",
+    "src/inventory-reservations.js": "73a92b78c8610652c8261dca55930d90964790099dc92cc58942a74aa3d0a69f",
+    "src/inventory.js": "e3129b6ab51df5c2652d837835f6b33becc9c9872a21dedbfcb33eb74b47cdeb",
+    "src/item-lots.js": "67e14d395ef193f3fad4976916835f47e8d9ff4fb5ac7a9bbc511cc6b47d1e02",
+    "src/liquid-panels.js": "ee884887b0fa4fc23168de26a32e42c88de27f0524aa4ae8255e687c73cf911b",
+    "src/liquids.js": "ab14d23afbec9b45b9b78aad212c11a44446fcb28e003ae396c6e2da373372ba",
+    "src/maintenance-panels.js": "1a05f5c8e10e8f373af6129a6750e4749b14ed8192a2b6d26f5a6e8e88081932",
+    "src/maintenance.js": "9584bba57a3f84239e87bc19a2a073ad16e36dbff77eea2f0c7d36222bce3d4b",
+    "src/meals.js": "132c3801f925f4887ec71a354ea372769128b3f7161b6eb2aa8737248446a8fd",
+    "src/medicine.js": "b158d2c6377bc3615d3410e18e23c6d4ed93e8cc30074e690dbb3fbea7708cae",
+    "src/mobility.js": "3e277cf4969d1d9dcd0ab376fc2e27acddc67776d77499dbbbe3e7a5e9f3717f",
+    "src/navigation.js": "7c03fe05f0698dd6561c47e06b0e803a899cc707ecf8779de1e88094ba0d5391",
+    "src/nursing.js": "5798aa6ed1834a538a6ecd26f94467be17894e4243ea02ae8bffadf4f73c42ce",
+    "src/pastures.js": "b590b6ba1d47d1b07525ffa3fd4ede8f16fd287327a575088206d9598e96b691",
+    "src/persistence.js": "1b749f15a35a43cf44794e56e8490da3793e7503a671ee8da79eafc42f1d0818",
+    "src/plumbing-panels.js": "a203f0d1bfe0f674a19925d37cec25fbbf0db1dcf9cb9606a57920193b468ab7",
+    "src/plumbing.js": "517777de829e3d6cd55f12dc803033235a49b15e0d05b5a67ceed5a8131682fe",
+    "src/possession-panels.js": "9668d8b98a38ae62ef9379ea6a6f2892ffe655f1c9db26bed7b6389820318248",
+    "src/possessions.js": "a357abcddd36c6871e3a302f206e8ad611554b71cde42ad311d190cac1ebd244",
+    "src/power-panels.js": "bb35f539210728aaedb1255e8c672097330b46029807681c96a1862275bd0456",
+    "src/power-topology.js": "ae69943bf11015d5415e403c221ddfef3db24b8faf19074a5a3ad6570f4b4e42",
+    "src/power.js": "e9b1e70b1f4c6b6f3139695bf367ce08643508e509030dcb662dfcae83f75574",
+    "src/preflight-panels.js": "6466ffd08ebef8b6ca2fdcc1687ca52585d8dc462773352dae63021fbf13293c",
+    "src/preflight.js": "4085b2e76a9d3b922d1e6077a8995123ae60ae005ade39abe164945b2429501b",
+    "src/production.js": "9da08b7803d5c13fe6d0270a2d814346b87cbdc867d0832f2d228ab12da0353d",
+    "src/reactor-panels.js": "6f302d66e29a2e9cf621f00cd21344c8f6076c6ad933ecd295ec04ff3195935d",
+    "src/reactor-rules.js": "ff1bf58baa129781f0ebdefec4a0c581ca1e69f4274c1c2b8fd8637fd781d43a",
+    "src/reactors.js": "bf5e1f0f5da8b143628c8e15288d7508376d09bea66f60d232df839b3e60c1b6",
+    "src/render.js": "33c3a342f707deb2db3f71e9b486f289b80dd60db235e4480a343ff7317d7b31",
+    "src/room-panels.js": "91f2a38995ce2f7c67661a27b5c778d696909103ad44f61483c69be308868326",
+    "src/rooms.js": "79c6524320eb4ca46a891f3f5cd85624faefeabd1f05e718d49eb64272687bc5",
+    "src/sanitation-panels.js": "4454494c70413d82fcb85e21c253ee44095b978dfaee7fdc68ff01c397ffd48f",
+    "src/sanitation.js": "cd11a163eeb15825901235d3decadd6b26e565afccd6125f155d82ea7e6327a7",
+    "src/simulation.js": "11da535ff71f90ac09032fb3c5a557212db6983f4445fcb5622d6aaa56f53161",
+    "src/spoilage.js": "07461d86b9e626448ce33f8fa36aac88daeb22e2ec1003acf5aca4fec9bd8936",
+    "src/sprites.js": "2924e1647795033622d03a138346534e923530e32c513e84bc8f93a87f8ae94b",
+    "src/storage.js": "3beceeccdf90b5f99583e5e8d2dc84f8cffe73d0b433624c8a5f27d5f3bba5f0",
+    "src/telemetry.js": "e558ff1bfbf170e7a9965f45a616ffb792e750c6b047a00d63add14f73356069",
+    "src/thermal-panels.js": "666ec74433af0e6213f6f38ddbbdb8e12572ec5d08e38431a200c3a6716b08b2",
+    "src/thermal.js": "792db9fb188447340661f063f1725111758d2a5357859007cf2c769146118241",
+    "src/water-panels.js": "cb347d197345a402e887346cef7dc0d5d46bb080587f6b4b4adafa37d4302ad3",
+    "src/water.js": "e27dde8dbbf5a89f0af5275ba6a5ba4085de83a0d6059a5f9b11cbfdd2bb53ee"
+  },
+  "snapshots": [
+    {
+      "phase": "loading",
+      "tick": 6,
+      "crew": [
+        "crew-0",
+        "crew-1"
+      ],
+      "supplies": {},
+      "resources": {
+        "alloy": 36,
+        "ore": 0,
+        "components": 3,
+        "food": 24,
+        "water": 40,
+        "fuel": 14,
+        "cells": 0,
+        "air": 160,
+        "medicine": 4,
+        "waste": 0,
+        "fertilizer": 8,
+        "keepsakes": 0,
+        "ice": 0
+      },
+      "heldShipments": [
+        {
+          "id": "crew-0",
+          "carry": {
+            "air": 6
+          },
+          "delivery": {
+            "kind": "input",
+            "target": [
+              7,
+              7
+            ]
+          }
+        },
+        {
+          "id": "crew-1",
+          "carry": {
+            "air": 4
+          },
+          "delivery": {
+            "kind": "input",
+            "target": [
+              7,
+              7
+            ]
+          }
+        },
+        {
+          "id": "crew-4",
+          "carry": {
+            "_food": [
+              {
+                "amount": 2,
+                "age": 6
+              }
+            ],
+            "fuel": 2,
+            "food": 2,
+            "air": 2
+          },
+          "delivery": {
+            "kind": "job",
+            "target": [
+              16,
+              11
+            ],
+            "job": "job-1"
+          }
+        }
+      ],
+      "jobs": [
+        {
+          "id": "job-1",
+          "materials": {},
+          "sources": [
+            {
+              "x": 8,
+              "y": 10,
+              "kind": "stock",
+              "items": {
+                "air": 8
+              }
+            }
+          ]
+        }
+      ],
+      "sha256Uncompressed": "af9ab45249f2e2d0cf56c92cea04f51286fea5f2b11bafc72611fc4cd37279e0",
+      "uncompressedBytes": 359714,
+      "compressedBytes": 13646
+    },
+    {
+      "phase": "boarding",
+      "tick": 73,
+      "crew": [
+        "crew-0",
+        "crew-1"
+      ],
+      "supplies": {
+        "fuel": 2,
+        "food": 2,
+        "air": 10,
+        "_food": [
+          {
+            "amount": 2,
+            "age": 73
+          }
+        ]
+      },
+      "resources": {
+        "alloy": 36,
+        "ore": 0,
+        "components": 3,
+        "food": 28,
+        "water": 38,
+        "fuel": 14,
+        "cells": 0,
+        "air": 102,
+        "medicine": 4,
+        "waste": 0,
+        "fertilizer": 7.5,
+        "keepsakes": 0,
+        "ice": 0
+      },
+      "heldShipments": [
+        {
+          "id": "crew-2",
+          "carry": {
+            "air": 4.2045387755110255
+          },
+          "delivery": {
+            "kind": "input",
+            "target": [
+              7,
+              7
+            ]
+          }
+        },
+        {
+          "id": "crew-3",
+          "carry": {
+            "air": 2
+          },
+          "delivery": {
+            "kind": "input",
+            "target": [
+              7,
+              7
+            ]
+          }
+        },
+        {
+          "id": "crew-5",
+          "carry": {
+            "air": 2
+          },
+          "delivery": {
+            "kind": "input",
+            "target": [
+              7,
+              7
+            ]
+          }
+        }
+      ],
+      "jobs": [],
+      "sha256Uncompressed": "0eb49f8e1cf37494906f4dfeb31aa6de49b62f3843b4dcef7b122b6bc8c19a45",
+      "uncompressedBytes": 360846,
+      "compressedBytes": 14123
+    },
+    {
+      "phase": "outbound",
+      "tick": 93,
+      "crew": [
+        "crew-0",
+        "crew-1"
+      ],
+      "supplies": {
+        "fuel": 1,
+        "air": 9.357142857142833
+      },
+      "resources": {
+        "alloy": 36,
+        "ore": 0,
+        "components": 3,
+        "food": 28,
+        "water": 37,
+        "fuel": 13,
+        "cells": 0,
+        "air": 89.56168163265386,
+        "medicine": 4,
+        "waste": 0,
+        "fertilizer": 7.25,
+        "keepsakes": 0,
+        "ice": 0
+      },
+      "heldShipments": [
+        {
+          "id": "crew-2",
+          "carry": {
+            "air": 2.2045387755110255
+          },
+          "delivery": {
+            "kind": "input",
+            "target": [
+              7,
+              7
+            ]
+          }
+        },
+        {
+          "id": "crew-5",
+          "carry": {
+            "air": 6
+          },
+          "delivery": {
+            "kind": "input",
+            "target": [
+              7,
+              7
+            ]
+          }
+        }
+      ],
+      "jobs": [],
+      "sha256Uncompressed": "54ec984509ae4c42795cf6eb7c5d6275bf4bfc554fdef263095b07f0fe29f212",
+      "uncompressedBytes": 361149,
+      "compressedBytes": 14255
+    },
+    {
+      "phase": "returning",
+      "tick": 96,
+      "crew": [
+        "crew-0",
+        "crew-1"
+      ],
+      "supplies": {
+        "air": 9.357142857142833
+      },
+      "resources": {
+        "alloy": 36,
+        "ore": 0,
+        "components": 3,
+        "food": 28,
+        "water": 37,
+        "fuel": 12,
+        "cells": 0,
+        "air": 87.56168163265386,
+        "medicine": 4,
+        "waste": 0,
+        "fertilizer": 7.25,
+        "keepsakes": 0,
+        "ice": 0
+      },
+      "heldShipments": [
+        {
+          "id": "crew-3",
+          "carry": {
+            "water": 2
+          },
+          "delivery": {
+            "kind": "input",
+            "target": [
+              7,
+              9
+            ]
+          }
+        }
+      ],
+      "jobs": [],
+      "sha256Uncompressed": "8d649ae44b45e7944843cf7957b7874daef0d3c98bbf933199331e87ed616684",
+      "uncompressedBytes": 361659,
+      "compressedBytes": 14577
+    }
+  ]
+}

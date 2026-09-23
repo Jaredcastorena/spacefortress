@@ -1,0 +1,13 @@
+{
+  "capturedAt": "2026-09-16T21:01:52.192579+00:00",
+  "source": ".runtime-qa/gas-network-profile/storage/default/http+++127.0.0.1+8421/ls/data.sqlite",
+  "key": "spacefortress-save-v1",
+  "fixtureOrigin": "Previous gas-network browser QA local save; schema33 at tick17, seed74219. Recovered read-only from stopped QA Firefox profile using already installed libsnappy. No save fields rewritten.",
+  "originalSchema": 33,
+  "tick": 17,
+  "format": "gzip JSON; gzip timestamp fixed to zero",
+  "sha256Uncompressed": "203e6c79b958b06c8200ac8d321b47bce98e88a6ebe0fe27e77174b1f73b3f91",
+  "uncompressedBytes": 331620,
+  "compressedBytes": 11601,
+  "evidenceLog": "/tmp/spacefortress-gas-network-browser.log"
+}

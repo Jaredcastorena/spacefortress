@@ -1,0 +1,73 @@
+name: Tests
+
+'on':
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          while IFS= read -r -d '' file; do
+            node --check "$file"
+          done < <(find src tests -type f -name '*.js' -print0)
+
+      - name: Run Node.js tests
+        run: node --test tests
+
+      - name: Run Python tests
+        run: python3 -m unittest discover -s tests -p 'test_*.py'
+
+      - name: Smoke-test local server
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/serve.py --port 8420 > /tmp/spacefortress-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+          python3 - <<'PY'
+          import time
+          from urllib.error import HTTPError, URLError
+          from urllib.request import urlopen
+
+          base_url = "http://127.0.0.1:8420"
+          for attempt in range(40):
+              try:
+                  with urlopen(f"{base_url}/", timeout=1) as response:
+                      assert response.status == 200
+                      assert b"SPACEFORTRESS" in response.read()
+                  break
+              except (AssertionError, OSError, URLError):
+                  if attempt == 39:
+                      raise
+                  time.sleep(0.1)
+
+          with urlopen(f"{base_url}/src/app.js", timeout=1) as response:
+              assert response.status == 200
+              assert response.read()
+
+          try:
+              urlopen(f"{base_url}/package.json", timeout=1)
+          except HTTPError as error:
+              assert error.code == 404
+          else:
+              raise AssertionError("server exposed a file outside its allowlist")
+          PY

@@ -1,0 +1,32 @@
+# Private operator continuity and browser QA
+/.runtime-qa/
+/AGENTS.md
+/stigmergicmemory.md
+/stigmergicchat.md
+/docs/handoffs/
+
+# Exported player data (regression fixtures remain publishable)
+spacefortress-cycle-*.json
+spacefortress-unreadable-save.json
+spacefortress-recording-*.ndjson
+spacefortress-elements.ndjson
+/saves/
+/recordings/
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Caches, dependencies and logs
+__pycache__/
+*.py[cod]
+node_modules/
+coverage/
+*.log
+.DS_Store
+Thumbs.db

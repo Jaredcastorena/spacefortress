@@ -1,0 +1,66 @@
+{
+  "capturedAt": "2026-09-16T21:08:58.111Z",
+  "originalSchema": 34,
+  "validatedWithOriginalSchema34": true,
+  "fixtureOrigin": "Constructed against frozen pre-plumbing schema34 modules, with source hashes checked before and after capture. Existing simulation APIs release floor water, bilge-recover it, capture gas/smoke, pick up a tank shipment, reserve bilge output and reserve construction supplies. No serialized fields rewritten.",
+  "seed": 35109,
+  "tick": 0,
+  "resources": {
+    "alloy": 36,
+    "ore": 0,
+    "components": 3,
+    "food": 24,
+    "water": 40,
+    "fuel": 14,
+    "cells": 0,
+    "air": 162.66666666666666,
+    "medicine": 4,
+    "waste": 0,
+    "fertilizer": 8,
+    "keepsakes": 0,
+    "ice": 0
+  },
+  "wetFloor": 1.5,
+  "tankBuffer": 2,
+  "bilgeBuffer": 0.5,
+  "carriedShipment": {
+    "water": 6
+  },
+  "delivery": {
+    "kind": "input",
+    "target": [
+      11,
+      9
+    ]
+  },
+  "pickup": {
+    "type": "haul",
+    "target": [
+      12,
+      9
+    ],
+    "source": "output",
+    "items": {
+      "water": 0.5
+    },
+    "destination": {
+      "kind": "stock",
+      "target": [
+        8,
+        10
+      ]
+    }
+  },
+  "sourceHashes": {
+    "src/data.js": "db0e2bfa264d89ccb0878c97d31ac7400db7647e256aeecce695275ad9ff6f09",
+    "src/inventory.js": "519318522d8b445f78eadae00d5827f0d788cfc5391c336355b465ac536f0d4f",
+    "src/simulation.js": "4d42b84e530e2c96936c895bd85b96443dcca04e85840e392e0d51e90bc9335c",
+    "src/liquids.js": "dc3a2c62227e2d42ecd406740cd4cb95720d498b42f8b7062e586d4474e79471",
+    "src/power.js": "2b0d34d660a9e666bd79a827d62d9b9f3bb4d128526ab9540fe5718f749ba655",
+    "src/gas-networks.js": "9ce6e14eceb14e9d8b94252f2668b6dede2d976934e2f5c73c627c35ab355969",
+    "src/industry.js": "56e09757be46bbb5a49ae47046aca4f39ef009c1f0d5d362e7c0d13dedf94e57"
+  },
+  "sha256Uncompressed": "01fe96e6f8e07eb9605b25d4efac90b4dedfa83ec4188e32606a374f0facc091",
+  "uncompressedBytes": 331529,
+  "compressedBytes": 13023
+}

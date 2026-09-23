@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0c151c">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'">
+  <title>SPACEFORTRESS — Kepler’s Rest</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%238dcdc3' d='M16 2 29 9v14L16 30 3 23V9zm0 5L8 11v10l8 4 8-4V11z'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="game">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Spacefortress home"><span class="brand-mark">⬡</span><span>SPACE<span class="brand-light">FORTRESS</span><small>FRONTIER COLONY COMMAND</small></span></a>
+      <div id="resources" class="resources" aria-label="Colony resources"></div>
+      <div class="header-actions"><button id="colony-menu" title="Colony status and objectives">Colony</button><button id="save" title="Save in this browser">Save</button><button id="settings-menu" aria-label="Save files and settings">⋯</button><button id="help" title="Controls and guide">?</button></div>
+    </header>
+    <aside class="left-panel" id="left-drawer" aria-label="Construction and regions" inert>
+      <button class="drawer-close" id="close-left" aria-label="Close drawer">×</button>
+      <div class="section-label">OUR SMALL CORNER OF SPACE</div>
+      <nav id="destinations" aria-label="Regions"></nav>
+      <div class="section-heading"><span>CONSTRUCTION</span><span class="tiny">SURFACE</span></div>
+      <div id="build-menu" class="build-menu"></div>
+      <div class="left-bottom"><span class="signal-dot"></span> LOCAL COMMAND LINK<small>Kepler system · sector 07</small></div>
+    </aside>
+    <main class="viewport">
+      <canvas id="world" tabindex="0" aria-label="Isometric colony map. Use the mouse to select tiles and designate work. Arrow keys pan the map."></canvas>
+      <div class="view-heading"><div id="site-label" class="eyebrow"></div><h1 id="site-name"></h1><p id="site-subtitle"></p></div>
+      <div class="map-controls"><button id="zoom-out" aria-label="Zoom out">−</button><button id="center" title="Center view (Home)">⌖</button><button id="zoom-in" aria-label="Zoom in">+</button><button id="cutaway" aria-pressed="true" title="Toggle wall cutaway">Cutaway</button><button id="power-overlay" aria-pressed="false" title="Show electrical circuits">Power</button><button id="water-overlay" aria-pressed="false" title="Show water pipes, valves and directional devices">Water</button><button id="gas-overlay" aria-pressed="false" title="Show gas pipes, isolation valves and pump directions">Gas</button></div>
+      <div id="environment" class="environment"></div>
+      <div id="toast" class="toast" role="status"></div>
+      <div id="map-tip" class="map-tip">Select a tile to inspect · Drag to pan · Scroll to zoom</div>
+      <div class="orders"><button data-mode="inspect" class="active"><span>⌖</span> Inspect <kbd>1</kbd></button><button data-mode="mine"><span>⛏</span> Extract <kbd>2</kbd></button><button data-mode="repair"><span>⌁</span> Repair <kbd>3</kbd></button><button data-mode="remove"><span>×</span> Dismantle <kbd>4</kbd></button></div>
+    </main>
+    <aside class="right-panel" id="right-drawer" aria-label="Colony information" inert>
+      <button class="drawer-close" id="close-right" aria-label="Close details">×</button>
+      <div class="section-heading status-heading"><span>COLONY STATUS</span><span id="crew-count" class="tiny"></span></div>
+      <div id="health-summary" class="health-summary"></div>
+      <section id="inspector" class="inspector" aria-label="Selection details"></section>
+      <div class="section-heading crew-heading"><span>CREW MANIFEST</span><span class="tiny">7 FOUNDERS</span></div>
+      <div id="crew-list" class="crew-list"></div>
+      <div class="section-heading objective-heading"><span>FIRST FOOTHOLD</span><span id="objective-count" class="tiny"></span></div>
+      <div id="objectives" class="objectives"></div>
+    </aside>
+    <footer class="bottom-panel">
+      <div class="drawer-launchers"><button id="regions-menu" aria-expanded="false">◎ Regions</button><button id="construction-menu" aria-expanded="false">＋ Build</button><button id="crew-menu" aria-expanded="false">♧ Crew</button><button id="events-menu" aria-expanded="false">≋ Log</button></div>
+      <div class="time-controls"><span id="clock" class="clock"></span><div class="speeds"><button data-speed="0" aria-label="Pause">Ⅱ</button><button data-speed="1" class="active">1×</button><button data-speed="3">3×</button><button data-speed="8">8×</button></div><small>SPACE TO PAUSE</small></div>
+      <div id="event-log" class="event-log" aria-label="Recent colony events"></div>
+      <div class="file-actions"><button id="export">Export save</button><button id="import">Import save</button><button id="new-game">New colony</button><button id="record-simulation">Start recording</button><button id="export-recording" disabled>Export recording</button><span id="recording-status" role="status">Recording off</span><input type="file" id="save-file" accept=".json,application/json" hidden></div>
+    </footer>
+  </div>
+  <dialog id="guide">
+    <div class="eyebrow">WELCOME TO THE FRONTIER</div><h2>A foothold. Then the stars.</h2>
+    <p>Seven founders have landed on a cold basalt world. Keep them breathing, build an industry, and follow the wreckage into orbit.</p>
+    <ol><li><strong>Build something.</strong> Choose a structure on the left and click a clear tile. Crew reserve materials and walk to the work.</li><li><strong>Extract ore.</strong> Press 2 and select a copper-colored deposit. Crew mine, haul to cargo, and operate the refinery. Enable Production duties and inspect machines to choose continuous output, fixed batches or stock targets.</li><li><strong>Go upward.</strong> Select Relay K-07 and prepare an expedition. Haulers deliver service supplies, then the team walks to the shuttle. Liftoff checks readiness and the approach window. Once it arrives, designate satellite parts for extraction. Crew carry extracted material to the dock within the shuttle hold limit. Recall sends them walking back before liftoff.</li><li><strong>Harness the frontier.</strong> Build an advanced array with recovered components, or inspect the shuttle to install a cargo, shelter or drive fitting. Mine blue surface seams or visit the comet for ice and fuel; haul ice to a powered, staffed ice processor for water, or visit Helios Reach for charged power cells.</li><li><strong>Medical care.</strong> Build a medical cot in breathable shelter. Injured crew reserve cots; medics carry medicine and treat them there. Each dose treats up to 25 injury, followed by bed rest. A powered medical synthesizer makes medicine from food and water. Serious injuries slow walking; critical injuries need another crew member to carry the patient. Medicine duties include rescue and bedside food deliveries. Inspect crew for mobility and care status.</li></ol>
+    <p class="guide-note">Walls and pressure doors must surround habitat floors to hold air. Life support needs power to recycle exhaled gas and delivered breathing mix to replace leaks. Automatic doors briefly vent when crew pass; seal a door to isolate a compartment. Use Gas view to trace tank → pump → pipe → vent routes. New gas tanks need delivered breathing mix. For cleanup, route extractor → pipe → pump → reservoir. Extractors collect carbon dioxide and smoke in filter mode, or room air in exhaust mode. Captured waste stays in the pipes; full storage stops collection. Reservoirs start empty. Pipes connect beneath walls; pumps, vents and extractors need power. Use Water view for supply tank → intake → pipe → pump → reservoir → outlet → consumer routes. Water intakes and outlets can also collect or release water on one adjacent floor tile. Wet cables can fault after a spill. Close a pipe valve to isolate a damaged segment, then order its repair from the inspector. Use the Power overlay to inspect wiring. A breaker connects only its two marked terminals and starts open. Select it to close the contact or enable wet-fault detection. External bypasses and batteries on its output side can keep a branch powered after it opens. Connect new equipment with cables from Build; cables fit beneath structures. Battery banks start empty and store energy only from their circuit. Crew need downtime and companionship. Inspect a crew member to adjust their work routine; build a common table in safe shelter for games and conversation. Equipment needs engineering service after 1,200 operating seconds; inspect a machine to enable automatic service. Debris forecasts mark the threatened tile 90 seconds before impact. Keep alloy available for repairs. Darkness lasts 80 seconds each cycle—expand your batteries before night. Outdoor crews use finite suit air; expeditions recall automatically at a safety threshold.</p>
+    <div class="key-guide"><span><kbd>Space</kbd> Pause</span><span><kbd>1–4</kbd> Orders</span><span><kbd>Esc</kbd> Inspect</span><span><kbd>Arrows</kbd> Pan</span><span><kbd>Home</kbd> Center</span><span><kbd>Wheel</kbd> Zoom</span></div>
+    <p class="guide-note">Saves stay in this browser. Export a save for a portable backup. This is an early playable build; the full simulation is still growing.</p>
+    <button id="close-guide" class="primary">Establish our foothold →</button>
+  </dialog>
+  <dialog id="confirm-new"><h2>Begin a new colony?</h2><p>Your current colony will be replaced. Export a save first if you want to keep it.</p><div class="dialog-actions"><button id="cancel-new">Keep this colony</button><button id="confirm-new-button" class="danger-button">New colony</button></div></dialog>
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
