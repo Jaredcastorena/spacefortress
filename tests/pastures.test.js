@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, serialize, deserialize, setAnimalPost, setLabor, updateRooms } from '../src/simulation.js';
 import { passable, pathTo, animalPassable, animalPath } from '../src/navigation.js';
 import { animalPasture, setPastureGate, pastureRegions } from '../src/pastures.js';
@@ -88,7 +89,7 @@ test('recording adds movement records without changing simulation outcomes or sa
 });
 
 test('save migration preserves supplies and animals; gate validation rejects malformed state',()=>{
- const s=createGame();s.version=26;const resources=totalResources(s),animals=structuredClone(s.creatures),copy=check(s);assert.equal(copy.version,36);assert.deepEqual(totalResources(copy),resources);assert.deepEqual(copy.creatures,animals);
+ const s=createGame();s.version=26;const resources=totalResources(s),animals=structuredClone(s.creatures),copy=check(s);assert.equal(copy.version, VERSION);assert.deepEqual(totalResources(copy),resources);assert.deepEqual(copy.creatures,animals);
  for(const mode of [null,undefined,'closed',5]){const {s,gate}=pen();gate.gateMode=mode;assert.throws(()=>check(s),/pasture gate/);}
  const f=pen();f.post.gateMode='open';assert.throws(()=>check(f.s),/pasture gate/);
 });

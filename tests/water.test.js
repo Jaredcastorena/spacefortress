@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, cancelJob, serialize, deserialize, setLabor, recall } from '../src/simulation.js';
 import { initializeStorage, totalResources, syncResources, quantity } from '../src/inventory.js';
 import { setMachineEnabled } from '../src/industry.js';
@@ -107,7 +108,7 @@ test('schema twenty-three migration preserves supplies, occupied terrain, orders
   const {s,site,depot}=colony({processor:false});s.version=23;delete s.resources.ice;
   for(const current of Object.values(s.sites))for(const t of current.tiles){delete t.deposit;if(t.storage)t.storage.accepted=t.storage.accepted.filter(r=>r!=='ice');}
   s.shuttle.accepted=s.shuttle.accepted.filter(r=>r!=='ice');const occupied=at(site,17,14);occupied.building='solar';refreshPower(s,site);
-  const before=totalResources(s),copy=check(s);assert.equal(copy.version,36);assert.deepEqual(totalResources(copy),before);assert.equal(at(copy.sites.surface,17,14).deposit,undefined);assert.equal(at(copy.sites.surface,17,14).building,'solar');assert.equal(waterSupply(copy).unminedIce,60);assert.ok(at(copy.sites.surface,8,10).storage.accepted.includes('ice'));assert.ok(copy.shuttle.accepted.includes('ice'));assert.deepEqual(check(copy),copy);
+  const before=totalResources(s),copy=check(s);assert.equal(copy.version, VERSION);assert.deepEqual(totalResources(copy),before);assert.equal(at(copy.sites.surface,17,14).deposit,undefined);assert.equal(at(copy.sites.surface,17,14).building,'solar');assert.equal(waterSupply(copy).unminedIce,60);assert.ok(at(copy.sites.surface,8,10).storage.accepted.includes('ice'));assert.ok(copy.shuttle.accepted.includes('ice'));assert.deepEqual(check(copy),copy);
   depot.storage.accepted=['water'];s.shuttle.accepted=['components'];const selective=check(s);assert.deepEqual(at(selective.sites.surface,8,10).storage.accepted,['water']);assert.deepEqual(selective.shuttle.accepted,['components']);
 });
 
@@ -132,7 +133,7 @@ test('agent extraction records action identity, output, reserve changes and depl
 test('an unfinished legacy comet volatile order retains work and now yields finite raw ice and fuel',()=>{
   const s=createGame();step(s,180);assert.ok(depart(s,'comet').ok);until(s,()=>s.mission?.phase==='working');
   const job=order(s,'comet',8,7,'mine').job;assert.ok(job);until(s,()=>job.remaining<job.work&&s.jobs.includes(job));
-  s.version=23;delete s.resources.ice;for(const site of Object.values(s.sites))for(const t of site.tiles)delete t.deposit;
+  s.version=23;delete s.mission.returnCrew;delete s.resources.ice;for(const site of Object.values(s.sites))for(const t of site.tiles)delete t.deposit;
   const before=totalResources(s),copy=check(s),savedJob=copy.jobs.find(j=>j.id===job.id);assert.equal(savedJob.remaining,job.remaining);assert.deepEqual(totalResources(copy),before);
   until(copy,()=>!copy.jobs.some(j=>j.id===job.id));const source=at(copy.sites.comet,8,7);assert.equal(source.building,null);assert.equal(source.deposit,undefined);assert.equal(totalResources(copy).ice,12);assert.equal(totalResources(copy).fuel,before.fuel+3);assert.equal(order(copy,'comet',8,7,'mine').ok,false);
   until(copy,()=>copy.mission.cargo.ice===12&&copy.mission.cargo.fuel===3);assert.equal(quantity(copy.mission.cargo),15);check(copy);

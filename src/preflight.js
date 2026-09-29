@@ -3,7 +3,7 @@ import { RESOURCES, SITES, SHUTTLE_FITS } from './data.js';
 import { contains, quantity, take } from './inventory.js';
 import { constructionResources } from './construction.js';
 import { moveCrew, SUIT_PER_POINT } from './atmosphere.js';
-import { routeFuel, routeTime } from './expedition.js';
+import { routeFuel, routeTime, initializeReturnCrew } from './expedition.js';
 import { expeditionCrewStatus } from './expedition-readiness.js';
 import { pathTo } from './navigation.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
@@ -98,6 +98,7 @@ export function tryDeparture(s, log) {
   take(s.shuttle.supplies, cost); s.sites.surface.atmosphere.vented.inert += air * .79;
   for (const c of crew) { c.oxygen = 100; c.hunger = Math.max(80, c.hunger); c.site = 'transit'; c.activity = `In transit to ${SITES[d.site].name}`; }
   s.mission = { site: d.site, phase: 'outbound', remaining: routeTime(s, d.site), fit: s.shuttle.fit, capacity: SHUTTLE_FITS[s.shuttle.fit].capacity, legacyCapacity: false, crew: [...d.crew], cargo: {}, collector: false, heat: 0, returnFuel: fuel / 2, kitReserved: d.site === 'solar' };
+  initializeReturnCrew(s.mission);
   emitEvent(s,'expedition.departed',{...context(s,d),previous:'boarding',next:'outbound',from:{entity:tileEntityId('surface',16,11),slot:'shuttle'},to:{entity:`site:${d.site}`,slot:'transit'},consumed:{...cost},returnFuel:fuel/2,fit:s.shuttle.fit,reason:'ready'});
   s.departure = null; log(s, `Loaded shuttle departed for ${SITES[d.site].name}. Two crew aboard.`, 'discovery');
 }

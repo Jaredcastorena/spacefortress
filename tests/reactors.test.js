@@ -1,6 +1,7 @@
 import {roomComfort} from '../src/comfort.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, serialize, deserialize, pathTo, setLabor } from '../src/simulation.js';
 import { initializeStorage, totalResources, syncResources } from '../src/inventory.js';
 import { initializeElectrical, refreshPower, updatePower } from '../src/power.js';
@@ -104,7 +105,7 @@ test('new controls, observations and semantic events are shared and recording do
 
 test('reactor state continues deterministically after save/reload and old saves gain no equipment or fuel',()=>{
  const {s,r}=fixture();fuel(s,r);step(s,10);const copy=check(s);step(s,12);step(copy,12);assert.deepEqual(s,copy);
- const legacy=createGame();legacy.version=30;for(const site of Object.values(legacy.sites))delete site.reactorLedger;const before=totalResources(legacy),migrated=check(legacy);assert.equal(migrated.version,36);assert.deepEqual(totalResources(migrated),before);assert.ok(migrated.sites.surface.tiles.every(t=>!t.reactor&&!t.radiator));assert.equal(migrated.rng,legacy.rng);assert.deepEqual(check(migrated),migrated);
+ const legacy=createGame();legacy.version=30;for(const site of Object.values(legacy.sites))delete site.reactorLedger;const before=totalResources(legacy),migrated=check(legacy);assert.equal(migrated.version, VERSION);assert.deepEqual(totalResources(migrated),before);assert.ok(migrated.sites.surface.tiles.every(t=>!t.reactor&&!t.radiator));assert.equal(migrated.rng,legacy.rng);assert.deepEqual(check(migrated),migrated);
 });
 
 test('malformed reactor controls, buffers, unattached components and heat/energy accounting are rejected',()=>{

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, cancelJob, setLabor, serialize, deserialize } from '../src/simulation.js';
 import { totalResources, syncResources, quantity } from '../src/inventory.js';
 import { materialsReady, reservedAt } from '../src/construction.js';
@@ -123,7 +124,7 @@ test('version-three orders preserve their costs and already completed work durin
   const before = totalResources(s); s.version = 3;
   for (const j of s.jobs) { delete j.materials; for (const source of j.sources) delete source.kind; }
   const migrated = deserialize(serialize(s));
-  assert.equal(migrated.version, 36); assert.deepEqual(totalResources(migrated), before);
+  assert.equal(migrated.version, VERSION); assert.deepEqual(totalResources(migrated), before);
   assert.deepEqual(migrated.jobs[0].materials, {}); assert.deepEqual(migrated.jobs[1].materials, { alloy: 5 });
   assert.equal(migrated.jobs[1].remaining, started.remaining);
   cancelJob(migrated, waiting.id); cancelJob(migrated, started.id);

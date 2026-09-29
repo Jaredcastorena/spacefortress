@@ -68,12 +68,12 @@ export function totalResources(s) {
     total.water += (t.liquid || 0) + (waterNode(t)?.water || 0);
     if(gasNode(t))total.air+=gasAmount(gasNode(t).gas);
     addCounts(total, t.sanitary?.output || {});
-    addCounts(total, t.drop || {}); addCounts(total, t.stock || {});
+    addCounts(total, t.drop || {}); addCounts(total, t.stock || {}); addCounts(total, t.imports || {});
     if (t.machine) for (const part of ['input', 'output', 'batch']) addCounts(total, t.machine[part]);
   }
   for (const c of s.crew) { addCounts(total, c.carry || {}); addCounts(total,c.possessions?.inventory||{}); total.waste += c.sanitation?.waste || 0; }
   for (const j of s.jobs) { addCounts(total, j.materials); for (const source of j.sources) addCounts(total, source.items); }
   if (s.mission) addCounts(total, s.mission.cargo);
-  addCounts(total, s.shuttle?.supplies || {});
+  addCounts(total, s.shuttle?.supplies || {}); addCounts(total, s.shuttle?.freight || {});
   return total;
 }

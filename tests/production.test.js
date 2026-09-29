@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, cancelJob, setLabor, serialize, deserialize } from '../src/simulation.js';
 import { setProductionOrder, setProductionPriority, projectedStock } from '../src/production.js';
 import { setMachineEnabled } from '../src/industry.js';
@@ -100,7 +101,7 @@ test('schema-twelve migration preserves inventory and batch progress while addin
   const { s, m } = workshop(); m.batch = { ore: 1 }; m.progress = 7; s.version = 12;
   for (const site of Object.values(s.sites)) for (const tile of site.tiles) if (tile.machine) { delete tile.machine.order; delete tile.machine.completed; }
   for (const c of s.crew) { delete c.skills.production; delete c.labors.production; }
-  const before = totalResources(s), copy = deserialize(serialize(s)); assert.equal(copy.version, 36); assert.deepEqual(totalResources(copy), before); assert.equal(at(copy.sites.surface, 13, 10).machine.progress, 7); assert.equal(copy.crew[3].skills.production.level, 3); assert.equal(copy.crew[0].labors.production, true);
+  const before = totalResources(s), copy = deserialize(serialize(s)); assert.equal(copy.version, VERSION); assert.deepEqual(totalResources(copy), before); assert.equal(at(copy.sites.surface, 13, 10).machine.progress, 7); assert.equal(copy.crew[3].skills.production.level, 3); assert.equal(copy.crew[0].labors.production, true);
 });
 
 test('invalid production limits, priorities, completion counts and mismatched work progress are rejected', () => {

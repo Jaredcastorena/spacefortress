@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { createGame, at, serialize, deserialize } from '../src/simulation.js';
@@ -7,6 +8,7 @@ import { initializeStorage, syncResources, totalResources } from '../src/invento
 import { initializeElectrical, refreshPower } from '../src/power.js';
 import { GASES, emptyGas, gasAmount, mix, roomAt, refreshAtmosphere } from '../src/atmosphere.js';
 import { newPipe, gasNode } from '../src/gas-networks.js';
+import { projectPreOutpost } from './helpers/legacy-projection.js';
 
 const reload = s => deserialize(serialize(s));
 const addGas = (a, b) => { for (const species of GASES) a[species] += b[species]; };
@@ -43,8 +45,7 @@ function finishFixture(s) {
 }
 
 function asSchema33(s) {
-  const legacy = structuredClone(s);
-  legacy.version = 33;
+  const legacy = projectPreOutpost(s, 33);
   for (const site of Object.values(legacy.sites)) {
     delete site.plumbing;
     for (const tile of site.tiles) delete tile.waterPipe;
@@ -108,7 +109,7 @@ test('a genuine save produced and validated by schema 33 upgrades without rewrit
   const legacy = JSON.parse(legacyText);
   assert.equal(legacy.version, 33);
   const migrated = deserialize(legacyText);
-  assert.equal(migrated.version, 36);
+  assert.equal(migrated.version, VERSION);
   assert.deepEqual(asSchema33(migrated), legacy);
   assert.deepEqual(totalResources(migrated), totalResources(legacy));
   assert.deepEqual(reload(migrated), migrated);
@@ -117,7 +118,7 @@ test('a genuine save produced and validated by schema 33 upgrades without rewrit
 test('schema 33 migration preserves held mixtures, valves, damaged pipes, controls, room smoke and RNG', () => {
   const old = populatedLegacy(), before = structuredClone(old);
   const resources = totalResources(old), migrated = reload(old);
-  assert.equal(migrated.version, 36);
+  assert.equal(migrated.version, VERSION);
   assert.deepEqual(old, before, 'deserialization must not mutate its input snapshot');
   assert.deepEqual(asSchema33(migrated), before, 'only the new empty exhaust state is added');
   assert.deepEqual(totalResources(migrated), resources);
@@ -133,7 +134,7 @@ test('schema 33 migration preserves held mixtures, valves, damaged pipes, contro
 
 test('schema 33 migration of an unmodified colony grants no gas, smoke, equipment or resources', () => {
   const old = asSchema33(createGame(7331)), migrated = reload(old);
-  assert.equal(migrated.version, 36);
+  assert.equal(migrated.version, VERSION);
   assert.deepEqual(asSchema33(migrated), old);
   assert.deepEqual(totalResources(migrated), totalResources(old));
   for (const site of Object.values(migrated.sites)) {
@@ -146,7 +147,7 @@ test('schema 33 migration of an unmodified colony grants no gas, smoke, equipmen
 test('current saves preserve distinct held smoke and species without regenerating migration defaults', () => {
   const { s } = currentFixture();
   const first = reload(s), second = reload(first);
-  assert.equal(first.version, 36);
+  assert.equal(first.version, VERSION);
   assert.deepEqual(first, s);
   assert.deepEqual(second, first);
 });

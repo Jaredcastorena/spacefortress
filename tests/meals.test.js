@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, serialize, deserialize, setLabor, pathTo } from '../src/simulation.js';
 import { initializeStorage, add, extract, totalResources, syncResources } from '../src/inventory.js';
 import { foodLots, preparedFood, rawFood, foodAge, FOOD_LIFETIME } from '../src/food-lots.js';
@@ -90,7 +91,7 @@ test('save continuation keeps batches and partly eaten food deterministic',()=>{
 });
 
 test('schema twenty-four migration preserves ordinary food and opened rations without granting cooked food',()=>{
- const {s,c}=colony({galley:false});s.version=24;c.intent={type:'meal',target:null,servings:5,foodAge:100};const before=totalResources(s),copy=check(s);assert.equal(copy.version,36);assert.deepEqual(totalResources(copy),before);assert.equal(copy.crew[0].intent.servings,5);assert.equal(copy.crew[0].intent.openedFood,undefined);step(copy,5);check(copy);
+ const {s,c}=colony({galley:false});s.version=24;c.intent={type:'meal',target:null,servings:5,foodAge:100};const before=totalResources(s),copy=check(s);assert.equal(copy.version, VERSION);assert.deepEqual(totalResources(copy),before);assert.equal(copy.crew[0].intent.servings,5);assert.equal(copy.crew[0].intent.openedFood,undefined);step(copy,5);check(copy);
 });
 
 test('malformed prepared metadata, conflicting batch identities and impossible opened portions are rejected',()=>{

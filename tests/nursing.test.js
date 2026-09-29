@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, cancelJob, setLabor, serialize, deserialize, recall, pathTo } from '../src/simulation.js';
 import { injure } from '../src/medicine.js';
 import { moveCrew, setDoorMode } from '../src/atmosphere.js';
@@ -105,7 +106,7 @@ test('transport and bedside meal portions resume deterministically across save/l
 test('schema-eleven migration adds nursing state without altering injury, inventories or jobs', () => {
   const { s, p } = clinic(); injure(s, p, 20, 'debris impact'); step(s, 4); s.version = 11;
   for (const c of s.crew) { delete c.rescue; delete c.medical.servings; delete c.medical.feedRetryAt; }
-  const supplies = totalResources(s), jobs = structuredClone(s.jobs), copy = deserialize(serialize(s)); assert.equal(copy.version, 36); assert.equal(copy.crew[0].medical.injury, p.medical.injury); assert.deepEqual(totalResources(copy), supplies); assert.deepEqual(copy.jobs, jobs);
+  const supplies = totalResources(s), jobs = structuredClone(s.jobs), copy = deserialize(serialize(s)); assert.equal(copy.version, VERSION); assert.equal(copy.crew[0].medical.injury, p.medical.injury); assert.deepEqual(totalResources(copy), supplies); assert.deepEqual(copy.jobs, jobs);
 });
 
 test('malformed nursing portions, duplicate helpers and remote transport coordinates are rejected', () => {

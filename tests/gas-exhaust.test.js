@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import {createGame, at, step, order, serialize, deserialize, pathTo} from '../src/simulation.js';
 import {initializeStorage, totalResources, syncResources} from '../src/inventory.js';
 import {initializeElectrical, refreshPower, updatePower} from '../src/power.js';
@@ -132,5 +133,5 @@ test('dismantling an isolated extractor releases its retained contaminants into 
 
 test('active finite extraction resumes deterministically after saving with retained contaminants',()=>{
  const {s,site,room}=fixture();pollute(site,room,4,1);step(s,3);
- const copy=check(s);assert.equal(copy.version,36);step(s,35);step(copy,35);assert.deepEqual(s,copy);check(s);
+ const copy=check(s);assert.equal(copy.version, VERSION);step(s,35);step(copy,35);assert.deepEqual(s,copy);check(s);
 });

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { createGame, at, order, step, serialize, deserialize } from '../src/simulation.js';
@@ -7,6 +8,7 @@ import { initializeStorage, totalResources, syncResources, extract, spill } from
 import { initializeElectrical, refreshPower, updatePower, validatePower } from '../src/power.js';
 import { executeAction } from '../src/controls.js';
 import { observe } from '../src/telemetry.js';
+import { projectPreOutpost } from './helpers/legacy-projection.js';
 
 const reload = s => deserialize(serialize(s));
 const legacyText = () => gunzipSync(readFileSync(new URL('./fixtures/breakers-schema35-owned.json.gz', import.meta.url))).toString('utf8');
@@ -64,10 +66,10 @@ test('genuine schema 35 fixture retains water, charge, switches, priorities, exh
   assert.ok(Object.values(old.sites).every(st => st.tiles.every(t => t.protection === undefined)));
 });
 
-test('schema 35 migration changes only the schema and grants no electrical state, topology or resources', () => {
+test('schema 35 migration preserves all existing state and grants no electrical state, topology or resources', () => {
   const old = JSON.parse(legacyText()), migrated = deserialize(legacyText());
-  assert.equal(migrated.version, 36);
-  const projected = structuredClone(migrated); projected.version = 35;
+  assert.equal(migrated.version, VERSION);
+  const projected = projectPreOutpost(migrated, 35);
   assert.deepEqual(projected, old, 'ordinary circuits and all existing owned state must remain exact');
   assert.deepEqual(totalResources(migrated), totalResources(old));
   assert.equal(migrated.rng, old.rng);

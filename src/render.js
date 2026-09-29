@@ -2,6 +2,7 @@ import { BREEDING } from './breeding.js';
 import { immobile } from './mobility.js';
 import { at, inside, key, isDay, roomAt } from './simulation.js';
 import { routeTime } from './expedition.js';
+import { shuttleLocation, shuttlePresence } from './outposts.js';
 import { electrical } from './power.js';
 import { buildPowerTopology, POWER_DIRECTIONS, breakerContactClosed } from './power-topology.js';
 import { WATER_DIRECTIONS, waterNode, waterCapacity } from './plumbing.js';
@@ -53,7 +54,7 @@ export class Renderer {
   draw(s, siteId, mode, build) {
     const c = this.ctx; c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); c.imageSmoothingEnabled = false; this.backdrop(siteId);
     if (siteId === 'universe') { this.universe(s); return; }
-    const site = s.sites[siteId], origin = this.origin(site); c.save(); c.translate(origin.x, origin.y); c.scale(this.zoom, this.zoom);
+    const site = s.sites[siteId], origin = this.origin(site), shuttle = shuttlePresence(s, siteId); c.save(); c.translate(origin.x, origin.y); c.scale(this.zoom, this.zoom);
     const selectedRoom = mode === 'inspect' && Number.isInteger(this.selection?.x) && Number.isInteger(this.selection?.y) ? roomAt(site, this.selection.x, this.selection.y) : null;
     const selectedCells = new Set(selectedRoom?.cells || []);
     const tileColors = { ground: ['#61564a', '#66594b', '#5b5147', '#6a5e4f'], floor: ['#6e8080', '#748585', '#718282', '#6b7c7e'], deck: ['#465b65', '#4d626d', '#516570', '#435964'], ice: ['#7d9fba', '#90aec6', '#779ab4', '#82a5be'], ore: ['#5c5346', '#665645', '#605246', '#68574a'], rock: ['#64594d', '#5a5147', '#685b4e', '#62574a'] };
@@ -86,6 +87,8 @@ export class Renderer {
       if (t.deposit?.remaining > 0) { const h = 4 + t.deposit.remaining / 2; this.box(x,y,19,9,h,'#b9d8de','#7aaebf','#4c788c'); this.line(x-12,y-h-2,x+5,y-h+4,'#e0eff0',2); this.line(x+5,y-h+4,x+10,y-h-2,'#668fa5',2); }
       if(t.liquid>1e-8){c.save();c.globalAlpha=Math.min(.8,.2+t.liquid/4*.6);this.diamond(x,y,'#3b94ba','#8bcee0');this.line(x-12,y,x+2,y+7,'#b2deeb',1);c.restore();}
       if (t.building) this.structure(t, x, y, s);
+      // The berth remains on the map while the craft follows its physical location.
+      if (shuttle.present && shuttle.terminal?.x === t.x && shuttle.terminal.y === t.y) this.shuttleCraft(x, y);
       if(waterNode(t)?.water>0&&(t.waterPipe?.hp??t.hp)<50){this.polygon([[x+17,y-19],[x+13,y-11],[x+17,y-8],[x+21,y-11]],'#89c7f1','#eeaa82');}
       if(t.wetShort){this.line(x-9,y-2,x-2,y-12,'#ffd390',2);this.line(x-2,y-12,x+2,y-3,'#ffc276',2);this.line(x+2,y-3,x+10,y-15,'#ffb35e',2);}
       const smokeRoom=roomAt(site,t.x,t.y);
@@ -189,6 +192,12 @@ export class Renderer {
     this.line(x-vx,y-vy,x+vx,y+vy,'#173644',7);this.line(x-vx,y-vy,x+vx,y+vy,color,3);
     const length=Math.hypot(vx,vy),ux=vx/length,uy=vy/length;
     this.polygon([[x+vx,y+vy],[x+vx-ux*10-uy*5,y+vy-uy*10+ux*5],[x+vx-ux*10+uy*5,y+vy-uy*10-ux*5]],color,'#173644');
+  }
+  shuttleCraft(x, y) {
+    this.box(x, y - 5, 26, 13, 20, '#d3d1b7', '#8b9c95', '#667e80');
+    this.box(x + 2, y - 25, 15, 7, 7, '#6eaaa9', '#375e6c', '#2c4e62');
+    this.box(x - 22, y + 2, 9, 4, 16, '#a7b6a6', '#637e7e', '#405e67');
+    this.ctx.fillStyle = '#e4b16b'; this.ctx.fillRect(x - 24, y - 5, 5, 5);
   }
   structure(t, x, y, s) {
     const c = this.ctx, b = t.building;
@@ -294,7 +303,7 @@ export class Renderer {
     else if (b === 'fabricator') { this.box(x, y, 23, 12, 18, '#879eaa', '#557887', '#355264'); this.box(x - 9, y - 9, 7, 4, 25, '#c1c4af', '#8b9d97', '#567077'); this.line(x - 9, y - 34, x + 13, y - 23, '#b3bdb0', 4); c.fillStyle = t.powered ? '#87decb' : '#59676d'; c.fillRect(x + 3, y - 16, 9, 4); this.box(x + 8, y + 2, 6, 3, 4, '#cfbd8b', '#8e8465', '#635d50'); }
     else if (b === 'stockpile') { this.diamond(x, y, '#485950', '#a3b894'); this.box(x - 9, y, 10, 5, 10, '#c4b78d', '#928665', '#696b58'); this.box(x + 10, y + 2, 9, 5, 7, '#8facaa', '#597b7d', '#3b5e64'); }
     else if (b === 'trap') { this.box(x, y, 12, 6, 9, '#a8bb9d', '#6d877b', '#4b6867'); this.box(x, y - 3, 7, 3, 5, '#577776', '#335555', '#233f47'); c.fillStyle = '#d9c389'; c.fillRect(x - 2, y - 7, 4, 3); }
-    else if (b === 'shuttle') { this.box(x, y + 3, 30, 15, 7, '#536874', '#314650', '#293c47'); this.box(x, y - 5, 26, 13, 20, '#d3d1b7', '#8b9c95', '#667e80'); this.box(x + 2, y - 25, 15, 7, 7, '#6eaaa9', '#375e6c', '#2c4e62'); this.box(x - 22, y + 2, 9, 4, 16, '#a7b6a6', '#637e7e', '#405e67'); c.fillStyle = s.mission ? '#5e6f6a' : '#e4b16b'; c.fillRect(x - 24, y - 5, 5, 5); }
+    else if (b === 'shuttle') { this.box(x, y + 3, 30, 15, 7, '#536874', '#314650', '#293c47'); }
     else if (b === 'salvage') { this.box(x, y, 20, 10, 16, '#9da9a2', '#5c757e', '#3c5361'); this.box(x + 8, y - 10, 11, 6, 12, '#517f95', '#36556c', '#263a4e'); c.fillStyle = '#d8b878'; c.fillRect(x - 9, y - 15, 4, 4); this.line(x - 16, y - 22, x - 9, y - 14, '#9ab9bd', 2); }
     else if (b === 'volatile') { this.box(x, y, 19, 10, 18, '#b4d7dc', '#719eb7', '#487991'); this.box(x + 8, y + 4, 10, 5, 13, '#c4e2e4', '#9abdcf', '#6d9eb8'); }
     else if (b === 'dock') { this.diamond(x, y, '#536772', '#d5c891'); c.strokeStyle = '#d6cb99'; c.lineWidth = 2; c.beginPath(); c.ellipse(x, y, 16, 8, 0, 0, Math.PI * 2); c.stroke(); this.line(x - 8, y, x + 8, y, '#d6cb99', 2); }
@@ -314,7 +323,7 @@ export class Renderer {
       else this.structure({ building: 'collector', hp: 100 }, 0, 5, s);
       c.fillStyle = '#d6e1d8'; c.textAlign = 'center'; c.font = '14px Arial'; c.fillText(SITES[n.id].name, 0, n.id === 'surface' ? 75 : 52); c.fillStyle = color; c.font = '8px monospace'; c.fillText(SITES[n.id].label, 0, n.id === 'surface' ? 93 : 70); c.restore();
     }
-    if (s.mission && ['outbound', 'returning'].includes(s.mission.phase)) {
+    if (shuttleLocation(s) === 'transit') {
       const dest = nodes.find(n => n.id === s.mission.site), from = nodes[0]; const duration = routeTime(s, s.mission.site), f = s.mission.phase === 'outbound' ? 1 - s.mission.remaining / duration : s.mission.remaining / duration;
       const x = from.x + (dest.x - from.x) * f, y = from.y + (dest.y - from.y) * f; c.fillStyle = '#d6e9cf'; this.polygon([[x, y - 6], [x + 5, y + 5], [x, y + 2], [x - 5, y + 5]], '#d6e9cf');
     }

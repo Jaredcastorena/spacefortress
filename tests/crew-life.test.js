@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, updateRooms, serialize, deserialize, launch } from '../src/simulation.js';
 import { setLifePolicy, socialize, updateCrewLife } from '../src/crew-life.js';
 import { updateMorale, workRate } from '../src/crew.js';
@@ -97,7 +98,7 @@ test('schema-nine migration adds personal needs without altering jobs or invento
   const s = createGame(); order(s, 'surface', 4, 10, 'mine'); step(s, 5); s.version = 9;
   for (const c of s.crew) { delete c.life; delete c.relationships; }
   const before = totalResources(s), jobs = structuredClone(s.jobs), copy = deserialize(serialize(s));
-  assert.equal(copy.version, 36); assert.deepEqual(totalResources(copy), before); assert.deepEqual(copy.jobs, jobs); assert.equal(copy.crew[0].life.leisure, 80);
+  assert.equal(copy.version, VERSION); assert.deepEqual(totalResources(copy), before); assert.deepEqual(copy.jobs, jobs); assert.equal(copy.crew[0].life.leisure, 80);
 });
 
 test('invalid needs, relationship peers, loss history and duplicate downtime places are rejected', () => {

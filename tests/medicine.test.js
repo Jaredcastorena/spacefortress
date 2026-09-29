@@ -2,6 +2,7 @@ import { resourceEntries } from '../src/inventory.js';
 import { foodAge } from '../src/food-lots.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, cancelJob, setLabor, serialize, deserialize, updateRooms, launch } from '../src/simulation.js';
 import { injure } from '../src/medicine.js';
 import { initializeStorage, syncResources, totalResources } from '../src/inventory.js';
@@ -99,7 +100,7 @@ test('treatment and convalescence resume deterministically across saves', () => 
 test('schema-ten migration adds medical state and duties without restoring health or granting supplies', () => {
   const s = createGame(); s.version = 10; s.crew[0].health = 65; delete s.resources.medicine; delete depot(s).stock.medicine;
   for (const c of s.crew) { delete c.medical; delete c.skills.medicine; delete c.labors.medicine; if (c.favoriteLabor === 'medicine') c.favoriteLabor = 'engineering'; }
-  const before = totalResources(s), copy = deserialize(serialize(s)); assert.equal(copy.version, 36); assert.equal(copy.crew[0].health, 65); assert.deepEqual(totalResources(copy), before); assert.equal(copy.crew[5].skills.medicine.level, 3);
+  const before = totalResources(s), copy = deserialize(serialize(s)); assert.equal(copy.version, VERSION); assert.equal(copy.crew[0].health, 65); assert.deepEqual(totalResources(copy), before); assert.equal(copy.crew[5].skills.medicine.level, 3);
 });
 
 test('invalid medical state, duplicate cot claims and invalid treatment doses are rejected', () => {

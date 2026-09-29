@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import {createGame,at,step,order,cancelJob,setLabor,serialize,deserialize,updateRooms} from '../src/simulation.js';
 import {FIRE,ignite,extinguish,setFireResponse} from '../src/fire.js';
 import {gasAmount,roomAt,refreshAtmosphere,breathable,setDoorMode} from '../src/atmosphere.js';
@@ -86,7 +87,7 @@ test('fire state, partial suppression and smoke reload deterministically; record
 });
 
 test('migration adds no smoke or heat and malformed fire ledgers and orders are rejected',()=>{
- const {s}=fixture();s.version=29;for(const site of Object.values(s.sites)){delete site.fireSafety;delete site.thermal.combustion;for(const r of site.rooms)delete r.smoke;}const resources=totalResources(s),copy=check(s);assert.equal(copy.version,36);assert.deepEqual(totalResources(copy),resources);assert.equal(copy.sites.surface.fireSafety.smokeProduced,0);
+ const {s}=fixture();s.version=29;for(const site of Object.values(s.sites)){delete site.fireSafety;delete site.thermal.combustion;for(const r of site.rooms)delete r.smoke;}const resources=totalResources(s),copy=check(s);assert.equal(copy.version, VERSION);assert.deepEqual(totalResources(copy),resources);assert.equal(copy.sites.surface.fireSafety.smokeProduced,0);
  for(const mutate of [f=>f.site.fireSafety.smokeProduced=1,f=>f.r.smoke=-1,f=>f.t.fire.intensity=101,f=>f.t.fire.started=9999,f=>f.t.fire.id='fire-9999',f=>f.site.thermal.combustion=1]){const f=fixture();ignite(f.s,f.site,f.t);mutate(f);assert.throws(()=>check(f.s));}
 });
 

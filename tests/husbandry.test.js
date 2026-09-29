@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, cancelJob, serialize, deserialize, setLabor, setAnimalPost, setAnimalPolicy, pathTo } from '../src/simulation.js';
 import { totalResources, syncResources } from '../src/inventory.js';
 import { setMachineEnabled } from '../src/industry.js';
@@ -72,7 +73,7 @@ test('starvation kills once and cancels care without consuming its undelivered f
 });
 
 test('schema twenty-five migration adds wild state and duties without changing animal locations or supplies',()=>{
- const {s}=colony({post:false});s.version=25;for(const a of s.creatures)delete a.husbandry;for(const c of s.crew){delete c.skills.husbandry;delete c.labors.husbandry;}const before=totalResources(s),positions=s.creatures.map(a=>[a.x,a.y]);const copy=check(s);assert.equal(copy.version,36);assert.deepEqual(totalResources(copy),before);assert.deepEqual(copy.creatures.map(a=>[a.x,a.y]),positions);assert.ok(copy.creatures.every(a=>a.husbandry.trust===0&&a.husbandry.post===null));assert.equal(copy.crew[3].skills.husbandry.level,2);
+ const {s}=colony({post:false});s.version=25;for(const a of s.creatures)delete a.husbandry;for(const c of s.crew){delete c.skills.husbandry;delete c.labors.husbandry;}const before=totalResources(s),positions=s.creatures.map(a=>[a.x,a.y]);const copy=check(s);assert.equal(copy.version, VERSION);assert.deepEqual(totalResources(copy),before);assert.deepEqual(copy.creatures.map(a=>[a.x,a.y]),positions);assert.ok(copy.creatures.every(a=>a.husbandry.trust===0&&a.husbandry.post===null));assert.equal(copy.crew[3].skills.husbandry.level,2);
 });
 
 test('pending deliveries and partially handled animals continue deterministically after reload',()=>{

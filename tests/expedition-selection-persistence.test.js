@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { createGame, launch, recall, cancelDeparture, step, at, order, serialize, deserialize } from '../src/simulation.js';
 import { totalResources, quantity } from '../src/inventory.js';
 import { departureCrew, updateDeparture, tryDeparture } from '../src/preflight.js';
 import { refreshPower } from '../src/power.js';
+import { projectPreOutpost } from './helpers/legacy-projection.js';
 
 const SELECTED = ['crew-5', 'crew-2'];
 const reload = s => deserialize(serialize(s));
@@ -39,7 +41,8 @@ test('genuine pre-selection schema 36 departure and transit saves load exactly w
   for (const phase of ['loading', 'boarding', 'outbound', 'returning']) {
     const text = oldText(phase), old = JSON.parse(text), loaded = deserialize(text);
     assert.equal(old.version, 36);
-    assert.deepEqual(loaded, old, `${phase} remains the same save format`);
+    assert.equal(loaded.version, VERSION);
+    assert.deepEqual(projectPreOutpost(loaded), old, `${phase} retains all original state`);
     assert.deepEqual(totalResources(loaded), totalResources(old));
     assert.equal(loaded.rng, old.rng);
     assert.deepEqual(loaded.departure?.crew || loaded.mission.crew, ['crew-0', 'crew-1']);
@@ -68,7 +71,7 @@ test('genuine old schema 36 loading and both travel legs continue deterministica
 test('a non-first ordered manifest survives physical loading, both boarding phases, travel and return', () => {
   const stages = selectedStages();
   for (const [phase, s] of Object.entries(stages)) {
-    assert.equal(s.version, 36);
+    assert.equal(s.version, VERSION);
     if (phase === 'home') {
       assert.equal(s.departure, null); assert.equal(s.mission, null);
       assert.ok(SELECTED.every(id => s.crew.find(c => c.id === id).site === 'surface'));

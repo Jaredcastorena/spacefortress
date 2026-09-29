@@ -1,18 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { createGame, at, order, step, serialize, deserialize } from '../src/simulation.js';
 import { initializeStorage, totalResources, syncResources, extract, add } from '../src/inventory.js';
 import { initializeElectrical, refreshPower } from '../src/power.js';
 import { newWaterPipe, waterNode } from '../src/plumbing.js';
+import { projectPreOutpost } from './helpers/legacy-projection.js';
 
 const reload = s => deserialize(serialize(s));
 const legacyText = () => gunzipSync(readFileSync(new URL('./fixtures/plumbing-schema34-owned.json.gz', import.meta.url))).toString('utf8');
 
 function asSchema34(s) {
-  const old = structuredClone(s);
-  old.version = 34;
+  const old = projectPreOutpost(s, 34);
   for (const site of Object.values(old.sites)) {
     delete site.plumbing;
     for (const tile of site.tiles) {
@@ -82,7 +83,7 @@ test('genuine schema 34 capture includes existing wet ownership, gas, claims and
 
 test('schema 34 migration preserves all existing ownership, reservations, RNG and state without grants', () => {
   const text = legacyText(), old = JSON.parse(text), migrated = deserialize(text);
-  assert.equal(migrated.version, 36);
+  assert.equal(migrated.version, VERSION);
   assert.deepEqual(asSchema34(migrated), old);
   assert.deepEqual(totalResources(migrated), totalResources(old));
   assert.equal(migrated.rng, old.rng);

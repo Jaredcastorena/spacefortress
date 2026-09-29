@@ -14,13 +14,15 @@ function shipLocation(s) {
   if (!s.mission) return location(s, 'surface', 16, 11);
   if (['outbound', 'returning'].includes(s.mission.phase)) return null;
   const site = s.sites[s.mission.site], dock = site.tiles.find(t => t.building === 'dock');
-  return { site, x: dock.x, y: dock.y };
+  // Losing a terminal does not destroy its onboard stores. Until a berth is
+  // available, age them at the same cabin temperature used during transit.
+  return dock ? { site, x: dock.x, y: dock.y } : null;
 }
 export function foodOwners(s) {
   const result = [], put = (inventory, place, extras = {}) => { if (inventory) result.push({ inventory, place, ...extras }); };
   for (const site of Object.values(s.sites)) for (const t of site.tiles) {
     const place = { site, x: t.x, y: t.y };
-    put(t.stock, place, { retainWaste: true }); put(t.drop, place, { retainWaste: true });
+    put(t.stock, place, { retainWaste: true }); put(t.drop, place, { retainWaste: true }); put(t.imports, place, { retainWaste: true });
     if (t.machine) for (const kind of ['input', 'output', 'batch']) put(t.machine[kind], place, { machine: t, batch: kind === 'batch' });
   }
   for (const j of s.jobs) {
@@ -32,6 +34,7 @@ export function foodOwners(s) {
     put(c.carry, c.site === 'transit' ? null : location(s, c.site, c.x, c.y), { job, crew: c, retainWaste: !job });
   }
   put(s.shuttle.supplies, shipLocation(s), { retainWaste: true });
+  put(s.shuttle.freight, shipLocation(s), { retainWaste: true });
   put(s.mission?.cargo, shipLocation(s), { retainWaste: true });
   return result;
 }

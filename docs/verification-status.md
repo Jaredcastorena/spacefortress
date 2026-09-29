@@ -1,16 +1,30 @@
 # Verification status
 
-Updated September 16, 2026. This is the compact evidence index for implemented and proposed systems. **Verified** means the named scope passed its stated check. **Pending** means evidence is not yet complete. **Failed** means a known check contradicts the requirement. None of these rows declares the whole game finished.
+Updated September 29, 2026. This is the compact evidence index for implemented and proposed systems. **Verified** means the named scope passed its stated check. **Pending** means evidence is not yet complete. **Failed** means a known check contradicts the requirement. None of these rows declares the whole game finished.
 
-## Staffed orbital outpost audit — proposed, no implementation
+## Staffed orbital outpost phase one — schema 37 foundation
+
+**The implemented schema 37 foundation passed scoped integrated verification.** The foundation is distinct from playable freight, settlement, resident care and resupply; those remain proposed. Test cases that directly construct state are evidence for their named invariant, not a normal-game outpost journey.
 
 | Check | Status | Evidence and scope |
 | --- | --- | --- |
-| Genuine preceding36 capture | Verified | Five normal-action outbound, remote mined/held/docked cargo and return snapshots in `tests/fixtures/outpost-pre36-*` with unchanged source hashes and exact save bytes. `tests/outpost-pre36-fixtures.test.js`: 3/3 focused checks pass on current schema36; `/tmp/spacefortress-outpost-pre36-fixtures.log`. This is capture evidence, not future migration acceptance. |
-| Existing site behavior audit | Verified | Source inspection and a focused crew probe found all-site utility ticking, plus blockers in mission-only return, surface-only construction/recovery, remote cargo ownership and save validation. The [proposed design](staffed-orbital-outpost-design.md) records the resulting contracts. These are findings, not working outpost behavior. |
-| Persistent residents, finite freight and normal outpost journey | Pending | No outpost source changes have begun. Need physical freight loading/unloading, local construction and living conditions, resident versus passenger identity, delayed resupply, offscreen deterioration, recovery, schema migration and player/agent/browser acceptance. |
+| Default/persisted owners and strict migration | Verified — scoped foundation tests | Schema 37 adds wreck-only residence, separate return roster, durable shuttle freight and imports at every actual dock. `outpost-persistence.js` initializes fresh/legacy state and validates current state without repairing missing fields. `tests/outpost-migration.test.js` and the unchanged genuine preceding36 fixtures passed retention, strict rejection and continuation checks. |
+| Pure residence and physical craft status | Verified — scoped foundation tests | `src/outposts.js` reports detached residence/import data and physical shuttle location/presence without moving people or inventory. `tests/outposts.test.js` covers valid/invalid state and purity. |
+| Return-roster and resident-job protection | Verified — scoped foundation tests | Separate arrival/return IDs, one or two named passengers, no voluntary empty roster, traveler-only boarding/salvage and resident work protection. `tests/outpost-return-roster.test.js` passed in the integrated suite. No shared settlement/return-selection action exists. |
+| Local reservations and claims | Verified — scoped foundation tests | Same-site stock/import/drop availability, protected claims, local cancellation and metadata preservation. `tests/outpost-construction.test.js`, `tests/outpost-reservations.test.js`. Remote Build remains gated. |
+| Inventory and metadata conservation | Verified — scoped foundation tests | Freight/import owner enumeration, capacity, item/meal metadata, food aging and retained spoilage waste. `tests/outpost-conservation.test.js`; explicit test transfers do not establish gameplay loading/unloading. |
+| Observations, events and recording | Verified — scoped foundation tests | Derived shuttle/residence/return-roster fields plus stable inventory slots and existing recording invariants. `tests/outpost-telemetry.test.js` passed in the integrated suite. |
+| Physical shuttle drawing and browser regression | Verified — scoped browser/visual check | Ordinary expedition browser journey passed with schema 37 save identity, lab isolation and zero scoped errors. Root inspected the empty surface berth and the craft at the working wreck. Renderer follows actual berth/transit status; no staffed-outpost UI or journey is claimed. |
+| Complete integrated regression suite | Verified | Final rerun: **865 total, 864 passed, zero failures/cancellations, one intentional historical schema 36 capture-only skip**, 55.101677833 seconds; session 11451 exited 0. Root inspected `/tmp/spacefortress-schema37-final-tests.log`. The repaired synthetic legacy water fixture and all other active tests pass. |
+| Python server and JavaScript syntax | Verified — scoped root report | Python 7/7 and JavaScript syntax 149/149 passed. These are separate tooling checks alongside the accepted simulation run. |
+| Temporary browser process cleanup | Verified | The isolated browser and preview server used for the scoped checks are stopped; no listeners remain on their test ports. |
+| Staffed outpost and supplied resupply journey | Pending — not implemented | No settlement/freight player actions, local colony care or normal supplied settlement/resupply loop. Requires physical loading/unloading, remote building, habitat readiness, unattended needs/failure/recovery and player/agent/browser acceptance. |
 
-## Current accepted expedition selection and complete journey — schema 36 unchanged
+### Historical audit and fixture capture
+
+Five preceding36 normal-action outbound, remote mined/held/docked cargo and return saves are retained in `tests/fixtures/outpost-pre36-*` with provenance. Their original three capture checks passed on schema 36 before migration work; that result proves capture, not schema 37 compatibility. The September 16 source audit identified ownership, crew-care and transport blockers. Phase-one changes address the ownership/persistence portion; the [full design](staffed-orbital-outpost-design.md) retains remaining gameplay requirements.
+
+## Historical accepted expedition selection and complete journey — schema 36 unchanged
 
 | Check | Status | Evidence and scope |
 | --- | --- | --- |

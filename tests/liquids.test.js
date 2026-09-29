@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, serialize, deserialize, pathTo } from '../src/simulation.js';
 import { initializeStorage, totalResources, syncResources } from '../src/inventory.js';
 import { refreshPower, updatePower, setCableEnabled } from '../src/power.js';
@@ -114,7 +115,7 @@ test('water controls and transient transfers have stable IDs; recording does not
 test('liquid, tank and pump state survive deterministic reload and schema 31 gains no water or equipment',()=>{
  const {s,tank}=fixture();fill(s,tank);setTank(s,'surface',11,9,false,true);step(s,8);const copy=check(s);step(s,10);step(copy,10);assert.deepEqual(s,copy);
  const old=createGame();old.version=31;for(const site of Object.values(old.sites)){delete site.liquids;for(const t of site.tiles){delete t.liquid;delete t.wetShort;}}
- const before=totalResources(old),migrated=check(old);assert.equal(migrated.version,36);assert.deepEqual(totalResources(migrated),before);assert.equal(wetTotal(migrated.sites.surface),0);assert.equal(migrated.rng,old.rng);assert.deepEqual(check(migrated),migrated);
+ const before=totalResources(old),migrated=check(old);assert.equal(migrated.version, VERSION);assert.deepEqual(totalResources(migrated),before);assert.equal(wetTotal(migrated.sites.surface),0);assert.equal(migrated.rng,old.rng);assert.deepEqual(check(migrated),migrated);
 });
 
 test('malformed floor water, ledgers and tank controls are rejected',()=>{

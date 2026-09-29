@@ -1,6 +1,19 @@
-# Staffed orbital outpost — proposed first increment
+# Staffed orbital outpost — foundation and proposed gameplay
 
-**Status: PROPOSED / implementation and acceptance pending.** This is a source-grounded design handoff from the 2026-09-16 audit. No staffed outpost, freight service, residence action or new save schema described here is implemented. The accepted game remains schema 36 with the [two-person orbital journey](orbital-colony-loop.md). Current test results for that journey do not verify this proposal.
+**Status: schema 37 foundation implemented and verified within this scope. Full staffed-outpost gameplay remains PROPOSED.** Updated September 29, 2026. The foundation adds persisted owners/rosters, validation, inventory accounting, pure observations, site-local reservation primitives and physical shuttle drawing. It does not add player settlement or freight actions, remote colony care, an established outpost or playable resupply. The [verification index](verification-status.md) separates this work from the historical [two-person orbital journey](orbital-colony-loop.md).
+
+## Implemented phase-one boundary
+
+| Foundation | Implemented and verified scope |
+| --- | --- |
+| Saved state | `outposts.wreck` is the sole residence registry. `shuttle.freight` and each actual dock's `imports` are independent inventory owners. `mission.returnCrew` is separate from ordered arrival history in `mission.crew`. |
+| Migration and validation | The 36→37 migration creates empty owners and copies the existing mission roster without granting cargo or residents. Current-schema saves require their fields and valid ownership; readers do not repair missing state. Invalid resources, metadata, aliases, rosters and locations are rejected. |
+| Return behavior | One or two named return travelers, no voluntary empty roster, traveler-only boarding/salvage, and resident-job protection during recall. The internal roster setter is not a shared player action. Synthetic resident fixtures exercise protection; ordinary gameplay cannot establish a resident yet. |
+| Material accounting | Freight/imports participate in resource totals, item/meal ownership and food aging. Freight, salvage and shuttle-bound claims share hold capacity; local construction/input/depot shipments retain their own owners. |
+| Site-local primitives | `constructionSupplyLocations(s,siteId='surface')`, `constructionResources(s,siteId='surface')` and `reserveConstruction` use that site's stock, imports and drops, protect pickup claims, and restore canceled reservations locally. Remote Build remains unavailable. |
+| Pure observations and drawing | Physical shuttle location/presence, wreck residence and return selection are exposed without allocating IDs or moving inventory. Craft drawing follows the actual berth or transit state; a dock alone does not create a shuttle. No outpost control panel is added. |
+
+Foundation tests can construct owner/resident state directly. Those cases do not prove that a player can ship freight, settle a crew member, sustain an outpost or resupply it. Those steps require the later ordinary-game acceptance below.
 
 ## Direction and bounded target
 
@@ -8,54 +21,53 @@ The user confirmed upward/outward progression from a planet into orbit and farth
 
 The proposed acceptance story is concrete: surface workers load finite construction freight; two visitors transport and physically unload it at the wreck; builders establish a sealed, powered, supplied habitat; one named crew member settles while the other returns; a later flight delivers actual provisions while the resident continues living and working. A delayed delivery must have observable consequences while the player views the surface. Resupply or physical pickup must provide a recovery path.
 
-Keep the first increment to the existing wreck and one shuttle. Generated sites, a fleet, local vertical decks, remote livestock and a general autonomous evacuation system remain later work. Existing comet/solar expeditions and the accepted surface-to-wreck salvage loop must continue to work.
+Keep the first playable settlement to the existing wreck and one shuttle. Generated sites, a fleet, local vertical decks, remote livestock and a general autonomous evacuation system remain later work. Existing comet/solar expeditions and the accepted surface-to-wreck salvage loop must continue to work.
 
 ## What the source already supports
 
 | Capability | Current boundary |
 | --- | --- |
 | Finite atmosphere, thermal, power, gas, plumbing and fire | The main tick processes every site's utilities independently of the viewed map. This does not make remote crew scheduling or logistics complete. |
-| Remote physical presence and extraction | A selected two-person mission can visit the wreck, mine piles, carry salvage to the dock and return with it. It cannot leave a persistent resident. |
-| Inventory ownership | Depot/pile stock, job reservations/materials, carried loads, machine buffers, mission cargo and shuttle service stores are distinct existing owners. `extract`/`add` preserve food ages and item identity. |
+| Remote physical presence and extraction | A selected two-person mission can visit the wreck, mine piles, carry salvage to the dock and return with it. Persisted residence/return-roster foundations now exist, but no player settlement action exists. |
+| Inventory ownership | Depot/pile stock, job reservations/materials, carried loads, machine buffers, mission cargo, service stores, freight and dock imports are distinct owners. `extract`/`add` preserve food ages and item identity; gameplay freight transfers remain unfinished. |
 | Local hauling primitives | Much of industry/storage already accepts a site, but remote scheduling and shipment dispatch prevent ordinary colony use. |
 | Habitat construction primitives | Floors, walls, doors, bunks, depots and devices exist. Remote construction is explicitly rejected. Bare wreck `deck` is exterior, not a pressurized floor. |
-| Persistent saves and observations | Stable site/tile/crew/job IDs, shared controls and transient events exist. Schema 36 rejects living remote crew outside the active mission. |
+| Persistent saves and observations | Schema 37 persists and validates wreck residence separately from physical location and flight rosters. Stable IDs and detached observations expose the foundation; it does not supply remote care or settlement controls. |
 
 Primary sources: [simulation](../src/simulation.js), [expedition](../src/expedition.js), [preflight](../src/preflight.js), [construction](../src/construction.js), [inventory](../src/inventory.js), [industry](../src/industry.js), [storage](../src/storage.js), [atmosphere](../src/atmosphere.js), [thermal](../src/thermal.js).
 
 ### Confirmed blockers to remove deliberately
 
-- `order` permits remote work only during an active working mission and rejects remote building. `reserveConstruction` and its supply scan use only the surface. The breaker job validator has its own remote restriction.
-- Crew dispatch sends remote carried cargo to salvage handling before normal job/input deliveries. Mission hold claims also count carried material without distinguishing its local destination. Local hauling and salvage pickup claims do not share one exclusion rule.
-- Mission boarding currently catches any remote crew when a mission is boarding. Recall cancels every job at its destination. Both behaviors would disrupt residents and their work.
+- `order` still gates remote work by the active mission and rejects remote building. Local reservation primitives now exist, but enabling construction requires a supplied gameplay path and remote worker scheduling. The breaker job validator also needs review before remote building is enabled.
+- Cargo dispatch/claims and return boarding now distinguish travelers and local owners; recall protects resident jobs. These foundation guards passed the integrated regression checks; they do not implement freight loading/unloading or resident scheduling.
 - Recovery, eating/rest scheduling, leisure, ordinary idle hauling and parts of medicine, rescue, nursing, hygiene and sanitation assume the surface. Remote hunger/energy decay and breathing already happen; enabling residence alone would strand needy crew.
-- Save validation assumes surface delivery/intention targets, some coordinate-only bed claims and mission membership for every living remote crew member. Homes currently use surface coordinates; those coordinates cannot silently become remote homes.
+- Schema 37 now validates site-qualified material targets and admitted wreck residents, but resident care/housing still needs its own site-aware rules. Homes currently use surface coordinates; those coordinates cannot silently become remote homes.
 - Field hazards are tied to the active mission and its fitting. A departed shuttle must neither disable resident hazards nor lend its storm-shelter modifier to everyone left behind.
 - Build selection, material/environment summaries, maintenance navigation and parts of housing/battery UI assume the surface. A remote inspector alone does not establish working controls.
 
-## Proposed state and transport contract
+## Implemented state and proposed transport gameplay
 
-Root's emerging contract uses a single authoritative residence owner:
+The implemented default has one authoritative residence owner:
 
 ```text
-s.outposts.wreck = { established: false, residents: [crew IDs] }
+s.outposts.wreck = { established: false, residents: [] }
 ```
 
-This proposed state must not be duplicated in a second independently writable `crew.homeSite` field. A crew member's existing `site` remains their **physical location**; residence and flight selection have separate meanings. Resident IDs must be known and unique, and death/return handling must preserve the crew entity and any owned material.
+There is no second independently writable `crew.homeSite` field. An unestablished registry must have an empty roster; established test state may contain ordered known crew IDs. A crew member's existing `site` remains their **physical location**; residence and flight selection have separate meanings. Resident IDs must be known and unique, and death/return handling must preserve the crew entity and any owned material.
 
-Root selected the design direction of retaining ordered `mission.crew` as outbound/arrival history and introducing explicit `mission.returnCrew`, initially copied from it. This permits one person to remain and a later visitor/resident passenger swap without rewriting arrival history. This design choice remains unimplemented, not an existing API. `established` should record founding history; current operability is derived, so habitat failure does not delete residents or local work authority.
+Ordered `mission.crew` remains outbound/arrival history; implemented `mission.returnCrew` starts as an independent copy. Its internal selection helper requires one or two distinct, known, living, physically local candidates and rejects abandoning living arrivals without residence or orphaning their shuttle shipments. Later death retains the named roster; only all assigned travelers dying permits the existing no-survivor return fallback. No shared player/agent return-selection action is exposed. Future settlement can use this separation for a visitor/resident swap. `established` is a persisted founding-history flag, not evidence of current habitability; settlement readiness remains unfinished.
 
-Required behavior:
+Full gameplay requirements below remain proposed unless covered by the phase-one table:
 
 1. The existing initial departure still chooses exactly two eligible people. No silent replacement, teleport or crew creation is allowed.
 2. Settlement requires the chosen crew member to be physically present at the wreck and a real operational habitat. An accepted settlement explicitly removes them from the planned return roster; unresolved visitors cannot simply be abandoned by editing a list.
 3. Return selection respects the two-seat limit and names actual local people. A resident selected for pickup remains resident while waiting; departure performs the final membership transition only after physical boarding succeeds.
-4. The first demonstrated return carries the other visitor. Root rejected voluntary zero-passenger returns; preserve only the existing all-assigned-travelers-dead fallback. This adds no piloting mechanic. One-person return and passenger-swap rules still need explicit implementation and validation.
+4. The first demonstrated return carries the other visitor. Root rejected voluntary zero-passenger returns; preserve only the existing all-assigned-travelers-dead fallback. This adds no piloting mechanic. Internal one-person return and passenger selection now have foundation rules; their shared player controls and ordinary-game settlement/pickup journey remain unfinished.
 5. Recall releases only travelers' work and applicable pickup claims. It preserves resident jobs and moves every held shipment through normal completion/drop/cancellation rules.
 6. A dock is a location, not evidence that a shuttle is there. Derived shuttle presence must follow the actual mission phase/location. No resident may board an absent vehicle, receive invisible surface fuel, or be counted as evacuated merely by reaching the dock.
 7. Automatic return and injuries need roster-aware rules. Distressed residents seek real local shelter/care or request a pickup; they cannot automatically commandeer a distant shuttle. Existing rescue must carry dependent passengers when supported, with an honest blocked state otherwise.
 
-A save-version increment is expected because residence, return selection and freight introduce persistent state; schema 37 is a candidate, not a committed release. Exact action names, establishment prerequisites, pickup validation and settlement readiness remain integration decisions.
+Save schema 37 is implemented in the working tree. It is a persistence version, not a claim of a new published release or completed outpost. Migration, strict roundtrips and integration results are tracked separately in [verification status](verification-status.md). Settlement/freight action names, establishment prerequisites and current habitat readiness remain future gameplay decisions.
 
 ## Finite freight and local ownership
 
@@ -70,7 +82,7 @@ surface depot/pile
   → dock.imports → local carrier → depot / build job / machine input
 ```
 
-Each arrow is an actual transfer, using `extract`/`add` and clearing the previous owner. Root selected the proposed durable `shuttle.freight` owner and a separate `dock.imports` inventory; both remain unimplemented. Freight persists across preparation, mission, cancellation and return. All owner walkers/ledgers must include each exactly once. Planning, departure, arrival and opening a menu do not credit destination stock. Only actual unloading makes cargo available locally. Proposed load/unload work and the departure freight request need final APIs.
+Each planned arrow must be an actual transfer using `extract`/`add`, clearing the previous owner. The durable `shuttle.freight` owner and separate `tile.imports` inventories at every actual dock are implemented; residence remains wreck-only. Owner walkers include those inventories for counts, metadata, food aging and observations. The surface→freight→imports gameplay jobs are not implemented. Planning, departure, arrival or opening a menu must not credit destination stock; future actual unloading will make freight available locally. Load/unload work and the departure freight request still need APIs and ordinary-game acceptance.
 
 Required invariants:
 
@@ -130,7 +142,7 @@ Reuse site-qualified construction, utility, depot and labor actions. New residen
 
 Strictly validate known resource keys, finite positive quantities, discrete item counts, site/crew IDs, capacity and eligible roster membership before mutation. The current generic argument validator does not recursively validate resource objects; adding an object-shaped freight argument alone is insufficient. Rejections must be atomic and expose stable blocker codes alongside readable reasons.
 
-Keep existing expedition observations and add derived outpost/site status: resident IDs versus physically present people, current return passengers, local stored/reserved/incoming inventories, onboard versus landed freight, actual local utility/room conditions and reachable-work/transport blockers. Pure status/preview calls must not allocate IDs, reserve stock, emit events or change RNG/save state.
+Implemented observations preserve existing expedition data and add `colony.derived.expedition.returnCrewIds`, `colony.derived.shuttle.location`, site `derived.shuttle`/`derived.outpost`, and crew `derived.residence`/`derived.expedition.selectedForReturn`. Freight/imports retain their inventory owner slots; item/meal locations reference those slots. Wreck outpost status exposes the registry, not a habitat-ready verdict. Reachable resupply blockers, reserve estimates and a settlement-readiness view remain proposed. Pure observations must not allocate IDs, reserve stock, emit events or change RNG/save state.
 
 Emit committed semantic transitions for residence assignment/removal, freight planning/cancellation, pickup/loading, departure/arrival, unloading/delivery and hazard activation/clearance. Each material boundary names exact `{entity,slot}` owners and quantities; roster changes include previous/next IDs, site and tick. Existing construction/device/mission events remain authoritative. Transient rescue transitions also need explicit labels if expanded. Recordings stay local, optional and bounded, with recording-on/off equivalence and reconstructable ordered records. Observations are not training rewards or proven causes.
 
@@ -138,10 +150,10 @@ Keep the map prominent. Reuse Regions, Crew, Build and the site inspector with R
 
 ## Implementation sequence and acceptance gates
 
-No sequence below is accepted execution evidence.
+The phase-one foundation above has accepted scoped evidence. The remaining gameplay sequence below is proposed; it is not evidence of a playable outpost.
 
-1. **Settle ownership and schema.** Finalize resident/return rosters, freight owner, physical shuttle presence, pickup rules and site-qualified validation. Preserve the genuine preceding-36 fixtures already captured by the migration audit; those currently verify only the old schema, not a future migration.
-2. **Enable supplied local construction.** Generalize local reservations/claims/dispatch and persistence, then prove that remote jobs cannot spend surface stock and carried construction material cannot enter salvage accidentally.
+1. **Preserve the verified foundation.** Schema 37 owners/rosters, pure presence/status, metadata accounting and local reservation primitives passed the scoped migration, conservation, return-protection, recording and browser checks. The full suite passed 864 tests, with one intentional historical capture-only skip; Python server checks passed 7/7 and JavaScript syntax checks 149/149. This acceptance is narrower than staffed-outpost gameplay; see [verification status](verification-status.md).
+2. **Enable supplied local construction.** Build on the implemented local reservation/claim/dispatch foundation. Add a real imported-material/work scheduling path before enabling remote Build; helper-level tests alone do not establish playable construction.
 3. **Add freight and residence transitions.** Load/unload with actual actors, preserve service reserves, and require a supplied operational habitat before explicit settlement. Resolve interrupted plans/cancellation before exposing controls.
 4. **Generalize resident care and hazards.** Ensure work, eating/rest, same-site medical claims, offscreen utilities/hazards and warnings continue without an active mission. Avoid unsafe cold-room bootstrap and resident-wide mission recall.
 5. **Expose shared UI/telemetry.** Verify ordinary player actions, strict dispatch, named transfers and hidden detail panels.
@@ -155,4 +167,4 @@ Required evidence for acceptance:
 - Repeat normal accepted two-person salvage/refit journey and current utility/care regressions. The complete test suite must pass after integration; previous 775-test acceptance does not count as outpost acceptance.
 - Browser proof shows remote Build stays remote, real workers move supplies, named resident remains after departure, local status is accurate, offscreen shortage is discoverable, resupply/pickup works, and map-first navigation/forms/held clicks remain usable with no scoped app errors.
 
-**Handoff:** proposal complete for root review. Implementation is not started. Open design choices are exact return/pickup validation, establishment/readiness prerequisites, action contracts and the measured bootstrap/resupply budget. Root selected durable shuttle freight, dock imports, separate resident/return rosters and no voluntary empty return as the proposed direction. Root owns integration, verification status, memory and implementation assignments.
+**Handoff:** phase-one schema/ownership foundation is implemented and verified within the documented scope. The complete staffed-outpost proposal remains unimplemented. Open design choices are exact return/pickup validation, establishment/readiness prerequisites, action contracts and the measured bootstrap/resupply budget. Root selected durable shuttle freight, dock imports, separate resident/return rosters and no voluntary empty return as the proposed direction. Root owns integration, verification status, memory and implementation assignments.

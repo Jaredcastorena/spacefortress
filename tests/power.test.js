@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, serialize, deserialize, dischargeCell } from '../src/simulation.js';
 import { initializePower, initializeElectrical, refreshPower, updatePower, releaseBatteryEnergy, setCableEnabled, setPowerPriority, validatePower } from '../src/power.js';
 import { initializeStorage, syncResources, totalResources } from '../src/inventory.js';
@@ -111,7 +112,7 @@ test('power shortages and pending cable repairs resume deterministically from a 
 test('legacy pooled charge migrates once into individual banks without creating energy', () => {
   const old = createGame(), site = old.sites.surface; device(site, 11, 9, 'battery'); old.version = 5; site.power.battery = 235;
   const s = deserialize(serialize(old)), loaded = s.sites.surface;
-  assert.equal(s.version, 36); assert.equal(at(loaded, 13, 7).charge, 117.5); assert.equal(at(loaded, 11, 9).charge, 117.5);
+  assert.equal(s.version, VERSION); assert.equal(at(loaded, 13, 7).charge, 117.5); assert.equal(at(loaded, 11, 9).charge, 117.5);
   assert.equal(loaded.power.battery, 235); balance(loaded); assert.deepEqual(deserialize(serialize(s)), s);
 });
 

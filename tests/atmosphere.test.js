@@ -2,6 +2,7 @@ import { depart as launch } from './helpers/depart.js';
 import { releaseBatteryEnergy } from '../src/power.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import { createGame, at, step, updateRooms, roomAt, pathTo, order,  recall, serialize, deserialize } from '../src/simulation.js';
 import { GASES, gasAmount, fillRoom, refreshAtmosphere, updateAtmosphere, breathable, breathe, setDoorMode, moveCrew, SUIT_PER_POINT } from '../src/atmosphere.js';
 import { totalResources, initializeStorage, syncResources } from '../src/inventory.js';
@@ -182,7 +183,7 @@ test('schema-four air percentages migrate into gas quantities with one commissio
     for (const t of site.tiles) { delete t.doorMode; delete t.doorUntil; }
   }
   const imported = deserialize(serialize(s)), r = imported.sites.surface.rooms[0];
-  assert.equal(imported.version, 36); close(r.pressure, 65); close(r.oxygenFraction, .21);
+  assert.equal(imported.version, VERSION); close(r.pressure, 65); close(r.oxygenFraction, .21);
   assert.equal(imported.resources.air, 160); assert.deepEqual(deserialize(serialize(imported)), imported);
 });
 

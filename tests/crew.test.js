@@ -3,6 +3,7 @@ import { totalResources, syncResources } from '../src/inventory.js';
 import { fillRoom, refreshAtmosphere } from '../src/atmosphere.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import { createGame, step, order, at, serialize, deserialize, setLabor, setJobPriority, updateRooms } from '../src/simulation.js';
 
 test('exhausted crew keep their bunk until recovered instead of resuming at the first threshold', () => {
@@ -83,7 +84,7 @@ test('recovery, memories, skills, permissions and priorities persist determinist
 test('version-one saves migrate, while corrupt current crew state is rejected', () => {
   const legacy = createGame(); legacy.version = 1;
   for (const c of legacy.crew) for (const field of ['skills', 'labors', 'intent', 'morale', 'memories', 'favoriteLabor', 'temperament']) delete c[field];
-  const imported = deserialize(serialize(legacy)); assert.equal(imported.version, 36); assert.equal(imported.crew[2].skills.mining.level, 3); step(imported, 2);
+  const imported = deserialize(serialize(legacy)); assert.equal(imported.version, VERSION); assert.equal(imported.crew[2].skills.mining.level, 3); step(imported, 2);
   const bad = createGame(); bad.crew[0].intent = { type: 'rest', target: [900, 0] }; assert.throws(() => deserialize(serialize(bad)));
   bad.crew[0].intent = null; bad.crew[0].labors.mining = 'yes'; assert.throws(() => deserialize(serialize(bad)));
 });

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import { createGame, at, step, pathTo, order, cancelJob, serialize, deserialize, setLabor, launch } from '../src/simulation.js';
 import { add, extract, take, quantity, totalResources, syncResources, initializeStorage } from '../src/inventory.js';
 import { foodAge, foodLots, FOOD_LIFETIME } from '../src/food-lots.js';
@@ -147,7 +148,7 @@ test('aging, pending replacements and waste continue deterministically after sav
 
 test('version-fifteen migration keeps quantities and paid portions without inventing food', () => {
   const { s, c } = fixture(); const before = totalResources(s); s.version = 15; delete s.foodSpoiled; delete s.resources.waste; c.intent = { type: 'meal', target: null, servings: 4 };
-  const copy = deserialize(serialize(s)); assert.equal(copy.version, 36); assert.deepEqual(totalResources(copy), before); assert.equal(copy.crew[0].intent.servings, 4); assert.equal(copy.crew[0].intent.foodAge, 0); check(copy);
+  const copy = deserialize(serialize(s)); assert.equal(copy.version, VERSION); assert.deepEqual(totalResources(copy), before); assert.equal(copy.crew[0].intent.servings, 4); assert.equal(copy.crew[0].intent.foodAge, 0); check(copy);
 });
 
 test('invalid lot quantities, ages and replacement records are rejected', () => {

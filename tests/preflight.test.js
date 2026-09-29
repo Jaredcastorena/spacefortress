@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import { createGame, launch, cancelDeparture, cancelJob, recall, step, at, order, serialize, deserialize, setLabor } from '../src/simulation.js';
 import { quantity, totalResources, syncResources } from '../src/inventory.js';
 import { setDoorMode } from '../src/atmosphere.js';
@@ -93,8 +94,8 @@ test('loading and boarding persist with exactly the same future behavior after r
 });
 
 test('schema-eight flights preserve already-paid supplies and gain no free service stores', () => {
-  const s = createGame(); launch(s, 'wreck'); until(s, () => s.mission); s.version = 8; delete s.departure; delete s.shuttle.supplies; delete s.mission.returnFuel; delete s.mission.kitReserved;
-  const copy = deserialize(serialize(s)); assert.equal(copy.version, 36); assert.deepEqual(copy.shuttle.supplies, {}); assert.equal(copy.mission.returnFuel, 0);
+  const s = createGame(); launch(s, 'wreck'); until(s, () => s.mission); s.version = 8; delete s.departure; delete s.shuttle.supplies; delete s.mission.returnFuel; delete s.mission.kitReserved; delete s.mission.returnCrew;
+  const copy = deserialize(serialize(s)); assert.equal(copy.version, VERSION); assert.deepEqual(copy.shuttle.supplies, {}); assert.equal(copy.mission.returnFuel, 0);
   const fuel = copy.resources.fuel; recall(copy); until(copy, () => !copy.mission); assert.equal(copy.resources.fuel, fuel); assert.deepEqual(deserialize(serialize(copy)), copy);
 });
 

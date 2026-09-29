@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { createGame, step, at, order, cancelJob,  recall, serialize, deserialize } from '../src/simulation.js';
 import { quantity, spill, totalResources, syncResources } from '../src/inventory.js';
 import { cargoFree, reservedCargo, setCargoAccepted, routeTime, routeFuel, dockAt, resumeExpedition } from '../src/expedition.js';
-import { SHUTTLE_FITS } from '../src/data.js';
+import { VERSION, SHUTTLE_FITS } from '../src/data.js';
 const until = (s, predicate, limit = 160) => { for (let i = 0; i < limit && !predicate(); i++) step(s); assert.ok(predicate(), 'Expected state before tick limit'); };
 function expedition() { const s = createGame(); assert.equal(launch(s, 'wreck').ok, true); step(s, 22); return s; }
 const team = s => s.crew.filter(c => s.mission.crew.includes(c.id));
@@ -119,9 +119,9 @@ test('pickup, loaded carriers and boarding saves resume deterministically', () =
 });
 
 test('old in-flight cargo migrates without loss even when it exceeds the new standard capacity', () => {
-  const s = expedition(); s.version = 7; s.mission.cargo = { alloy: 60 }; delete s.shuttle;
+  const s = expedition(); s.version = 7; s.mission.cargo = { alloy: 60 }; delete s.shuttle; delete s.mission.returnCrew;
   for (const field of ['fit', 'capacity', 'legacyCapacity']) delete s.mission[field];
-  const migrated = deserialize(serialize(s)); assert.equal(migrated.version, 36); assert.equal(migrated.mission.capacity, 60); assert.equal(cargoFree(migrated), 0);
+  const migrated = deserialize(serialize(s)); assert.equal(migrated.version, VERSION); assert.equal(migrated.mission.capacity, 60); assert.equal(cargoFree(migrated), 0);
   assert.deepEqual(deserialize(serialize(migrated)), migrated); recall(migrated); until(migrated, () => !migrated.mission);
   assert.equal(at(migrated.sites.surface, 16, 11).drop.alloy, 60); assert.equal(SHUTTLE_FITS[migrated.shuttle.fit].capacity, 18);
 });

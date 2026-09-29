@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import { createGame, at, step, updateRooms, roomAt, setLabor, serialize, deserialize, pathTo } from '../src/simulation.js';
 import { setRoomDesignation, roomDesignation, roomStatus, roomBenefit } from '../src/rooms.js';
 import { initializeStorage, totalResources, syncResources } from '../src/inventory.js';
@@ -92,7 +93,7 @@ test('conflicting merges preserve conservative delivery and occupancy restrictio
 
 test('designations survive reload and schema-nineteen migration preserves all existing state',()=>{
   const {s,site}=fixture();setRoomDesignation(s,'surface',8,8,'quarters');const copy=check(s);step(s,10);step(copy,10);assert.deepEqual(copy,s);
-  s.version=19;for(const current of Object.values(s.sites))delete current.designations;const supplies=totalResources(s),before=structuredClone(site.rooms);const migrated=check(s);assert.equal(migrated.version, 36);assert.deepEqual(totalResources(migrated),supplies);assert.deepEqual(migrated.sites.surface.rooms,before);assert.ok(Object.values(migrated.sites).every(site=>site.designations.length===0));
+  s.version=19;for(const current of Object.values(s.sites))delete current.designations;const supplies=totalResources(s),before=structuredClone(site.rooms);const migrated=check(s);assert.equal(migrated.version, VERSION);assert.deepEqual(totalResources(migrated),supplies);assert.deepEqual(migrated.sites.surface.rooms,before);assert.ok(Object.values(migrated.sites).every(site=>site.designations.length===0));
 });
 
 test('invalid purposes, coordinates and duplicate markers are rejected',()=>{

@@ -17,8 +17,9 @@ export function takeItemLots(inventory,amount,requested=null) {
 }
 export function itemOwners(s) {
   const owners=[],put=(inventory,entity,slot)=>{if(inventory)owners.push({inventory,location:{entity,slot}});};
-  for(const site of Object.values(s.sites))for(const t of site.tiles){const id=`tile:${site.id}:${t.x}:${t.y}`;put(t.stock,id,'stock');put(t.drop,id,'drop');put(t.sanitary?.output,id,'sanitary.output');if(t.machine)for(const slot of ['input','output','batch'])put(t.machine[slot],id,`machine.${slot}`);}
+  for(const site of Object.values(s.sites))for(const t of site.tiles){const id=`tile:${site.id}:${t.x}:${t.y}`;put(t.stock,id,'stock');put(t.drop,id,'drop');put(t.imports,id,'imports');put(t.sanitary?.output,id,'sanitary.output');if(t.machine)for(const slot of ['input','output','batch'])put(t.machine[slot],id,`machine.${slot}`);}
   for(const c of s.crew){put(c.carry,c.id,'carry');put(c.possessions?.inventory,c.id,'pocket');}
   for(const j of s.jobs){put(j.materials,j.id,'materials');j.sources.forEach((source,i)=>put(source.items,j.id,`sources.${i}`));}
-  put(s.mission?.cargo,'colony','mission.cargo');put(s.shuttle?.supplies,'colony','shuttle.supplies');return owners;
+  // Freight is one durable owner, separate from flight service stores and salvage.
+  put(s.mission?.cargo,'colony','mission.cargo');put(s.shuttle?.supplies,'colony','shuttle.supplies');put(s.shuttle?.freight,'colony','shuttle.freight');return owners;
 }

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import {createGame,at,step,serialize,deserialize,setLabor,setAnimalPost,transportAnimalToPost,cancelJob} from '../src/simulation.js';
 import {animalPath} from '../src/navigation.js';
 import {transportFor} from '../src/animal-transport.js';
@@ -90,7 +91,7 @@ test('shared action and observation label the order and all physical stages',()=
 });
 
 test('schema 28 migration preserves the colony and malformed escort ownership is rejected',()=>{
- const s=createGame();s.version=28;const old=structuredClone(s),copy=check(s);assert.equal(copy.version,36);old.version=36;assert.deepEqual(copy,old);
+ const s=createGame();s.version=28;const old=structuredClone(s),copy=check(s);assert.equal(copy.version, VERSION);old.version=VERSION;assert.deepEqual(copy,old);
  for(const mutate of [j=>j.phase='fly',j=>j.work=1,j=>j.animal='missing',j=>j.cost={food:1},j=>j.phase='escort']){const f=pen(),j=request(f);mutate(j);assert.throws(()=>check(f.s));}
  const f=pen(),j=request(f);until(f.s,()=>j.phase==='escort');f.a.x++;assert.throws(()=>check(f.s),/escort/);
 });

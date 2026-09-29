@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, cancelJob, setLabor, serialize, deserialize } from '../src/simulation.js';
 import { setMachineEnabled } from '../src/industry.js';
 import { totalResources, syncResources } from '../src/inventory.js';
@@ -106,7 +107,7 @@ test('active hygiene and collected cargo continue deterministically across reloa
 
 test('schema-eighteen migration preserves needs, tanks, inventories and pending care',()=>{
   const {s,p}=clinic();step(s);cancelJob(s,hygiene(s,p).id);s.version=18;for(const c of s.crew)delete c.sanitation.retryAt;
-  const before=totalResources(s),wait=p.sanitation.wait,copy=check(s);assert.equal(copy.version, 36);assert.deepEqual(totalResources(copy),before);assert.equal(copy.crew[0].sanitation.wait,wait);assert.equal(copy.crew[0].sanitation.retryAt,0);
+  const before=totalResources(s),wait=p.sanitation.wait,copy=check(s);assert.equal(copy.version, VERSION);assert.deepEqual(totalResources(copy),before);assert.equal(copy.crew[0].sanitation.wait,wait);assert.equal(copy.crew[0].sanitation.retryAt,0);
 });
 
 test('invalid retry times, patient references, work, inventory and duplicate hygiene orders are rejected',()=>{

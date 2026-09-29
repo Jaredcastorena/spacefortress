@@ -1,4 +1,6 @@
 import { expeditionCrewStatus, expeditionCandidates, expeditionLaunchBlock } from './expedition-readiness.js';
+import { returnCrewIds } from './expedition.js';
+import { OUTPOST_SITES, residentIds, shuttleLocation, shuttlePresence } from './outposts.js';
 import { departureReadiness } from './preflight.js';
 import { plumbingStatus } from './plumbing.js';
 import { breakerConditions } from './power.js';
@@ -24,13 +26,19 @@ export const tileEntityId = (site,x,y) => `tile:${site}:${x}:${y}`;
 export function observe(s) {
   const {sites,crew,jobs,creatures,...colony}=s;
   const selectedCrewIds=[...(s.departure?.crew||s.mission?.crew||[])],destination=s.departure?.site||s.mission?.site||null;
-  const expedition={selectedCrewIds,destination:destination?`site:${destination}`:null,phase:s.departure?.stage||s.mission?.phase||'idle',preparing:!!s.departure,remaining:s.mission?.remaining||0,candidates:expeditionCandidates(s),departure:departureReadiness(s)};
-  const entities={colony:{type:'colony',...colony,derived:{...(colony.derived||{}),expedition}}};
+  const returningCrewIds=returnCrewIds(s),residences=new Map();
+  const outposts=Object.fromEntries(OUTPOST_SITES.map(siteId=>{
+    const residents=residentIds(s,siteId);
+    for(const id of residents)residences.set(id,`site:${siteId}`);
+    return [siteId,{established:s.outposts?.[siteId]?.established??false,residents}];
+  }));
+  const expedition={selectedCrewIds,returnCrewIds:returningCrewIds,destination:destination?`site:${destination}`:null,phase:s.departure?.stage||s.mission?.phase||'idle',preparing:!!s.departure,remaining:s.mission?.remaining||0,candidates:expeditionCandidates(s),departure:departureReadiness(s)};
+  const entities={colony:{type:'colony',...colony,derived:{...(colony.derived||{}),expedition,shuttle:{location:shuttleLocation(s)}}}};
   for(const site of Object.values(sites)) {
     const {tiles,rooms,...environment}=site;
     const launchBlocked=expeditionLaunchBlock(s,site.id);
     // Destination gates are distinct from selected-crew, supplies and route readiness.
-    entities[`site:${site.id}`]={type:'site',...environment,waterSupply:waterSupply(s,site.id),derived:{...(environment.derived||{}),expedition:{selected:destination===site.id,launchBlocked}}};
+    entities[`site:${site.id}`]={type:'site',...environment,waterSupply:waterSupply(s,site.id),derived:{...(environment.derived||{}),expedition:{selected:destination===site.id,launchBlocked},shuttle:shuttlePresence(s,site.id),outpost:outposts[site.id]||null}};
     for(const t of tiles) {
       const gas=(t.pipe||t.gasStore||t.gasDevice)?gasStatus(site,t):null;
       const plumbing=(t.waterPipe||t.waterStore||t.waterDevice)?plumbingStatus(s,site,t):null;
@@ -47,7 +55,7 @@ export function observe(s) {
     }
   }
   for(const site of Object.values(sites))for(const t of site.tiles)if(t.fire)entities[t.fire.id]={type:'fire',...t.fire,tile:tileEntityId(site.id,t.x,t.y)};
-  for(const c of crew) {const site=sites[c.site];entities[c.id]={type:'crew',...c,derived:{expedition:{...expeditionCrewStatus(c),selected:selectedCrewIds.includes(c.id)},currentComfort:site?roomComfort(s,site,roomAt(site,c.x,c.y),c):null,homeComfort:c.housing.bunk?roomComfort(s,sites.surface,roomAt(sites.surface,...c.housing.bunk),c):null}};}
+  for(const c of crew) {const site=sites[c.site];entities[c.id]={type:'crew',...c,derived:{expedition:{...expeditionCrewStatus(c),selected:selectedCrewIds.includes(c.id),selectedForReturn:returningCrewIds.includes(c.id)},residence:residences.get(c.id)||null,currentComfort:site?roomComfort(s,site,roomAt(site,c.x,c.y),c):null,homeComfort:c.housing.bunk?roomComfort(s,sites.surface,roomAt(sites.surface,...c.housing.bunk),c):null}};}
   for(const j of jobs) entities[j.id]={type:'job',...j};
   const pastures=pastureRegions(sites.surface);
   for(const r of pastures.regions)if(r.enclosed)entities[r.id]={type:'pasture',site:'surface',...r};
@@ -63,17 +71,18 @@ export function observe(s) {
 export function systemFor(type,path) {
   const root=path[0];
   if(root==='derived')return 'derived_conditions';
+  if(type==='colony'&&root==='shuttle'&&path[1]==='freight')return 'inventory';
   if(type==='item')return 'possessions';
   if(type==='fire')return 'fire';
   if(type==='brood')return 'breeding';
   if(type==='pasture')return 'pastures';
   if(type==='meal_batch')return 'food';
   if(type==='crew')return ({possessions:'possessions',memories:'memory',relationships:'relationships',housing:'housing',medical:'medicine',sanitation:'sanitation',life:'crew_life',intent:'intent',carry:'inventory',delivery:'logistics',skills:'skills',labors:'labor',thermalStress:'temperature',health:'health',oxygen:'atmosphere',energy:'needs',hunger:'needs',morale:'morale',x:'movement',y:'movement',site:'movement'})[root] || 'crew';
-  if(type==='tile')return ({protection:'power',waterPipe:'plumbing',waterStore:'plumbing',waterDevice:'plumbing',pipe:'gas_networks',gasStore:'gas_networks',gasDevice:'gas_networks',liquid:'liquids',tank:'liquids',wetShort:'power',reactor:'power',radiator:'temperature',fire:'fire',fireFault:'fire',deposit:'geology',stock:'inventory',drop:'inventory',machine:'production',building:'construction',hp:'condition',cable:'power',charge:'power',powered:'power',powerPriority:'power',circuit:'power',powerStatus:'power',maintenance:'maintenance',sanitary:'sanitation',climate:'temperature',gateMode:'pastures',doorMode:'doors',doorUntil:'doors'})[root] || 'terrain';
+  if(type==='tile')return ({protection:'power',waterPipe:'plumbing',waterStore:'plumbing',waterDevice:'plumbing',pipe:'gas_networks',gasStore:'gas_networks',gasDevice:'gas_networks',liquid:'liquids',tank:'liquids',wetShort:'power',reactor:'power',radiator:'temperature',fire:'fire',fireFault:'fire',deposit:'geology',stock:'inventory',drop:'inventory',imports:'inventory',machine:'production',building:'construction',hp:'condition',cable:'power',charge:'power',powered:'power',powerPriority:'power',circuit:'power',powerStatus:'power',maintenance:'maintenance',sanitary:'sanitation',climate:'temperature',gateMode:'pastures',doorMode:'doors',doorUntil:'doors'})[root] || 'terrain';
   if(type==='room')return root==='smoke'?'fire':root==='heat'?'temperature':root==='cells'||root==='volume'?'room_topology':'atmosphere';
   if(type==='job')return 'jobs';
   if(type==='creature')return 'wildlife';
-  return ({plumbing:'plumbing',gasNetwork:'gas_networks',liquids:'liquids',reactorLedger:'power',fireSafety:'fire',waterSupply:'water',mission:'expedition',departure:'departure',shuttle:'shuttle',resources:'inventory',anomaly:'anomaly',comet:'orbit',debris:'hazards',designations:'room_purpose',thermal:'temperature',power:'power',circuits:'power',energy:'power',atmosphere:'atmosphere',foodSpoiled:'food',log:'narrative',objectives:'objectives'})[root] || 'state';
+  return ({plumbing:'plumbing',gasNetwork:'gas_networks',liquids:'liquids',reactorLedger:'power',fireSafety:'fire',waterSupply:'water',outposts:'outposts',mission:'expedition',departure:'departure',shuttle:'shuttle',resources:'inventory',anomaly:'anomaly',comet:'orbit',debris:'hazards',designations:'room_purpose',thermal:'temperature',power:'power',circuits:'power',energy:'power',atmosphere:'atmosphere',foodSpoiled:'food',log:'narrative',objectives:'objectives'})[root] || 'state';
 }
 export function changesBetween(before,after) {
   const changes=[];
