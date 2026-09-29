@@ -4,7 +4,7 @@ Implemented September 16, 2026, following the user's request to clearly mark sma
 
 ## One set of gameplay controls
 
-`src/controls.js` registers 33 named actions. The browser's gameplay controls and `window.spacefortress.act(id, args)` use the same dispatcher, argument validation and underlying simulation rules. An agent cannot gain free resources or teleport workers through this interface. Autonomous simulation jobs still use internal functions; their outcomes appear in tick records and semantic events.
+`src/controls.js` registers the named action catalog. The browser's gameplay controls and `window.spacefortress.act(id, args)` use the same dispatcher, argument validation and underlying simulation rules. An agent cannot gain free resources or teleport workers through this interface. Autonomous simulation jobs still use internal functions; their outcomes appear in tick records and semantic events.
 
 Action families include physical job orders/cancellation/priorities, labor and routines, bunk ownership, animal post assignment/care policies, keepsake collection/release, room purposes, climate, production, depot filters/priorities, power/cables/cells, doors, maintenance, expedition preparation/recall/cargo, and signal choices. `simulation.step` advances 1–300 deterministic ticks. All browser agent actions pause realtime advancement first; further agent steps explicitly advance time. UI camera/menu navigation, playback speed and save-file operations are not gameplay decisions in this catalog.
 
@@ -82,7 +82,7 @@ A complete delta prefix reconstructs the normalized observation exactly. Apply a
 
 The initial save plus accepted requested commands can replay deterministic command-driven sessions with the same engine revision. Explicit `simulation.step` already advances its correlated tick records; do not advance those a second time. For realtime sessions, autonomous tick records without a command represent separate steps. External direct edits cannot be reproduced from commands alone. Save/schema versions do not uniquely identify source revisions, so archive the engine source alongside datasets intended for long-term replay.
 
-Verification includes detached observations/catalogs, shared player/agent behavior, rejected commands, stable IDs/paths, tiny need and memory changes, explicit production events, exact observation reconstruction, deterministic replay, no RNG/save differences, bounded prefixes, state replacement and exports. The current full suite has **490 passing tests**, including 15 interface/recording cases.
+Verification includes detached observations/catalogs, shared player/agent behavior, rejected commands, stable IDs/paths, tiny need and memory changes, explicit production events, exact observation reconstruction, deterministic replay, no RNG/save differences, bounded prefixes, state replacement and exports. The original interface increment passed 15 interface/recording cases within its historical 490-test suite. See [verification status](verification-status.md) for current integrated evidence.
 
 Isolated Firefox verified entity/action labels, recording controls above an open inspector, player and agent actions, explicit stepping/pausing, rejection, local NDJSON export, save/reload and no scoped application errors. The recording menu screenshot was visually inspected. Its stacking order was corrected after QA found the open inspector intercepting menu clicks. Temporary QA processes were stopped.
 

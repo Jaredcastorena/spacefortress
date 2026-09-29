@@ -16,3 +16,11 @@ export function storeColony(storage, session, state, replace = false) {
   storage().setItem(SAVE_KEY, serialize(state));
   session.error = null; session.original = null;
 }
+
+export function exportColony(session, state) {
+  // Keep the unreadable bytes available while showing the initial fallback.
+  // Import/New creates a different colony object, which must remain exportable
+  // even when browser storage rejects its explicit replacement save.
+  const protectedOriginal = session.original !== null && state === session.state;
+  return { contents: protectedOriginal ? session.original : serialize(state), protectedOriginal };
+}

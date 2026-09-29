@@ -4,6 +4,8 @@ Design draft and local implementation audit — September 16, 2026.
 
 Current user direction: **isometric sprites and upward/outward progression** from a planet into orbit and farther space. See [orbital progression](orbital-progression.md). Geology and excavation remain in this inventory as possible local systems; underground depth is no longer the main progression requirement. Milestones and exact equivalents below are proposals.
 
+The [project roadmap](../ROADMAP.md) tracks the current release boundary and ordered playable milestones. This inventory retains the broader system coverage and conversion backlog.
+
 ## Scope and how to use this list
 
 This is a system-level conversion backlog, including Fortress, Adventure, and Legends mode families. It is not yet an exhaustive catalog of every Dwarf Fortress creature, material, recipe, interaction, or version-specific rule. Those need a separate definition-level audit against a chosen reference release. An early playable draft now covers parts of several rows; see [implementation status](implementation-status.md) for evidence and limits. No broad row should be called complete solely because a simplified version exists. Space equivalents are original design proposals, not claims about Dwarf Fortress features.

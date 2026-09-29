@@ -2,9 +2,25 @@
 
 An early playable space colony simulator inspired by Dwarf Fortress. Keep seven alien founders alive, build a planetary colony, and send supplied expeditions into orbit to recover material for its next expansion.
 
+**[Play online](https://jaredcastorena.github.io/spacefortress/)** · [Online elements lab](https://jaredcastorena.github.io/spacefortress/elements.html) · [Release v0.1.1](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.1) · [Roadmap](ROADMAP.md)
+
 ![SPACEFORTRESS colony with original alien crew, an isometric habitat and closed detail drawers](docs/images/spacefortress-colony.png)
 
 **The game is still in development.** The current build has one colony floor and fixed orbital destinations. Staffed outposts, connected vertical decks, a generated universe/history and much of the wider simulation remain unfinished. The [implementation status](docs/implementation-status.md) separates working systems from plans.
+
+## What's new in v0.1.1
+
+- The shuttle is drawn at its actual berth or in transit; an empty dock no longer looks occupied.
+- Save schema 37 adds separate return rosters, freight and dock inventories, and a wreck residence registry, with strict migration and preserved food/item metadata.
+- Site-local material reservations and return-traveler protections provide foundations for future orbital colonies.
+
+**Staffed outposts are not playable yet.** This update adds no settlement or freight player controls, remote colony care or resupply loop. The foundation passed 864 tests with one intentional historical fixture skip; see [verified scope](docs/verification-status.md) and the [changelog](CHANGELOG.md).
+
+Next steps are physical freight loading/unloading, supplied remote construction and habitat readiness, then resident care and delayed-resupply recovery. Later goals include connected local decks and generated regions. See the [roadmap](ROADMAP.md) for the planned sequence.
+
+## Play online
+
+The hosted game and separate elements lab use the links above. The first online load fetches static HTML, scripts and styles from the same GitHub Pages origin, then the simulation runs in your browser. There is no gameplay backend, account requirement or cloud save service. Use the local setup below for offline play.
 
 ## Play locally
 
@@ -33,7 +49,7 @@ python3 tools/serve.py --port 8421
 
 Then open `http://127.0.0.1:8421/`. A different port has separate browser save storage; export your colony before moving between addresses.
 
-There is **no build step or package installation**. Python serves the files on your own computer; the simulation runs in the browser. All game code and graphics are local. The game makes no external runtime network calls and needs no account, cloud service, asset download or model download. Once you have the source and tools, it runs offline through the local server.
+There is **no build step or package installation**. Python serves the files on your own computer; the simulation runs in the browser. All game code and graphics are included in the checkout. Local play makes no external runtime network calls and needs no account, cloud service, additional asset download or model download. Once you have the source and tools, it runs offline through the local server.
 
 ## First session
 
@@ -69,11 +85,13 @@ Keyboard shortcuts are inactive while editing a form or using a dialog. If a but
 - **Original setting:** alien crew, bristleback livestock, biomass-eating tibbles and small fictional anomalies, shown on an isometric map with details in drawers.
 - **Local simulation interface:** shared player/agent actions, stable entity IDs, structured observations and optional bounded recordings. No model or training service is included.
 
-These are game-scale models with documented gaps, not full Dwarf Fortress parity or realistic engineering simulations. The [conversion inventory](docs/conversion-inventory.md) tracks the broader work. The [staffed outpost design](docs/staffed-orbital-outpost-design.md) is a proposal, not a playable feature.
+These are game-scale models with documented gaps, not full Dwarf Fortress parity or realistic engineering simulations. The [conversion inventory](docs/conversion-inventory.md) tracks the broader work. The [staffed outpost design](docs/staffed-orbital-outpost-design.md) separates its implemented ownership foundation from the proposed gameplay.
 
 ## Saves and recordings
 
 **Save** writes the colony into this browser's local storage under `spacefortress-save-v1`. The game also autosaves every 30 simulation ticks and when the page is hidden or closed. Saves are tied to the browser profile and page origin, including the port; clearing browser data can remove them. Nothing is uploaded to a server or written into the source tree.
+
+Hosted play and local play have different origins and therefore separate saves. To move a colony, use **⋯ → Export save** at the old address, then **⋯ → Import save** at the new address. Saves remain browser-local on GitHub Pages too; they are not synchronized between browsers or devices.
 
 Use **⋯ → Export save** for a portable JSON backup, and **⋯ → Import save** to restore one. Import replaces the current colony after validation; export first if you want to keep both. **New colony** also replaces the current colony and asks for confirmation. If an existing save cannot be read, the game protects it from automatic replacement and offers its original contents for export. When browser storage is unavailable, use export to keep your progress.
 
@@ -81,7 +99,7 @@ Optional **Start recording / Export recording** controls export local NDJSON obs
 
 ## Elements lab
 
-Open **[http://127.0.0.1:8420/elements.html](http://127.0.0.1:8420/elements.html)** for the separate air/water/fire/vacuum/electricity sandbox. It starts paused; choose a scenario or brush, then **Step** or **Run**. The reactor scenario includes finite fuel, waste heat, radiators and overheat recovery.
+Use the [online elements lab](https://jaredcastorena.github.io/spacefortress/elements.html), or open **[http://127.0.0.1:8420/elements.html](http://127.0.0.1:8420/elements.html)** after starting the local server, for the separate air/water/fire/vacuum/electricity sandbox. It starts paused; choose a scenario or brush, then **Step** or **Run**. The reactor scenario includes finite fuel, waste heat, radiators and overheat recovery.
 
 The lab has its own state and does not change the colony save. Its cell simulation is separate from the colony's room simulation. [Lab rules and controls](docs/elements-lab.md) explain the differences.
 
@@ -111,7 +129,7 @@ The [verification record](docs/verification-status.md) describes historical chec
 
 | Topic | Start here |
 | --- | --- |
-| Current scope and roadmap | [Implementation status](docs/implementation-status.md), [conversion inventory](docs/conversion-inventory.md) |
+| Current scope and roadmap | [Roadmap](ROADMAP.md), [changelog](CHANGELOG.md), [implementation status](docs/implementation-status.md), [conversion inventory](docs/conversion-inventory.md) |
 | Supplies and construction | [Construction logistics](docs/construction-logistics.md), [production](docs/production-and-logistics.md), [storage](docs/depot-storage.md) |
 | Crew and care | [Crew life](docs/crew-life.md), [medicine](docs/medicine.md), [rescue and nursing](docs/rescue-and-nursing.md) |
 | Environment and utilities | [Atmosphere](docs/atmosphere.md), [gas networks](docs/gas-networks.md), [plumbing](docs/plumbing.md), [power](docs/power-networks.md), [fire](docs/fire-and-smoke.md) |

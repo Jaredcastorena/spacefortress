@@ -1,10 +1,20 @@
 # First public repository — release readiness
 
-**Status: published and verified.** Updated 2026-09-23 UTC. The first public source release is at [Jaredcastorena/spacefortress](https://github.com/Jaredcastorena/spacefortress). This checklist describes an early playable build, not completion of SPACEFORTRESS.
+**Historical v0.1.0 status: published and verified.** Updated 2026-09-23 UTC. The first public source release is at [Jaredcastorena/spacefortress](https://github.com/Jaredcastorena/spacefortress). The checklist below records the v0.1.0 source release and its historical schema 36 checks. Current schema 37 feature evidence is in [verification status](verification-status.md).
 
 `Verified` means the stated scoped check has evidence. `Pending` means the release check has not yet been accepted. Historical results do not substitute for current release verification.
 
-## Setup and player-facing documentation
+## v0.1.1 publication and hosted play
+
+The next release contains the verified schema 37 outpost foundations, corrected physical shuttle drawing and save-export recovery. The [changelog](../CHANGELOG.md) describes the changes; the [roadmap](../ROADMAP.md) orders the remaining gameplay work. Staffed outposts and player freight controls remain unfinished.
+
+Publication uses GitHub Pages at [the game](https://jaredcastorena.github.io/spacefortress/) and [the separate elements lab](https://jaredcastorena.github.io/spacefortress/elements.html). The deployment packages an explicit set of game assets with the MIT license and a version manifest. Private continuity, saves, recordings, tests, fixtures and operator tools are outside that artifact.
+
+The Pages job runs only for main-branch publication after the same commit passes the Tests job. Pull requests run checks without publishing. Official deployment actions are pinned to full commit IDs, and publishing permissions are limited to the deployment job. [GitHub Actions](https://github.com/Jaredcastorena/spacefortress/actions) records both test and deployment outcomes.
+
+Release acceptance requires the published manifest to match the release commit, both entrypoints and their module assets to load from the project path, and a fresh browser to pass colony save/reload and lab-isolation checks. Hosted saves stay in the browser; transfer an existing local colony with JSON export/import.
+
+## Historical v0.1.0 setup and player-facing documentation
 
 | Check | Status | Evidence / remaining work |
 | --- | --- | --- |
@@ -15,7 +25,7 @@
 | Offline runtime | Verified — source review | Entry points load local scripts/styles; no external fetch/WebSocket/CDN dependency found in scoped source inspection. No exact browser-version or cross-platform claim. |
 | README links and screenshot | Verified | All 31 README links and 2 checklist links resolve locally. The approved, visually reviewed colony PNG is copied byte-for-byte into `docs/images/spacefortress-colony.png`; QA profiles/logs are excluded. Recheck after publication edits. |
 
-## Release gates
+## Historical v0.1.0 release gates
 
 | Check | Status | Evidence / remaining work |
 | --- | --- | --- |

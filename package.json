@@ -1,7 +1,7 @@
 {
   "name": "spacefortress",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A local-first isometric space colony simulator.",
   "type": "module",
   "license": "MIT",
@@ -12,8 +12,10 @@
   "bugs": {
     "url": "https://github.com/Jaredcastorena/spacefortress/issues"
   },
-  "homepage": "https://github.com/Jaredcastorena/spacefortress#readme",
-  "engines": { "node": ">=20" },
+  "homepage": "https://jaredcastorena.github.io/spacefortress/",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "python3 tools/serve.py",
     "test": "node --test tests"

@@ -22,12 +22,12 @@ import { temperatureAt } from './thermal.js';
 import { thermalDetails, climateDetails } from './thermal-panels.js';
 
 import { BUILDINGS, SITES, RESOURCES, SPECIES } from './data.js';
-import { createGame, step, serialize, deserialize, at, inside, roomAt, isDay, pathTo } from './simulation.js';
+import { createGame, step, deserialize, at, inside, roomAt, isDay, pathTo } from './simulation.js';
 import { crewDetails, jobDetails } from './crew-panels.js';
 import { constructionResources, reservedAt } from './construction.js';
 import { quantity } from './inventory.js';
 import { storageDetails, inventoryText } from './industry-panels.js';
-import { loadColony, storeColony } from './persistence.js';
+import { loadColony, storeColony, exportColony } from './persistence.js';
 import { atmosphereDetails, doorDetails } from './atmosphere-panels.js';
 import { preflightDetails } from './preflight-panels.js';
 import { expeditionDetails, shuttleDetails, missionStatus } from './expedition-panels.js';
@@ -65,6 +65,7 @@ window.addEventListener('blur',finishInspectorPress);
 function toast(message, error = false) { $('toast').textContent = message; $('toast').className = `toast show${error ? ' error' : ''}`; clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').className = 'toast', 4500); }
 function result(r, success) { if (!r.ok) toast(r.message, true); else if (success) toast(success); refresh(); }
 function save(silent = false, replace = false) {
+  if (replace && state !== saveSession.state) $('export').textContent = 'Export save';
   if (saveSession.error && !replace) { if (!silent) toast('Previous save could not be loaded. Export it or choose New colony before replacing it.', true); return false; }
   try { storeColony(() => localStorage, saveSession, state, replace); $('save').disabled = false; $('save').title = 'Save in this browser'; $('export').textContent = 'Export save'; if (!silent) toast('Colony saved on this device.'); return true; }
   catch { toast('Browser storage unavailable. Use Export save to keep your colony.', true); return false; }
@@ -119,7 +120,7 @@ $('new-game').onclick = () => { setSpeed(0); $('confirm-new').showModal(); };
 $('cancel-new').onclick = () => $('confirm-new').close();
 $('confirm-new').addEventListener('close', () => setSpeed(previousSpeed));
 $('confirm-new-button').onclick = () => { state = createGame(Math.floor(Math.random() * 2147483647) + 1); lastSave = 0; accumulator = 0; setSite('surface'); const stored = save(true, true); $('confirm-new').close(); if (stored) toast('A new foothold. A new history.'); };
-$('export').onclick = () => { const url = URL.createObjectURL(new Blob([saveSession.original !== null ? saveSession.original : serialize(state)], { type: 'application/json' })); const a = document.createElement('a'); a.href = url; a.download = saveSession.original !== null ? 'spacefortress-unreadable-save.json' : `spacefortress-cycle-${Math.floor(state.tick / 300) + 1}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); toast('Save exported.'); };
+$('export').onclick = () => { const exported = exportColony(saveSession, state); const url = URL.createObjectURL(new Blob([exported.contents], { type: 'application/json' })); const a = document.createElement('a'); a.href = url; a.download = exported.protectedOriginal ? 'spacefortress-unreadable-save.json' : `spacefortress-cycle-${Math.floor(state.tick / 300) + 1}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); toast('Save exported.'); };
 $('record-simulation').onclick = () => {
   if (recordingStatus(state).active) { stopRecording(state); toast('Simulation recording stopped. Export it from this menu.'); }
   else { startRecording(state); toast('Recording actions and simulation changes locally.'); }
