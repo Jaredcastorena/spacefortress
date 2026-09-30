@@ -1,18 +1,29 @@
-# First public repository — release readiness
+# Public releases — readiness
 
-**Historical v0.1.0 status: published and verified.** Updated 2026-09-23 UTC. The first public source release is at [Jaredcastorena/spacefortress](https://github.com/Jaredcastorena/spacefortress). The checklist below records the v0.1.0 source release and its historical schema 36 checks. Current schema 37 feature evidence is in [verification status](verification-status.md).
+**Historical v0.1.0 status: published and verified.** Updated 2026-09-23 UTC. The first public source release is at [Jaredcastorena/spacefortress](https://github.com/Jaredcastorena/spacefortress). The checklist below records the v0.1.0 source release and its historical schema 36 checks. Current schema38 preview evidence is in [verification status](verification-status.md).
 
 `Verified` means the stated scoped check has evidence. `Pending` means the release check has not yet been accepted. Historical results do not substitute for current release verification.
 
 ## v0.1.1 publication and hosted play
 
-The next release contains the verified schema 37 outpost foundations, corrected physical shuttle drawing and save-export recovery. The [changelog](../CHANGELOG.md) describes the changes; the [roadmap](../ROADMAP.md) orders the remaining gameplay work. Staffed outposts and player freight controls remain unfinished.
+Published v0.1.1 contains the verified schema 37 outpost foundations, corrected physical shuttle drawing and save-export recovery. The [changelog](../CHANGELOG.md) describes the changes; the [roadmap](../ROADMAP.md) orders the remaining gameplay work. That release did not include staffed-outpost or player freight controls.
 
 Publication uses GitHub Pages at [the game](https://jaredcastorena.github.io/spacefortress/) and [the separate elements lab](https://jaredcastorena.github.io/spacefortress/elements.html). The deployment packages an explicit set of game assets with the MIT license and a version manifest. Private continuity, saves, recordings, tests, fixtures and operator tools are outside that artifact.
 
 The Pages job runs only for main-branch publication after the same commit passes the Tests job. Pull requests run checks without publishing. Official deployment actions are pinned to full commit IDs, and publishing permissions are limited to the deployment job. [GitHub Actions](https://github.com/Jaredcastorena/spacefortress/actions) records both test and deployment outcomes.
 
 Release acceptance requires the published manifest to match the release commit, both entrypoints and their module assets to load from the project path, and a fresh browser to pass colony save/reload and lab-isolation checks. Hosted saves stay in the browser; transfer an existing local colony with JSON export/import.
+
+## v0.1.2 — freight and wreck settlement preview
+
+The user requested wrapping this round and publishing the latest tested build. Schema38 exposes physical freight, supplied local construction/readiness, residence/return controls, site-local care and conditional single-pilot pickup. This release is a development preview: full fresh-colony endurance, delayed resupply, ordinary remote care and final pickup remain unfinished. Automatic pressure-cycling airlocks remain proposed.
+
+| Release check | Status | Evidence |
+| --- | --- | --- |
+| Current source | Verified | Node959 checks:958 pass,0 fail,1 intentional historical skip,64.33s. Python15/15 and JavaScript163/163. Detailed scopes in [verification status](verification-status.md). |
+| Player controls | Verified — bounded | Real freight and named-resident/default/narrow controls, exact saves, alerts and lab isolation passed. Full resident endurance/resupply/pickup remains pending. |
+| Finite publication artifact | Verified — candidate |88files/all81 runtime modules reachable; no private continuity/saves/tests/fixtures/QA or external runtime dependencies. Rebuild with final release metadata before publication. |
+| GitHub publication and live deployment | Release record | Exact commit, CI and live checks are recorded on the [v0.1.2 release](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.2). The [live version manifest](https://jaredcastorena.github.io/spacefortress/version.json) identifies the deployed commit. |
 
 ## Historical v0.1.0 setup and player-facing documentation
 

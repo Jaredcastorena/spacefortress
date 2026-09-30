@@ -17,7 +17,9 @@ const tileAt = (site, xy) => site.tiles[xy[1] * site.size + xy[0]];
 const xy = t => [t.x, t.y];
 const same = (a, b) => a[0] === b[0] && a[1] === b[1];
 export function buffer(tile, kind) {
+  if (!tile) return null;
   if (kind === 'stock') return tile.building === 'stockpile' ? tile.stock : null;
+  if (kind === 'imports') return tile.building === 'dock' ? tile.imports : null;
   if (kind === 'drop') return tile.drop;
   if (kind === 'output' && tile.building === 'sanitary') return tile.sanitary?.output;
   return RECIPES[tile.building] ? tile.machine?.[kind] : null;
@@ -40,7 +42,7 @@ function pickHaul(s, c, site, pathTo) {
     candidates.push({ priority, purpose, distance: pickup.length + delivery.length, intent: { type: 'haul', target: xy(t), source: kind, items, destination } });
   };
   // Claims reserve space before pickup. Transfers only move uphill in priority, or evacuate rejected goods.
-  for (const t of site.tiles) for (const kind of ['drop', 'output', 'stock']) {
+  for (const t of site.tiles) for (const kind of ['drop', 'output', 'stock', 'imports']) {
     const inventory = buffer(t, kind); if (!quantity(inventory) || claimed(t, kind)) continue;
     for (const depot of depots) {
       if (depot === t && kind === 'stock') continue;
@@ -58,8 +60,10 @@ function pickHaul(s, c, site, pathTo) {
     const destination = { kind: 'input', target: xy(t) };
     for (const [r, n] of Object.entries(recipe.input)) {
       const needed = n * inputBatchesWanted(s, site, t) - (m.input[r] || 0) - incomingInventory(s, c.site, destination, r); if (needed <= 0 || (recipe.automatic && ['reactor','waterTank','gasTank'].includes(t.building) && needed<n-1e-9)) continue;
-      for (const source of depots) if ((source.stock?.[r] || 0) > 0 && !claimed(source, 'stock')) {
-        offer(source, 'stock', { [r]: Math.min(needed, t.building==='galley'&&r==='food'?rawFood(source.stock):source.stock[r], CARRY_CAPACITY) }, destination, recipe.lifeSupport || recipe.automatic ? 5 : m.order.priority, 0);
+      for (const source of site.tiles) for (const kind of ['stock', 'imports']) {
+        const inventory = buffer(source, kind);
+        if ((inventory?.[r] || 0) <= 0 || claimed(source, kind)) continue;
+        offer(source, kind, { [r]: Math.min(needed, t.building==='galley'&&r==='food'?rawFood(inventory):inventory[r], CARRY_CAPACITY) }, destination, recipe.lifeSupport || recipe.automatic ? 5 : m.order.priority, 0);
       }
     }
   }

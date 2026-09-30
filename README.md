@@ -2,21 +2,23 @@
 
 An early playable space colony simulator inspired by Dwarf Fortress. Keep seven alien founders alive, build a planetary colony, and send supplied expeditions into orbit to recover material for its next expansion.
 
-**[Play online](https://jaredcastorena.github.io/spacefortress/)** · [Online elements lab](https://jaredcastorena.github.io/spacefortress/elements.html) · [Release v0.1.1](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.1) · [Roadmap](ROADMAP.md)
+**[Play online](https://jaredcastorena.github.io/spacefortress/)** · [Online elements lab](https://jaredcastorena.github.io/spacefortress/elements.html) · [Release v0.1.2](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.2) · [Roadmap](ROADMAP.md)
 
 ![SPACEFORTRESS colony with original alien crew, an isometric habitat and closed detail drawers](docs/images/spacefortress-colony.png)
 
-**The game is still in development.** The current build has one colony floor and fixed orbital destinations. Staffed outposts, connected vertical decks, a generated universe/history and much of the wider simulation remain unfinished. The [implementation status](docs/implementation-status.md) separates working systems from plans.
+**The game is still in development.** The current build has one colony floor and fixed orbital destinations. Long-lived staffed outposts, connected vertical decks, a generated universe/history and much of the wider simulation remain unfinished. The [implementation status](docs/implementation-status.md) separates working systems from plans.
 
-## What's new in v0.1.1
+## What's new in v0.1.2
 
-- The shuttle is drawn at its actual berth or in transit; an empty dock no longer looks occupied.
-- Save schema 37 adds separate return rosters, freight and dock inventories, and a wreck residence registry, with strict migration and preserved food/item metadata.
-- Site-local material reservations and return-traveler protections provide foundations for future orbital colonies.
+- Physical freight manifests: workers load and unload existing goods, with cancellation, capacity and flight reserves preserved.
+- Experimental wreck settlement: delivered local construction, measured habitat readiness, named residence and return-passenger controls.
+- Crew work, meals, rest and care use their actual site; compact inspectors expose supplies and offsite warnings.
+- An explicit one-person service visit to an established wreck leaves a seat for a resident pickup.
+- More reliable departure loading, blocked-carrier parcel recovery and physical shuttle checks; save schema38 preserves older owned supplies and crew.
 
-**Staffed outposts are not playable yet.** This update adds no settlement or freight player controls, remote colony care or resupply loop. The foundation passed 864 tests with one intentional historical fixture skip; see [verified scope](docs/verification-status.md) and the [changelog](CHANGELOG.md).
+**Outpost endurance is still experimental.** Bounded real freight and residence controls passed player checks, but a complete fresh-colony settlement, delayed resupply, ordinary remote care and final pickup walkthrough remains unfinished. Plan actual gas, heating and night battery reserves; a room being ready now does not prove it can survive the night. Automatic pressure-cycling airlocks are [proposed](docs/airlock-cycling-design.md).
 
-Next steps are physical freight loading/unloading, supplied remote construction and habitat readiness, then resident care and delayed-resupply recovery. Later goals include connected local decks and generated regions. See the [roadmap](ROADMAP.md) for the planned sequence.
+The current source passes **958 tests with one intentional historical skip**, plus15 Python checks. See the [verification record](docs/verification-status.md), [changelog](CHANGELOG.md) and [roadmap](ROADMAP.md) for scope and next work.
 
 ## Play online
 
@@ -82,10 +84,11 @@ Keyboard shortcuts are inactive while editing a form or using a dialog. If a but
 - **Crew lives:** work duties and skills, hunger, rest, social needs, housing, injuries, medical treatment, carrying patients and bedside care.
 - **Environmental systems:** compartment gases, pressure doors, finite gas networks and retained exhaust, room heat, water plumbing and spills, fire/smoke, wired power, batteries, reactors and wet-fault breakers.
 - **Orbital expeditions:** explicit two-person crews, physical loading/boarding, limited cargo, satellite salvage, comet resources, solar collection, return trips and supplied fittings.
+- **Wreck settlement preview:** physical freight, local building, readiness, residence/return selection and site-local care controls. Full endurance and resupply acceptance is pending.
 - **Original setting:** alien crew, bristleback livestock, biomass-eating tibbles and small fictional anomalies, shown on an isometric map with details in drawers.
 - **Local simulation interface:** shared player/agent actions, stable entity IDs, structured observations and optional bounded recordings. No model or training service is included.
 
-These are game-scale models with documented gaps, not full Dwarf Fortress parity or realistic engineering simulations. The [conversion inventory](docs/conversion-inventory.md) tracks the broader work. The [staffed outpost design](docs/staffed-orbital-outpost-design.md) separates its implemented ownership foundation from the proposed gameplay.
+These are game-scale models with documented gaps, not full Dwarf Fortress parity or realistic engineering simulations. The [conversion inventory](docs/conversion-inventory.md) tracks the broader work. The [staffed outpost design](docs/staffed-orbital-outpost-design.md) describes the implemented preview and remaining gameplay acceptance.
 
 ## Saves and recordings
 
@@ -133,7 +136,7 @@ The [verification record](docs/verification-status.md) describes historical chec
 | Supplies and construction | [Construction logistics](docs/construction-logistics.md), [production](docs/production-and-logistics.md), [storage](docs/depot-storage.md) |
 | Crew and care | [Crew life](docs/crew-life.md), [medicine](docs/medicine.md), [rescue and nursing](docs/rescue-and-nursing.md) |
 | Environment and utilities | [Atmosphere](docs/atmosphere.md), [gas networks](docs/gas-networks.md), [plumbing](docs/plumbing.md), [power](docs/power-networks.md), [fire](docs/fire-and-smoke.md) |
-| Travel | [Departure preparation](docs/departure-preparation.md), [expedition logistics](docs/expedition-logistics.md), [orbital loop](docs/orbital-colony-loop.md) |
+| Travel | [Departure preparation](docs/departure-preparation.md), [expedition logistics](docs/expedition-logistics.md), [orbital loop](docs/orbital-colony-loop.md), [proposed cycling airlocks](docs/airlock-cycling-design.md) |
 | Developer interface | [Simulation actions and recording](docs/simulation-interface.md), [elements lab](docs/elements-lab.md) |
 
 ## Contributing and license

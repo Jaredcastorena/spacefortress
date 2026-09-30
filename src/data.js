@@ -1,4 +1,4 @@
-export const VERSION = 37;
+export const VERSION = 38;
 export const RESOURCES = ['alloy', 'ore', 'components', 'food', 'water', 'fuel', 'cells', 'air', 'medicine', 'waste', 'fertilizer', 'keepsakes', 'ice'];
 export const BUILDINGS = {
   breaker:{name:'Branch breaker',cost:{alloy:4,components:1},work:8,description:'A two-terminal electrical contact with no side connection. Starts open in manual mode. Optional wet-fault protection latches open when its output branch has a supplied wet cable fault. External bypasses and local batteries can keep a branch powered. Requires habitat floor without cable; open before rotating or changing mode.'},

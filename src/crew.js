@@ -18,7 +18,7 @@ export function initializeCrew(c, index) {
   c.favoriteLabor = profile.favorite; c.temperament = profile.temperament;
   c.intent = null; c.morale = 72; c.memories = [];
 }
-export const laborFor = job => ({ extinguish:'engineering',animalLead:'husbandry',animalCare:'husbandry',animalHarvest:'husbandry',operate: 'production', hygiene: 'medicine', feed: 'medicine', treat: 'medicine', mine: 'mining', build: 'construction', remove: 'construction', repair: 'engineering', service: 'engineering', refit: 'engineering', loadShuttle: 'hauling', unloadShuttle: 'hauling', repairWaterPipe:'engineering',removeWaterPipe:'construction',repairPipe:'engineering',removePipe:'construction',repairCable: 'engineering', removeCable: 'construction' })[job.kind];
+export const laborFor = job => ({ extinguish:'engineering',animalLead:'husbandry',animalCare:'husbandry',animalHarvest:'husbandry',operate: 'production', hygiene: 'medicine', feed: 'medicine', treat: 'medicine', mine: 'mining', build: 'construction', remove: 'construction', repair: 'engineering', service: 'engineering', refit: 'engineering', loadShuttle: 'hauling', unloadShuttle: 'hauling', loadCargo: 'hauling', unloadCargo: 'hauling', repairWaterPipe:'engineering',removeWaterPipe:'construction',repairPipe:'engineering',removePipe:'construction',repairCable: 'engineering', removeCable: 'construction' })[job.kind];
 export const airThreshold = c => c.temperament === 'cautious' ? 35 : 25;
 export function availableForWork(c) {
   return c.health > 0 && Math.abs(c.thermalStress || 0) < 45 && !immobile(c) && !c.rescue && !c.medical?.bed && c.life?.policy !== 'rest' && c.site !== 'transit' && !c.intent && !c.carry && !c.job && c.oxygen >= airThreshold(c) && c.hunger >= 35 && c.energy >= 25;

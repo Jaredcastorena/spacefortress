@@ -7,6 +7,7 @@ import { createGame, deserialize, serialize, step } from '../src/simulation.js';
 import { add, extract, totalResources, syncResources } from '../src/inventory.js';
 import { validateShuttle } from '../src/expedition.js';
 import { initializeOutpostState, assertLegacyOutpostState, migrateOutpostState, validateOutpostState } from '../src/outpost-persistence.js';
+import { VERSION } from '../src/data.js';
 
 const phases = ['outbound', 'working-pile', 'working-carried', 'working-cargo', 'returning'];
 const files = [
@@ -216,10 +217,10 @@ test('freight and imports cannot alias opened medical or self-served meal invent
   }
 });
 
-test('integrated loader migrates genuine schema36 states exactly and roundtrips current37', () => {
+test('integrated loader migrates genuine schema36 states exactly and roundtrips current schema', () => {
   for (const file of files) {
     const text = fixture(file), old = JSON.parse(text), loaded = deserialize(text);
-    assert.equal(loaded.version, 37);
+    assert.equal(loaded.version, VERSION);
     assert.deepEqual(legacyProjection(loaded), old, file);
     assert.deepEqual(totalResources(loaded), totalResources(old));
     assert.equal(loaded.rng, old.rng);
@@ -227,7 +228,7 @@ test('integrated loader migrates genuine schema36 states exactly and roundtrips 
   }
 });
 
-test('integrated loader rejects missing current37 fields rather than silently granting defaults', () => {
+test('integrated loader rejects missing current outpost fields rather than silently granting defaults', () => {
   for (const remove of [s => { delete s.outposts; }, s => { delete s.shuttle.freight; },
     s => { delete dock(s).imports; }, s => { delete s.mission.returnCrew; }]) {
     const s = migrated(); remove(s); const text = serialize(s);
@@ -237,7 +238,7 @@ test('integrated loader rejects missing current37 fields rather than silently gr
 
 test('integrated finite freight and imports preserve supplied food ages through save and tick continuation', () => {
   const s = deserialize(fixture('outpost-pre36-working-cargo.json.gz'));
-  assert.equal(s.version, 37);
+  assert.equal(s.version, VERSION);
   const stock = s.sites.surface.tiles.find(t => t.stock?.food >= 2 && t.stock?.alloy >= 2).stock;
   const before = totalResources(s);
   add(s.shuttle.freight, extract(stock, { food: 1, alloy: 1 }));

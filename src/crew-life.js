@@ -6,6 +6,7 @@ import { thermalSafe } from './thermal.js';
 import { immobile } from './mobility.js';
 import { roomAt, breathable, moveCrew } from './atmosphere.js';
 import { remember, updateMorale } from './crew.js';
+import { isResident } from './outposts.js';
 export const PASTIMES = { quiet: 'Quiet reflection', games: 'Pattern games', stories: 'Trading stories' };
 export const LIFE_POLICIES = { balanced: 'Balanced', work: 'Focus on work', rest: 'Off duty' };
 const clamp = (n, low = 0, high = 100) => Math.max(low, Math.min(high, n));
@@ -18,7 +19,7 @@ export function initializeCrewLife(s) {
 }
 export function setLifePolicy(s, id, policy) {
   const c = s.crew.find(c => c.id === id);
-  if (!c || c.site !== 'surface' || c.health <= 0 || !Object.hasOwn(LIFE_POLICIES, policy)) return { ok: false, message: 'Select a valid crew work routine.' };
+  if (!c || c.health <= 0 || !(c.site === 'surface' || c.site === 'wreck' && isResident(s, c.id, 'wreck')) || !Object.hasOwn(LIFE_POLICIES, policy)) return { ok: false, message: 'Select a living surface crew member or local resident and a valid work routine.' };
   c.life.policy = policy;
   if (policy === 'work' && c.intent?.type === 'leisure') c.intent = null;
   if (policy === 'rest' && !c.carry) { const j = s.jobs.find(j => j.id === c.job); if (j) { releaseTransport(s,j,'routine_changed'); j.worker = null; } c.job = null; if (c.intent?.type === 'haul') c.intent = null; }
@@ -26,10 +27,12 @@ export function setLifePolicy(s, id, policy) {
 }
 export function prepareDowntime(s, release) {
   for (const c of s.crew) {
-    if (c.site !== 'surface' || c.health <= 0 || c.medical?.bed || immobile(c) || c.rescue || c.carry || c.intent || (s.departure?.stage === 'boarding' && s.departure.crew.includes(c.id) && c.life.policy !== 'rest')) continue;
+    const site = s.sites[c.site], local = c.site === 'surface' || c.site === 'wreck' && isResident(s, c.id, 'wreck');
+    const returning = s.mission?.phase === 'boarding' && s.mission.returnCrew?.includes(c.id);
+    if (!local || !site || returning || c.health <= 0 || c.medical?.bed || immobile(c) || c.rescue || c.carry || c.intent || (s.departure?.stage === 'boarding' && s.departure.crew.includes(c.id) && c.life.policy !== 'rest')) continue;
     const life = c.life, j = s.jobs.find(j => j.id === c.job);
-    const voluntaryBreaks = s.crew.filter(other => other.intent?.type === 'leisure' && other.life.policy === 'balanced').length;
-    if (life.policy === 'balanced' && (voluntaryBreaks >= 2 || life.nextBreak > s.tick || !s.sites.surface.rooms.some(breathable))) continue;
+    const voluntaryBreaks = s.crew.filter(other => other.site === c.site && other.intent?.type === 'leisure' && other.life.policy === 'balanced').length;
+    if (life.policy === 'balanced' && (voluntaryBreaks >= 2 || life.nextBreak > s.tick || !site.rooms.some(breathable))) continue;
     const needs = life.leisure < 25 || life.company < 25 || life.stress >= 80;
     if (life.policy === 'work' || (life.policy !== 'rest' && !needs) || (life.policy !== 'rest' && j?.priority === 5 && life.stress < 95)) continue;
     release(s, c); c.intent = { type: 'leisure', target: null, started: s.tick, rested: 0 };

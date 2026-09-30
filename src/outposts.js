@@ -1,6 +1,8 @@
 import { RESOURCES, SITES } from './data.js';
 import { validFoodLots } from './food-lots.js';
 import { validItemLots } from './item-lots.js';
+import { emitEvent } from './telemetry.js';
+import { outpostReadiness } from './outpost-readiness.js';
 
 // Residence, a person's physical site and the shuttle's location are separate
 // facts. These factories/readers/validators never move people or material.
@@ -68,6 +70,54 @@ export function isResident(s, crewId, siteId = 'wreck') {
   // known sites, so a normal return-roster query there should simply be false.
   if (typeof siteId !== 'string' || !Object.hasOwn(SITES, siteId)) throw new Error('Unknown site.');
   return residentSite(s, crewId) === siteId;
+}
+
+// Settlement names the people who stay; it does not move them, build their
+// habitat, or credit provisions. All rejection checks precede both roster edits.
+export function setOutpostResidents(s, siteId, crewIds) {
+  const reject = (code, message) => ({ ok: false, code, message });
+  if (!OUTPOST_SITES.includes(siteId)) return reject('unsupported_outpost', 'Only the wreck supports settlement.');
+  let next, previous;
+  try { next = normalizeResidents(s, crewIds); previous = residentIds(s, siteId); }
+  catch { return reject('invalid_residents', 'Select distinct known crew members for the resident roster.'); }
+  if (!s.outposts?.[siteId]) return reject('outpost_unavailable', 'This colony has no outpost registry.');
+  if (next.length === previous.length && next.every((id, index) => id === previous[index])) return { ok: true };
+  const added = next.filter(id => !previous.includes(id));
+  const removed = previous.filter(id => !next.includes(id)).map(id => s.crew.find(c => c.id === id));
+  const mission = s.mission;
+  if (removed.some(c => c.health > 0 && c.site !== 'surface')) {
+    return reject('resident_return_required', 'Select a return seat and complete physical pickup; residence ends when the shuttle departs.');
+  }
+  let nextReturn = mission?.returnCrew;
+  if (added.length) {
+    if (mission?.site !== siteId || mission.phase !== 'working') return reject('settlement_unavailable', 'Station new residents during a working expedition at the wreck.');
+    const people = added.map(id => s.crew.find(c => c.id === id));
+    if (people.some(c => c.health <= 0 || c.site !== siteId || !mission.crew.includes(c.id) && !mission.returnCrew?.includes(c.id))) {
+      return reject('resident_unavailable', 'Each new resident must be alive and physically visiting the wreck.');
+    }
+    if (people.some(c => c.carry && c.delivery?.kind === 'shuttle' || c.intent?.type === 'salvage')) {
+      return reject('resident_cargo_pending', 'Finish the new resident’s shuttle shipment before stationing them.');
+    }
+    nextReturn = (mission.returnCrew || []).filter(id => !added.includes(id));
+    if (!nextReturn.some(id => s.crew.some(c => c.id === id && c.health > 0 && c.site === siteId))) {
+      return reject('return_crew_required', 'Keep at least one living visitor on the shuttle return roster.');
+    }
+    const readiness = outpostReadiness(s, siteId, next);
+    if (!readiness.ready) {
+      const blocked = readiness.blockers[0];
+      return reject(blocked?.code || 'habitat_unready', blocked?.message || 'Prepare a supplied, breathable and warm habitat before stationing residents.');
+    }
+  }
+  const outpost = s.outposts[siteId], wasEstablished = outpost.established;
+  outpost.residents = [...next]; outpost.established ||= next.length > 0;
+  if (added.length && nextReturn.length !== mission.returnCrew.length) {
+    const priorReturn = [...mission.returnCrew]; mission.returnCrew = [...nextReturn];
+    emitEvent(s, 'expedition.return_manifest.changed', { entity: 'colony', site: `site:${siteId}`, crewIds: [...mission.crew],
+      previous: priorReturn, next: [...nextReturn], reason: 'residents_stationed', tick: s.tick });
+  }
+  emitEvent(s, 'outpost.residents.changed', { entity: `site:${siteId}`, site: `site:${siteId}`, previous, next: [...next],
+    previousEstablished: wasEstablished, established: outpost.established, reason: 'residence_selected', tick: s.tick });
+  return { ok: true };
 }
 
 function validImports(inventory) {

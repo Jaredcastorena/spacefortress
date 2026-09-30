@@ -1,56 +1,81 @@
-# Expedition cargo and shuttle fittings
+# Expedition freight, salvage and return travel
 
-Implemented locally on September 16, 2026. These systems extend upward/outward progression through finite salvage hauling, supplied loading and physical boarding. Explicit crew selection and the [complete colony-return loop](orbital-colony-loop.md) are verified in tests and the browser; see [verification status](verification-status.md). Propulsion and world generation remain incomplete.
+**v0.1.2 development preview — save schema 38.** The supplied two-person salvage journey, physical freight and bounded resident/return controls are verified within their recorded scope; see [the orbital colony loop](orbital-colony-loop.md) and [verification status](verification-status.md). The complete fresh-colony endurance, delayed-resupply, care and final-pickup journey remains unfinished. Detailed propulsion and world generation are also incomplete.
 
-## Cargo has a location
+## Supply the shuttle before launch
 
-Mining a satellite or comet deposit creates a loose pile on that tile. Solar collectors produce charged cells at their platform. Neither operation puts cargo directly in the shuttle.
+Open the surface **Colony** inspector or inspect the shuttle, then expand **Freight & local supplies → Prepare a freight manifest**. Add known resources and positive quantities, then choose **Load manifest aboard**. The draft form has no simulation effect until submitted. A loading job reserves physical local supplies; a worker collects them, carries them to the shuttle and finishes three base work units before they become onboard freight.
 
-Expedition crew with hauling enabled reserve a pickup, walk to the pile, carry up to six units and walk to the dock. Only delivery at the dock adds cargo to the hold. The hold has finite capacity; loaded material, carried shipments and pending pickups share that limit. Each pile can have one pickup claimant. Failed or blocked routes do not transfer cargo remotely.
+The craft must actually be at the surface and idle. Finish or cancel existing terminal work before loading or launching. Freight jobs use ordinary job cancellation and persist during saving; waiting, carried and staged quantities are separate from goods already aboard. Only one terminal job can run at a time.
 
-The destination inspector exposes cargo types to collect, loaded contents, capacity and reserved space, plus loose material remaining on site. Disabling a cargo type releases uncollected reservations for reconsideration; already carried shipments still go to the shuttle. Pickup choice favors nearby reachable piles, with the configured type order determining which resources fit into each shipment. Fine-grained hauling priorities and individual stack selection remain future work.
+Freight is distinct from [departure service stores](departure-preparation.md). Loading alloy or food as freight does not replace route fuel, protected return fuel, boarding food or paid suit refill. Initial exploration, comet and solar departures select exactly two eligible crew, with no silent substitutes. An already established wreck accepts an explicitly selected one-person service visit; omitting the selection still chooses two. A failed readiness check can delay the departure even after freight loading finishes. Service-mix targets refresh to the current suit refill plus a ten-unit margin when the old target is nearly exhausted; this requests more finite loading work, not free air. See [departure preparation](departure-preparation.md#physical-loading) for the exact rule.
 
-Uncollected piles persist between visits, including comet visits in this fixed-site prototype. A deceased carrier drops cargo at their location and releases capacity. Dead crew remain at the remote site; surviving crew can return. Body recovery is not implemented.
+## Unload where the shuttle actually is
 
-## Returning to the shuttle
+At the destination, open its inspector's **Freight & local supplies**. Choose **Unload all freight here**, or enter a partial unload manifest. A dock without the shuttle cannot unload it. Unloading is available during field work, not transit or boarding.
 
-Recall cancels field work and uncollected pickups, then enters a **boarding** phase. Crew physically walk to the dock and deliver held cargo. Transit starts after every surviving team member is there. Suits still consume gas during the walk; transit breathing remains abstract. Cargo already aboard remains aboard.
+The unload job reserves contents from `shuttle.freight`, then a worker performs the collection, delivery and work. Completion adds them to the dock's separate `imports` inventory. At the surface shuttle, completion instead leaves a loose terminal pile. Arrival and opening a menu do not credit local stock.
 
-Blocked return routes keep crew on site with a visible activity message. **Resume field work** cancels boarding so the player can designate route clearance, then recall again. Automatic safety recall still applies. Work orders cannot be assigned while boarding. Existing doors can also be controlled from their tile inspector.
+| Owner | What can use it |
+| --- | --- |
+| `shuttle.supplies` | Existing flight service rules; not a remote building budget. |
+| `shuttle.freight` | Persists aboard across flights until physically unloaded. |
+| Freight job source / carry / materials | Promised goods moving through the terminal job; not additional copies. |
+| Dock `imports` | Local builders and haulers after unloading; separate from salvage collection. |
+| Local depot / loose pile / machine buffer | Existing local construction, hauling and production rules. |
+| `mission.cargo` | Salvage already delivered to the shuttle; spills at the surface on return. |
 
-Comet automatic recall includes the longest current return walk, fitted transit time and a five-second margin. This does not guarantee rescue if a route later becomes blocked. An outbound expedition can turn back immediately under the existing abstract transit model; it spends the reserved return-leg fuel without paying another full sortie cost.
+Local construction can reserve reachable imports or loose supplies directly. Haulers can also deliver imports directly into eligible machine inputs or take them to a depot. Returning does not automatically empty persistent freight: unload it explicitly if the surface colony needs it.
 
-After landing, the hold becomes a loose pile at the surface shuttle. Colony haulers can deliver it to a depot for ordinary industrial inputs. Construction can also reserve accessible loose supplies directly, but its worker must still collect and deliver them; landing does not finish an upgrade. Returning components unlocks fitting designs and Helios Reach, while physical parts are still delivered and consumed in upgrades.
+Canceling an unload restores uncollected sources still physically aboard to freight while the shuttle is present. Carried or staged goods remain physically local through normal cancellation. Recall cancels pending terminal work before leaving. Cancellation never promises to put every item back in its original depot.
+
+If a carrier cannot reach their own air, temperature, meal or rest recovery, the parcel can be set down at that actual tile. An existing local job keeps an exclusive source claim there; ordinary cargo becomes a loose pile for another hauler. This is a physical handoff, not loading completion or automatic rescue. Food ages, prepared-meal metadata and discrete item IDs travel with the goods. A manifest accepts resource quantities only, not caller-authored metadata. Blocked routes, carrier death, canceled work, interrupted saves and smaller-hold refits must preserve the remaining owners and capacity.
+
+## Salvage also needs hauling
+
+Mining a satellite or comet deposit creates a loose pile on that tile. Solar collectors produce charged cells at their platform. Neither puts cargo directly into the shuttle.
+
+Selected return travelers with hauling enabled reserve a pickup, walk to it, carry up to six units and return to the dock. Delivery adds the shipment to `mission.cargo`. Freight, salvage, relevant pickup/carry claims and freight-job materials share the hold limit; ordinary local construction and machine shipments do not count as shuttle claims. A failed route does not transfer material remotely.
+
+The destination inspector's collection filter applies to **salvage**, not outbound freight. Disabling a type releases its uncollected reservations; already carried shipments still go to the shuttle. Pickup favors nearby reachable piles, with the configured resource order deciding what fits. Fine-grained stack selection remains future work.
+
+Uncollected piles persist between visits, including comet visits in this fixed-site prototype. A dead carrier drops held cargo locally and releases its claim. The body remains at the remote site; body recovery is not implemented.
+
+## Select the people who return
+
+The initial arrival list is historical. **Return team → Assign selected return team** chooses one or two living people physically at the destination. A newly stationed resident leaves the return list through the explicit residence action; other living arrivals cannot be omitted and abandoned. A held shuttle shipment must be resolved before removing its carrier.
+
+For a final-resident pickup, send one explicitly selected person to the already established wreck. **Choose one or two crew** appears for that destination; uncheck the second outbound crew member before preparing. The paid trip leaves one of the two return seats for the resident. Select both actual return passengers after arrival. A two-person visit instead needs a replacement visitor to settle before bringing a resident home; three people cannot fit and an unregistered visitor cannot be abandoned.
+
+A resident selected for pickup remains resident while waiting. Residence ends on actual return departure. Selection does not move them or grant a seat on an absent craft. No voluntary empty return or new piloting skill is introduced. See the [outpost guide](staffed-orbital-outpost-design.md) for accepted bounded stationing/return evidence and the unfinished sustained outpost/pickup journey.
+
+**Recall assigned return team** starts boarding. It releases travelers' field work and uncollected pickups while protecting residents' local jobs. Surviving assigned travelers walk to the dock and deliver held shuttle cargo. Transit begins only after physical boarding conditions are met. Suits still consume gas during that walk; transit breathing remains abstract.
+
+Travelers can recover locally from need shortages when reachable warm breathable shelter and, when hungry, food are available. Health below 40 still triggers safety recall. Blocked routes keep people on site with a visible reason. **Resume field work** cancels boarding so a path can be cleared before another recall; automatic safety recall can still apply. Existing doors remain controllable from their tile inspector.
+
+Comet automatic recall includes the longest current return walk, fitted transit time and a five-second margin. It cannot guarantee rescue if a route later becomes blocked. An outbound expedition can turn back under the existing abstract transit model, consuming reserved return-leg fuel without buying another complete sortie.
+
+On surface arrival, **salvage** becomes a loose pile at the shuttle. Haulers must take it to a depot, or builders reserve and physically collect it. Returning components unlock fitting designs and Helios Reach; the actual parts still have to be delivered and consumed in an upgrade. Persistent freight retains its separate onboard owner.
 
 ## Fitting choices
 
-Inspect the surface shuttle to queue an engineering refit. One fitting is installed at a time; replacement consumes the new fitting's materials. Refits use existing reserved-supply delivery and engineering labor. Capability changes only on completion. Flights are blocked while a refit is pending and if shuttle condition is below 50. Cancellation preserves the installed fitting and returns unconsumed supplies normally.
+Inspect the surface shuttle to queue a supplied engineering refit. One fitting is installed at a time; replacement consumes the new fitting's cost. Capability changes on completion. A pending refit or shuttle condition below 50 blocks flight; cancellation preserves the installed fitting. A smaller fitting must accommodate freight already aboard.
 
-| Fitting | Cargo capacity | Fuel per sortie | Time each way | Exposure injury | Installation cost |
+| Fitting | Hold | Fuel per sortie | Time each way | Exposure injury | Installation cost |
 | --- | --- | --- | --- | --- | --- |
 | Standard hold | 18 | Route baseline | Route baseline | Full | 1 alloy to restore stock configuration |
 | Expanded cargo racks | 36 | Baseline + 1 | Baseline + 6 seconds | Full | 8 alloy, 3 components |
 | Storm shelter | 12 | Baseline + 1 | Route baseline | 25% | 8 alloy, 4 components |
 | Transfer drive | 18 | Baseline − 1, minimum 1 | Baseline − 6 seconds | Full | 6 alloy, 5 components |
 
-One cargo unit currently means one unit of any resource; mass, volume and containers are not modeled. These are the implemented balance values.
+A unit of any resource occupies one hold unit; separate mass, volume and containers are not modeled. The installed fit is captured for a sortie. At the wreck, a sealed floor compartment or an actually usable docked craft’s terminal protects crew from periodic debris. Outside shelter, the present craft’s fitting modifier applies only to assigned return travelers; a departed craft provides none. Debris and solar hazards remain stylized; there is no detailed radiation-dose or ship-hull model.
 
-The installed fit is recorded for each sortie. Debris and solar injuries apply to exposed crew during field work and boarding, with the shelter's multiplier. Crew standing at the dock are sheltered from those periodic injuries. Wreck debris passes and solar squalls remain stylized periodic hazards; ship damage, terrain cover and radiation dose are not yet detailed simulations.
+## Actions, persistence and limits
 
-## State and saves
+Shared actions are `freight.load({items})`, `freight.unload({site,items?})`, `expedition.return_crew({crewIds})` and the existing `job.cancel({job})`. Omitted unload quantities request all current freight. See the [simulation interface](simulation-interface.md) for strict argument validation, status fields and event recording.
 
-`src/expedition.js` owns cargo reservations, remote hauling, boarding movement, route modifiers, cargo policy and fitting validation. `src/expedition-panels.js` exposes them inside the existing hidden inspector. The ordinary construction system supplies refit jobs, and `src/simulation.js` coordinates mission phases and hazards.
+Schema 8 introduced salvage/fitting state; schema 36 used explicit two-person departure selection. Schema 37 added independent freight/import owners and the return roster. Schema 38 now implements the freight job/source vocabulary; the 37→38 migration changes only the version. Migration preserves existing inventories and crew; it does not refill the ship or establish a settlement. Current validation must reject malformed locations, duplicate claims/owners, incompatible mission jobs and hold overflow.
 
-Schema 8 introduced finite cargo and fitting state; the historical checkpoint below used schema 16. Schema-7 colonies receive the standard fitting and default cargo policy. Existing in-flight cargo is preserved even if it exceeds the new 18-unit standard limit: that mission retains exactly enough grandfathered capacity for its existing load and cannot collect more. Subsequent sorties use the normal fitting capacity. Pickup intentions, held cargo, boarding routes, remote piles, refit deliveries and mission capabilities persist across reloads. Validation rejects overfilled holds, invalid pickups, duplicate claims, invalid fits and incompatible mission state. The current explicit-selection feature stays on schema 36 and reuses the two-person arrays already stored in departure/mission state.
+The earlier 252-test checkpoint included 15 salvage/fitting cases. Those are historical evidence, not the current suite count or proof of the new outpost loop. Current accepted tests and browser checks belong in [verification status](verification-status.md).
 
-## Evidence and unfinished work
-
-The historical checkpoint passed **252 tests**, including 15 expedition cases covering extraction-to-dock hauling, concurrent capacity claims, cargo selection, boarding, blocked-route clearance, later recovery of abandoned piles, carrier death, physically supplied refits, cancellation, fuel/time/capacity tradeoffs, exposure protection, solar-cell hauling, deterministic saves and legacy cargo preservation. One case followed satellite extraction through surface hauling into a completed cargo-rack refit. Current normal-journey acceptance must be established separately against the current simulation.
-
-JavaScript syntax and documentation-link checks passed at that original checkpoint, without browser verification of its fitting/cargo/boarding UI. Current full-journey, explicit-selection and browser evidence is verified in [verification status](verification-status.md); the historical count above is not the current release count.
-
-Departure supplies now use crew loading and persistent ship stores, with physical boarding and readiness checks; see [departure preparation](departure-preparation.md). Explicit selection of the two crew is implemented and verified. Detailed propulsion, general rescue missions, dedicated orbital haulers, ship hull damage, containers, staffed outposts, new salvage-derived production recipes, generated destinations and local vertical construction remain unfinished. There is still one active mission/departure and no persistent remote colony staffing. Keep the complete conversion inventory in scope.
-
-## Ice cargo
-
-Comet seams and volatile deposits now produce raw ice, which follows the same hold, hauling and return rules. Water is produced on the surface by a staffed ice processor. See [water supply](water-supply.md) for finite reserves and migration details.
+There is still one active mission/departure, a two-seat craft, fixed destinations and one shuttle. Explicit one-person outbound trips are restricted to an already established wreck; all automatic selections and first visits still use two. Detailed propulsion, general rescue missions, body recovery, dedicated haulers, containers, generated destinations and local vertical construction remain unfinished. Genuine resident stationing and traveler return are accepted; the whole fresh-colony endurance/resupply/care/final-pickup journey remains unfinished. Raw ice uses the same cargo rules; a supplied processor converts it to water through the existing [water supply](water-supply.md) system.

@@ -27,13 +27,21 @@ export function expeditionCandidates(s) {
   return s.crew.map(c => expeditionCrewStatus(c));
 }
 
+export function expeditionCrewLimits(s, siteId) {
+  return { min: s.version >= 38 && siteId === 'wreck' && s.outposts?.wreck?.established === true ? 1 : 2, max: 2, defaultCount: 2 };
+}
+export function expeditionCrewCountAllowed(s, siteId, count) {
+  const limits = expeditionCrewLimits(s, siteId);
+  return Number.isInteger(count) && count >= limits.min && count <= limits.max;
+}
+
 // Successful selection returns real crew references for the gameplay caller;
 // observations should use the detached statuses/IDs instead of these references.
-export function selectExpeditionCrew(s, crewIds = undefined) {
+export function selectExpeditionCrew(s, crewIds = undefined, siteId = undefined) {
   const explicit = crewIds !== undefined;
   if (explicit && (!Array.isArray(crewIds) || !Array.from(crewIds).every(id => typeof id === 'string' && id.length > 0))) return { ok: false, code: 'invalid_crew_selection', message: 'Choose crew by their known crew IDs.', crewIds: [], crew: [] };
-  if (explicit && crewIds.length !== 2) return { ok: false, code: 'crew_count', message: 'Choose exactly two crew members.', crewIds: [...crewIds], crew: [] };
-  if (explicit && new Set(crewIds).size !== 2) return { ok: false, code: 'duplicate_crew', message: 'Choose two different crew members.', crewIds: [...crewIds], crew: [] };
+  if (explicit && !expeditionCrewCountAllowed(s, siteId, crewIds.length)) return { ok: false, code: 'crew_count', message: expeditionCrewLimits(s, siteId).min === 1 ? 'Choose one or two crew members for the established wreck outpost.' : 'Choose exactly two crew members.', crewIds: [...crewIds], crew: [] };
+  if (explicit && new Set(crewIds).size !== crewIds.length) return { ok: false, code: 'duplicate_crew', message: 'Choose two different crew members.', crewIds: [...crewIds], crew: [] };
   const selected = explicit ? crewIds.map(id => s.crew.find(c => c.id === id)) : s.crew.filter(c => expeditionCrewStatus(c).eligible).slice(0, 2);
   if (explicit && selected.some(c => !c)) {
     return { ok: false, code: 'unknown_crew', message: 'A selected crew member is not part of this colony.', crewIds: [...crewIds], crew: [] };
@@ -54,8 +62,9 @@ export function selectExpeditionCrew(s, crewIds = undefined) {
 export function expeditionLaunchBlock(s, siteId) {
   if (!SITES[siteId]?.fuel) return { code: 'invalid_destination', message: 'Select an orbital destination.' };
   if (s.mission || s.departure) return { code: 'expedition_busy', message: 'The shuttle already has an expedition or departure plan.' };
-  if (s.jobs.some(j => j.site === 'surface' && j.x === 16 && j.y === 11)) return { code: 'shuttle_work', message: 'Finish the shuttle refit or repair before departure.' };
-  if (s.sites.surface.tiles[11 * s.sites.surface.size + 16].hp < 50) return { code: 'shuttle_damaged', message: 'Finish the shuttle refit or repair before departure.' };
+  if (s.jobs.some(j => j.site === 'surface' && j.x === 16 && j.y === 11)) return { code: 'shuttle_work', message: 'Finish work at the shuttle before departure.' };
+  const ship = s.sites.surface.tiles[11 * s.sites.surface.size + 16];
+  if (ship?.building !== 'shuttle' || ship.hp < 50) return { code: 'shuttle_damaged', message: 'Finish the shuttle refit or repair before departure.' };
   if (siteId === 'comet' && (s.tick < s.comet.arrives || s.tick + routeTime(s, 'comet') * 2 + 20 >= s.comet.leaves)) return { code: 'comet_window', message: 'No safe comet approach window.' };
   if (siteId === 'solar' && !s.flags.salvageReturned) return { code: 'solar_locked', message: 'Recover satellite components to survey Helios Reach.' };
   return null;

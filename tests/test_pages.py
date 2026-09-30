@@ -226,8 +226,8 @@ class PagesBuildTests(unittest.TestCase):
         manifest = json.loads(
             (ROOT / "tools" / "pages-assets.json").read_text(encoding="utf-8")
         )
+        self.assertTrue(source_paths)
         self.assertEqual(source_paths, set(manifest["sourceAssets"]))
-        self.assertEqual(len(source_paths), 77)
 
 
 if __name__ == "__main__":

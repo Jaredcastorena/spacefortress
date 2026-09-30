@@ -1,4 +1,6 @@
-import { expeditionLaunchBlock, selectExpeditionCrew } from './expedition-readiness.js';
+import { assertLegacyFreightState, migrateFreightState, validateFreightState } from './freight-persistence.js';
+import { isFreightJob, freightRequest, reserveFreight, freightOrdered, completeFreight, freightCancellation, freightWorkValid } from './freight.js';
+import { expeditionLaunchBlock, selectExpeditionCrew, expeditionCrewCountAllowed } from './expedition-readiness.js';
 import { validateBreakers } from './breakers.js';
 import { initializePlumbing, newWaterPipe, waterEquipment, flowPlumbing, operatePlumbing, removePlumbing, validatePlumbing } from './plumbing.js';
 import { initializeGasNetworks, initializeGasExhaust, newPipe, gasEquipment, updateGasNetworks, removeGas, validateGasNetworks } from './gas-networks.js';
@@ -15,7 +17,7 @@ import { openMeal, eatPortion } from './meals.js';
 import { initializeWater, validateWater, iceAvailable, ICE_EXTRACTION_AMOUNT } from './water.js';
 import { initializePossessions, validatePossessions, dropPossession } from './possessions.js';
 import { validItemLots } from './item-lots.js';
-import { capture, emitEvent, tileEntityId } from './telemetry.js';
+import { capture, emitEvent, emitItemMovement, tileEntityId, habitatSnapshot, recordHabitatChanges } from './telemetry.js';
 import { initializeComfort, validateComfort, experienceComfort } from './comfort.js';
 import { initializeHousing, reconcileHousing, validateHousing, bunkAccessible, ownsBunk, housingObstruction, rememberHousingSleep } from './housing.js';
 import { initializeDesignations, validateDesignations, livingAllowed, roomBenefit } from './rooms.js';
@@ -26,7 +28,7 @@ import { validFoodLots, foodAge } from './food-lots.js';
 import { initializeThermal, updateThermal, validateThermal, thermalSafe, thermalExposure } from './thermal.js';
 import { validateStorage } from './storage.js';
 import { initializeProduction, productionBlock, operateMachine, validateProduction } from './production.js';
-import { initializeNursing, prepareNursing, reconcileNursing, rescue, dependentCare, feedPatient, completeFeeding, validateNursing } from './nursing.js';
+import { releaseRescue, initializeNursing, prepareNursing, reconcileNursing, rescue, dependentCare, feedPatient, completeFeeding, validateNursing } from './nursing.js';
 import { initializeMedicine, injure, prepareMedicine, treatmentPatient, treatmentReady, completeTreatment, medicalRest, validateMedicine } from './medicine.js';
 import { VERSION, RESOURCES, BUILDINGS, SITES, CREW_NAMES, ROLES, RECIPES, SHUTTLE_FITS } from './data.js';
 import { LABORS, initializeCrew, laborFor, airThreshold, availableForWork, workRate, gainExperience, remember, updateMorale } from './crew.js';
@@ -34,7 +36,7 @@ import { LABORS, initializeCrew, laborFor, airThreshold, availableForWork, workR
 import { add, addCounts, extract, resourceEntries, take, spill, initializeStorage, stores, syncResources, spend, quantity } from './inventory.js';
 import { updateIndustry, haul, spillStorage, CARRY_CAPACITY, OUTPUT_CAPACITY } from './industry.js';
 
-import { reserveConstruction, materialsReady, materialRoute, materialObstruction, fetchMaterials, cancelMaterials, dropCarriedMaterials, reservedAt } from './construction.js';
+import { siteWorkAllowed, reserveConstruction, materialsReady, materialRoute, materialObstruction, fetchMaterials, cancelMaterials, dropCarriedMaterials, reservedAt } from './construction.js';
 
 import { updateRooms, roomAt, initializeAtmosphere, fillRoom, refreshAtmosphere, updateAtmosphere, breathable, breathe, moveCrew, GASES, gasAmount, refreshRoom, SUIT_PER_POINT } from './atmosphere.js';
 export { updateRooms, roomAt } from './atmosphere.js';
@@ -43,7 +45,7 @@ import { isDay, updatePower, refreshPower, initializePower, initializeElectrical
 import { initializeReliability, maintainable, completeService, recordOperation, updateDebris, scheduleMaintenance, validateReliability } from './maintenance.js';
 import { initializeShuttle, routeTime, routeFuel, haulSalvage, boardShuttle, returnWalk, dockAt, validateShuttle, returnCrewIds, returnCrewMembers, allReturnTravelersDead } from './expedition.js';
 import { initializeOutpostState, assertLegacyOutpostState, migrateOutpostState, validateOutpostState } from './outpost-persistence.js';
-import { isResident } from './outposts.js';
+import { isResident, shuttlePresence } from './outposts.js';
 import { initializePreflight, planDeparture, loadingCost, updateDeparture, walkToDeparture, boardingDeparture, tryDeparture, spendReturnFuel, deployKit, validatePreflight } from './preflight.js';
 import { initializeCrewLife, prepareDowntime, leisure, updateCrewLife, validateCrewLife } from './crew-life.js';
 export { isDay, updatePower } from './power.js';
@@ -109,13 +111,13 @@ export function order(s, siteId, x, y, kind, building = null) {
   const site = s.sites[siteId];
   if (!site || !inside(site, x, y)) return { ok: false, message: 'Outside the map.' };
   const t = at(site, x, y);
-  if (siteId !== 'surface' && (s.mission?.site !== siteId || s.mission.phase !== 'working')) return { ok: false, message: 'Resume field work before assigning expedition orders.' };
+  if (!siteWorkAllowed(s, siteId) && (s.mission?.site !== siteId || s.mission.phase !== 'working')) return { ok: false, message: 'Resume field work before assigning expedition orders.' };
   if (s.jobs.some(j => j.site === siteId && j.x === x && j.y === y && (kind==='extinguish'?j.kind==='extinguish':['feed', 'hygiene'].includes(kind) ? j.kind === kind && j.patient === building : !['feed', 'hygiene', 'operate', 'animalCare', 'animalHarvest', 'animalLead', 'extinguish'].includes(j.kind)))) return { ok: false, message: 'Work already designated here.' };
   if(t.fire&&kind!=='extinguish')return {ok:false,message:'Suppress the fire before working on this tile.'};
   let cost = {}, work = 5;
   if(kind==='extinguish'){if(!t.fire)return {ok:false,message:'Select an active fire.'};cost={water:FIRE.suppressionWater};work=FIRE.suppressionWork;
   } else if (kind === 'build') {
-    if (siteId !== 'surface') return { ok: false, message: 'Construction currently requires the surface supply network.' };
+    if (!['surface', 'wreck'].includes(siteId)) return { ok: false, message: 'Construction requires the surface colony or wreck habitat.' };
     const def = BUILDINGS[building]; if (!def) return { ok: false, message: 'Unknown structure.' };
     if (building === 'waterPipe' ? ['void','rock'].includes(t.terrain)||t.waterPipe||waterEquipment(t) : building === 'gasPipe' ? ['void','rock'].includes(t.terrain)||t.pipe||gasEquipment(t) : building === 'cable' ? ['void', 'rock'].includes(t.terrain) || t.cable || t.building==='breaker' : !passable(site, x, y) || t.building || t.drop || quantity(reservedAt(s, siteId, x, y))) return { ok: false, message: 'Clear the tile first.' };
     if (['gasTank','gasPump','gasVent','gasExtractor','gasReservoir'].includes(building)&&t.pipe) return {ok:false,message:'Dismantle the underlying gas pipe before installing this device.'};
@@ -136,15 +138,20 @@ export function order(s, siteId, x, y, kind, building = null) {
     building = t.building; work = RECIPES[building].duration;
   } else if (kind === 'hygiene') {
     if (s.jobs.some(j => j.kind === 'hygiene' && j.patient === building)) return { ok: false, message: 'Hygiene already designated for this patient.' };
-    if (siteId !== 'surface' || !hygienePatient(s, { patient: building, x, y })) return { ok: false, message: 'No dependent patient awaiting hygiene here.' };
+    if (!hygienePatient(s, { site: siteId, patient: building, x, y })) return { ok: false, message: 'No dependent patient awaiting hygiene here.' };
     work = HYGIENE_WORK;
   } else if (kind === 'feed') {
-    if (!feedPatient(s, { patient: building, x, y }) || siteId !== 'surface') return { ok: false, message: 'No patient waiting for a bedside meal here.' };
+    if (!feedPatient(s, { site: siteId, patient: building, x, y })) return { ok: false, message: 'No patient waiting for a bedside meal here.' };
     cost = { food: 1 }; work = 8;
   } else if (kind === 'treat') {
     const patient = s.crew.find(c => c.id === building);
-    if (siteId !== 'surface' || !patient || patient.health <= 0 || patient.site !== 'surface' || patient.medical.bed?.[0] !== x || patient.medical.bed?.[1] !== y || t.building !== 'medicalCot' || t.hp <= 0 || !breathable(roomAt(site, x, y)) || patient.medical.injury - patient.medical.treated <= 1e-8) return { ok: false, message: 'No patient awaiting treatment at this cot.' };
+    if (!patient || patient.health <= 0 || patient.site !== siteId || patient.medical.bed?.[0] !== x || patient.medical.bed?.[1] !== y || t.building !== 'medicalCot' || t.hp <= 0 || !breathable(roomAt(site, x, y)) || patient.medical.injury - patient.medical.treated <= 1e-8) return { ok: false, message: 'No patient awaiting treatment at this cot.' };
     cost = { medicine: 1 }; work = 20;
+  } else if (isFreightJob({kind})) {
+    const request = freightRequest(s, siteId, kind, building === null ? undefined : building);
+    if (!request.ok) return request;
+    if (request.terminal.x !== x || request.terminal.y !== y) return {ok:false,code:'freight_terminal',message:'Select the actual shuttle terminal.'};
+    cost = request.cost; work = request.work; building = null;
   } else if (kind === 'loadShuttle' || kind === 'unloadShuttle') {
     if (siteId !== 'surface' || t.building !== 'shuttle' || s.mission || (kind === 'loadShuttle' ? !s.departure : s.departure || !quantity(s.shuttle.supplies))) return { ok: false, message: 'Shuttle supply operation unavailable.' };
     cost = kind === 'loadShuttle' ? loadingCost(s) : {}; work = 3;
@@ -182,7 +189,7 @@ export function order(s, siteId, x, y, kind, building = null) {
   if(t.building==='breaker'&&['repair','remove'].includes(kind))building=null;
   const workers = s.crew.filter(c => c.site === siteId && c.health > 0);
   if (!workers.some(c => pathTo(site, c, neighbors(x, y)) !== null)) return { ok: false, message: 'No crew can reach that tile. Send an expedition or clear a route.' };
-  const sources = reserveConstruction(s, siteId, x, y, cost, pathTo);
+  const sources = kind === 'unloadCargo' ? reserveFreight(s, x, y, cost) : reserveConstruction(s, siteId, x, y, cost, pathTo);
   if (!sources) return { ok: false, message: 'Not enough reachable supplies in depots or loose piles.' };
   const job = { id: `job-${s.nextId++}`, site: siteId, x, y, kind, building, cost, sources, materials: {}, work, remaining: work, worker: null, priority: 3, blockedReason: null, missingFood: 0, foodSpoiled: 0 };
   if(kind==='extinguish'){job.building=null;job.fire=t.fire.id;job.priority=5;}
@@ -190,10 +197,19 @@ export function order(s, siteId, x, y, kind, building = null) {
   if (kind === 'operate') { job.remaining = work - t.machine.progress; job.priority = t.machine.order.priority; }
   if (['feed', 'hygiene'].includes(kind)) { job.patient = building; job.building = null; job.priority = 5; }
   if (kind === 'treat') { job.patient = building; job.building = null; job.dose = Math.min(25, s.crew.find(c => c.id === building).medical.injury - s.crew.find(c => c.id === building).medical.treated); job.priority = 5; }
-  s.jobs.push(job); emitEvent(s,'job.created',{entity:job.id,target:tileEntityId(siteId,x,y),kind,building,cost}); return { ok: true, job };
+  s.jobs.push(job); if (isFreightJob(job)) freightOrdered(s, job); emitEvent(s,'job.created',{entity:job.id,target:tileEntityId(siteId,x,y),kind,building,cost}); return { ok: true, job };
+}
+export function loadFreight(s, items) {
+  const request = freightRequest(s, 'surface', 'loadCargo', items);
+  return request.ok ? order(s, 'surface', request.terminal.x, request.terminal.y, 'loadCargo', request.cost) : request;
+}
+export function unloadFreight(s, siteId, items = undefined) {
+  const request = freightRequest(s, siteId, 'unloadCargo', items);
+  return request.ok ? order(s, siteId, request.terminal.x, request.terminal.y, 'unloadCargo', request.cost) : request;
 }
 export function cancelJob(s, id, automatic = false) {
   const j = s.jobs.find(j => j.id === id); if (!j) return;
+  if(isFreightJob(j)) freightCancellation(s, j, automatic);
   if(transportJob(j)){releaseTransport(s,j,'cancelled');emitEvent(s,'animal.transport.cancelled',{entity:j.animal,job:j.id,automatic});}
   emitEvent(s,'job.cancelled',{entity:j.id,kind:j.kind,automatic});
   if(j.kind==='extinguish'&&!automatic){const f=at(s.sites[j.site],j.x,j.y).fire;if(f)f.retryAt=s.tick+FIRE.retry;}
@@ -262,6 +278,8 @@ function finish(s, c, j) {
   } else if (j.kind === 'hygiene') { completeHygiene(s, j, c);
   } else if (j.kind === 'feed') { completeFeeding(s, j);
   } else if (j.kind === 'treat') { completeTreatment(s, j); log(s, `${c.name.split(' ')[0]} completed medical treatment.`, 'good');
+  } else if (isFreightJob(j)) {
+    if (!completeFreight(s, c, j)) { j.remaining = 1; j.blockedReason = 'Freight terminal unavailable or hold full'; return; }
   } else if (j.kind === 'loadShuttle') {
     const previous={...s.shuttle.supplies};add(s.shuttle.supplies, j.materials);
     emitEvent(s,'shuttle.supplies.loaded',{entity:'colony',site:'site:surface',destination:s.departure?`site:${s.departure.site}`:null,crewIds:[...(s.departure?.crew||[])],actor:c.id,job:j.id,target:tileEntityId(j.site,j.x,j.y),from:{entity:j.id,slot:'materials'},to:{entity:'colony',slot:'shuttle.supplies'},cargo:j.materials,previous,next:s.shuttle.supplies,tick:s.tick,reason:'loading_work_completed'});
@@ -291,6 +309,17 @@ function move(c, site, goals) {
   moveCrew(c, site, path[0]); return 'moving';
 }
 function release(s, c) { const job = s.jobs.find(j => j.id === c.job); if (job) {releaseTransport(s,job);job.worker = null;} c.job = null; }
+function setDownBlockedRecoveryCargo(s, c, site, kind) {
+  if (!c.carry || !quantity(c.carry)) return;
+  const job = c.delivery?.kind === 'job' && s.jobs.find(j => j.id === c.delivery.job && j.site === c.site);
+  const cargo = structuredClone(c.carry), from = { entity: c.id, slot: 'carry' };
+  const to = job ? { entity: job.id, slot: `sources.${job.sources.length}` } : { entity: tileEntityId(site.id,c.x,c.y), slot: 'drop' };
+  // An interrupted reservation stays reserved at this physical location. Other
+  // parcels become a local pile another available hauler can collect.
+  dropCarriedMaterials(s,c);
+  emitItemMovement(s,cargo,c.id,from,to);
+  emitEvent(s,'crew.recovery.cargo_set_down',{entity:c.id,site:`site:${site.id}`,tile:tileEntityId(site.id,c.x,c.y),kind,reason:'recovery_blocked',cargo,from,to});
+}
 function recover(s, c, site) {
   // Emergencies may interrupt recovery, but normal work cannot.
   const personalClaim=c.intent?.keepsake?.id;
@@ -309,13 +338,13 @@ function recover(s, c, site) {
   if (intent.type === 'air') {
     remember(s, c, 'air-scare', 'Nearly ran out of suit air.', -12);
     const targets = site.rooms.filter(breathable).flatMap(r => r.cells.map(k => k.split(',').map(Number)));
-    const result = move(c, site, targets); c.activity = result === 'blocked' ? 'No reachable breathable shelter' : result === 'arrived' ? 'Replenishing suit air' : 'Seeking breathable air';
+    const result = move(c, site, targets); if(result==='blocked')setDownBlockedRecoveryCargo(s,c,site,intent.type); c.activity = result === 'blocked' ? 'No reachable breathable shelter' : result === 'arrived' ? 'Replenishing suit air' : 'Seeking breathable air';
     return true;
   }
   if (intent.type === 'temperature') {
     if (Math.abs(c.thermalStress) <= 10 && thermalSafe(roomAt(site, c.x, c.y))) { c.intent = null; remember(s, c, 'thermal-recovery', 'Recovered in a temperate compartment.', 4); return false; }
     const targets = site.rooms.filter(r => breathable(r) && thermalSafe(r)).flatMap(r => r.cells.map(k => k.split(',').map(Number)));
-    const result = move(c, site, targets); c.activity = result === 'blocked' ? 'No reachable temperate shelter' : result === 'arrived' ? 'Recovering from temperature exposure' : 'Seeking temperate shelter';
+    const result = move(c, site, targets); if(result==='blocked')setDownBlockedRecoveryCargo(s,c,site,intent.type); c.activity = result === 'blocked' ? 'No reachable temperate shelter' : result === 'arrived' ? 'Recovering from temperature exposure' : 'Seeking temperate shelter';
     return true;
   }
   if (intent.type === 'meal') {
@@ -324,16 +353,16 @@ function recover(s, c, site) {
       if (intent.servings === 0) { c.intent = null; remember(s, c, 'good-meal', 'Had a proper meal.', 5); }
       return true;
     }
-    const foodStores = site.tiles.filter(t => (t.building === 'stockpile' && (t.stock?.food || 0) >= 1) || (t.drop?.food || 0) >= 1).map(t => [t.x, t.y]);
-    const carriedMeal = (c.carry?.food || 0) >= 1;
+    const foodStores = site.tiles.filter(t => (t.building === 'stockpile' && (t.stock?.food || 0) >= 1) || (t.building === 'dock' && t.hp > 0 && (t.imports?.food || 0) >= 1) || (t.drop?.food || 0) >= 1).map(t => [t.x, t.y]);
+    const carriedMeal = !['job','shuttle'].includes(c.delivery?.kind) && (c.carry?.food || 0) >= 1;
     const result = carriedMeal ? 'arrived' : move(c, site, foodStores);
-    const tile = at(site, c.x, c.y), food = carriedMeal ? c.carry : (tile.stock?.food || 0) >= 1 ? tile.stock : tile.drop;
+    const tile = at(site, c.x, c.y), food = carriedMeal ? c.carry : (tile.stock?.food || 0) >= 1 ? tile.stock : tile.building === 'dock' && tile.hp > 0 && (tile.imports?.food || 0) >= 1 ? tile.imports : tile.drop;
     const ration = result === 'arrived' && food ? extract(food, { food: 1 }) : null;
     if (ration) {
       openMeal(s,c,intent,ration);
       if (tile.drop && !quantity(tile.drop)) tile.drop = null;
       if (c.carry && !quantity(c.carry)) { c.carry = null; c.delivery = null; } intent.servings = 8; c.activity = 'Taking a ration'; }
-    else { c.activity = !foodStores.length ? 'Waiting for food' : result === 'blocked' ? 'Food store unreachable' : 'Getting a meal'; if (!foodStores.length || result === 'blocked') remember(s, c, 'missed-meal', 'Could not get a meal.', -8); }
+    else { if(!foodStores.length || result==='blocked')setDownBlockedRecoveryCargo(s,c,site,intent.type); c.activity = !foodStores.length ? 'Waiting for food' : result === 'blocked' ? 'Food store unreachable' : 'Getting a meal'; if (!foodStores.length || result === 'blocked') remember(s, c, 'missed-meal', 'Could not get a meal.', -8); }
     return true;
   }
   if (intent.type === 'rest') {
@@ -342,7 +371,7 @@ function recover(s, c, site) {
     const valid = (x, y) => inside(site, x, y) && at(site, x, y).building === 'bunk' && bunkAccessible(s,c,site,x,y) && livingAllowed(site, x, y) && at(site, x, y).hp > 0 && breathable(roomAt(site, x, y)) && thermalSafe(roomAt(site, x, y)) && !claimed.has(key(x, y));
     if (intent.target && !valid(...intent.target)) intent.target = null;
     if (!intent.target) {
-      if (c.housing.bunk && housingObstruction(s,c,pathTo)) remember(s,c,'housing-displaced','Could not use my assigned bunk; had to find another place to rest.',-6);
+      if (c.site === 'surface' && c.housing.bunk && housingObstruction(s,c,pathTo)) remember(s,c,'housing-displaced','Could not use my assigned bunk; had to find another place to rest.',-6);
       const options = site.tiles.filter(t => valid(t.x, t.y)).map(t => ({ t, path: pathTo(site, c, [[t.x, t.y]]) })).filter(v => v.path !== null).sort((a, b) => Number(ownsBunk(c,site.id,b.t.x,b.t.y)) - Number(ownsBunk(c,site.id,a.t.x,a.t.y)) || Number(roomBenefit(s, site, b.t, 'quarters')) - Number(roomBenefit(s, site, a.t, 'quarters')) || a.path.length - b.path.length);
       if (options.length) intent.target = [options[0].t.x, options[0].t.y];
     }
@@ -350,14 +379,14 @@ function recover(s, c, site) {
       const result = move(c, site, [intent.target]);
       c.activity = result === 'arrived' ? 'Sleeping until rested' : 'Going to a reserved bunk';
       if (result === 'arrived') { c.energy = Math.min(100, c.energy + (roomBenefit(s, site, { x: c.x, y: c.y }, 'quarters') ? 1.05 : .85)); rememberHousingSleep(s,c,site); experienceComfort(s,c,site); }
-      if (result === 'blocked') { intent.target = null; c.activity = 'Bunk route blocked'; }
+      if (result === 'blocked') { setDownBlockedRecoveryCargo(s,c,site,intent.type); intent.target = null; c.activity = 'Bunk route blocked'; }
     } else {
       remember(s, c, 'no-bunk', 'Could not find an available safe bunk.', -8);
       if (c.energy >= 50) { c.intent = null; remember(s, c, 'poor-sleep', 'Slept poorly on the floor.', -6); return false; }
       if (livingAllowed(site, c.x, c.y) && breathable(roomAt(site, c.x, c.y)) && thermalSafe(roomAt(site, c.x, c.y))) { c.energy = Math.min(100, c.energy + .18); c.activity = 'Resting on the floor; needs a bunk'; }
       else {
         const goals = site.rooms.filter(r => breathable(r) && thermalSafe(r)).flatMap(r => r.cells.map(k => k.split(',').map(Number))).filter(([x,y]) => livingAllowed(site,x,y));
-        const result = move(c, site, goals); c.activity = result === 'blocked' ? 'Waiting for a safe, available bunk' : 'Seeking a living area for rest';
+        const result = move(c, site, goals); if(result==='blocked')setDownBlockedRecoveryCargo(s,c,site,intent.type); c.activity = result === 'blocked' ? 'Waiting for a safe, available bunk' : 'Seeking a living area for rest';
       }
     }
     return true;
@@ -381,14 +410,17 @@ function act(s, c) {
   if(evadeFire(s,c,site,pathTo,release))return;
   if (rescue(s, c, site, pathTo)) return;
   if (dependentCare(s, c, site, pathTo, release)) return;
+  // Returning workers finish or set down local parcels before seeking shelter;
+  // otherwise a cancelled load in vacuum could prevent physical boarding forever.
+  if (s.mission?.phase === 'boarding' && c.site === s.mission.site && returnCrewIds(s).includes(c.id) && c.carry && c.delivery?.kind !== 'shuttle' && haul(s,c,site,pathTo)) return;
   if (c.site !== 'surface' && s.mission?.phase === 'boarding' && boardShuttle(s, c, site, pathTo)) return;
   if (c.site !== 'surface' && (c.carry || c.intent?.type === 'salvage') && haulSalvage(s, c, site, pathTo)) return;
-  if (c.site === 'surface' && recover(s, c, site)) return;
+  if (['surface','wreck'].includes(c.site) && recover(s, c, site)) return;
   if (useSanitation(s, c, site, pathTo, release)) return;
   if (c.carry && haul(s, c, site, pathTo)) return;
-  if (c.site === 'surface' && medicalRest(s, c, site, pathTo)) return;
+  if (medicalRest(s, c, site, pathTo)) return;
   if (boardingDeparture(s, c)) { if (c.intent?.type === 'leisure') c.intent = null; walkToDeparture(s, c, pathTo); return; }
-  if (c.site === 'surface' && leisure(s, c, site, pathTo)) return;
+  if (leisure(s, c, site, pathTo)) return;
   const j = s.jobs.find(j => j.id === c.job);
   if (j) {
     const labor = laborFor(j);
@@ -402,7 +434,7 @@ function act(s, c) {
     if(transportJob(j)){if(actTransport(s,c,j,release))finish(s,c,j);return;}
     if (j.kind === 'operate') { operateMachine(s, c, j, site, pathTo); return; }
     if (!materialsReady(j)) { fetchMaterials(s, c, j, site, pathTo); return; }
-    c.activity = j.kind==='extinguish'?'Suppressing a fire':animalJob(j) ? (j.kind==='animalCare'?'Feeding and handling a bristleback':'Collecting nutrient curd') : j.kind === 'hygiene' ? 'Providing bedside hygiene' : j.kind === 'feed' ? 'Serving a bedside meal' : j.kind === 'treat' ? 'Treating injuries' : j.kind === 'loadShuttle' ? 'Loading shuttle stores' : j.kind === 'unloadShuttle' ? 'Unloading shuttle stores' : j.kind === 'refit' ? `Installing ${SHUTTLE_FITS[j.building].name.toLowerCase()}` : j.kind === 'build' ? `Building ${BUILDINGS[j.building].name.toLowerCase()}` : j.kind === 'mine' ? 'Extracting material' : `${j.kind === 'service' ? 'Servicing' : ['repair', 'repairCable'].includes(j.kind) ? 'Repairing' : 'Dismantling'} ${j.kind.endsWith('Cable') ? 'cable' : 'structure'}`;
+    c.activity = j.kind==='extinguish'?'Suppressing a fire':animalJob(j) ? (j.kind==='animalCare'?'Feeding and handling a bristleback':'Collecting nutrient curd') : j.kind === 'hygiene' ? 'Providing bedside hygiene' : j.kind === 'feed' ? 'Serving a bedside meal' : j.kind === 'treat' ? 'Treating injuries' : j.kind === 'loadCargo' ? 'Loading freight' : j.kind === 'unloadCargo' ? 'Unloading freight' : j.kind === 'loadShuttle' ? 'Loading shuttle stores' : j.kind === 'unloadShuttle' ? 'Unloading shuttle stores' : j.kind === 'refit' ? `Installing ${SHUTTLE_FITS[j.building].name.toLowerCase()}` : j.kind === 'build' ? `Building ${BUILDINGS[j.building].name.toLowerCase()}` : j.kind === 'mine' ? 'Extracting material' : `${j.kind === 'service' ? 'Servicing' : ['repair', 'repairCable'].includes(j.kind) ? 'Repairing' : 'Dismantling'} ${j.kind.endsWith('Cable') ? 'cable' : 'structure'}`;
     const result = move(c, site, neighbors(j.x, j.y));
     if(result==='arrived'&&animalJob(j)){const a=animalForJob(s,j);if(a.x!==j.x||a.y!==j.y){c.activity=j.blockedReason='Waiting for animal at the post';return;}}
     if (result === 'arrived' && j.kind === 'hygiene' && !hygieneReady(s, j, c)) { c.activity = j.blockedReason = 'Waiting for patient and safe hygiene conditions'; return; }
@@ -412,13 +444,13 @@ function act(s, c) {
     return;
   }
   c.job = null;
-  if (c.site === 'surface' && haul(s, c, site, pathTo)) return;
+  if (['surface','wreck'].includes(c.site) && haul(s, c, site, pathTo)) return;
   if (c.site !== 'surface' && haulSalvage(s, c, site, pathTo)) return;
   c.activity = c.site === 'surface' ? 'Available for assigned work' : 'Awaiting expedition orders';
 }
 export function launch(s, siteId, crewIds = undefined) {
   const blocked=expeditionLaunchBlock(s,siteId);if(blocked)return {ok:false,message:blocked.message,code:blocked.code};
-  const selected=selectExpeditionCrew(s,crewIds);if(!selected.ok)return selected;
+  const selected=selectExpeditionCrew(s,crewIds,siteId);if(!selected.ok)return selected;
   planDeparture(s, siteId, selected.crew); updateDeparture(s, order, release);
   log(s, `Preparing expedition to ${SITES[siteId].name}. Load supplies, then board.`, 'info'); return { ok: true };
 }
@@ -446,8 +478,8 @@ export function recall(s,reason='player') {
   if(previous==='outbound'&&!spendReturnFuel(s))return {ok:false,message:'Return fuel unavailable.'};
   const travelerJobs=new Set(travelers.map(c=>c.job).filter(Boolean));
   const residentsRemain=s.crew.some(c=>c.health>0&&c.site===m.site&&!ids.includes(c.id)&&isResident(s,c.id,m.site));
-  for (const c of travelers) { release(s, c); c.intent = null; c.activity = 'Returning to shuttle'; }
-  for (const j of [...s.jobs].filter(j => j.site === m.site && (!residentsRemain || travelerJobs.has(j.id)))) cancelJob(s, j.id);
+  for (const c of travelers) { preserveOpenedMeal(c); release(s, c); c.intent = null; c.activity = 'Returning to shuttle'; }
+  for (const j of [...s.jobs].filter(j => j.site === m.site && (!residentsRemain || travelerJobs.has(j.id) || isFreightJob(j)))) cancelJob(s, j.id);
   if (previous === 'outbound') { m.phase = 'returning'; m.remaining = routeTime(s, m.site); }
   else { m.phase = 'boarding'; m.remaining = 0; }
   missionEvent(s,'expedition.recalled',m,previous,m.phase,{reason,remaining:m.remaining,from:`site:${m.site}`,to:'site:surface'});
@@ -462,20 +494,49 @@ function updateFieldHazards(s, m) {
     if (m.phase === 'working' && !storm && s.tick % 15 === 0) spill(at(s.sites.solar, 10, 8), { cells: 1 });
     if (storm && s.tick % 10 === 0) { crew.forEach(c => injure(s, c, 3 * SHUTTLE_FITS[m.fit].damage, 'solar exposure')); log(s, 'Solar squall. Collectors retracted; crew sheltering.', 'danger'); }
   }
-  if (m.site === 'wreck' && s.tick % 65 === 0) { crew.forEach(c => injure(s, c, 4 * SHUTTLE_FITS[m.fit].damage, 'debris impact')); log(s, 'Debris impact at Relay K-07. Suit seals holding.', 'danger'); }
+
+}
+function updateWreckHazards(s) {
+  if (s.tick % 65 !== 0) return;
+  const site = s.sites.wreck, presence = shuttlePresence(s, 'wreck');
+  let exposed = 0;
+  for (const c of s.crew.filter(c => c.site === 'wreck' && c.health > 0)) {
+    const room = roomAt(site, c.x, c.y), tile = at(site, c.x, c.y);
+    const sheltered = tile.terrain === 'floor' && room?.sealed && room.leakArea <= 1e-8;
+    const docked = presence.usable && c.x === presence.terminal.x && c.y === presence.terminal.y;
+    if (sheltered || docked) continue;
+    const shield = presence.present && returnCrewIds(s).includes(c.id) ? SHUTTLE_FITS[s.mission.fit].damage : 1;
+    const damage = 4 * shield;
+    injure(s, c, damage, 'debris impact'); exposed++;
+    emitEvent(s, 'wreck.debris.exposure', { entity: c.id, site: 'site:wreck', target: tileEntityId('wreck', c.x, c.y), damage, reason: 'outside_shelter' });
+  }
+  if (exposed) log(s, 'Debris impact at Relay K-07. Exposed crew need shelter.', 'danger');
+}
+function localRecoveryAvailable(s, c) {
+  if (c.site !== 'wreck') return false;
+  const site = s.sites.wreck;
+  const safeRooms = site.rooms.filter(r => breathable(r) && thermalSafe(r));
+  const goals = safeRooms.flatMap(r => r.cells.map(k => k.split(',').map(Number)));
+  if (!goals.length || pathTo(site, c, goals) === null) return false;
+  if (c.hunger < 25) {
+    const food = site.tiles.filter(t => (t.stock?.food || 0) >= 1 || (t.drop?.food || 0) >= 1 || t.building === 'dock' && t.hp > 0 && (t.imports?.food || 0) >= 1).map(t => [t.x,t.y]);
+    if (!food.length || pathTo(site,c,food) === null) return false;
+  }
+  return true;
 }
 function updateMission(s) {
   const m = s.mission; if (!m) return;
   if (['working', 'boarding'].includes(m.phase)) {
     updateFieldHazards(s, m);
-    for (const c of returnCrewMembers(s).filter(c => c.health <= 0 && c.site !== 'transit')) { release(s, c); c.intent = null; if (c.carry) dropCarriedMaterials(s, c); }
+    for (const c of returnCrewMembers(s).filter(c => c.health <= 0 && c.site !== 'transit')) { dropOpenedMeals(s,c); release(s, c); c.intent = null; if (c.carry) dropCarriedMaterials(s, c); }
   }
   if (m.phase === 'boarding') {
     const site = s.sites[m.site], dock = dockAt(site), ids=returnCrewIds(s), passengers=returnCrewMembers(s), crew=passengers.filter(c=>c.health>0);
-    if (!ids.length || passengers.length!==ids.length || (!crew.length&&!allReturnTravelersDead(s)) || !dock || crew.some(c => c.site!==m.site || c.x !== dock.x || c.y !== dock.y || c.carry || c.rescue)) return;
+    if (!ids.length || passengers.length!==ids.length || (!crew.length&&!allReturnTravelersDead(s)) || !dock || s.jobs.some(isFreightJob) || crew.some(c => c.site!==m.site || c.x !== dock.x || c.y !== dock.y || c.carry || c.rescue)) return;
     if (!spendReturnFuel(s)) return;
+    for (const helper of s.crew) if (crew.some(c => c.id === helper.rescue?.patient)) releaseRescue(s,helper,'patient_boarded');
     for (const c of crew) {
-      release(s, c); c.intent = null;
+      preserveOpenedMeal(c); release(s, c); c.intent = null; c.medical.bed = null;
       if(isResident(s,c.id,m.site)){
         const outpost=s.outposts[m.site],previous=[...outpost.residents];
         outpost.residents=outpost.residents.filter(id=>id!==c.id);
@@ -515,16 +576,17 @@ function updateMission(s) {
     return;
   }
   const crew = returnCrewMembers(s);
-  if (crew.some(c => c.oxygen < airThreshold(c) || c.health < 40 || c.energy < 25 || c.hunger < 25) || (m.site === 'comet' && s.tick + routeTime(s, 'comet') + returnWalk(s, pathTo) + 5 >= s.comet.leaves)) { log(s, 'Automatic recall: expedition safety margin reached.', 'danger'); recall(s,'safety_margin'); return; }
+  if (crew.some(c => c.health < 40 || (c.oxygen < airThreshold(c) || c.energy < 25 || c.hunger < 25) && !localRecoveryAvailable(s,c)) || (m.site === 'comet' && s.tick + routeTime(s, 'comet') + returnWalk(s, pathTo) + 5 >= s.comet.leaves)) { log(s, 'Automatic recall: expedition safety margin reached.', 'danger'); recall(s,'safety_margin'); return; }
 
 }
 export function step(s, ticks = 1) {
   for (let n = 0; n < ticks; n++) {
     capture(s, 'external');
-    const pastureBefore=pastureSnapshot(s);
+    const pastureBefore=pastureSnapshot(s), habitatBefore=habitatSnapshot(s);
     s.tick++; reconcileHousing(s); const site = s.sites.surface; updateDebris(s); flowPlumbing(s); flowLiquids(s);
     const operating = Object.values(s.sites).map(current => [current, updatePower(s, current)]);
     pumpLiquids(s); operatePlumbing(s); updateGasNetworks(s); updateAtmosphere(s); updateThermal(s); updateReactorCooling(s); updateFire(s); prepareFire(s,order,cancelJob); updateFood(s, pathTo); updateSanitation(s);
+    for (const job of [...s.jobs].filter(isFreightJob)) if (!freightWorkValid(s,job)) cancelJob(s,job.id,true);
     for (const [current, equipment] of operating) recordOperation(s, current, equipment);
     scheduleMaintenance(s, order);
     updateIndustry(s, roomAt, order);
@@ -537,7 +599,7 @@ export function step(s, ticks = 1) {
     prepareDowntime(s, release);
     assignJobs(s);
     for (const c of s.crew) act(s, c);
-    updateMission(s);
+    updateWreckHazards(s); updateMission(s);
     reconcileNursing(s, cancelJob); reconcileHygiene(s, cancelJob);
     updateDeparture(s, order, release); tryDeparture(s, log);
     reconcileTransport(s,cancelJob);
@@ -558,7 +620,7 @@ export function step(s, ticks = 1) {
     if (s.tick % 300 === 220) log(s, 'Nightfall. Solar arrays offline; habitat draws on battery reserves.');
     if (s.tick % 300 === 0) log(s, 'Sunrise. Solar generation restored.', 'good');
     s.objectives = { build: s.stats.built > 0, extract: s.stats.mined > 0, salvage: !!s.flags.salvageReturned, advanced: site.tiles.some(t => t.building === 'advanced'), solar: s.stats.solarCells > 0 };
-    recordPastureChanges(s,pastureBefore);
+    recordPastureChanges(s,pastureBefore); recordHabitatChanges(s,habitatBefore);
     capture(s, 'simulation.tick');
   }
 }
@@ -625,9 +687,9 @@ export function serialize(s) { return JSON.stringify(s); }
 export function deserialize(text) {
   if (text.length > 5_000_000) throw new Error('Save is too large.');
   const s = JSON.parse(text);
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, VERSION].includes(s?.version) || !Number.isSafeInteger(s.tick) || s.tick < 0 || !Number.isInteger(s.rng) || !Number.isSafeInteger(s.nextId)) throw new Error('Unsupported or invalid save.');
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, VERSION].includes(s?.version) || !Number.isSafeInteger(s.tick) || s.tick < 0 || !Number.isInteger(s.rng) || !Number.isSafeInteger(s.nextId)) throw new Error('Unsupported or invalid save.');
   if (!s.sites || !Array.isArray(s.crew) || s.crew.length !== 7 || !Array.isArray(s.jobs) || !Array.isArray(s.log) || !s.stats || !s.comet || !s.flags || !s.objectives) throw new Error('Incomplete save.');
-  assertLegacyOutpostState(s);
+  assertLegacyOutpostState(s); assertLegacyFreightState(s);
   if(s.version<35&&s.jobs.some(j=>['repairWaterPipe','removeWaterPipe'].includes(j?.kind)||j?.kind==='build'&&(j.building==='waterPipe'||waterEquipment({building:j.building}))))throw new Error('Plumbing work is not valid in this older save.');
   if(s.version<36&&s.jobs.some(j=>j?.building==='breaker'))throw new Error('Breaker work is not valid in this older save.');
   if(s.version<24&&s.resources&&s.resources.ice===undefined)s.resources.ice=0;
@@ -655,7 +717,7 @@ export function deserialize(text) {
     for (const j of s.jobs) { j.priority = 3; j.blockedReason = null; }
     s.version = 2;
   }
-  if (s.mission && (!SITES[s.mission.site]?.fuel || !['outbound', 'working', 'boarding', 'returning'].includes(s.mission.phase) || s.mission.crew?.length !== 2 || new Set(s.mission.crew).size !== 2 || !s.mission.crew.every(id => ids.has(id)) || !Number.isFinite(s.mission.remaining) || !s.mission.cargo)) throw new Error('Invalid expedition.');
+  if (s.mission && (!SITES[s.mission.site]?.fuel || !['outbound', 'working', 'boarding', 'returning'].includes(s.mission.phase) || !Array.isArray(s.mission.crew) || !expeditionCrewCountAllowed(s,s.mission.site,s.mission.crew.length) || new Set(s.mission.crew).size !== s.mission.crew.length || !s.mission.crew.every(id => ids.has(id)) || !Number.isFinite(s.mission.remaining) || !s.mission.cargo)) throw new Error('Invalid expedition.');
   if (s.creatures === undefined) s.creatures = []; // Migrate first development saves.
   if (s.anomaly === undefined) s.anomaly = null;
   if (s.stats.trapped === undefined) s.stats.trapped = 0;
@@ -755,7 +817,7 @@ export function deserialize(text) {
   if(s.version===33){initializeGasExhaust(s);s.version=34;}
   if(s.version===34){initializePlumbing(s);s.version=35;}
   if(s.version===35)s.version=36; // No equipment, fields, resources or energy are granted.
-  if(s.version===36)migrateOutpostState(s);
+  if(s.version===36)migrateOutpostState(s); migrateFreightState(s);
   validateOutpostState(s);
   if (!Number.isSafeInteger(s.comet.arrives) || !Number.isSafeInteger(s.comet.leaves) || s.comet.leaves <= s.comet.arrives || !Object.values(s.stats).every(amount)) throw new Error('Invalid simulation counters.');
   for (const site of Object.values(s.sites)) {
@@ -807,19 +869,19 @@ export function deserialize(text) {
         if (c.carry || c.job || !returnCrewIds(s).includes(c.id) || s.mission?.phase !== 'working' || c.site !== s.mission.site || !targetValid(intent.target,c.site) || !inventory(intent.items) || quantity(intent.items) <= 0 || quantity(intent.items) > CARRY_CAPACITY) throw new Error('Invalid salvage pickup.');
         continue;
       }
-      if (!intent || !['air', 'rest', 'meal', 'haul', 'leisure', 'medical', 'temperature', 'sanitation'].includes(intent.type) || c.site !== 'surface' || c.job || (intent.target !== null && (!Array.isArray(intent.target) || intent.target.length !== 2 || !intent.target.every(Number.isInteger) || !inside(s.sites[c.site], ...intent.target))) || (intent.type === 'haul' && !intent.target) || (intent.type === 'meal' && (!Number.isInteger(intent.servings) || intent.servings < 0 || intent.servings > 8))) throw new Error('Invalid crew intention.');
-      if (intent.type === 'rest' && intent.target) { const k = key(...intent.target); if (claimedBeds.has(k)) throw new Error('Bunk reserved twice.'); claimedBeds.add(k); }
-      if (intent.type === 'haul' && (c.carry || !['stock', 'drop', 'output'].includes(intent.source) || !inventory(intent.items) || quantity(intent.items) <= 0 || quantity(intent.items) > CARRY_CAPACITY || !deliveryValid(intent.destination,c.site) || intent.destination.kind === 'job')) throw new Error('Invalid pickup reservation.');
+      if (!intent || !['air', 'rest', 'meal', 'haul', 'leisure', 'medical', 'temperature', 'sanitation'].includes(intent.type) || c.site === 'transit' || c.job || (intent.target !== null && (!Array.isArray(intent.target) || intent.target.length !== 2 || !intent.target.every(Number.isInteger) || !inside(s.sites[c.site], ...intent.target))) || (intent.type === 'haul' && !intent.target) || (intent.type === 'meal' && (!Number.isInteger(intent.servings) || intent.servings < 0 || intent.servings > 8))) throw new Error('Invalid crew intention.');
+      if (intent.type === 'rest' && intent.target) { const k = `${c.site}/${key(...intent.target)}`; if (claimedBeds.has(k)) throw new Error('Bunk reserved twice.'); claimedBeds.add(k); }
+      if (intent.type === 'haul' && (c.carry || !['stock', 'drop', 'output', 'imports'].includes(intent.source) || !inventory(intent.items) || quantity(intent.items) <= 0 || quantity(intent.items) > CARRY_CAPACITY || !deliveryValid(intent.destination,c.site) || intent.destination.kind === 'job')) throw new Error('Invalid pickup reservation.');
     }
   }
   const jobs = new Set(); const reserved = new Set();
   if (s.jobs.length > 2000) throw new Error('Too many orders.');
   for (const j of s.jobs) {
     if (![1, 3, 5].includes(j.priority) || (j.blockedReason !== null && typeof j.blockedReason !== 'string')) throw new Error('Invalid job priority.');
-    if (typeof j.id !== 'string' || !/^job-\d+$/.test(j.id) || jobs.has(j.id) || !s.sites[j.site] || !Number.isInteger(j.x) || !Number.isInteger(j.y) || !inside(s.sites[j.site], j.x, j.y) || !['build', 'mine', 'remove', 'repair', 'service', 'refit', 'loadShuttle', 'unloadShuttle', 'repairWaterPipe', 'removeWaterPipe', 'repairPipe', 'removePipe', 'repairCable', 'removeCable', 'treat', 'feed', 'hygiene', 'operate', 'animalCare', 'animalHarvest', 'animalLead', 'extinguish'].includes(j.kind) || !inventory(j.cost) || !amount(j.remaining) || !amount(j.work) || j.work === 0 || j.remaining > j.work || (j.kind === 'build' && !BUILDINGS[j.building]) || (j.worker && !ids.has(j.worker))) throw new Error('Invalid work order.');
+    if (typeof j.id !== 'string' || !/^job-\d+$/.test(j.id) || jobs.has(j.id) || !s.sites[j.site] || !Number.isInteger(j.x) || !Number.isInteger(j.y) || !inside(s.sites[j.site], j.x, j.y) || !['build', 'mine', 'remove', 'repair', 'service', 'refit', 'loadShuttle', 'unloadShuttle', 'loadCargo', 'unloadCargo', 'repairWaterPipe', 'removeWaterPipe', 'repairPipe', 'removePipe', 'repairCable', 'removeCable', 'treat', 'feed', 'hygiene', 'operate', 'animalCare', 'animalHarvest', 'animalLead', 'extinguish'].includes(j.kind) || !inventory(j.cost) || !amount(j.remaining) || !amount(j.work) || j.work === 0 || j.remaining > j.work || (j.kind === 'build' && !BUILDINGS[j.building]) || (j.worker && !ids.has(j.worker))) throw new Error('Invalid work order.');
     const k = ['feed', 'hygiene'].includes(j.kind) ? `${j.kind}/${j.patient}` : `${j.kind === 'operate' ? 'operate/' : ''}${j.site}/${j.x}/${j.y}`; if (reserved.has(k)) throw new Error('Duplicate tile reservation.'); reserved.add(k); jobs.add(j.id);
     if (j.worker && !s.crew.some(c=>c.id===j.worker&&c.job===j.id&&c.site===j.site)) throw new Error('Invalid worker reservation.');
-    if (!inventory(j.materials) || !Array.isArray(j.sources) || !j.sources.every(source => targetValid([source.x, source.y],j.site) && ['stock', 'drop', 'imports'].includes(source.kind) && inventory(source.items))) throw new Error('Invalid material reservation.');
+    if (!inventory(j.materials) || !Array.isArray(j.sources) || !j.sources.every(source => targetValid([source.x, source.y],j.site) && ['stock', 'drop', 'imports', 'freight'].includes(source.kind) && inventory(source.items))) throw new Error('Invalid material reservation.');
     const reservedItems = { ...j.materials }; j.sources.forEach(source => addCounts(reservedItems, source.items));
     for (const c of s.crew) if (c.delivery?.kind === 'job' && c.delivery.job === j.id) addCounts(reservedItems, c.carry);
     if (j.remaining < j.work && !materialsReady(j) && !(j.foodSpoiled > 0 && RESOURCES.filter(r => r !== 'food').every(r => (j.materials[r] || 0) >= (j.cost[r] || 0)))) throw new Error('Work performed without delivered materials.');
@@ -842,7 +904,7 @@ export function deserialize(text) {
   if (!Array.isArray(s.creatures) || s.creatures.length > 100 || !s.creatures.every(c => c && typeof c.id === 'string' && ['bristleback', 'tibble'].includes(c.species) && c.site === 'surface' && Number.isInteger(c.x) && Number.isInteger(c.y) && inside(s.sites.surface, c.x, c.y) && percent(c.health) && percent(c.fed) && amount(c.age))) throw new Error('Invalid wildlife.');
   if (s.anomaly !== null && (typeof s.anomaly.title !== 'string' || typeof s.anomaly.description !== 'string' || typeof s.anomaly.resolved !== 'boolean')) throw new Error('Invalid signal.');
   if (s.log.length > 60 || !s.log.every(e => amount(e.tick) && typeof e.message === 'string' && e.message.length < 4000)) throw new Error('Invalid event log.');
-  validateBreakers(s); validatePlumbing(s); validateGasNetworks(s); validateLiquids(s); validateReactors(s); validateFire(s); validateTransport(s); validateHusbandry(s); validateBreeding(s); validatePastures(s); validateWater(s); validateHousing(s); validateComfort(s); validatePossessions(s); validateDesignations(s); validateHygiene(s); validateSanitation(s); validateFood(s); validateThermal(s); validateStorage(s); validateProduction(s); validateMedicine(s); validateNursing(s); validateCrewLife(s); validateShuttle(s); validatePreflight(s);
+  validateFreightState(s); validateBreakers(s); validatePlumbing(s); validateGasNetworks(s); validateLiquids(s); validateReactors(s); validateFire(s); validateTransport(s); validateHusbandry(s); validateBreeding(s); validatePastures(s); validateWater(s); validateHousing(s); validateComfort(s); validatePossessions(s); validateDesignations(s); validateHygiene(s); validateSanitation(s); validateFood(s); validateThermal(s); validateStorage(s); validateProduction(s); validateMedicine(s); validateNursing(s); validateCrewLife(s); validateShuttle(s); validatePreflight(s);
   validateReliability(s);
   for (const site of Object.values(s.sites)) validatePower(s, site);
   const recorded = s.resources; syncResources(s);

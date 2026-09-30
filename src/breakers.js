@@ -62,7 +62,7 @@ export function validateBreakers(s) {
   const t=at(s.sites[j.site],j.x,j.y);
   if(j.kind==='build'&&j.building==='breaker') {
    const def=BUILDINGS.breaker;
-   if(j.site!=='surface'||!t||t.terrain!=='floor'||t.building||t.cable!==null||j.work!==def.work||!exact(j.cost,Object.keys(def.cost))||Object.entries(def.cost).some(([k,n])=>j.cost[k]!==n))throw new Error('Invalid breaker construction.');
+   if(!['surface','wreck'].includes(j.site)||!t||t.terrain!=='floor'||t.building||t.cable!==null||j.work!==def.work||!exact(j.cost,Object.keys(def.cost))||Object.entries(def.cost).some(([k,n])=>j.cost[k]!==n))throw new Error('Invalid breaker construction.');
   }
   if(j.kind==='build'&&j.building==='cable'&&t?.building==='breaker')throw new Error('Cable cannot bypass a breaker contact.');
   if(t?.building==='breaker'&&['repair','remove'].includes(j.kind)) {

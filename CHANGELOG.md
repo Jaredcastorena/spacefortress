@@ -2,6 +2,21 @@
 
 SPACEFORTRESS is an early playable colony simulator. Release entries describe completed changes within their stated scope.
 
+## v0.1.2 — 2026-09-30
+
+### Freight and wreck settlement preview
+
+Save schema38 adds the experimental outpost controls below. The user requested publication of this tested development build; full fresh-colony outpost endurance, delayed resupply, ordinary remote care and final pickup remain unfinished.
+
+- Physical freight manifests share the shuttle hold with salvage. Workers reserve, carry, stage and unload existing goods; flight service supplies stay separate.
+- Wreck construction uses local delivered materials. Habitat checks measure actual room air, heat, powered utilities, routes, bunks and finite reserves.
+- Shared residence and return-passenger controls keep location, settlement and flight membership distinct. Work, meals, rest, care and hazards use each crew member's actual site.
+- An explicit one-pilot trip to an established wreck leaves a seat for collecting its last resident. First visits and default selection still use two crew.
+- Paid departure loading refreshes its air target in useful batches. A blocked recovering courier puts the actual parcel down at its location, preserving reservations and item metadata.
+- New actions and short-lived transfers have named records for local player/agent use. Schema 37 migration adds no resources or changes to crew or RNG state.
+
+Current source verification:959 Node checks,958 pass, zero failures and one intentional historical skip; Python15/15 and JavaScript163/163. Real freight and bounded named-resident controls pass default/narrow browser checks. A complete current-source ordinary outpost journey is not yet accepted. Night power and gas reserves are real limits; automatic pressure-cycling airlocks remain proposed.
+
 ## v0.1.1 — 2026-09-29
 
 ### Outpost foundations

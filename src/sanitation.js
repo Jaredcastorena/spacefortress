@@ -25,7 +25,7 @@ export function exposedWaste(s, site, room = null, tile = null) {
   const includes = t => cells ? cells.has(`${t.x},${t.y}`) : tile && tile.x === t.x && tile.y === t.y;
   let total = 0;
   for (const t of site.tiles) if (includes(t)) {
-    total += (t.drop?.waste || 0) + (t.stock?.waste || 0);
+    total += (t.drop?.waste || 0) + (t.stock?.waste || 0) + (t.imports?.waste || 0);
     if (t.building === 'sanitary' && t.hp <= 0) total += t.sanitary?.output.waste || 0;
   }
   // Ordinary shipments are sealed while carried; damaged tanks and bulk stores are not.
@@ -69,7 +69,7 @@ export function sanitaryBlock(s, site, t, c = null) {
   return null;
 }
 export function useSanitation(s, c, site, pathTo, release) {
-  if (c.site !== 'surface' || immobile(c) || c.medical.bed || c.rescue) return false;
+  if (c.site !== site.id || immobile(c) || c.medical.bed || c.rescue) return false;
   if (c.intent && !['sanitation', 'haul', 'leisure'].includes(c.intent.type)) return false;
   if (c.sanitation.waste < .5 && c.intent?.type !== 'sanitation') return false;
   let target = c.intent?.type === 'sanitation' && c.intent.target ? site.tiles[c.intent.target[1] * site.size + c.intent.target[0]] : null;

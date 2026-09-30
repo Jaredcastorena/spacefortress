@@ -30,7 +30,7 @@ test('launch catalog exposes an optional bounded unique array of known crew IDs 
   assert.equal(launch.parameters.additionalProperties, false);
   const schema = launch.parameters.properties.crewIds;
   assert.equal(schema.type, 'array');
-  assert.equal(schema.minItems, 2); assert.equal(schema.maxItems, 2);
+  assert.equal(schema.minItems, 1); assert.equal(schema.maxItems, 2);
   assert.equal(schema.uniqueItems, true);
   assert.deepEqual(schema.items, {type:'string', entityType:'crew'});
   schema.items.entityType = 'invented'; schema.maxItems = 99;
@@ -62,15 +62,20 @@ test('player and agent explicit launch preserve manifest order and detached requ
 
 test('malformed explicit manifests never pass as objects or substitute an automatic team', () => {
   const s = createGame(); startRecording(s); const before = serialize(s);
-  const invalid = [null,'crew-0',{}, {0:'crew-0',1:'crew-1',length:2}, [], ['crew-0'], ['crew-0','crew-1','crew-2'], ['crew-0','crew-0'], ['crew-0','missing'], ['crew-0',1], ['crew-0',null], [['crew-0'],'crew-1'], [{id:'crew-0'},'crew-1'], Array(2)];
+  const invalid = [null,'crew-0',{}, {0:'crew-0',1:'crew-1',length:2}, [], ['crew-0','crew-1','crew-2'], ['crew-0','crew-0'], ['crew-0','missing'], ['crew-0',1], ['crew-0',null], [['crew-0'],'crew-1'], [{id:'crew-0'},'crew-1'], Array(2)];
   for (const crewIds of invalid) {
     const result = executeAction(s,'expedition.launch',{site:'wreck',crewIds});
     assert.equal(result.ok,false);
     assert.equal(result.code,'invalid_arguments');
     assert.equal(serialize(s),before);
   }
+  const singleton = executeAction(s,'expedition.launch',{site:'wreck',crewIds:['crew-0']});
+  assert.equal(singleton.ok,false);
+  assert.equal(singleton.code,'simulation_rejected');
+  assert.equal(singleton.reason,'crew_count');
+  assert.equal(serialize(s),before);
   const recording = rows(s), results = recording.filter(row => row.kind === 'action.result');
-  assert.equal(results.length,invalid.length);
+  assert.equal(results.length,invalid.length+1);
   assert.ok(results.every(row => row.changes.length === 0));
   assert.equal(recording.some(row => row.event?.id === 'expedition.preparation.started'),false);
 });

@@ -1,3 +1,4 @@
+import { freightReserved } from './freight.js';
 import { emitEvent, emitItemMovement, tileEntityId } from './telemetry.js';
 import { fitAmount, validItemLots, itemOwners } from './item-lots.js';
 import { validFoodLots } from './food-lots.js';
@@ -70,7 +71,7 @@ export function validateReturnCrew(s) {
 }
 const context=(s)=>({entity:'colony',crewIds:[...s.mission.crew],returnCrewIds:returnCrewIds(s),site:`site:${s.mission.site}`,tick:s.tick});
 export const reservedCargo = s => s.mission ? shuttleCargoClaims(s, s.mission.site, returnCrewIds(s)) : 0;
-export const cargoFree = s => s.mission ? Math.max(0, s.mission.capacity - quantity(s.shuttle.freight) - quantity(s.mission.cargo) - reservedCargo(s)) : 0;
+export const cargoFree = s => s.mission ? Math.max(0, s.mission.capacity - quantity(s.shuttle.freight) - quantity(s.mission.cargo) - reservedCargo(s) - freightReserved(s)) : 0;
 export function setCargoAccepted(s, resource, enabled) {
   if (!RESOURCES.includes(resource) || typeof enabled !== 'boolean') return { ok: false, message: 'Select a cargo type.' };
   s.shuttle.accepted = enabled ? [...new Set([...s.shuttle.accepted, resource])] : s.shuttle.accepted.filter(r => r !== resource);
@@ -94,7 +95,7 @@ export function haulSalvage(s, c, site, pathTo) {
     const result = move(c, site, xy(dock), pathTo);
     c.activity = result === 'blocked' ? 'Shuttle route blocked; holding cargo' : 'Carrying salvage to shuttle';
     if (result === 'arrived') {
-      const room = Math.max(0, m.capacity - quantity(s.shuttle.freight) - quantity(m.cargo)), shipment = {}; let left = room;
+      const room = Math.max(0, m.capacity - quantity(s.shuttle.freight) - quantity(m.cargo) - freightReserved(s)), shipment = {}; let left = room;
       for (const [r, amount] of resourceEntries(c.carry)) { const n = fitAmount(r,amount,left); if (n) shipment[r] = n; left -= n; }
       const moved=extract(c.carry,shipment);emitItemMovement(s,moved,c.id,{entity:c.id,slot:'carry'},{entity:'colony',slot:'mission.cargo'});add(m.cargo,moved);
       if(quantity(moved))emitEvent(s,'expedition.salvage.delivered',{...context(s),actor:c.id,cargo:moved,from:{entity:c.id,slot:'carry'},to:{entity:'colony',slot:'mission.cargo'},reason:'dock_delivery'});
@@ -173,9 +174,10 @@ export function validateShuttle(s) {
     claimed.add(id);
   }
   const m = s.mission;
+  if (!m && quantity(freight) + freightReserved(s) > SHUTTLE_FITS[shuttle.fit].capacity + 1e-8) throw new Error('Reserved freight exceeds shuttle hold capacity.');
   if (m) {
     validateReturnCrew(s);
-    const held = quantity(freight) + quantity(m.cargo) + reservedCargo(s);
+    const held = quantity(freight) + quantity(m.cargo) + reservedCargo(s) + freightReserved(s);
     if (!fits.includes(m.fit) || m.fit !== shuttle.fit || typeof m.legacyCapacity !== 'boolean' || !Number.isFinite(m.capacity) || m.capacity < 0 || !Number.isFinite(held) || (m.legacyCapacity ? m.fit !== 'standard' || m.capacity < 18 || m.capacity !== quantity(m.cargo) : m.capacity !== SHUTTLE_FITS[m.fit].capacity) || held > m.capacity + 1e-8) throw new Error('Invalid shuttle cargo capacity.');
     if (!Number.isInteger(m.remaining) || m.remaining > routeTime(s, m.site) || (['working', 'boarding'].includes(m.phase) && m.remaining !== 0)) throw new Error('Invalid shuttle travel time.');
   }

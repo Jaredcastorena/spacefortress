@@ -1,6 +1,8 @@
-import { expeditionCrewStatus, expeditionCandidates, expeditionLaunchBlock } from './expedition-readiness.js';
+import { expeditionCrewStatus, expeditionCandidates, expeditionLaunchBlock, expeditionCrewLimits } from './expedition-readiness.js';
 import { returnCrewIds } from './expedition.js';
 import { OUTPOST_SITES, residentIds, shuttleLocation, shuttlePresence } from './outposts.js';
+import { outpostReadiness } from './outpost-readiness.js';
+import { freightStatus } from './freight.js';
 import { departureReadiness } from './preflight.js';
 import { plumbingStatus } from './plumbing.js';
 import { breakerConditions } from './power.js';
@@ -32,13 +34,13 @@ export function observe(s) {
     for(const id of residents)residences.set(id,`site:${siteId}`);
     return [siteId,{established:s.outposts?.[siteId]?.established??false,residents}];
   }));
-  const expedition={selectedCrewIds,returnCrewIds:returningCrewIds,destination:destination?`site:${destination}`:null,phase:s.departure?.stage||s.mission?.phase||'idle',preparing:!!s.departure,remaining:s.mission?.remaining||0,candidates:expeditionCandidates(s),departure:departureReadiness(s)};
+  const expedition={selectedCrewIds,returnCrewIds:returningCrewIds,destination:destination?`site:${destination}`:null,crewLimits:destination?expeditionCrewLimits(s,destination):null,phase:s.departure?.stage||s.mission?.phase||'idle',preparing:!!s.departure,remaining:s.mission?.remaining||0,candidates:expeditionCandidates(s),departure:departureReadiness(s)};
   const entities={colony:{type:'colony',...colony,derived:{...(colony.derived||{}),expedition,shuttle:{location:shuttleLocation(s)}}}};
   for(const site of Object.values(sites)) {
     const {tiles,rooms,...environment}=site;
     const launchBlocked=expeditionLaunchBlock(s,site.id);
     // Destination gates are distinct from selected-crew, supplies and route readiness.
-    entities[`site:${site.id}`]={type:'site',...environment,waterSupply:waterSupply(s,site.id),derived:{...(environment.derived||{}),expedition:{selected:destination===site.id,launchBlocked},shuttle:shuttlePresence(s,site.id),outpost:outposts[site.id]||null}};
+    entities[`site:${site.id}`]={type:'site',...environment,waterSupply:waterSupply(s,site.id),derived:{...(environment.derived||{}),expedition:{selected:destination===site.id,launchBlocked,crewLimits:expeditionCrewLimits(s,site.id)},shuttle:shuttlePresence(s,site.id),freight:freightStatus(s,site.id),outpost:outposts[site.id]||null,habitat:outposts[site.id]?outpostReadiness(s,site.id,outposts[site.id].residents):null}};
     for(const t of tiles) {
       const gas=(t.pipe||t.gasStore||t.gasDevice)?gasStatus(site,t):null;
       const plumbing=(t.waterPipe||t.waterStore||t.waterDevice)?plumbingStatus(s,site,t):null;
@@ -104,6 +106,22 @@ export function startRecording(s,{maxRecords=2000,maxBytes=16_000_000}={}) {
 }
 export function stopRecording(s) {const r=sessions.get(s);if(r){capture(s,'external');r.active=false;r.reason ||= 'stopped';}return recordingStatus(s);}
 export function recordingStatus(s) {const r=sessions.get(s);return r?{active:r.active,records:r.records.length,bytes:r.bytes,reason:r.reason,maxRecords:r.maxRecords,maxBytes:r.maxBytes}:{active:false,records:0,bytes:0,reason:'not_started'};}
+// Snapshot only the measured gate transitions worth naming, not every drifting
+// number. The simulation calls these around a committed tick; observe stays pure.
+export function habitatSnapshot(s) {
+  if(!sessions.get(s)?.active)return null;
+  return Object.fromEntries(OUTPOST_SITES.map(siteId=>{
+    const crewIds=residentIds(s,siteId),status=outpostReadiness(s,siteId,crewIds);
+    return [siteId,{crewIds,ready:status.ready,blockers:[...new Set(status.blockers.map(block=>block.code))].sort()}];
+  }));
+}
+export function recordHabitatChanges(s,before) {
+  if(!before||!sessions.get(s)?.active)return;
+  const after=habitatSnapshot(s);
+  for(const siteId of OUTPOST_SITES)if(JSON.stringify(before[siteId])!==JSON.stringify(after[siteId])) {
+    emitEvent(s,'outpost.habitat.changed',{entity:`site:${siteId}`,site:`site:${siteId}`,previous:before[siteId],next:after[siteId],reason:'measured_conditions_changed',tick:s.tick});
+  }
+}
 function append(s,record,after) {
   const r=sessions.get(s);if(!r?.active)return null;
   const entry={sequence:r.records.length+1,tick:s.tick,...record},bytes=new TextEncoder().encode(JSON.stringify(entry)).length;

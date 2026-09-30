@@ -3,11 +3,24 @@ import { moveCrew } from './atmosphere.js';
 import { RESOURCES } from './data.js';
 import { CARRY_CAPACITY, add, addCounts, extract, resourceEntries, contains, quantity, spill, syncResources } from './inventory.js';
 import { availableInventory } from './inventory-reservations.js';
+import { shuttleLocation } from './outposts.js';
+import { emitEvent, emitItemMovement } from './telemetry.js';
 
 const at = (site, x, y) => x >= 0 && y >= 0 && x < site.size && y < site.size ? site.tiles[y * site.size + x] : undefined;
 const workPositions = j => [[j.x + 1, j.y], [j.x - 1, j.y], [j.x, j.y + 1], [j.x, j.y - 1]];
 export const materialsReady = j => contains(j.materials, j.cost);
 const sourceInventory = (t, kind) => kind === 'stock' ? t.building === 'stockpile' ? t.stock : null : kind === 'imports' ? t.building === 'dock' ? t.imports : null : kind === 'drop' ? t.drop : null;
+// Work authority follows living people at the site, independently of which map
+// is viewed or whether the shuttle is still visiting a resident's home.
+export function siteWorkAllowed(s, siteId) {
+  if (!s.sites[siteId]) return false;
+  if (siteId === 'surface') return true;
+  const locals = s.crew.filter(c => c.site === siteId && c.health > 0);
+  if (siteId === 'wreck' && s.outposts?.wreck.established && locals.some(c => s.outposts.wreck.residents.includes(c.id))) return true;
+  const mission = s.mission;
+  return !!mission && mission.site === siteId && mission.phase === 'working' &&
+    locals.some(c => mission.crew.includes(c.id) || mission.returnCrew?.includes(c.id));
+}
 export function constructionSupplyLocations(s, siteId = 'surface') {
   const site = s.sites[siteId]; if (!site) return [];
   // Depots remain preferred. Landed imports precede loose piles, so a local
@@ -57,23 +70,37 @@ export function materialObstruction(j) {
 export function fetchMaterials(s, c, j, site, pathTo) {
   const source = materialSource(j, c, site, pathTo);
   if (!source) { j.blockedReason = materialObstruction(j); c.activity = j.blockedReason; j.worker = null; c.job = null; return; }
-  j.blockedReason = null; c.activity = j.kind === 'feed' ? 'Collecting a patient ration' : j.kind === 'treat' ? 'Collecting medicine' : j.kind === 'loadShuttle' ? 'Collecting shuttle supplies' : 'Collecting construction supplies';
+  j.blockedReason = null; c.activity = j.kind === 'feed' ? 'Collecting a patient ration' : j.kind === 'treat' ? 'Collecting medicine' : j.kind === 'loadShuttle' ? 'Collecting shuttle supplies' : ['loadCargo', 'unloadCargo'].includes(j.kind) ? 'Collecting freight shipment' : 'Collecting construction supplies';
   const path = pathTo(site, c, [[source.x, source.y]]);
   if (path.length) { moveCrew(c, site, path[0]); return; }
   const items = {}; let room = CARRY_CAPACITY;
   for (const [r, n] of resourceEntries(source.items)) { const amount = fitAmount(r,n,room); if (amount) items[r] = amount; room -= amount; }
+  const sourceIndex = j.sources.indexOf(source);
   c.carry = extract(source.items, items); c.delivery = { kind: 'job', target: [j.x, j.y], job: j.id };
+  if (['loadCargo', 'unloadCargo'].includes(j.kind) && quantity(c.carry)) {
+    const from = { entity: j.id, slot: `sources.${sourceIndex}` }, to = { entity: c.id, slot: 'carry' };
+    emitItemMovement(s, c.carry, c.id, from, to);
+    emitEvent(s, 'freight.picked_up', { entity: j.id, job: j.id, actor: c.id, site: `site:${site.id}`,
+      cargo: c.carry, from, to, reason: 'source_collected' });
+  }
 }
 export function deliverMaterials(s, c, site, pathTo) {
   const j = s.jobs.find(j => j.id === c.delivery?.job && j.site === c.site);
   if (!j) { c.delivery = null; return false; }
   if (!site || site.id !== c.site) return false;
   const path = pathTo(site, c, workPositions(j));
-  const purpose = ['treat', 'feed'].includes(j.kind) ? 'Medical' : j.kind === 'loadShuttle' ? 'Shuttle' : 'Construction';
+  const purpose = ['treat', 'feed'].includes(j.kind) ? 'Medical' : ['loadShuttle', 'loadCargo', 'unloadCargo'].includes(j.kind) ? 'Shuttle' : 'Construction';
   c.activity = path === null ? `${purpose} delivery route blocked; holding supplies` : `Delivering ${purpose.toLowerCase()} supplies`;
   if (path === null) { j.blockedReason = `${purpose} delivery route blocked`; return true; }
   if (path.length) { moveCrew(c, site, path[0]); return true; }
-  add(j.materials, c.carry); c.carry = null; c.delivery = null; j.blockedReason = null;
+  const cargo = c.carry;
+  add(j.materials, cargo); c.carry = null; c.delivery = null; j.blockedReason = null;
+  if (['loadCargo', 'unloadCargo'].includes(j.kind) && quantity(cargo)) {
+    const from = { entity: c.id, slot: 'carry' }, to = { entity: j.id, slot: 'materials' };
+    emitItemMovement(s, cargo, c.id, from, to);
+    emitEvent(s, 'freight.delivered', { entity: j.id, job: j.id, actor: c.id, site: `site:${site.id}`,
+      cargo, from, to, reason: 'materials_staged' });
+  }
   return true;
 }
 export function cancelMaterials(s, j) {
@@ -84,7 +111,7 @@ export function cancelMaterials(s, j) {
   for (const source of j.sources) {
     const items = source.items; source.items = {};
     const tile = at(site, source.x, source.y);
-    const inventory = tile && sourceInventory(tile, source.kind);
+    const inventory = source.kind === 'freight' ? shuttleLocation(s) === j.site ? s.shuttle.freight : null : tile && sourceInventory(tile, source.kind);
     if (inventory) add(inventory, items);
     else spill(open(tile) ? tile : staging, items);
   }

@@ -23,9 +23,28 @@ game.recording.stop();
 const ndjson = game.recording.export();
 ```
 
-Action parameter objects reject unknown fields, invalid types, missing arguments, unsupported values, unknown crew/jobs and out-of-bounds coordinates. Conditional job targets distinguish buildings, shuttle fits and patient IDs. Success uses `code: "applied"`; rejections use `unknown_action`, `invalid_arguments` or `simulation_rejected`, with a human-readable message. Successful job orders return a job ID. Success means the designation/control change was accepted, not that construction, recovery or travel has finished.
+Action parameter objects reject unknown fields, invalid types, missing arguments, unsupported values, unknown crew/jobs and out-of-bounds coordinates. Conditional job targets distinguish buildings, shuttle fits and patient IDs. Success uses `code: "applied"`; rejections use `unknown_action`, `invalid_arguments` or `simulation_rejected`, with a human-readable message. When an underlying simulation rule supplies a stable rejection code, the dispatcher additionally returns it as `reason` while retaining `code: "simulation_rejected"`. Successful job orders return a job ID. Success means the designation/control change was accepted, not that construction, recovery or travel has finished.
 
 For Node-based local experiments, import `createGame` from `src/simulation.js`, `executeAction` from `src/controls.js` and recording helpers from `src/telemetry.js`. Use this dispatcher for external decisions; direct state edits are marked `external` and do not contain a player/agent intent.
+
+## Freight, residence and return actions
+
+**v0.1.2 development preview — save schema 38.** These shared bindings, detached readings and recorded transitions have bounded acceptance, including genuine freight and resident controls. The complete fresh-colony endurance/resupply/care/pickup journey remains unfinished. Check the current catalog for precise fields; accepting an action does not mean its shipment or journey has finished.
+
+| Action | Arguments | Effect |
+| --- | --- | --- |
+| `expedition.launch` | `{site, crewIds?}` | Explicit one or two IDs; one is allowed only for an already established wreck under schema 38. Omission still selects two. |
+| `freight.load` | `{items}` | Creates physical surface loading work while the shuttle is present and idle. |
+| `freight.unload` | `{site, items?}` | Creates physical unloading work at the usable present berth. Omitting `items` requests all current freight. |
+| `job.cancel` | `{job}` | Cancels a freight job through normal physical restitution/carry rules. |
+| `expedition.return_crew` | `{crewIds}` | Selects one or two distinct known living people physically at the destination, subject to visitor/residence and shipment constraints. |
+| `outpost.residents` | `{site: 'wreck', crewIds}` | Supplies the complete ordered resident roster, with zero to seven distinct known IDs. Additions require a measured operational habitat and at least one living return passenger. |
+
+A freight `items` object must be nonempty and contain only known resource names with finite positive amounts; keepsake counts are integers. Unknown fields, metadata, nonfinite values and malformed rosters reject before mutation. Resource identity/age comes from the reserved physical inventory. UI manifest drafts and return checkboxes do not act until submitted.
+
+Living remote residents cannot be removed by editing the resident list, even after a return seat is selected. Pickup clears their residence at actual departure. Explicit cleanup of surface or deceased entries remains possible. The arrival list, return list, persistent residence and physical site remain distinct. Initial exploration, comet and solar flights still require two. A one-person outbound request is valid only for an already established wreck; it preserves normal paid fuel, service loading and physical boarding. No voluntary empty return, automatic replacement or free supply action is introduced.
+
+`definitions().outposts` publishes supported `sites` and `commissioningReserves`. The reserve numbers are current admission guards, not endurance estimates. See the [outpost guide](staffed-orbital-outpost-design.md) and [expedition logistics](expedition-logistics.md) for physical prerequisites, accepted bounded controls and the unfinished sustained fresh-colony journey.
 
 ## Entity identities and observations
 
@@ -35,7 +54,7 @@ Observation schema version **1** uses `{schemaVersion, tick, entities}`. IDs are
 | --- | --- | --- |
 | Colony | `colony` | Tick, seed/RNG state, available resources, expedition/departure/shuttle state, objectives, hazards and narrative log |
 | Site | `site:surface` | Site metadata, circuits, energy/atmosphere/heat ledgers, designations, incidents |
-| Tile | `tile:surface:12:7` | Terrain, structure/condition, inventories, machines/orders, cable/power, storage and maintenance |
+| Tile | `tile:surface:12,7` | Terrain, structure/condition, inventories, machines/orders, cable/power, storage and maintenance |
 | Compartment | `room:surface:7,7` | Floor cells, gases, heat and derived room purpose/readiness, comfort, temperature and breathability |
 | Crew | Existing ID, such as `crew-0` | Position, needs, work/recovery intention, skills, labors, memories, relationships, medical/sanitation state, housing/preference, and derived current/home comfort |
 | Job | Existing ID, such as `job-1` | Kind, target, worker, priority, progress, blocked reason, reserved and delivered materials |
@@ -54,6 +73,16 @@ The current interface exposes the full prototype state, including remote sites a
 
 Visible crew buttons and the selected inspector have `data-entity` labels. Gameplay inspector buttons/forms have `data-simulation-action` labels matching catalog IDs. Agents do not need screen coordinates to use the structured interface.
 
+### Outpost and transport readings
+
+The colony's derived shuttle location and expedition return IDs complement each crew member's `derived.residence` and `derived.expedition.selectedForReturn`. A site's `derived.shuttle` distinguishes an intact terminal from a craft that is physically there. `site.derived.expedition.crewLimits` exposes `{min, max, defaultCount}` for outbound selection; `colony.derived.expedition.crewLimits` is null when there is no active destination.
+
+- `site.derived.freight`: `site`, `location`, `present`, `usable`, `capacity`, detached `onboard`/`salvage` inventories, `claimed`, `reserved`, `free`, active `job` ID and `blocked`. Reserved freight represents actual job source/material/carry owners; a job's requested cost is not another inventory.
+- `site.derived.outpost`: founding history and registered residents for the supported wreck, otherwise null.
+- `site.derived.habitat`: the pure readiness result for the registered roster, otherwise null. Fields include `site`, `crewIds`, `ready`, stable `blockers`, dock condition, measured `rooms`, bunk assignments, local available/required provisions with owner sources, current power circuits and individual crew/care conditions. An empty roster reports that a proposed selection is required.
+
+The UI can call the same pure readiness helper for a complete proposed roster before stationing it. It checks actual paths, room gas/temperature, current utility allocation and unpromised local supplies. Neither observation nor a readiness call reserves stock, claims a bunk, emits an event or advances time. Onboard freight and surface stock cannot count as local resident provisions. Returned item/meal locations retain their physical `shuttle.freight`, dock `imports`, job, carry and storage slots.
+
 ## Local recording and export
 
 Open **… → Start recording**. Stop and export from the same menu. Export produces newline-delimited JSON (`.ndjson`) with:
@@ -69,6 +98,28 @@ Record kinds:
 - `simulation.tick`: exact net field changes across an autonomous simulation tick, including small numeric changes.
 - `event`: explicitly named brief occurrences, currently `crew.memory.created`, `job.created`, `job.cancelled`, `job.completed`, `production.batch.started`, `production.batch.completed`, `resource.extracted`, `deposit.depleted`, the `item.*` transitions documented in [possessions](possessions.md), and `meal.prepared`, `meal.opened`, `meal.portion.eaten`, `meal.finished` documented in [prepared meals](prepared-meals.md), and the animal/pest transitions documented in [husbandry](husbandry.md) and boundary/route/movement events in [pastures](pastures.md) plus policy, brood, birth and maturity events in [herd reproduction](breeding.md) and collection/escort/interruption/delivery events in [animal transport](animal-transport.md), plus fire, exposure, suppression and structure damage in [fire and smoke](fire-and-smoke.md). Payloads identify actor, job, target tile, memory kind/mood or produced resources as applicable.
 - `external`: state changes outside the dispatcher/tick boundary. These are explicitly not attributed to an agent decision.
+
+The new transport/care event families describe committed transitions:
+
+| Event | Recorded transition |
+| --- | --- |
+| `expedition.preparation.supplies_changed` | Paid service-air target refresh: assigned crew/destination, resource `air`, numeric `previous`/`next`, reason `suit_refill_margin`. This changes the requested target, not inventory. |
+| `crew.recovery.cargo_set_down` | Blocked recovery physically moves a parcel from carry to its actual tile or an exclusive job source; includes crew entity, site, tile, recovery `kind`, cargo, exact `from`/`to`, and reason `recovery_blocked`. |
+| `freight.ordered` | Terminal job, resource request and `transfers: [{cargo, from, to}]` with exact `sources.INDEX` ownership slots. |
+| `freight.picked_up` | Reserved source → carrier, with reason `source_collected`. |
+| `freight.delivered` | Carrier → job materials, with reason `materials_staged`. |
+| `freight.loaded` / `freight.unloaded` | Finished job-material transfer, actor, cargo and exact `{entity, slot}` source/destination, with destination before/after. |
+| `freight.cancelled` | Canceled job, automatic/manual reason and its still-reserved, staged and carried contents. Normal cancellation performs the physical restitution. |
+| `expedition.return_manifest.changed` | Previous/next return IDs and reason, including explicit stationing. |
+| `outpost.residents.changed` | Previous/next resident roster and founding-history state. |
+| `outpost.residence.removed` | A resident actually begins the return trip. |
+| `wreck.debris.exposure` | Actual wreck debris injury to a physically present crew member. |
+| `outpost.habitat.changed` | A committed tick changes measured readiness, distinct blocker codes or registered roster; previous/next summaries use reason `measured_conditions_changed`. |
+| `care.rescue.assigned` / `picked_up` / `delivered` / `interrupted` | Physical patient/helper/site/tile, with destination on assignment and completion/interruption reason. These names all use the `care.rescue.` prefix. |
+
+Recovery handoff kinds are `air`, `temperature`, `meal` and `rest`. Job-bound parcels use `sources.INDEX` as their destination slot; ordinary parcels use the actual tile’s `drop`. Individual items also receive `item.moved`. The marker does not imply that the original carrier recovered or that another hauler is available.
+
+Every record carries its simulation tick and normal command correlation. General construction/hauling, item movement, meals and expedition departure/arrival events continue to describe their own boundaries. `outpost.habitat.changed` is emitted by explicit simulation hooks, never by a pure `observe()` call; gradual readings remain visible in deltas without claiming a survival prediction. Source contract checks, synthetic action tests and genuine resident controls do not establish the complete sustained fresh-colony journey.
 
 Each state change carries `entity`, `system`, `path`, `op` and applicable `previous`/`value`. Paths are arrays of property names, never executable expressions or slash-delimited pointers. Operations are `add`, `remove` and `replace`; an empty path creates/deletes/replaces an entity. Arrays such as memories and food lots are replaced as complete values. Typed systems include memory, housing, possessions, needs, medicine, sanitation, movement, inventory, logistics, production, power, temperature, atmosphere, room topology/purpose, relationships, hazards and others. Unclassified new fields remain visible under `state` or their entity-family fallback.
 

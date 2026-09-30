@@ -2,6 +2,7 @@ import { livingAllowed, roomBenefit } from './rooms.js';
 import { thermalSafe } from './thermal.js';
 import { breathable, roomAt, moveCrew } from './atmosphere.js';
 import { remember } from './crew.js';
+import { shuttlePresence } from './outposts.js';
 
 const tileAt = (site, xy) => site.tiles[xy[1] * site.size + xy[0]];
 const same = (a, b) => a && b && a[0] === b[0] && a[1] === b[1];
@@ -19,14 +20,15 @@ export function injure(s, c, amount, cause) {
   c.medical.status = 'Needs treatment';
   remember(s, c, 'injury', `Hurt by ${cause}.`, -5);
 }
-export const safeBed = (site, bed) => bed && livingAllowed(site, ...bed) && tileAt(site, bed)?.building === 'medicalCot' && tileAt(site, bed).hp > 0 && breathable(roomAt(site, ...bed)) && thermalSafe(roomAt(site, ...bed));
+export const safeBed = (site, bed) => !!site && bed && livingAllowed(site, ...bed) && tileAt(site, bed)?.building === 'medicalCot' && tileAt(site, bed).hp > 0 && breathable(roomAt(site, ...bed)) && thermalSafe(roomAt(site, ...bed));
+export const boardingPatient = (s, c) => s.mission?.phase === 'boarding' && s.mission.site === c.site && s.mission.returnCrew?.includes(c.id) && shuttlePresence(s, c.site).usable;
 export function treatmentPatient(s, j) {
   const c = s.crew.find(c => c.id === j.patient);
-  return c && c.health > 0 && c.site === 'surface' && same(c.medical.bed, [j.x, j.y]) && safeBed(s.sites.surface, c.medical.bed) ? c : null;
+  return c && c.health > 0 && c.site === j.site && same(c.medical.bed, [j.x, j.y]) && safeBed(s.sites[j.site], c.medical.bed) ? c : null;
 }
 export function treatmentReady(s, j, worker) {
   const c = treatmentPatient(s, j);
-  return !!c && c.x === j.x && c.y === j.y && c.intent?.type === 'medical' && c.oxygen > 0 && c.hunger >= 35 && breathable(roomAt(s.sites.surface, worker.x, worker.y));
+  return !!c && worker?.site === j.site && c.x === j.x && c.y === j.y && c.intent?.type === 'medical' && c.oxygen > 0 && c.hunger >= 35 && breathable(roomAt(s.sites[j.site], worker.x, worker.y));
 }
 export function completeTreatment(s, j) {
   const c = treatmentPatient(s, j);
@@ -36,20 +38,19 @@ export function completeTreatment(s, j) {
   remember(s, c, 'medical-care', 'A crewmate treated my injuries.', 7);
 }
 export function prepareMedicine(s, order, cancelJob, release, pathTo) {
-  const site = s.sites.surface;
   for (const c of s.crew) {
-    const m = c.medical;
-    if (m.bed && (c.health <= 0 || c.site !== 'surface' || !m.injury || !safeBed(site, m.bed) || pathTo(site, c, [m.bed]) === null)) {
+    const m = c.medical, site = s.sites[c.site];
+    if (m.bed && (c.health <= 0 || !site || boardingPatient(s, c) || !m.injury || !safeBed(site, m.bed) || pathTo(site, c, [m.bed]) === null)) {
       m.bed = null;
       if (c.intent?.type === 'medical') c.intent = null;
     }
   }
   for (const j of [...s.jobs]) if (j.kind === 'treat' && !treatmentPatient(s, j)) cancelJob(s, j.id, true);
   for (const c of [...s.crew].sort((a, b) => a.health - b.health || a.id.localeCompare(b.id))) {
-    const m = c.medical;
-    if (c.rescue || c.health <= 0 || c.site !== 'surface' || !m.injury) continue;
+    const m = c.medical, site = s.sites[c.site];
+    if (c.rescue || c.health <= 0 || !site || boardingPatient(s, c) || !m.injury) continue;
     if (!m.bed && s.tick >= m.retryAt) {
-      const options = site.tiles.filter(t => safeBed(site, [t.x, t.y]) && !s.crew.some(other => same(other.medical.bed, [t.x, t.y])) && !s.jobs.some(j => j.site === 'surface' && j.x === t.x && j.y === t.y))
+      const options = site.tiles.filter(t => safeBed(site, [t.x, t.y]) && !s.crew.some(other => other.site === c.site && same(other.medical.bed, [t.x, t.y])) && !s.jobs.some(j => j.site === c.site && j.x === t.x && j.y === t.y))
         .map(t => ({ t, path: pathTo(site, c, [[t.x, t.y]]) })).filter(o => o.path !== null).sort((a, b) => Number(roomBenefit(s, site, b.t, 'infirmary')) - Number(roomBenefit(s, site, a.t, 'infirmary')) || a.path.length - b.path.length);
       if (options.length) m.bed = [options[0].t.x, options[0].t.y];
       else m.status = 'Needs an available, reachable cot in safe air and temperature';
@@ -59,8 +60,8 @@ export function prepareMedicine(s, order, cancelJob, release, pathTo) {
     if (!s.crew.some(other => other.rescue?.carrying && other.rescue.patient === c.id) && !c.carry && (!c.intent || ['haul', 'leisure'].includes(c.intent.type))) {
       release(s, c); c.intent = { type: 'medical', target: [...m.bed] };
     }
-    if (m.injury - m.treated > 1e-8 && !s.jobs.some(j => j.site === 'surface' && j.x === m.bed[0] && j.y === m.bed[1]) && s.tick >= m.retryAt) {
-      const result = order(s, 'surface', ...m.bed, 'treat', c.id);
+    if (m.injury - m.treated > 1e-8 && !s.jobs.some(j => j.site === c.site && j.x === m.bed[0] && j.y === m.bed[1]) && s.tick >= m.retryAt) {
+      const result = order(s, c.site, ...m.bed, 'treat', c.id);
       m.status = result.ok ? 'Awaiting medicine and a medic' : result.message;
     }
   }
@@ -87,14 +88,15 @@ export function validateMedicine(s) {
     const m = c.medical;
     if (!m || ![m.injury, m.treated].every(n => Number.isFinite(n) && n >= 0 && n <= 100) || m.treated > m.injury + 1e-8 || m.injury + c.health > 100 + 1e-7 || !Number.isSafeInteger(m.retryAt) || m.retryAt < 0 || m.retryAt > s.tick + 120 || (m.cause !== null && (typeof m.cause !== 'string' || m.cause.length > 100)) || typeof m.status !== 'string' || m.status.length > 200) throw new Error('Invalid medical state.');
     if (m.bed !== null) {
-      if (c.site !== 'surface' || !Array.isArray(m.bed) || m.bed.length !== 2 || !m.bed.every(n => Number.isInteger(n) && n >= 0 && n < s.sites.surface.size) || claims.has(m.bed.join(','))) throw new Error('Invalid medical cot claim.');
-      claims.add(m.bed.join(','));
+      const site = s.sites[c.site], claim = `${c.site}/${m.bed?.join?.(',')}`;
+      if (!site || !Array.isArray(m.bed) || m.bed.length !== 2 || !m.bed.every(n => Number.isInteger(n) && n >= 0 && n < site.size) || claims.has(claim)) throw new Error('Invalid medical cot claim.');
+      claims.add(claim);
     }
     if (c.intent?.type === 'medical' && (!same(c.intent.target, m.bed) || c.carry || !m.injury)) throw new Error('Invalid patient intention.');
   }
   for (const j of s.jobs.filter(j => j.kind === 'treat')) {
     const c = s.crew.find(c => c.id === j.patient);
-    if (j.site !== 'surface' || !c || !same(c.medical.bed, [j.x, j.y]) || patients.has(j.patient) || j.worker === j.patient || !Number.isFinite(j.dose) || j.dose <= 0 || j.dose > 25 || j.work !== 20 || j.cost.medicine !== 1 || Object.keys(j.cost).length !== 1) throw new Error('Invalid treatment order.');
+    if (!s.sites[j.site] || !c || c.site !== j.site || !same(c.medical.bed, [j.x, j.y]) || patients.has(j.patient) || j.worker === j.patient || (j.worker && !s.crew.some(worker => worker.id === j.worker && worker.site === j.site)) || !Number.isFinite(j.dose) || j.dose <= 0 || j.dose > 25 || j.work !== 20 || j.cost.medicine !== 1 || Object.keys(j.cost).length !== 1) throw new Error('Invalid treatment order.');
     patients.add(j.patient);
   }
 }

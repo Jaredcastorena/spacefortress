@@ -1,23 +1,23 @@
 # Sanitation, waste collection and exposure
 
-Implemented September 16, 2026. These are fictional gameplay rules, not a medical or biological model.
+**v0.1.2 development preview — save schema 38.** Physical-site facilities and assisted care are implemented with focused boundary checks. The complete fresh-colony outpost endurance/resupply/care/pickup journey remains unfinished. See [crew life](crew-life.md) and [verification status](verification-status.md). The original sanitation model dates from September 16, 2026.
 
 ## Crew needs and facilities
 
 Consumed ordinary and bedside meal portions retain **1/16 recoverable waste** on their eater. Waste is a physical resource owner in `crew.sanitation.waste`, counted by `totalResources()` but unavailable to depots, recipes or construction. This replaces the previous immediate meal-location pile. A full ration still yields 0.5 waste, preserving the [nutrient recycling](nutrient-recycling.md) balance.
 
-At **0.5 retained waste**, mobile surface crew seek a sanitary unit. They walk to a reachable facility, reserve it exclusively, and spend six ticks using it. Completion transfers all retained waste into its tank and releases the reservation. The facility needs breathable air, safe temperature, positive condition and enough tank space; construction/repair work blocks use. No water or electricity is consumed: this is a dry collection unit.
+At **0.5 retained waste**, mobile crew seek a sanitary unit at their physical site. They walk to a reachable facility, reserve it exclusively, and spend six ticks using it. Completion transfers all retained waste into its tank and releases the reservation. The facility needs breathable air, safe temperature, positive condition and enough tank space; construction/repair work blocks use. No water or electricity is consumed: this is a dry collection unit.
 
 A unit costs **4 alloy + 1 component**, requires eight construction work, and sits on a habitat floor. It starts empty and stores **8 waste**. New colonies receive no free facility. Both the drawing and UI are local; no assets or dependencies were downloaded.
 
 Recovery behavior:
 
 - Crew finish opened meals and handle air/thermal emergencies before a sanitary visit.
-- Actual carried shipments stay with the crew through a sanitary detour; uncollected hauling reservations can be released.
+- Actual carried shipments stay with the crew through a sanitary detour; uncollected hauling reservations can be released. A separate [blocked-recovery handoff](crew-life.md#when-a-carrier-cannot-recover) can put a parcel down when air, temperature, food or rest is unreachable. Sanitary use alone does not trigger it, and it does not dispose of retained waste.
 - An occupied, unreachable, full or unsafe facility does not make crew wait indefinitely: they continue other work and retry.
 - After **120 ticks** with at least 0.5 retained waste, it overflows into a local pile and leaves a negative memory. A successful visit resets the timer.
 - Immobile patients and reserved cot patients cannot visit facilities themselves. Medicine workers now provide [bedside hygiene](bedside-hygiene.md), collecting waste into carried shipments before overflow. Without assistance, the normal overflow rule remains.
-- Death on a local map releases retained waste once. Transit pauses sanitation physiology. Field crews have no facility-use behavior yet; retained waste can overflow at their field location.
+- Death on a local map releases retained waste once. Transit pauses sanitation physiology. Field crew can use an actual reachable local facility; without one, retained waste can overflow where they are. Equal coordinates on different sites do not share a reservation.
 
 ## Physical collection and recycling
 
@@ -44,13 +44,13 @@ This is a first environmental exposure model. It does not simulate pathogens, in
 
 The hidden build menu contains Sanitary unit. Tile inspection shows exposed waste in the compartment. Facility inspection shows the tank, availability or obstruction, current reservation, and hauling requirements. Crew inspection shows retained waste, time before overflow, exposure and its work penalty. No new permanent HUD panel was added.
 
-Sanitation was introduced in schema **18**; current schema **20** includes assisted hygiene and room designations. The new crew state is `{waste:0, wait:0, exposure:0}`. Existing food, loose/depot waste, recipes, jobs, crops, medical state and inventories remain unchanged. Current saves preserve visits, exclusive reservations, tank contents, timers and exposure. Validation rejects invalid ranges, duplicate visits, overfilled tanks, foreign resources and tanks attached to missing facilities.
+Sanitation was introduced in schema **18**; historical schema **20** added assisted hygiene and room designations. The crew state is `{waste:0, wait:0, exposure:0}`. Existing food, loose/depot waste, recipes, jobs, crops, medical state and inventories remain unchanged. Current saves preserve visits, exclusive reservations, tank contents, timers and exposure. Validation rejects invalid ranges, duplicate visits, overfilled tanks, foreign resources and tanks attached to missing facilities.
 
 ## Verification
 
-**308 tests pass**, including 15 sanitation cases covering delivered construction, actual walking and visit time, seven competing crew, unavailable facilities, timed overflow, air interruption, retained cargo, full-tank collection through recycling, tank damage/dismantling, room isolation, exposure/work/medical consequences, cleanup recovery, sealed cargo, suit protection, immobile patients, death, deterministic saves, migration and invalid state. The recycling meal test now checks retained waste rather than an immediate pile.
+The historical sanitation checkpoint passed **308 tests**, including 15 sanitation cases covering delivered construction, actual walking and visit time, seven competing crew, unavailable facilities, timed overflow, air interruption, retained cargo, full-tank collection through recycling, tank damage/dismantling, room isolation, exposure/work/medical consequences, cleanup recovery, sealed cargo, suit protection, immobile patients, death, deterministic saves, migration and invalid state. The recycling meal test now checks retained waste rather than an immediate pile.
 
-An isolated Firefox session verified default hidden drawers, construction choice, the rendered sanitary unit, saved tank contents, room exposure, and crew need/exposure/work-penalty displays. Facility and crew screenshots were visually inspected; no scoped application errors were reported. Temporary QA processes were stopped. Older full UI/performance coverage remains incomplete.
+An isolated Firefox session verified default hidden drawers, construction choice, the rendered sanitary unit, saved tank contents, room exposure, and crew need/exposure/work-penalty displays. Facility and crew screenshots were visually inspected; no scoped application errors were reported. Temporary QA processes were stopped. This was the original surface-interface checkpoint. Current local-care and outpost acceptance are tracked separately in [verification status](verification-status.md); the historical count is not the current full-suite count.
 
 ## Next proposed work
 

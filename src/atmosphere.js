@@ -28,7 +28,10 @@ export function refreshRoom(r) {
 export function breathable(r) {
   if (!r) return false;
   const oxygenPressure = r.gas.oxygen / (r.volume * GAS_PER_TILE);
-  return (r.smoke||0)/r.volume<FIRE.smokeLimit && r.pressure >= 55 && r.pressure <= 150 && oxygenPressure >= .16 && oxygenPressure <= .3 && r.co2Fraction <= .02;
+  // Recycling/refill arithmetic can leave the .16 floor one adjacent double
+  // low. Allow only that comparison roundoff; never clamp the stored gas.
+  const minimumOxygenPressure = .16 - Number.EPSILON * .16;
+  return (r.smoke||0)/r.volume<FIRE.smokeLimit && r.pressure >= 55 && r.pressure <= 150 && oxygenPressure >= minimumOxygenPressure && oxygenPressure <= .3 && r.co2Fraction <= .02;
 }
 export const roomAt = (site, x, y) => site.rooms.find(r => r.cells.includes(key(x, y)));
 export const doorOpen = (t, tick) => t.hp <= 0 || t.doorMode === 'open' || (t.doorMode !== 'closed' && t.doorUntil > tick);

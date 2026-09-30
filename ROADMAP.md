@@ -1,6 +1,6 @@
 # SPACEFORTRESS roadmap
 
-**Version: v0.1.1 · Save schema: 37.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
+**Version: v0.1.2 · Save schema: 38.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
 
 See the [README](README.md) to play, [verification status](docs/verification-status.md) for evidence and limits, and the [180-system conversion inventory](docs/conversion-inventory.md) for the wider backlog. Completing a milestone below does not complete an entire inventory family or establish full Dwarf Fortress parity.
 
@@ -20,9 +20,22 @@ These systems have documented simplifications. The [ordinary colony-to-orbit jou
 
 Save schema 37 adds separate arrival/return rosters, wreck residence records, durable shuttle freight and dock imports. Site-qualified reservations, cargo ownership, metadata/spoilage, migration, observations and physical shuttle presence are integrated. Tests cover resident-job preservation, local cargo isolation, physical pickup/return boundaries and rejected invalid state.
 
-**Staffed outposts are not yet playable.** This foundation exposes no player freight or settlement actions. Remote build authorization, resident care and an ordinary supplied resupply journey remain unfinished. The [outpost design](docs/staffed-orbital-outpost-design.md) distinguishes the implemented foundation from those proposed systems; the [verification record](docs/verification-status.md) scopes the accepted tests.
+The schema37 foundation provided ownership primitives. The v0.1.2 preview now exposes freight, local construction, readiness, residence/return controls and site-local care. Complete ordinary outpost endurance and resupply remain unfinished. The [outpost design](docs/staffed-orbital-outpost-design.md) distinguishes the implemented foundation from those proposed systems; the [verification record](docs/verification-status.md) scopes the accepted tests.
 
-## Next playable milestones — planned, in order
+## v0.1.2 preview — implemented systems, remaining acceptance
+
+This round publishes the tested schema38 preview at the user’s request. It implements physical freight, wreck construction, measured habitat checks, residence and return selection, site-local crew care and a one-pilot visit to an established wreck for final pickup. The evidence below keeps unfinished gameplay acceptance visible.
+
+| Milestone | Current evidence |
+| --- | --- |
+| 1. Physical freight | Scoped simulation, ownership, save and player-control checks pass. |
+| 2. Supplied wreck habitat | Real freight/construction and bounded commissioning have passed. A complete current-source construction/endurance recipe is pending; gas, heat and night power need further integration. |
+| 3. Settlement and resident care | Focused local behavior and real named-resident player controls pass. Ordinary remote care and one complete fresh-colony resident journey remain pending. |
+| 4. Delayed resupply and recovery | Physical pickup boundaries and finite parcel recovery pass scoped checks; the complete delayed-supply journey is pending. |
+
+Paid departure loading now refreshes its air target in useful batches. A courier whose personal recovery is blocked can put down the actual parcel for another worker, retaining local job reservations and item metadata. These fixes preserve finite supplies; they do not supply a habitat. See the [evidence index](docs/verification-status.md).
+
+## Playable milestones — acceptance requirements
 
 ### 1. Physical freight through shared actions
 
@@ -48,25 +61,31 @@ Join freight, construction and care into the first complete staffed-outpost jour
 
 **Acceptance:** from an untouched colony, establish the habitat, leave a resident, return and deliver another shipment. Delay a later shipment using ordinary controls; show finite food, fuel or other consumed reserves decline and cause observable consequences. Recover by delivering supplies or physically collecting the resident, including a supplied response to an injured passenger. Save through each ownership boundary; remaining residents, jobs and stores stay at the wreck.
 
-### 5. Connected local vertical decks
+### 5. Pressure-cycling airlocks
+
+Implement the user’s two-sided chamber: admit a crew member, close the entry door, recover air into finite storage before exterior release, and refill before opening toward the habitat. Reuse gas extractors, pumps, reservoirs, vents and actual electrical power. The [cycling-airlock design](docs/airlock-cycling-design.md) is a proposal; current doors and manually built vestibules do not perform this cycle automatically.
+
+**Acceptance:** an ordinary supplied colony builds the assembly and physically carries goods out and back. Doors interlock; gas species, smoke and energy retain actual owners across repeated cycles. A normal cycle wait preserves the crew’s task and parcel. Full storage, empty reserves, power loss, damage and a carried patient produce measured safe pauses or explicit manual recovery. Save during partial transfer and traversal, replay named transitions, and verify compact player controls.
+
+### 6. Connected local vertical decks
 
 Implement the [local-level design](docs/vertical-slice-design.md): two decks in one settlement, constructed connections, level selection and complete spatial references. Local height and orbital travel remain separate systems.
 
 **Acceptance:** crew carry materials between decks, commission a second compartment and respond to a blocked connection or utility failure. Pathfinding, jobs, atmosphere, liquids, power, care and recordings respect their appropriate vertical connections. Migration preserves the existing floor without granting gas, heat or stock; both decks continue simulating when one is hidden.
 
-### 6. Seeded planets and a wider universe
+### 7. Seeded planets and a wider universe
 
 Expand the [upward/outward progression](docs/orbital-progression.md) into generated destinations, persistent planetary identities, multiple settlements per planet, resource bodies and varied debris/solar hazards.
 
 **Acceptance:** the same seed reproduces the same region and its finite opportunities. Survey information supports a meaningful destination choice. Travel consumes real supplies; revisiting preserves depletion, construction and occupants. Creating another settlement does not regenerate existing stores or reset its history.
 
-### 7. Materials, tools and deeper production
+### 8. Materials, tools and deeper production
 
 Introduce reusable material properties, distinct manufactured items and tools, then expand recipes, equipment condition and repair around them. Track the remaining industry families in the [conversion inventory](docs/conversion-inventory.md).
 
 **Acceptance:** at least one complete extraction-to-tool production chain makes material choice and tool condition affect real work or failure. Items retain identity and properties through manufacture, transport, use, repair and saves. Required inputs and labor cannot be bypassed by an abstract global stock total.
 
-### 8. Persistent history, factions and broader society
+### 9. Persistent history, factions and broader society
 
 Build connected histories, populations, trade and faction relationships on persistent sites and physical logistics. Expand ecology, culture, institutions and threats in bounded slices from the conversion inventory; direct-character adventures remain later scope.
 

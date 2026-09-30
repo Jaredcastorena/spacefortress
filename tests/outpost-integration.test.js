@@ -8,6 +8,7 @@ import { setReturnCrew, reservedCargo, dockAt } from '../src/expedition.js';
 import { add, extract, quantity, totalResources } from '../src/inventory.js';
 import { damage } from '../src/maintenance.js';
 import { startRecording, exportRecording } from '../src/telemetry.js';
+import { VERSION } from '../src/data.js';
 
 // Foundation integration fixtures deliberately establish synthetic residence.
 // There is no player settlement/freight action or playable outpost claim here.
@@ -28,9 +29,9 @@ function reload(s) {
   return restored;
 }
 
-test('fresh shared departure supplies and physically boards the chosen crew with detached schema37 owners', () => {
+test('fresh shared departure supplies and physically boards the chosen crew with detached outpost owners', () => {
   const s = createGame(), request = ['crew-2', 'crew-4'];
-  assert.equal(s.version, 37);
+  assert.equal(s.version, VERSION);
   assert.deepEqual(s.outposts, { wreck: { established: false, residents: [] } });
   const emptyOwners = [s.shuttle.freight, ...Object.values(s.sites).flatMap(site => site.tiles.filter(t => t.building === 'dock').map(t => t.imports))];
   assert.equal(emptyOwners.length, 4); assert.equal(new Set(emptyOwners).size, 4);
@@ -54,7 +55,7 @@ test('fresh shared departure supplies and physically boards the chosen crew with
 
 test('genuine schema36 carried salvage reloads through the full loader and returns identically after a second save', () => {
   const s = field('working-carried'), carrier = person(s, 'crew-4');
-  assert.equal(s.version, 37);
+  assert.equal(s.version, VERSION);
   assert.deepEqual(carrier.carry, { components: 3 });
   assert.equal(carrier.delivery.kind, 'shuttle');
   const restored = reload(s), components = totalResources(s).components;
