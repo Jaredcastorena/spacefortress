@@ -116,12 +116,13 @@ test('schema42 migration adds only neutral livestock metadata and preserves old 
   const s=createGame(917);s.version=42;s.creatures[0].health=42;s.creatures[1].health=0;
   s.creatures.push({id:'legacy-tibble',species:'tibble',site:'surface',x:6,y:16,health:100,fed:25,age:0});
   for(const a of s.creatures)delete a.condition;
-  const original=serialize(s),before=totalResources(s),loaded=deserialize(original);assert.equal(loaded.version,43);assert.deepEqual(totalResources(loaded),before);assert.equal(loaded.creatures[0].health,42);assert.equal(loaded.creatures[1].health,0);
+  for(const site of Object.values(s.sites)){delete site.cultivation;delete site.liquids.absorbed;for(const t of site.tiles)for(const p of Object.values(t.flora||{})){delete p.origin;delete p.generation;}}
+  const original=serialize(s),before=totalResources(s),loaded=deserialize(original);assert.equal(loaded.version,44);assert.deepEqual(totalResources(loaded),before);assert.equal(loaded.creatures[0].health,42);assert.equal(loaded.creatures[1].health,0);
   for(const a of loaded.creatures.filter(a=>a.species!=='tibble'))assert.deepEqual(a.condition,{injury:0,treated:0,thermalStress:0,cause:null,recovery:'none'});
-  assert.equal(loaded.creatures.at(-1).condition,undefined);const demoted=structuredClone(loaded);demoted.version=42;for(const a of demoted.creatures)delete a.condition;assert.deepEqual(demoted,s);assert.equal(serialize(s),original);checked(loaded);
+  assert.equal(loaded.creatures.at(-1).condition,undefined);const demoted=structuredClone(loaded);demoted.version=42;for(const a of demoted.creatures)delete a.condition;for(const site of Object.values(demoted.sites)){delete site.cultivation;delete site.liquids.absorbed;for(const t of site.tiles)for(const p of Object.values(t.flora||{})){delete p.origin;delete p.generation;}}assert.deepEqual(demoted,s);assert.equal(serialize(s),original);checked(loaded);
 });
 
-test('strict schema43 rejects malformed livestock condition and veterinary pins without repair',()=>{
+test('strict schema44 rejects malformed livestock condition and veterinary pins without repair',()=>{
   const f=fixture();designate(f);const changes=[
     s=>delete s.creatures[0].condition,s=>s.creatures[0].condition.extra=1,s=>s.creatures[0].condition.injury=-1,
     s=>s.creatures[0].condition.treated=11,s=>s.creatures[0].condition.thermalStress=101,s=>s.creatures[0].condition.cause='starvation',

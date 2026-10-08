@@ -74,7 +74,7 @@ test('injury and stress preserve stored products while pausing production and co
 
 test('injured adults pause an existing brood and injured juveniles pause growth until recovery',()=>{
   const s=createGame(),site=s.sites.surface,[a,b]=s.creatures;
-  for(let y=15;y<=23;y++)for(let x=3;x<=9;x++){const t=at(site,x,y);t.terrain='ground';t.building=x===3||x===9||y===15||y===23?'fence':null;t.hp=100;t.flora={lichen:{biomass:80,harvests:0}};}
+  for(let y=15;y<=23;y++)for(let x=3;x<=9;x++){const t=at(site,x,y);t.terrain='ground';t.building=x===3||x===9||y===15||y===23?'fence':null;t.hp=100;t.flora={lichen:{biomass:80,harvests:0,origin:'native',generation:'native'}};}
   for(const [animal,x] of [[a,6],[b,7]]){animal.x=x;animal.y=18;animal.fed=100;animal.husbandry.trust=100;animal.lifecycle.enabled=true;}
   s.tick=1;updateBreeding(s);const brood=a.lifecycle.brood;assert.ok(brood);injureAnimal(s,a,1,'fire');a.husbandry.post=[6,18];at(site,6,18).building='husbandryPost';a.condition.treated=1;
   for(let i=0;i<5;i++){s.tick++;updateAnimalHealth(s,a);updateBreeding(s);}assert.equal(brood.progress,0);assert.equal(breedingStatus(s,a).reason,'injured');

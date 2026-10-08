@@ -70,6 +70,7 @@ export function totalResources(s) {
   const total = Object.fromEntries(RESOURCES.map(r => [r, 0]));
   for (const site of Object.values(s.sites)) for (const t of site.tiles) {
     total.water += (t.liquid || 0) + (waterNode(t)?.water || 0);
+    for(const patch of Object.values(t.flora||{}))if(patch.origin==='cultivated')total.water+=patch.moisture;
     if(gasNode(t))total.air+=gasAmount(gasNode(t).gas);
     addCounts(total, t.sanitary?.output || {});
     addCounts(total, t.drop || {}); addCounts(total, t.stock || {}); addCounts(total, t.imports || {});

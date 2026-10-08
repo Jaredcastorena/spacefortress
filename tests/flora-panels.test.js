@@ -5,6 +5,10 @@ import vm from 'node:vm';
 import { createGame, at, roomAt, pathTo } from '../src/simulation.js';
 import { floraStatus, gatheringEligibility } from '../src/flora.js';
 import { floraDetails } from '../src/flora-panels.js';
+import { CULTIVATION } from '../src/flora-data.js';
+import { typedFood } from '../src/food-lots.js';
+import { add, totalResources } from '../src/inventory.js';
+import { jobDetails } from '../src/crew-panels.js';
 import { controlBindings } from '../src/controls.js';
 import { livestockDef, isLivestock } from '../src/livestock-data.js';
 import { SPECIES } from '../src/data.js';
@@ -15,6 +19,13 @@ const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>
 function fixture(species='fungalcap') {
   const s=createGame(),site=s.sites.surface,t=site.tiles.find(t=>t.flora?.[species]?.biomass===100);
   assert.ok(t,`New colony has mature ${species}`);return {s,site,t};
+}
+function cultivationFixture(species='fungalcap',bed=false) {
+  const s=createGame(),site=s.sites.surface,t=at(site,10,15),depot=at(site,8,10);
+  t.terrain='ground';t.building=null;t.fire=null;t.flora={lichen:{biomass:12,harvests:0,origin:'native',generation:'native'}};
+  if(bed)t.flora[species]={biomass:20,harvests:0,origin:'cultivated',generation:'job-900',moisture:0};
+  add(depot.stock,typedFood(species,1));s.crew[3].x=10;s.crew[3].y=14;
+  return {s,site,t,depot,species};
 }
 function graphics() {
   const commands=[],renderer=Object.create(Renderer.prototype);
@@ -36,13 +47,84 @@ test('mature wild food inspector shows canonical plant identity, food/work and s
 });
 
 test('unready patches show shared growth and gathering reasons; lichen has no food action',()=>{
-  const {s,site,t}=fixture('sunberry');s.tick=250;t.flora.sunberry.biomass=45;t.flora.lichen={biomass:12,harvests:0};
+  const {s,site,t}=fixture('sunberry');s.tick=250;t.flora.sunberry.biomass=45;t.flora.lichen={biomass:12,harvests:0,origin:'native',generation:'native'};
   const html=floraDetails(s,site,t),plant=floraStatus(s,site,t).find(p=>p.species==='sunberry');
   assert.match(html,/Wild sunberry · growing/);assert.ok(html.includes(esc(plant.growthReason)));
   assert.ok(html.includes(esc(gatheringEligibility(s,site,t,'sunberry').message)));
   assert.match(html,/data-action="gather"[^>]*disabled/);assert.match(html,/lichen cannot be gathered for food/);
   assert.equal((html.match(/data-action="gather"/g)||[]).length,1);
-  assert.equal(floraDetails(s,site,{...t,flora:{}}),'');
+  assert.match(floraDetails(s,site,{...t,flora:{}}),/Cultivate · ground beds/);
+  assert.equal(floraDetails(s,site,{...t,terrain:'rock',flora:{}}),'');
+});
+
+test('cultivation choices are folded on suitable ground, use matching raw food and leave flora unchanged',()=>{
+  const {s,site,t}=cultivationFixture(),before=JSON.stringify(t),html=floraDetails(s,site,t);
+  assert.match(html,/<details data-cultivation data-panel-key="cultivate:surface:10:15">/);
+  assert.ok(!html.match(/<details data-cultivation[^>]* open/));
+  assert.match(html,/1 raw Fungalcap · 10 Production work/);
+  assert.match(html,/1 raw Sunberry · 10 Production work/);
+  assert.match(html,/data-action="plant" data-species="fungalcap"[^>]*data-simulation-action="job.order"[^>]*>Plant Fungalcap/);
+  assert.match(html,/data-action="plant" data-species="sunberry"[^>]*disabled/);
+  assert.match(html,/Needs 1 reachable raw Sunberry\. Prepared meals cannot be planted\./);
+  assert.equal(JSON.stringify(t),before);assert.ok(t.flora.lichen);
+  for(const change of [t=>t.terrain='floor',t=>t.building='farm',t=>t.fire={id:'test-fire'}]) {
+    const f=cultivationFixture();change(f.t);assert.ok(!floraDetails(f.s,f.site,f.t).includes('data-cultivation'));
+  }
+  const f=fixture();assert.ok(!floraDetails(f.s,f.site,f.t).includes('data-cultivation'));
+});
+
+test('cultivated beds show finite watering, moisture, dry or dormant growth and capacity reasons',()=>{
+  const {s,site,t}=cultivationFixture('fungalcap',true),before=JSON.stringify(t),html=floraDetails(s,site,t);
+  assert.match(html,/Cultivated fungalcap · sparse/);assert.ok(!html.includes('Wild fungalcap'));
+  assert.match(html,/Moisture<\/dt><dd>0 \/ 1.5 water/);assert.match(html,/Dry/i);
+  assert.match(html,/data-action="waterPlant"[^>]*data-simulation-action="job.order"[^>]*>Water · 0.5 water/);
+  assert.match(html,/6 Production work/);assert.ok(!html.match(/data-action="waterPlant"[^>]*disabled/));
+  assert.equal(JSON.stringify(t),before);
+  t.flora.fungalcap.moisture=CULTIVATION.moistureCapacity;
+  const full=floraDetails(s,site,t);assert.match(full,/data-action="waterPlant"[^>]*disabled/);assert.match(full,/capacity|full|saturated/i);
+  const berry=cultivationFixture('sunberry',true);berry.s.tick=250;berry.t.flora.sunberry.moisture=.5;
+  assert.match(floraDetails(berry.s,berry.site,berry.t),/Dormant/);
+});
+
+test('planting and watering show actual partial work, delivery, escaped blockers and shared cancellation',()=>{
+  for(const [kind,bed,label] of [['plant',false,'Planting'],['waterPlant',true,'Watering']]) {
+    const {s,site,t}=cultivationFixture('fungalcap',bed),result=controlBindings(()=>s).order(s,site.id,t.x,t.y,kind,'fungalcap');
+    assert.equal(result.ok,true);const job=s.jobs.find(j=>j.id===result.job);assert.ok(job);
+    job.remaining=job.work/2;job.worker=s.crew[3].id;job.blockedReason='<blocked>';s.crew[3].name='<worker>';
+    const html=floraDetails(s,site,t);
+    assert.ok(html.includes(`${label} · 50% · &lt;worker&gt; · &lt;blocked&gt;`));
+    assert.match(html,/Delivered supplies/);assert.match(html,/Awaiting pickup/);assert.match(html,/In transit<\/dt><dd>0 units/);
+    assert.match(html,/data-action="cancel"[^>]*data-simulation-action="job.cancel"/);
+    assert.match(html,new RegExp(`data-${kind==='plant'?'plant':'water'}-reason="pending"`));
+    for(const source of job.sources){add(job.materials,source.items);source.items={};}
+    assert.match(floraDetails(s,site,t),/Awaiting pickup<\/dt><dd>0 units/);
+    assert.ok(!html.includes('<worker>'));assert.ok(!jobDetails(job).includes('waterPlant'));
+  }
+});
+
+test('cultivation offers clear supply and reachability reasons through a read-only inspector',()=>{
+  const f=cultivationFixture('fungalcap',true);
+  for(const tile of f.site.tiles){if(tile.stock)delete tile.stock.water;if(tile.drop)delete tile.drop.water;}
+  const before=JSON.stringify(f.t),html=floraDetails(f.s,f.site,f.t);
+  assert.match(html,/data-water-reason="supplies"/);assert.match(html,/Needs 0.5 reachable water/);assert.equal(JSON.stringify(f.t),before);
+  for(const c of f.s.crew)c.site='transit';
+  const unreachable=floraDetails(f.s,f.site,f.t);
+  assert.match(unreachable,/data-water-reason="unreachable"/);assert.match(unreachable,/No crew can reach this tile/);
+});
+
+test('actual cultivation clicks send one shared job order and wait for delivery and work',()=>{
+  for(const [action,bed] of [['plant',false],['waterPlant',true]]) {
+    const {s,site,t}=cultivationFixture('fungalcap',bed),inspector={},bindings=controlBindings(()=>s),results=[];let calls=0;
+    const source=app.slice(app.indexOf("$('inspector').onclick ="),app.indexOf('let pointer = null;')),before=JSON.stringify(t),water=totalResources(s).water;
+    vm.runInNewContext(source,{$:()=>inspector,state:s,siteId:site.id,selected:{site:site.id,x:t.x,y:t.y},order:(...args)=>{calls++;return bindings.order(...args);},result:r=>results.push(r)});
+    inspector.onclick({target:{closest:()=>({dataset:{action,species:'fungalcap'}})}});
+    assert.equal(calls,1);assert.equal(results[0].ok,true);assert.equal(s.jobs.filter(j=>j.kind===action).length,1);
+    const job=s.jobs.find(j=>j.kind===action);assert.equal(job.plantSpecies,'fungalcap');assert.equal(job.remaining,job.work);
+    assert.equal(JSON.stringify(t),before);assert.equal(totalResources(s).water,water);
+  }
+  assert.match(app,/plant:'job.order',waterPlant:'job.order'/);
+  assert.match(app,/!\['operate','gather','plant','waterPlant'\]\.includes\(j.kind\)/);
+  assert.match(app,/querySelectorAll\('\[data-panel-key\]'\)/);
 });
 
 test('pending gathering displays real job progress and cancellation with escaped text',()=>{

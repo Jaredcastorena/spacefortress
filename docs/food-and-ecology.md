@@ -9,6 +9,9 @@ Hydroponics grows distinct crops. Handlers can feed fungal caps to glazefoots an
 ```mermaid
 flowchart LR
   W[Water] --> F[Hydroponics]
+  H --> P[Plant ground beds]
+  W --> P
+  P --> H
   N[Fertilizer] --> F
   F --> G[Fungal caps, grain and berries]
   V[Wild caps and berries] --> H[Gathering and hauling]
@@ -51,7 +54,7 @@ Wild plants now have persistent biomass and visible bare, sparse, growing, buddi
 
 Inspect a mature edible patch and choose **Gather**. A Production worker must physically reach it and finish the work. The plant then falls from 100 to 20 biomass, and two typed food units appear on that tile for haulers. Fungal caps can feed glazefoots or enter recipes; berries combine with bristleback curd. Cancelling or interrupting a gathering order grants no food. A completed harvest cannot be repeated until the patch matures again.
 
-Cold or darkness pauses growth where the species requires it. Fire and construction that covers the ground remove affected plants. Fences and gates preserve patches; husbandry posts preserve lichen. Grazing nutrition is proportional to the biomass actually eaten. Native biological growth is currently an abstract environmental source: it does not draw stored colony water or air. Soil moisture, spreading, seeds, orchards and full biomes remain future work.
+Cold or darkness pauses growth where the species requires it. Fire and construction that covers the ground remove affected plants. Fences and gates preserve patches; husbandry posts preserve lichen. Grazing nutrition is proportional to the biomass actually eaten. Native biological growth is currently an abstract environmental source: it does not draw stored colony water or air. [Cultivated ground beds](cultivation.md) use matching raw food for propagation and finite delivered or absorbed water for faster growth. Wild-soil moisture, spreading, orchards and full biomes remain future work.
 
 Schema 42 migrates existing schema-40/41 hex colonies by preserving their exact lichen quantities in plant records. It creates no edible patches or food in those older colonies. Covered legacy lichen survives a no-step reload, then is removed during the first normal ecology update. Focused checks, a fresh-colony gathering/cooking trial and browser review passed; see the verification index for scope and evidence.
 
@@ -88,7 +91,7 @@ The galley inspector shows the selected recipe, delivered and missing ingredient
 
 ## Saves, controls and scope
 
-The current expansion uses schema 43 with migration from schema-40/41/42 hex saves. Existing food amounts, ages, prepared meals and committed batches are preserved by migration checks. Square saves retain their protected export behavior. Gathering and crop/recipe selection use shared player/agent actions. Plant stages, harvests, removals, ingredients, animal products and meals retain machine-readable labels. The interface stays in existing hidden inspectors.
+The current expansion uses schema 44 with migration from schema-40/41/42/43 hex saves. Existing food amounts, ages, prepared meals and committed batches are preserved by migration checks. Square saves retain their protected export behavior. Planting, watering, gathering and crop/recipe selection use shared player/agent actions. Plant generations, stages, harvests, removals, ingredients, animal products and meals retain machine-readable labels. The interface stays in existing hidden inspectors.
 
 Further ecology work includes soil moisture, plant spreading, seeds, orchards, full biomes and seasonal or orbital growing conditions, more species, diseases, inherited traits, meat and fibre production, and additional preservation methods. Physical habitat decks remain a separate roadmap item.
 

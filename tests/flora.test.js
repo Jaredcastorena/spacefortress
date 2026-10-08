@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { initializeFlora, floraBiomass, floraStatus, updateFlora, consumeLichen, gatheringEligibility, gatheringJobValid, completeGathering, validateFlora, floraId } from '../src/flora.js';
+import { initializeFlora, initializeCultivation, floraBiomass, floraStatus, updateFlora, consumeLichen, gatheringEligibility, gatheringJobValid, completeGathering, validateFlora, floraId } from '../src/flora.js';
 import { foodOfKind, foodLots } from '../src/food-lots.js';
 import { pastureRegions } from '../src/pastures.js';
 import { createGame, at, step } from '../src/simulation.js';
@@ -9,14 +9,14 @@ import { startRecording, exportRecording } from '../src/telemetry.js';
 
 function terrain(){
   const site={id:'surface',size:10,rooms:[],thermal:{ambient:8},tiles:Array.from({length:100},(_,i)=>({x:i%10,y:Math.floor(i/10),terrain:'ground',building:null,drop:null,hp:100}))};
-  return {s:{seed:1728,rng:917,tick:0,sites:{surface:site}},site};
+  const s={seed:1728,rng:917,tick:0,sites:{surface:site}};initializeCultivation(s);return {s,site};
 }
-const plant=(tile,species,biomass=100,harvests=0)=>{tile.flora??={};return tile.flora[species]={biomass,harvests};};
-const gather=(tile,species,harvests=0)=>({id:'job-1',kind:'gather',site:'surface',x:tile.x,y:tile.y,building:null,plantSpecies:species,plantHarvests:harvests,work:species==='sunberry'?12:10,cost:{},materials:{},sources:[]});
+const plant=(tile,species,biomass=100,harvests=0)=>{tile.flora??={};return tile.flora[species]={biomass,harvests,origin:'native',generation:'native'};};
+const gather=(tile,species,harvests=0)=>({id:'job-1',kind:'gather',site:'surface',x:tile.x,y:tile.y,building:null,plantSpecies:species,plantHarvests:harvests,plantGeneration:tile.flora[species].generation,work:species==='sunberry'?12:10,cost:{},materials:{},sources:[]});
 
 test('new flora seeding is deterministic, distinct, finite and independent of simulation RNG',()=>{
   const {s,site}=terrain();site.tiles[22].terrain='ore';site.tiles[23].terrain='ice';site.tiles[24].building='wall';site.tiles[55].terrain='floor';site.tiles[56].terrain='floor';site.tiles[1].lichen=60;
-  const copy=structuredClone(s),rng=s.rng;initializeFlora(s,{seedEdibles:true});initializeFlora(copy,{seedEdibles:true});assert.deepEqual(s,copy);assert.equal(s.rng,rng);
+  const copy=structuredClone(s),rng=s.rng;initializeFlora(s,{seedEdibles:true});initializeFlora(copy,{seedEdibles:true});initializeCultivation(s);initializeCultivation(copy);assert.deepEqual(s,copy);assert.equal(s.rng,rng);
   for(const species of ['fungalcap','sunberry']){const tiles=site.tiles.filter(t=>t.flora?.[species]);assert.equal(tiles.length,3);assert.deepEqual(tiles.map(t=>t.flora[species].biomass).sort((a,b)=>a-b),[10,45,100]);assert.ok(tiles.every(t=>t.terrain==='ground'&&!t.building));}
   assert.equal(floraBiomass(site.tiles[1]),60);assert.ok(site.tiles.every(t=>!t.flora?.fungalcap||!t.flora?.sunberry));
   const seeded=structuredClone(s);initializeFlora(s,{seedEdibles:true});assert.deepEqual(s,seeded);validateFlora(s);
@@ -24,7 +24,7 @@ test('new flora seeding is deterministic, distinct, finite and independent of si
 
 test('legacy lichen converts exactly, including bare and covered patches, without edible gifts',()=>{
   const {s,site}=terrain();site.tiles[0].lichen=0;site.tiles[1].lichen=17.25;site.tiles[2].lichen=100;site.tiles[2].terrain='floor';
-  initializeFlora(s);assert.deepEqual(site.tiles.slice(0,3).map(t=>t.flora.lichen),[{biomass:0,harvests:0},{biomass:17.25,harvests:0},{biomass:100,harvests:0}]);
+  initializeFlora(s);initializeCultivation(s);assert.deepEqual(site.tiles.slice(0,3).map(t=>t.flora.lichen),[{biomass:0,harvests:0,origin:'native',generation:'native'},{biomass:17.25,harvests:0,origin:'native',generation:'native'},{biomass:100,harvests:0,origin:'native',generation:'native'}]);
   assert.equal(s.rng,917);assert.ok(site.tiles.every(t=>!Object.hasOwn(t,'lichen')&&!t.flora?.fungalcap&&!t.flora?.sunberry));validateFlora(s);validateFlora(JSON.parse(JSON.stringify(s)));
   updateFlora(s);assert.equal(site.tiles[2].flora,undefined);assert.ok(site.tiles[0].flora.lichen);
 });
@@ -56,7 +56,7 @@ test('lichen consumption is bounded by actual canonical biomass and pasture sums
 
 test('partial lichen bites grant proportionate adult and juvenile nutrition in actual ecology',()=>{
   for(const juvenile of [false,true]){
-    const s=createGame(),a=s.creatures[2],site=s.sites.surface,tile=at(site,a.x,a.y);s.tick=8;tile.flora={lichen:{biomass:.5,harvests:0}};a.fed=50;
+    const s=createGame(),a=s.creatures[2],site=s.sites.surface,tile=at(site,a.x,a.y);s.tick=8;tile.flora={lichen:{biomass:.5,harvests:0,origin:'native',generation:'native'}};a.fed=50;
     if(juvenile){a.id='bristleback-999';s.nextId=1000;a.lifecycle=newLifecycle(0,s.creatures.slice(0,2).map(p=>p.id));}
     step(s);assert.ok(Math.abs(a.fed-(50-(juvenile?.008:.015)+(juvenile?.8:.4)))<1e-9);assert.equal(floraBiomass(tile),0);
   }
@@ -64,7 +64,7 @@ test('partial lichen bites grant proportionate adult and juvenile nutrition in a
 
 test('mature harvesting changes one cycle atomically and regrowth creates no inventory food',()=>{
   const {s,site}=terrain(),tile=site.tiles[11];plant(tile,'fungalcap');plant(tile,'lichen',50);const j=gather(tile,'fungalcap');
-  assert.equal(gatheringJobValid(s,j),true);assert.deepEqual(completeGathering(s,{id:'crew-0'},j),{ok:true});assert.deepEqual(tile.flora.fungalcap,{biomass:20,harvests:1});assert.equal(floraBiomass(tile),50);assert.equal(foodOfKind(tile.drop,'fungalcap'),2);assert.equal(foodLots(tile.drop)[0].age,0);
+  assert.equal(gatheringJobValid(s,j),true);assert.deepEqual(completeGathering(s,{id:'crew-0'},j),{ok:true});assert.deepEqual(tile.flora.fungalcap,{biomass:20,harvests:1,origin:'native',generation:'native'});assert.equal(floraBiomass(tile),50);assert.equal(foodOfKind(tile.drop,'fungalcap'),2);assert.equal(foodLots(tile.drop)[0].age,0);
   const after=structuredClone(s);assert.equal(completeGathering(s,{id:'crew-0'},j).ok,false);assert.deepEqual(s,after);
   for(let i=1;i<=80;i++){s.tick=i*30;updateFlora(s);assert.equal(tile.drop.food,2);}
   assert.equal(floraBiomass(tile,'fungalcap'),100);assert.equal(gatheringJobValid(s,j),false);assert.equal(completeGathering(s,{id:'crew-0'},gather(tile,'fungalcap',1)).ok,true);assert.equal(foodOfKind(tile.drop,'fungalcap'),4);assert.equal(tile.flora.fungalcap.harvests,2);validateFlora(s);
@@ -74,7 +74,7 @@ test('gathering rechecks species, maturity, cycle and hazards without granting e
   const {s,site}=terrain(),tile=site.tiles[11];plant(tile,'sunberry');const j=gather(tile,'sunberry');
   s.tick=240;site.thermal.ambient=-35;assert.equal(floraStatus(s,site,tile)[0].growthAllowed,false);assert.equal(gatheringEligibility(s,site,tile,'sunberry').ok,true);
   for(const mutate of [()=>tile.flora.sunberry.biomass=99,()=>tile.flora.sunberry.harvests=1,()=>tile.fire={id:'fire-1'},()=>tile.building='husbandryPost',()=>tile.terrain='floor']){
-    tile.flora.sunberry={biomass:100,harvests:0};delete tile.fire;tile.building=null;tile.terrain='ground';mutate();const before=structuredClone(s);assert.equal(completeGathering(s,{id:'crew-0'},j).ok,false);assert.deepEqual(s,before);
+    tile.flora.sunberry={biomass:100,harvests:0,origin:'native',generation:'native'};delete tile.fire;tile.building=null;tile.terrain='ground';mutate();const before=structuredClone(s);assert.equal(completeGathering(s,{id:'crew-0'},j).ok,false);assert.deepEqual(s,before);
   }
 });
 
@@ -87,7 +87,7 @@ test('strict flora validation rejects malformed maps, unknown or overlapping spe
 });
 
 test('stage, harvest and removal events use stable plant IDs without changing RNG or recorded state',()=>{
-  const s=createGame(),site=s.sites.surface,tile=at(site,12,20);tile.terrain='ground';tile.building=null;tile.flora={fungalcap:{biomass:99,harvests:0}};
+  const s=createGame(),site=s.sites.surface,tile=at(site,12,20);tile.terrain='ground';tile.building=null;tile.flora={fungalcap:{biomass:99,harvests:0,origin:'native',generation:'native'}};
   const copy=structuredClone(s),rng=s.rng;startRecording(s);
   for(const state of [s,copy]){const t=at(state.sites.surface,12,20);state.tick=30;updateFlora(state);completeGathering(state,{id:'crew-0'},gather(t,'fungalcap'));t.building='wall';state.tick=31;updateFlora(state);}
   assert.deepEqual(s,copy);assert.equal(s.rng,rng);

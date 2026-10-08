@@ -4,6 +4,8 @@ import { roomAt } from './atmosphere.js';
 import { refreshPower } from './power.js';
 import { damage } from './maintenance.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
+import { absorbCultivationWater } from './flora.js';
+import { CULTIVATION } from './flora-data.js';
 export const LIQUID = { capacity:4, flow:.5, release:.5, pump:.5, wet:.25, quench:.25, faultPower:5, faultDamage:.25 };
 const at=(site,x,y)=>x>=0&&y>=0&&x<site.size&&y<site.size?site.tiles[y*site.size+x]:null;
 const neighbors=(site,t)=>hexNeighbors(t.x,t.y).map(([x,y])=>at(site,x,y)).filter(Boolean);
@@ -15,7 +17,7 @@ export function liquidOpen(site,t,tick=site.atmosphere.tick){
 export function initializeLiquidTile(t){if(t.building==='waterTank')t.tank??={drain:false};}
 export function initializeLiquids(s){
  for(const site of Object.values(s.sites)){
-  site.liquids={released:0,recovered:0,lost:0,quenched:0,faultEnergy:0,faultHeatVented:0};
+  site.liquids={released:0,recovered:0,lost:0,quenched:0,absorbed:0,faultEnergy:0,faultHeatVented:0};
   for(const t of site.tiles){t.liquid=0;t.wetShort=false;initializeLiquidTile(t);}
  }
 }
@@ -44,7 +46,8 @@ export function flowLiquids(s){
   }
   for(const t of site.tiles)if(t.liquid>0&&liquidOpen(site,t,s.tick)){
    const space=t.terrain==='void',edge=t.x===0||t.y===0||t.x===site.size-1||t.y===site.size-1;
-   const soil=['ground','ore'].includes(t.terrain),n=space?t.liquid:edge?Math.min(.5,t.liquid):soil?Math.min(.1,t.liquid):0;
+   const soil=['ground','ore'].includes(t.terrain),drainage=space?t.liquid:edge?Math.min(.5,t.liquid):soil?Math.min(CULTIVATION.absorptionRate,t.liquid):0;
+   const absorbed=!space&&!edge&&t.terrain==='ground'?absorbCultivationWater(s,site,t,drainage):0,n=drainage-absorbed;
    if(n>0){t.liquid-=n;site.liquids.lost+=n;emitEvent(s,'water.lost',{entity:tileEntityId(site.id,t.x,t.y),amount:n,cause:space?'space':edge?'map_edge':'ground_drainage'});}
   }
  }
@@ -83,13 +86,13 @@ export function setTank(s,siteId,x,y,fill,drain){
 export function validateLiquids(s){
  const amount=n=>Number.isFinite(n)&&n>=0;
  for(const site of Object.values(s.sites)){
-  const l=site.liquids;if(!l||!['released','recovered','lost','quenched','faultEnergy','faultHeatVented'].every(k=>amount(l[k]))||l.faultHeatVented>l.faultEnergy+1e-8)throw new Error('Invalid liquid ledger.');
+  const l=site.liquids;if(!l||!['released','recovered','lost','quenched','absorbed','faultEnergy','faultHeatVented'].every(k=>amount(l[k]))||l.faultHeatVented>l.faultEnergy+1e-8)throw new Error('Invalid liquid ledger.');
   let stored=0;
   for(const t of site.tiles){
    if(!amount(t.liquid)||t.liquid>LIQUID.capacity+1e-8||typeof t.wetShort!=='boolean')throw new Error('Invalid floor water.');stored+=t.liquid;
    if(t.building==='waterTank'?!t.tank||typeof t.tank.drain!=='boolean':t.tank!==undefined)throw new Error('Invalid water tank controls.');
   }
-  const expected=l.released-l.recovered-l.lost-l.quenched;
+  const expected=l.released-l.recovered-l.lost-l.quenched-l.absorbed;
   if(!Number.isFinite(expected)||Math.abs(stored-expected)>1e-6+Math.abs(l.released)*1e-9)throw new Error('Floor water does not balance.');
  }
 }

@@ -1,4 +1,5 @@
-import { floraStatus } from './flora.js';
+import { floraStatus, plantingEligibility, wateringEligibility } from './flora.js';
+import { FLORA } from './flora-data.js';
 import { productionEligibility } from './production.js';
 import { animalHealthStatus } from './animal-health.js';
 import { livestockDef } from './livestock-data.js';
@@ -58,7 +59,8 @@ export function observe(s) {
       const owned=ownership.building||ownership.pipe;
       const production=t.machine?productionEligibility(s,site,t):null;
       const flora=t.flora?floraStatus(s,site,t):null;
-      const derived=plumbing||electrical||airlock||owned||production||flora?{...previousDerived,...(flora?{flora}:{}),...(production?{production}:{}),...(plumbing?{plumbing}:{}),...(electrical?{electrical}:{}),...(airlock?{airlock}:{}),...(owned?{airlockOwnership:ownership}:{})}:previousDerived;
+      const cultivation=t.terrain==='ground'||flora?Object.fromEntries(Object.values(FLORA).filter(def=>def.foodKind).map(def=>[def.id,{planting:plantingEligibility(s,site,t,def.id),watering:wateringEligibility(s,site,t,def.id)}])):null;
+      const derived=plumbing||electrical||airlock||owned||production||flora||cultivation?{...previousDerived,...(flora?{flora}:{}),...(cultivation?{cultivation}:{}),...(production?{production}:{}),...(plumbing?{plumbing}:{}),...(electrical?{electrical}:{}),...(airlock?{airlock}:{}),...(owned?{airlockOwnership:ownership}:{})}:previousDerived;
       entities[tileEntityId(site.id,t.x,t.y)]={type:'tile',site:site.id,...t,...(derived?{derived}:{})};
     }
     for(const r of rooms) {
@@ -95,7 +97,7 @@ export function systemFor(type,path) {
   if(type==='room')return root==='smoke'?'fire':root==='heat'?'temperature':root==='cells'||root==='volume'?'room_topology':'atmosphere';
   if(type==='job')return 'jobs';
   if(type==='creature')return root==='condition'?'animal_health':'wildlife';
-  return ({plumbing:'plumbing',gasNetwork:'gas_networks',liquids:'liquids',reactorLedger:'power',fireSafety:'fire',waterSupply:'water',outposts:'outposts',mission:'expedition',departure:'departure',shuttle:'shuttle',resources:'inventory',anomaly:'anomaly',comet:'orbit',debris:'hazards',designations:'room_purpose',thermal:'temperature',power:'power',circuits:'power',energy:'power',atmosphere:'atmosphere',foodSpoiled:'food',log:'narrative',objectives:'objectives'})[root] || 'state';
+  return ({cultivation:'flora',plumbing:'plumbing',gasNetwork:'gas_networks',liquids:'liquids',reactorLedger:'power',fireSafety:'fire',waterSupply:'water',outposts:'outposts',mission:'expedition',departure:'departure',shuttle:'shuttle',resources:'inventory',anomaly:'anomaly',comet:'orbit',debris:'hazards',designations:'room_purpose',thermal:'temperature',power:'power',circuits:'power',energy:'power',atmosphere:'atmosphere',foodSpoiled:'food',log:'narrative',objectives:'objectives'})[root] || 'state';
 }
 export function changesBetween(before,after) {
   const changes=[];

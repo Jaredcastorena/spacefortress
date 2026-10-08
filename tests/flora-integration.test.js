@@ -13,7 +13,7 @@ const until=(s,p,limit)=>{for(let i=0;i<limit&&!p();i++){step(s);checked(s);}ass
 // other labors paused, and scrubber air physically transferred from the depot.
 function fixture(species='fungalcap'){
   const s=createGame(813),site=s.sites.surface,t=at(site,10,15),c=s.crew[3],depot=at(site,8,10);
-  s.creatures=[];t.terrain='ground';t.building=null;t.flora={[species]:{biomass:100,harvests:0}};
+  s.creatures=[];t.terrain='ground';t.building=null;t.flora={[species]:{biomass:100,harvests:0,origin:'native',generation:'native'}};
   for(const tile of site.tiles)if(tile.machine&&tile.building!=='scrubber')tile.machine.enabled=false;
   for(const crew of s.crew)for(const labor of Object.keys(crew.labors))crew.labors[labor]=false;
   c.x=10;c.y=14;c.labors.production=true;c.hunger=100;c.energy=100;
@@ -29,7 +29,7 @@ test('shared gather action requires edible mature plants and one exclusive tile 
   assert.equal(createAgentInterface(()=>s).definitions().flora.fungalcap.foodKind,'fungalcap');
   for(const species of [undefined,'lichen','sunberry','unknown']){const before=serialize(s);assert.equal(executeAction(s,'job.order',{site:'surface',x:t.x,y:t.y,kind:'gather',building:species},'test').ok,false);assert.equal(serialize(s),before);}
   t.flora.fungalcap.biomass=99;assert.equal(gather(f).ok,false);t.flora.fungalcap.biomass=100;
-  const result=gather(f);assert.equal(result.ok,true);assert.equal(result.job.building,null);assert.equal(result.job.plantSpecies,'fungalcap');assert.equal(result.job.plantHarvests,0);assert.deepEqual(result.job.cost,{});assert.deepEqual(result.job.sources,[]);
+  const result=gather(f);assert.equal(result.ok,true);assert.equal(result.job.building,null);assert.equal(result.job.plantSpecies,'fungalcap');assert.equal(result.job.plantHarvests,0);assert.equal(result.job.plantGeneration,'native');assert.deepEqual(result.job.cost,{});assert.deepEqual(result.job.sources,[]);
   assert.equal(gather(f).ok,false);assert.equal(executeAction(s,'job.order',{site:'surface',x:t.x,y:t.y,kind:'build',building:'floor'},'test').ok,false);
   assert.equal(t.drop,null);assert.equal(t.flora.fungalcap.biomass,100);checked(s);
 });
@@ -69,22 +69,23 @@ test('changed harvest cycles and incompatible ground cancel before work or XP an
 
 function legacy(version){
   const s=createGame(814);s.version=version;for(const a of s.creatures)delete a.condition;
+  for(const site of Object.values(s.sites)){delete site.cultivation;delete site.liquids.absorbed;}
   for(const site of Object.values(s.sites))for(const t of site.tiles){if(t.flora?.lichen)t.lichen=t.flora.lichen.biomass;delete t.flora;if(version===40&&t.machine){delete t.machine.recipeId;delete t.machine.batchRecipeId;}}
   at(s.sites.surface,8,10).lichen=12.5;at(s.sites.surface,6,16).lichen=0;return s;
 }
-function demote(s,version){const copy=structuredClone(s);copy.version=version;for(const a of copy.creatures)delete a.condition;for(const site of Object.values(copy.sites))for(const t of site.tiles){if(t.flora?.lichen)t.lichen=t.flora.lichen.biomass;delete t.flora;if(version===40&&t.machine){delete t.machine.recipeId;delete t.machine.batchRecipeId;}}return copy;}
+function demote(s,version){const copy=structuredClone(s);copy.version=version;for(const site of Object.values(copy.sites)){delete site.cultivation;delete site.liquids.absorbed;}for(const a of copy.creatures)delete a.condition;for(const site of Object.values(copy.sites))for(const t of site.tiles){if(t.flora?.lichen)t.lichen=t.flora.lichen.biomass;delete t.flora;if(version===40&&t.machine){delete t.machine.recipeId;delete t.machine.batchRecipeId;}}return copy;}
 
 test('schema40 and41 migration preserves covered and zero lichen, physical goods and RNG without edible gifts',()=>{
   for(const version of [40,41]){
-    const old=legacy(version),text=serialize(old),loaded=deserialize(text);assert.equal(loaded.version,43);assert.deepEqual(demote(loaded,version),old);assert.equal(serialize(old),text);assert.deepEqual(totalResources(loaded),totalResources(old));assert.equal(loaded.rng,old.rng);
+    const old=legacy(version),text=serialize(old),loaded=deserialize(text);assert.equal(loaded.version,44);assert.deepEqual(demote(loaded,version),old);assert.equal(serialize(old),text);assert.deepEqual(totalResources(loaded),totalResources(old));assert.equal(loaded.rng,old.rng);
     assert.equal(at(loaded.sites.surface,8,10).flora.lichen.biomass,12.5);assert.equal(at(loaded.sites.surface,6,16).flora.lichen.biomass,0);
     assert.ok(Object.values(loaded.sites).flatMap(site=>site.tiles).every(t=>!t.flora||Object.keys(t.flora).every(id=>id==='lichen')));checked(loaded);
   }
 });
 
-test('schema43 rejects malformed flora and forged gathering reservations',()=>{
+test('schema44 rejects malformed flora and forged gathering reservations',()=>{
   const f=fixture(),{s,t}=f;assert.equal(gather(f).ok,true);checked(s);
-  const mutations=[state=>at(state.sites.surface,t.x,t.y).flora.fungalcap.biomass=101,state=>at(state.sites.surface,t.x,t.y).flora.fungalcap.harvests=-1,state=>at(state.sites.surface,t.x,t.y).flora.sunberry={biomass:100,harvests:0},state=>at(state.sites.surface,t.x,t.y).lichen=1,state=>state.jobs[0].plantHarvests++,state=>state.jobs[0].work++,state=>state.jobs[0].building='fungalcap',state=>delete state.jobs[0].plantSpecies,state=>state.jobs.push({...state.jobs[0],id:`job-${state.nextId++}`})];
+  const mutations=[state=>at(state.sites.surface,t.x,t.y).flora.fungalcap.biomass=101,state=>at(state.sites.surface,t.x,t.y).flora.fungalcap.harvests=-1,state=>at(state.sites.surface,t.x,t.y).flora.sunberry={biomass:100,harvests:0,origin:'native',generation:'native'},state=>at(state.sites.surface,t.x,t.y).lichen=1,state=>state.jobs[0].plantHarvests++,state=>state.jobs[0].work++,state=>state.jobs[0].building='fungalcap',state=>delete state.jobs[0].plantSpecies,state=>state.jobs.push({...state.jobs[0],id:`job-${state.nextId++}`})];
   for(const mutate of mutations){const bad=structuredClone(s);mutate(bad);assert.throws(()=>deserialize(serialize(bad)));}
 });
 
@@ -94,6 +95,6 @@ test('flora observations and recording stay deterministic across partial-work re
 });
 
 test('bristleback nutrition scales with the actual canonical lichen bite',()=>{
-  const s=createGame(815),a=s.creatures[0],t=at(s.sites.surface,a.x,a.y);s.creatures=[a];a.fed=50;t.flora={lichen:{biomass:2,harvests:0}};
+  const s=createGame(815),a=s.creatures[0],t=at(s.sites.surface,a.x,a.y);s.creatures=[a];a.fed=50;t.flora={lichen:{biomass:2,harvests:0,origin:'native',generation:'native'}};
   step(s,9);assert.equal(t.flora.lichen.biomass,0);assert.ok(Math.abs(a.fed-(50-9*.015+4*2/5))<1e-8);checked(s);
 });

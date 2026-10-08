@@ -1,10 +1,21 @@
 # SPACEFORTRESS roadmap
 
-**Published version: v0.1.2 · Published save schema: 38 · Local experimental schema: 43.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
+**Published version: v0.1.2 · Published save schema: 38 · Local experimental schema: 44.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
 
 See the [README](README.md) to play, [verification status](docs/verification-status.md) for evidence and limits, and the [180-system conversion inventory](docs/conversion-inventory.md) for the wider backlog. Completing a milestone below does not complete an entire inventory family or establish full Dwarf Fortress parity.
 
-## Current increment: livestock health and recovery
+## Current increment: cultivated ground beds
+
+- Crew plant fungal caps or sunberries using one matching raw-food portion, real delivery and Production work. Watering delivers a finite 0.5 dose; dry or dormant beds keep their progress.
+- Managed beds retain moisture and regrow into the existing physical harvest, hauling and cooking chain. Floor absorption, unused doses and removal preserve water through explicit transfers and ledgers.
+- Schema 44 preserves earlier hex colonies and labels each bed generation so stale orders cannot target replacement plants. Folded inspector choices keep the map prominent.
+- Domain 36/36, panel 12/12 and 113 distinct job/migration checks are covered. Combined regression: 1,177 distinct passes and one intentional skip; two stale schema assertions were corrected after the full run and passed their affected checks. Actual planting/watering cancellation, growing/mature beds, harvest availability and a 390-pixel browser layout passed.
+- One fresh-colony propagation-to-harvest cycle passed at tick 853 with six commands and no grants: one raw fungal-cap portion plus one water yielded two portions. Everyone stayed healthy; 24 checkpoints reloaded exactly. Longer-term balance and a complete ordinary livestock/cooking construction chain remain unverified.
+- Spreading, wild-soil moisture, orchards, soil chemistry and broad ecosystem balance remain future work.
+
+See [cultivation](docs/cultivation.md) for the physical costs and conditions. This build is not published.
+
+## Recent increment: livestock health and recovery
 
 - Implemented locally: species temperature tolerances, persistent fire/thermal injuries, manual medicine treatment and gradual recovery at husbandry posts. Injury and substantial thermal strain pause products, collection, growth and brood development without discarding progress.
 - Medics physically reserve, carry and apply one medicine through 20 Medicine work. Treatment covers up to 20 injury; a fed animal recovers at its intact post. Feeding and treatment can share the post, with feeding first; cancellation, death, post loss and transport preserve located supplies.
@@ -22,7 +33,7 @@ See [veterinary care](docs/veterinary-care.md) for the care loop and its scope. 
 - Schema 42 migrates schema-40/41 hex saves; legacy food, animals and lichen are preserved, with no edible-plant grants. No dependencies or remote assets were added.
 - Historical flora regression gate: 1,120 passed, zero failed and one intentional skip. Focused checks cover growth, dormancy, grazing, harvesting, interrupted jobs, migration and structured observations. A fresh colony built a galley and completed gathering→hauling→fungal stew at tick 66 using five commands, with four exact reloads and everyone healthy. Browser checks cover the plant inspector, gathering/cancellation, maturity explanations, save/reload and a narrow screen.
 - The previous supplied crop→care→eggs→omelet→eating trial passed at tick 605. Building that entire farming/livestock chain from a fresh colony remains unverified.
-- Next ecology depth: soil moisture, plant spreading, orchards and full biomes; diseases, inherited traits, meat/fibre products and more preservation. Connected physical decks remain separate work.
+- Next ecology depth: wild-soil moisture, plant spreading, orchards and full biomes; diseases, inherited traits, meat/fibre products and more preservation. Connected physical decks remain separate work.
 
 See [food and ecology](docs/food-and-ecology.md) for current recipes and boundaries. This expansion is not published.
 
@@ -95,7 +106,7 @@ Join freight, construction and care into the first complete staffed-outpost jour
 
 ### 5. Pressure-cycling airlocks
 
-Implementation is in progress for the user’s two-sided chamber: admit a crew member, close the entry door, recover air into finite storage before exterior release, and refill before opening toward the habitat. Reuse gas extractors, pumps, reservoirs, vents and actual electrical power. The [cycling-airlock design](docs/airlock-cycling-design.md) defines the acceptance checks; automatic cycling has not yet passed them. The published build has manual doors and vestibules.
+Experimental automatic cycling is implemented locally and has scoped physical and control coverage: admit a crew member, close the entry door, recover air into finite storage before exterior release, and refill before opening toward the habitat. It uses gas extractors, pumps, reservoirs, vents and actual electrical power. The [cycling-airlock design](docs/airlock-cycling-design.md) defines the broader acceptance checks; ordinary paid assembly and parcel traversal remain pending. The published build has manual doors and vestibules.
 
 **Acceptance:** an ordinary supplied colony builds the assembly and physically carries goods out and back. Doors interlock; gas species, smoke and energy retain actual owners across repeated cycles. A normal cycle wait preserves the crew’s task and parcel. Full storage, empty reserves, power loss, damage and a carried patient produce measured safe pauses or explicit manual recovery. Save during partial transfer and traversal, replay named transitions, and verify compact player controls.
 
