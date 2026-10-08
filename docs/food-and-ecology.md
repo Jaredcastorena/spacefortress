@@ -91,9 +91,9 @@ The galley inspector shows the selected recipe, delivered and missing ingredient
 
 ## Saves, controls and scope
 
-The current expansion uses schema 44 with migration from schema-40/41/42/43 hex saves. Existing food amounts, ages, prepared meals and committed batches are preserved by migration checks. Square saves retain their protected export behavior. Planting, watering, gathering and crop/recipe selection use shared player/agent actions. Plant generations, stages, harvests, removals, ingredients, animal products and meals retain machine-readable labels. The interface stays in existing hidden inspectors.
+The current expansion uses schema 45 with migration from schema-40/41/42/43/44 hex saves. Existing food amounts, ages, prepared meals and committed batches are preserved by migration checks. [Inherited animal traits](animal-traits.md) affect product progress, feed drain and temperature tolerance; they do not change collection yields or recipe ingredients. Square saves retain their protected export behavior. Planting, watering, gathering, breeding and crop/recipe selection use shared player/agent actions. Plants, genomes, ingredients, animal products and meals retain machine-readable labels. The interface stays in existing hidden inspectors.
 
-Further ecology work includes soil moisture, plant spreading, seeds, orchards, full biomes and seasonal or orbital growing conditions, more species, diseases, inherited traits, meat and fibre production, and additional preservation methods. Physical habitat decks remain a separate roadmap item.
+Further ecology work includes wild-soil moisture, plant spreading, seed genetics, orchards, full biomes and seasonal or orbital growing conditions, more species, diseases, meat and fibre production, and additional preservation methods. Physical habitat decks remain a separate roadmap item.
 
 ## Verified fresh-colony gathering trial
 

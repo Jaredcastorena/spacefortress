@@ -8,6 +8,7 @@ import { animalPath } from '../src/navigation.js';
 import { VETERINARY } from '../src/livestock-data.js';
 import { createGame, at } from '../src/simulation.js';
 import { startRecording, exportRecording } from '../src/telemetry.js';
+import { inheritGenome } from '../src/animal-traits.js';
 
 // Domain fixtures supply a post and staged medicine explicitly. Actual delivery,
 // worker progress, cancellation refunds and save migration have integration tests.
@@ -79,7 +80,7 @@ test('injured adults pause an existing brood and injured juveniles pause growth 
   s.tick=1;updateBreeding(s);const brood=a.lifecycle.brood;assert.ok(brood);injureAnimal(s,a,1,'fire');a.husbandry.post=[6,18];at(site,6,18).building='husbandryPost';a.condition.treated=1;
   for(let i=0;i<5;i++){s.tick++;updateAnimalHealth(s,a);updateBreeding(s);}assert.equal(brood.progress,0);assert.equal(breedingStatus(s,a).reason,'injured');
   for(let i=0;i<5;i++){s.tick++;updateAnimalHealth(s,a);updateBreeding(s);}assert.equal(brood.progress,1);
-  const child={...structuredClone(b),id:'bristleback-900',x:5,y:19,husbandry:{...b.husbandry,post:null,product:0},lifecycle:newLifecycle(s.tick,[a.id,b.id])};initializeAnimalCondition(child);s.creatures.push(child);injureAnimal(s,child,1,'cold');const growth=child.lifecycle.growth;s.tick++;updateBreeding(s);assert.equal(child.lifecycle.growth,growth);
+  const child={...structuredClone(b),id:'bristleback-900',x:5,y:19,genetics:inheritGenome(s.seed,a,b,'supplied-child'),husbandry:{...b.husbandry,post:null,product:0},lifecycle:newLifecycle(s.tick,[a.id,b.id])};initializeAnimalCondition(child);s.creatures.push(child);injureAnimal(s,child,1,'cold');const growth=child.lifecycle.growth;s.tick++;updateBreeding(s);assert.equal(child.lifecycle.growth,growth);
   child.condition.injury=0;child.condition.cause=null;child.health=100;child.condition.thermalStress=45;s.tick++;updateBreeding(s);assert.equal(child.lifecycle.growth,growth);assert.equal(breedingStatus(s,child).reason,'thermal_stress');child.condition.thermalStress=0;s.tick++;updateBreeding(s);assert.equal(child.lifecycle.growth,growth+1);
 });
 

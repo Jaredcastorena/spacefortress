@@ -1,6 +1,7 @@
 import { FLORA, CULTIVATION } from './flora-data.js';
 import { initializeFlora, initializeCultivation, updateFlora, floraId, floraBiomass, consumeLichen, gatheringEligibility, gatheringJobValid, completeGathering, plantingEligibility, wateringEligibility, cultivationJobValid, completePlanting, completeWatering, validateFlora, validateCultivation } from './flora.js';
 import { initializeAnimalHealth, injureAnimal, updateAnimalHealth, animalTreatmentEligibility, animalTreatmentReady, completeAnimalTreatment, validateAnimalHealth } from './animal-health.js';
+import { animalTraits, initializeAnimalTraits, validateAnimalTraits } from './animal-traits.js';
 import { isLivestock, livestockDef, VETERINARY } from './livestock-data.js';
 import { CROPS, MEAL_RECIPES, FOOD_KINDS } from './food-data.js';
 import { GRID, neighbors, distance, tileAt } from './geometry.js';
@@ -121,7 +122,7 @@ export function createGame(seed = 74219) {
   for (const site of Object.values(s.sites)) { initializeAtmosphere(site); site.tiles.forEach(initializeStorage); initializePower(s, site, site.id === 'surface' ? 100 : 0); }
   initializeFlora(s,{seedEdibles:true});
   initializeReliability(s); initializeShuttle(s); initializePreflight(s); initializeThermal(s); initializeFood(s); initializeSanitation(s); initializeHygiene(s); initializeDesignations(s); initializeHousing(s); initializeComfort(s); initializePossessions(s); initializeWater(s); initializeHusbandry(s); initializeBreeding(s); initializeAnimalHealth(s); initializeFire(s); initializeReactors(s); initializeLiquids(s); initializeCultivation(s); initializeGasNetworks(s); initializePlumbing(s);
-  initializeProduction(s); initializeOutpostState(s); initializeAirlocks(s);
+  initializeAnimalTraits(s); initializeProduction(s); initializeOutpostState(s); initializeAirlocks(s);
   add(at(ground, 8, 10).stock, s.resources); syncResources(s);
   return s;
 }
@@ -732,7 +733,8 @@ function updateEcology(s) {
     const region=pastures.byCell.get(creature.y*site.size+creature.x),post=creature.husbandry?.post;
     const roamPasture=!!region?.enclosed&&!!post&&pastures.byCell.get(post[1]*site.size+post[0])===region;
     const def=livestockDef(creature);
-    creature.age++; creature.fed = Math.max(0, creature.fed - (def?(adult(creature)?def.metabolism:def.juvenileMetabolism):.015));
+    const traits=animalTraits(creature);
+    creature.age++; creature.fed = Math.max(0, creature.fed - (traits?(adult(creature)?traits.metabolism:traits.juvenileMetabolism):.015));
     if(def){updateAnimalHealth(s,creature);if(creature.health<=0)continue;}
     const flame=at(site,creature.x,creature.y).fire;
     if(flame){const damage=.2+flame.intensity*.01;if(def)injureAnimal(s,creature,damage,'fire');else creature.health=Math.max(0,creature.health-damage);emitEvent(s,'fire.exposure',{entity:flame.id,actor:creature.id});if(creature.health<=0){if(!def)emitEvent(s,'animal.died',{entity:creature.id,cause:'fire'});}else {const route=animalPath(site,creature,neighbors(creature.x,creature.y));if(route?.length)moveAnimal(s,creature,route[0],'fire_escape');}continue;}
@@ -791,7 +793,7 @@ export function deserialize(text) {
   if (text.length > 5_000_000) throw new Error('Save is too large.');
   const s = JSON.parse(text);
   if (Number.isInteger(s?.version) && s.version >= 1 && s.version <= 39) throw new Error('Legacy square-grid saves (schemas 1–39) cannot be loaded into the hex colony. Export the original save and use the preserved square version to continue it.');
-  if (![40, 41, 42, 43, VERSION].includes(s?.version) || s.grid !== GRID) throw new Error('Unsupported save topology: schemas 40–44 require grid hex-odd-q-v1.');
+  if (![40, 41, 42, 43, 44, VERSION].includes(s?.version) || s.grid !== GRID) throw new Error('Unsupported save topology: schemas 40–45 require grid hex-odd-q-v1.');
   if ( !Number.isSafeInteger(s.tick) || s.tick < 0 || !Number.isInteger(s.rng) || !Number.isSafeInteger(s.nextId)) throw new Error('Unsupported or invalid save.');
   if (!s.sites || !Array.isArray(s.crew) || s.crew.length !== 7 || !Array.isArray(s.jobs) || !Array.isArray(s.log) || !s.stats || !s.comet || !s.flags || !s.objectives) throw new Error('Incomplete save.');
   for (const r of RESOURCES) if (!Number.isFinite(s.resources?.[r]) || s.resources[r] < 0) throw new Error('Invalid resources.');
@@ -800,6 +802,7 @@ export function deserialize(text) {
     if (site?.id !== id || site.size !== size || site.tiles?.length !== size ** 2 || !Array.isArray(site.rooms) || !site.power) throw new Error('Invalid site.');
     site.tiles.forEach((t, i) => { if (t.x !== i % size || t.y !== Math.floor(i / size) || !['ground', 'rock', 'ore', 'floor', 'deck', 'ice', 'void'].includes(t.terrain) || (t.building && !BUILDINGS[t.building] && !['shuttle', 'dock', 'salvage', 'volatile', 'collector'].includes(t.building)) || !Number.isFinite(t.hp)) throw new Error('Invalid tile.'); });
   }
+  if(s.version<=44&&Array.isArray(s.creatures)&&s.creatures.some(a=>Object.hasOwn(a,'genetics')||a.lifecycle?.brood&&Object.hasOwn(a.lifecycle.brood,'inheritance')))throw new Error('Legacy livestock genetics shadow.');
   if(s.version===40){initializeProduction(s);s.version=41;}
   if(s.version===41){initializeFlora(s);s.version=42;}
   if(s.version===42){initializeAnimalHealth(s);s.version=43;}
@@ -808,8 +811,9 @@ export function deserialize(text) {
     if(s.jobs.some(j=>Object.hasOwn(j,'plantGeneration')))throw new Error('Legacy plant generation shadow.');
     initializeCultivation(s,{legacy:true});
     for(const j of s.jobs)if(j.kind==='gather')j.plantGeneration='native';
-    s.version=VERSION;
+    s.version=44;
   }
+  if(s.version===44){initializeAnimalTraits(s,{legacy:true});s.version=VERSION;}
   const ids = new Set();
   for (const c of s.crew) {
     if (ids.has(c.id) || typeof c.name !== 'string' || c.name.length > 80 || !['surface', 'wreck', 'comet', 'solar', 'transit'].includes(c.site) || ![c.health, c.oxygen, c.energy, c.hunger, c.skill].every(Number.isFinite) || !Number.isInteger(c.x) || !Number.isInteger(c.y) || (c.site !== 'transit' && !inside(s.sites[c.site], c.x, c.y))) throw new Error('Invalid crew.');
@@ -937,7 +941,7 @@ export function deserialize(text) {
   if (!Array.isArray(s.creatures) || s.creatures.length > 100 || !s.creatures.every(c => c && typeof c.id === 'string' && (isLivestock(c)||c.species==='tibble') && c.site === 'surface' && Number.isInteger(c.x) && Number.isInteger(c.y) && inside(s.sites.surface, c.x, c.y) && percent(c.health) && percent(c.fed) && amount(c.age))) throw new Error('Invalid wildlife.');
   if (s.anomaly !== null && (typeof s.anomaly.title !== 'string' || typeof s.anomaly.description !== 'string' || typeof s.anomaly.resolved !== 'boolean')) throw new Error('Invalid signal.');
   if (s.log.length > 60 || !s.log.every(e => amount(e.tick) && typeof e.message === 'string' && e.message.length < 4000)) throw new Error('Invalid event log.');
-  validateAnimalHealth(s); validateFlora(s); validateCultivation(s); validateAirlocks(s); validateFreightState(s); validateBreakers(s); validatePlumbing(s); validateGasNetworks(s); validateLiquids(s); validateReactors(s); validateFire(s); validateTransport(s); validateHusbandry(s); validateBreeding(s); validatePastures(s); validateWater(s); validateHousing(s); validateComfort(s); validatePossessions(s); validateDesignations(s); validateHygiene(s); validateSanitation(s); validateFood(s); validateThermal(s); validateStorage(s); validateProduction(s); validateMedicine(s); validateNursing(s); validateCrewLife(s); validateShuttle(s); validatePreflight(s);
+  validateAnimalHealth(s); validateFlora(s); validateCultivation(s); validateAirlocks(s); validateFreightState(s); validateBreakers(s); validatePlumbing(s); validateGasNetworks(s); validateLiquids(s); validateReactors(s); validateFire(s); validateTransport(s); validateHusbandry(s); validateBreeding(s); validateAnimalTraits(s); validatePastures(s); validateWater(s); validateHousing(s); validateComfort(s); validatePossessions(s); validateDesignations(s); validateHygiene(s); validateSanitation(s); validateFood(s); validateThermal(s); validateStorage(s); validateProduction(s); validateMedicine(s); validateNursing(s); validateCrewLife(s); validateShuttle(s); validatePreflight(s);
   validateReliability(s);
   for (const site of Object.values(s.sites)) validatePower(s, site);
   const recorded = s.resources; syncResources(s);

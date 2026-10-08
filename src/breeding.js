@@ -4,6 +4,7 @@ import { distance, neighbors } from './geometry.js';
 import { pastureRegions, moveAnimal } from './pastures.js';
 import { animalPath } from './navigation.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
+import { animalTraits, inheritGenome, neutralGenome } from './animal-traits.js';
 export const BREEDING={maturity:600,gestation:300,cooldown:600,tilesPerAnimal:6,herdLimit:24,creatureReserve:88};
 export const adult=a=>!a.lifecycle||a.lifecycle.growth>=(livestockDef(a)?.maturity??BREEDING.maturity);
 export const newLifecycle=(born=null,parents=[],species='bristleback')=>({born,parents,growth:born===null?livestockDef(species).maturity:0,enabled:false,cooldown:0,brood:null});
@@ -60,9 +61,10 @@ export function updateBreeding(s,positions=new Map()){
   if(l.brood.progress<def.gestation)continue;
   const tile=birthTile(s,a,r,regions);if(!tile)continue;
   let childId;do{childId=`${a.species}-${s.nextId++}`;}while(s.creatures.some(a=>a.id===childId));
-  const mate=l.brood.mate,brood=l.brood.id,child={id:childId,species:a.species,site:'surface',x:tile[0],y:tile[1],health:100,fed:40,age:0,husbandry:{post:null,trust:40,product:0,care:true,harvest:true,retryAt:0,blocked:null},lifecycle:newLifecycle(s.tick,[a.id,mate],a.species)};
+  const mate=l.brood.mate,brood=l.brood.id,inheritance=structuredClone(l.brood.inheritance),child={id:childId,species:a.species,site:'surface',x:tile[0],y:tile[1],health:100,fed:40,age:0,genetics:structuredClone(inheritance.child),husbandry:{post:null,trust:40,product:0,care:true,harvest:true,retryAt:0,blocked:null},lifecycle:newLifecycle(s.tick,[a.id,mate],a.species)};
   initializeAnimalCondition(child);s.creatures.push(child);a.fed=Math.max(0,a.fed-20);l.brood=null;l.cooldown=def.cooldown;
-  emitEvent(s,'animal.born',{entity:child.id,species:child.species,brood,parents:child.lifecycle.parents,target:tileEntityId('surface',...tile),carrier:a.id});
+  emitEvent(s,'animal.born',{entity:child.id,species:child.species,brood,parents:[...child.lifecycle.parents],target:tileEntityId('surface',...tile),carrier:a.id,inheritance,genetics:structuredClone(child.genetics),profile:animalTraits(child)});
+  emitEvent(s,'animal.traits.inherited',{entity:child.id,brood,parents:[...child.lifecycle.parents],carrier:a.id,genetics:structuredClone(child.genetics),profile:animalTraits(child)});
   s.log.unshift({tick:s.tick,message:`A ${def.name.toLowerCase()} hatchling emerged beside ${a.id}. It needs ${def.grazesLichen?'grazing':'delivered fungal caps'} and handling before adulthood.`,type:'good'});s.log=s.log.slice(0,60);
  }
  const paired=new Set();
@@ -73,8 +75,9 @@ export function updateBreeding(s,positions=new Map()){
    const before=positions.get(a.id);if(s.tick%3===0&&(!before||before[0]===a.x&&before[1]===a.y)){const route=animalPath(s.sites.surface,a,neighbors(b.x,b.y));if(route?.length)moveAnimal(s,a,route[0],'courtship');}
    continue;
   }
-  a.fed-=10;b.fed-=10;a.lifecycle.brood={id:`brood-${s.nextId++}`,mate:b.id,started:s.tick,progress:0};a.lifecycle.cooldown=livestockDef(a).cooldown;b.lifecycle.cooldown=livestockDef(b).cooldown;
-  emitEvent(s,'animal.brood.started',{entity:a.id,brood:a.lifecycle.brood.id,mate:b.id,region:r.id,nutritionCostPerParent:10});
+  const broodId=`brood-${s.nextId++}`,inheritance={parents:[a,b].map(parent=>({id:parent.id,genetics:structuredClone(parent.genetics??neutralGenome())})),child:inheritGenome(s.seed,a,b,broodId)};
+  a.fed-=10;b.fed-=10;a.lifecycle.brood={id:broodId,mate:b.id,started:s.tick,progress:0,inheritance};a.lifecycle.cooldown=livestockDef(a).cooldown;b.lifecycle.cooldown=livestockDef(b).cooldown;
+  emitEvent(s,'animal.brood.started',{entity:a.id,brood:broodId,mate:b.id,region:r.id,nutritionCostPerParent:10,inheritance:structuredClone(inheritance),genetics:structuredClone(inheritance.child),profile:animalTraits({...a,genetics:inheritance.child})});
  }
 }
 export function validateBreeding(s){

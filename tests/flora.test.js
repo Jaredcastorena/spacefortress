@@ -5,6 +5,7 @@ import { foodOfKind, foodLots } from '../src/food-lots.js';
 import { pastureRegions } from '../src/pastures.js';
 import { createGame, at, step } from '../src/simulation.js';
 import { newLifecycle } from '../src/breeding.js';
+import { animalTraits, inheritGenome } from '../src/animal-traits.js';
 import { startRecording, exportRecording } from '../src/telemetry.js';
 
 function terrain(){
@@ -57,8 +58,8 @@ test('lichen consumption is bounded by actual canonical biomass and pasture sums
 test('partial lichen bites grant proportionate adult and juvenile nutrition in actual ecology',()=>{
   for(const juvenile of [false,true]){
     const s=createGame(),a=s.creatures[2],site=s.sites.surface,tile=at(site,a.x,a.y);s.tick=8;tile.flora={lichen:{biomass:.5,harvests:0,origin:'native',generation:'native'}};a.fed=50;
-    if(juvenile){a.id='bristleback-999';s.nextId=1000;a.lifecycle=newLifecycle(0,s.creatures.slice(0,2).map(p=>p.id));}
-    step(s);assert.ok(Math.abs(a.fed-(50-(juvenile?.008:.015)+(juvenile?.8:.4)))<1e-9);assert.equal(floraBiomass(tile),0);
+    if(juvenile){a.id='bristleback-999';s.nextId=1000;a.lifecycle=newLifecycle(0,s.creatures.slice(0,2).map(p=>p.id));a.genetics=inheritGenome(s.seed,s.creatures[0],s.creatures[1],'brood-998');}
+    step(s);assert.ok(Math.abs(a.fed-(50-animalTraits(a)[juvenile?'juvenileMetabolism':'metabolism']+(juvenile?.8:.4)))<1e-9);assert.equal(floraBiomass(tile),0);
   }
 });
 

@@ -1,7 +1,8 @@
-import { isLivestock, livestockDef, VETERINARY } from './livestock-data.js';
+import { isLivestock, VETERINARY } from './livestock-data.js';
 import { temperatureAt } from './thermal.js';
 import { distance } from './geometry.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
+import { animalTraits } from './animal-traits.js';
 
 const EPS=1e-8;
 const recoveryReasons={none:'No active treatment credit.',needs_post:'Needs to reach its working assigned post.',needs_food:'Needs nutrition of at least 60 to recover.',unsafe_temperature:'Needs temperature within its species range.',fire:'Recovery paused by fire.',transport:'Recovery paused during transport.',recovering:'Recovering from treated injuries at the post.'};
@@ -10,7 +11,7 @@ const tileAt=(site,x,y)=>site&&Number.isInteger(x)&&Number.isInteger(y)&&x>=0&&y
 const postTile=(s,a)=>a.husbandry?.post?tileAt(s.sites.surface,...a.husbandry.post):null;
 const transporting=(s,a)=>s.jobs.some(j=>j.kind==='animalLead'&&j.animal===a.id);
 const untreated=a=>Math.max(0,a.condition.injury-a.condition.treated);
-const safeTemperature=(s,a)=>{const temp=temperatureAt(s.sites[a.site],a.x,a.y),[low,high]=livestockDef(a).temperature;return temp>=low&&temp<=high;};
+const safeTemperature=(s,a)=>{const temp=temperatureAt(s.sites[a.site],a.x,a.y),[low,high]=animalTraits(a).temperatureRange;return temp>=low&&temp<=high;};
 export function initializeAnimalCondition(a){if(isLivestock(a))a.condition??={injury:0,treated:0,thermalStress:0,cause:null,recovery:'none'};}
 export function initializeAnimalHealth(s){for(const a of s.creatures)initializeAnimalCondition(a);}
 export const animalActivityAllowed=a=>!a.condition||a.condition.injury<=EPS&&Math.abs(a.condition.thermalStress)<45;
@@ -39,7 +40,7 @@ export function injureAnimal(s,a,amount,cause){
 }
 export function updateAnimalHealth(s,a){
   if(!isLivestock(a)||a.health<=0)return;
-  const q=a.condition,site=s.sites[a.site],tile=tileAt(site,a.x,a.y),temp=temperatureAt(site,a.x,a.y),[low,high]=livestockDef(a).temperature;
+  const q=a.condition,site=s.sites[a.site],tile=tileAt(site,a.x,a.y),temp=temperatureAt(site,a.x,a.y),[low,high]=animalTraits(a).temperatureRange;
   const previous=thermalBand(q.thermalStress),strain=temp<low?(temp-low)*.012:temp>high?(temp-high)*.012:0;
   q.thermalStress=strain?Math.max(-100,Math.min(100,q.thermalStress+strain)):Math.sign(q.thermalStress)*Math.max(0,Math.abs(q.thermalStress)-.8);
   const current=thermalBand(q.thermalStress);
@@ -59,7 +60,7 @@ export function updateAnimalHealth(s,a){
 export function animalHealthStatus(s,a){
   if(!isLivestock(a)||!a.condition)return null;
   const q=a.condition,recovery=recoveryState(s,a);
-  return {injury:q.injury,treated:q.treated,untreated:untreated(a),thermalStress:q.thermalStress,temperature:temperatureAt(s.sites[a.site],a.x,a.y),temperatureRange:[...livestockDef(a).temperature],thermalState:thermalBand(q.thermalStress),recovery,recoveryReason:recoveryReasons[recovery],activityAllowed:animalActivityAllowed(a)};
+  return {injury:q.injury,treated:q.treated,untreated:untreated(a),thermalStress:q.thermalStress,temperature:temperatureAt(s.sites[a.site],a.x,a.y),temperatureRange:animalTraits(a).temperatureRange,thermalState:thermalBand(q.thermalStress),recovery,recoveryReason:recoveryReasons[recovery],activityAllowed:animalActivityAllowed(a)};
 }
 export function animalTreatmentEligibility(s,a){
   const fail=(code,message)=>({ok:false,code,message,dose:0});

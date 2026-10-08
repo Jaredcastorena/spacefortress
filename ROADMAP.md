@@ -1,10 +1,20 @@
 # SPACEFORTRESS roadmap
 
-**Published version: v0.1.2 · Published save schema: 38 · Local experimental schema: 44.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
+**Published version: v0.1.2 · Published save schema: 38 · Local experimental schema: 45.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
 
 See the [README](README.md) to play, [verification status](docs/verification-status.md) for evidence and limits, and the [180-system conversion inventory](docs/conversion-inventory.md) for the wider backlog. Completing a milestone below does not complete an entire inventory family or establish full Dwarf Fortress parity.
 
-## Current increment: cultivated ground beds
+## Current increment: inherited livestock traits
+
+- Individual bristlebacks and glazefoots have inherited thermal preference and metabolic pace. Temperature specialization shifts both limits by up to 5 °C; production speed and nutrition drain move together by up to 20%.
+- Actual production, juvenile/adult nutrition, thermal injury and veterinary recovery use the same profile. Yields, work, growth time, brood duration and existing injury/pasture gates remain fixed.
+- Conception freezes ordered parent genomes and selected child traits; birth copies that result. Founders vary deterministically without consuming global randomness. Existing hex colonies migrate to balanced current performance, with segregation possible in later offspring.
+- Focused domain 49, integration 85 and panel 12 distinct checks pass. First full regression: **1,210 passed, zero failed, one intentional skip**, with 229 dependencies unchanged. An actual old save and supplied family/injury cases migrate without physical changes and reload exactly. One supplied-parent/pasture trial stopped at the first healthy inherited hatchling at tick 301/three commands, with six exact reloads and no physical inventory changes. Folded founder/brood/offspring details, breeding policy and a 390-pixel layout passed browser review. Ordinary herd construction and long-term balance remain unverified.
+- Mutation, disease, old age, meat/fibre, wider ancestry rules, fuller ecosystems and ordinary herd-construction/endurance acceptance remain future work.
+
+See [animal traits](docs/animal-traits.md) and [breeding](docs/breeding.md). This build is not published.
+
+## Recent increment: cultivated ground beds
 
 - Crew plant fungal caps or sunberries using one matching raw-food portion, real delivery and Production work. Watering delivers a finite 0.5 dose; dry or dormant beds keep their progress.
 - Managed beds retain moisture and regrow into the existing physical harvest, hauling and cooking chain. Floor absorption, unused doses and removal preserve water through explicit transfers and ledgers.
@@ -21,7 +31,7 @@ See [cultivation](docs/cultivation.md) for the physical costs and conditions. Th
 - Medics physically reserve, carry and apply one medicine through 20 Medicine work. Treatment covers up to 20 injury; a fed animal recovers at its intact post. Feeding and treatment can share the post, with feeding first; cancellation, death, post loss and transport preserve located supplies.
 - Schema 43 adds neutral condition records to earlier hex saves without changing health or granting treatment. Shared actions, observations and named injury/recovery events remain available to local agents.
 - Verification: 1,150 Node checks passed, zero failed and one intentional skip. The supplied injured-adult/post trial completed at tick 116: one medicine, ten injury healed gradually, 20 Medicine experience, everyone healthy and five exact reloads. Actual browser treatment/cancel, recovery display, save/reopen and narrow layout passed. A final display-only label correction was verified in the refreshed browser.
-- Diseases, inherited traits, detailed wounds/surgery and meat/fibre production remain future work. The ordinary farming/livestock construction chain and longer-term husbandry balance still need acceptance.
+- Diseases, detailed wounds/surgery and meat/fibre production remain future work. The ordinary farming/livestock construction chain and longer-term husbandry balance still need acceptance. Inherited traits are covered above.
 
 See [veterinary care](docs/veterinary-care.md) for the care loop and its scope. This build is not published.
 
@@ -33,7 +43,7 @@ See [veterinary care](docs/veterinary-care.md) for the care loop and its scope. 
 - Schema 42 migrates schema-40/41 hex saves; legacy food, animals and lichen are preserved, with no edible-plant grants. No dependencies or remote assets were added.
 - Historical flora regression gate: 1,120 passed, zero failed and one intentional skip. Focused checks cover growth, dormancy, grazing, harvesting, interrupted jobs, migration and structured observations. A fresh colony built a galley and completed gathering→hauling→fungal stew at tick 66 using five commands, with four exact reloads and everyone healthy. Browser checks cover the plant inspector, gathering/cancellation, maturity explanations, save/reload and a narrow screen.
 - The previous supplied crop→care→eggs→omelet→eating trial passed at tick 605. Building that entire farming/livestock chain from a fresh colony remains unverified.
-- Next ecology depth: wild-soil moisture, plant spreading, orchards and full biomes; diseases, inherited traits, meat/fibre products and more preservation. Connected physical decks remain separate work.
+- Next ecology depth: wild-soil moisture, plant spreading, orchards and full biomes; diseases, meat/fibre products and more preservation. Inherited traits are covered above; connected physical decks remain separate work.
 
 See [food and ecology](docs/food-and-ecology.md) for current recipes and boundaries. This expansion is not published.
 

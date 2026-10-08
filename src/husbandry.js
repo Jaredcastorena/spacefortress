@@ -7,6 +7,7 @@ import { spill } from './inventory.js';
 import { planFoodSelection, typedFood } from './food-lots.js';
 import { isLivestock, livestockDef, VETERINARY } from './livestock-data.js';
 import { animalActivityAllowed, animalHealthStatus, animalTreatmentValid, completeAnimalTreatment } from './animal-health.js';
+import { animalTraits } from './animal-traits.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
 export const ANIMAL_JOBS = ['animalCare','animalHarvest','animalTreat'];
 export const animalJob = j => ANIMAL_JOBS.includes(j.kind);
@@ -79,7 +80,7 @@ export function moveAssignedAnimal(s,a,pathTo,roamPasture=false) {
   return false;
 }
 export function animalCondition(s,a) {
-  if(a.health>0&&animalActivityAllowed(a)&&adult(a)&&a.husbandry.trust===100&&a.fed>=60&&a.health>=60){const before=a.husbandry.product;a.husbandry.product=Math.min(100,before+livestockDef(a).productRate);if(before<100&&a.husbandry.product===100)emitEvent(s,'animal.product.ready',{entity:a.id,productKind:livestockDef(a).productKind});}
+  if(a.health>0&&animalActivityAllowed(a)&&adult(a)&&a.husbandry.trust===100&&a.fed>=60&&a.health>=60){const before=a.husbandry.product;a.husbandry.product=Math.min(100,before+animalTraits(a).productRate);if(before<100&&a.husbandry.product===100)emitEvent(s,'animal.product.ready',{entity:a.id,productKind:livestockDef(a).productKind});}
 }
 export function husbandryStatus(s,a,_pathTo) {
   const h=a.husbandry;if(!h)return null;

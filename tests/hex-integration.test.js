@@ -12,7 +12,7 @@ import { projectPreAirlock, projectPreOutpost } from './helpers/legacy-projectio
 
 test('new hex colonies keep every startup berth and resource reachable through six-edge routes', () => {
   const s=createGame(74219),site=s.sites.surface;
-  assert.equal(s.grid,GRID);assert.equal(s.version,44);
+  assert.equal(s.grid,GRID);assert.equal(s.version,45);
   assert.equal(site.rooms.length,1);assert.equal(site.rooms[0].sealed,true);assert.equal(site.rooms[0].volume,35);
   for(const t of site.tiles.filter(t=>t.building)) {
     if(t.building==='wall')continue;
@@ -63,6 +63,6 @@ test('hex recordings identify topology without changing deterministic simulation
   const s=createGame(4091),copy=deserialize(serialize(s)),before=totalResources(s);
   const observation=observe(s);assert.equal(observation.grid,GRID);assert.equal(observation.entities.colony.grid,GRID);
   startRecording(s);step(s,6);step(copy,6);assert.equal(serialize(s),serialize(copy));
-  const header=JSON.parse(exportRecording(s).split('\n')[0]);assert.equal(header.grid,GRID);assert.equal(header.initialState.grid,GRID);assert.equal(header.gameVersion,44);
+  const header=JSON.parse(exportRecording(s).split('\n')[0]);assert.equal(header.grid,GRID);assert.equal(header.initialState.grid,GRID);assert.equal(header.gameVersion,45);
   assert.deepEqual(totalResources(header.initialState),before);assert.equal(serialize(deserialize(serialize(s))),serialize(s));
 });

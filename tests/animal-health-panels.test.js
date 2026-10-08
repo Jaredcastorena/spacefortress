@@ -6,8 +6,9 @@ import { createGame, at, pathTo, order, cancelJob } from '../src/simulation.js';
 import { prepareHusbandry } from '../src/husbandry.js';
 import { controlBindings } from '../src/controls.js';
 import { animalHealthStatus, animalTreatmentEligibility } from '../src/animal-health.js';
+import { animalTraits } from '../src/animal-traits.js';
 import { VETERINARY } from '../src/livestock-data.js';
-import { animalDetails, animalHealthDetails, breedingDetails } from '../src/husbandry-panels.js';
+import { animalDetails, animalHealthDetails, animalTraitDetails, breedingDetails } from '../src/husbandry-panels.js';
 
 const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function fixture(species='bristleback') {
@@ -38,6 +39,20 @@ test('treatment buttons expose shared disabled reasons without giving tibbles li
     assert.ok(html.includes(`data-treatment-reason="${eligibility.code}"`));assert.ok(html.includes(esc(eligibility.message)));
   }
   const {s}=fixture();assert.equal(animalHealthDetails(s,s.creatures.find(a=>a.species==='tibble')),'');
+});
+
+test('health and folded traits show the same inherited temperature limits without altering treatment rules',()=>{
+  for(const [species,thermal,range] of [['bristleback',[-1,-1],[-45,30]],['glazefoot',[1,1],[-35,35]],['glazefoot',[-1,0],[-42.5,27.5]]]) {
+    const {s,a}=fixture(species);a.genetics={origin:'founder',thermal,pace:[-1,1]};
+    const before=JSON.stringify(a),profile=animalTraits(a),health=animalHealthStatus(s,a);
+    assert.deepEqual(profile.temperatureRange,range);assert.deepEqual(health.temperatureRange,profile.temperatureRange);
+    assert.ok(animalHealthDetails(s,a).includes(`tolerates ${range.join('–')} °C`));
+    assert.ok(animalTraitDetails(a).includes(`${range.join('–')} °C`));
+    assert.ok(!animalHealthDetails(s,a).match(/data-action="animal-treat"[^>]*disabled/));
+    a.condition.treated=a.condition.injury;
+    assert.match(animalHealthDetails(s,a),/data-action="animal-treat"[^>]*disabled/);
+    a.condition.treated=4;assert.equal(JSON.stringify(a),before);
+  }
 });
 
 test('stress and injury show the shared paused recovery/activity condition and breeding explanation',()=>{

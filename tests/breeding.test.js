@@ -7,6 +7,7 @@ import { executeAction } from '../src/controls.js';
 import { totalResources } from '../src/inventory.js';
 import { setMachineEnabled } from '../src/industry.js';
 import { startRecording,exportRecording,observe } from '../src/telemetry.js';
+import { inheritGenome } from '../src/animal-traits.js';
 const check=s=>deserialize(serialize(s));
 const until=(s,p,max=400)=>{for(let i=0;i<max&&!p();i++)step(s);assert.ok(p(),`Condition missing at ${s.tick}`);return check(s);};
 function pen(){
@@ -26,7 +27,7 @@ test('founders begin adult and breeding is off until explicitly enabled',()=>{
 });
 
 test('two nearby tame adults conceive one carried brood and spend nutrition',()=>{
- const {s,a,b}=pen(),food=totalResources(s).food;startRecording(s);step(s);assert.deepEqual(a.lifecycle.brood,{id:a.lifecycle.brood.id,mate:b.id,started:1,progress:0});assert.equal(b.lifecycle.brood,null);assert.equal(observe(s).entities[a.lifecycle.brood.id].carrier,a.id);assert.equal(a.lifecycle.cooldown,600);assert.ok(a.fed<91&&b.fed<91);assert.equal(totalResources(s).food,food);assert.equal(events(s).filter(e=>e.id==='animal.brood.started').length,1);check(s);
+ const {s,a,b}=pen(),food=totalResources(s).food;startRecording(s);step(s);const broodId=a.lifecycle.brood.id;assert.deepEqual(a.lifecycle.brood,{id:broodId,mate:b.id,started:1,progress:0,inheritance:{parents:[a,b].map(parent=>({id:parent.id,genetics:structuredClone(parent.genetics)})),child:inheritGenome(s.seed,a,b,broodId)}});assert.equal(b.lifecycle.brood,null);assert.equal(observe(s).entities[broodId].carrier,a.id);assert.equal(a.lifecycle.cooldown,600);assert.ok(a.fed<91&&b.fed<91);assert.equal(totalResources(s).food,food);assert.equal(events(s).filter(e=>e.id==='animal.brood.started').length,1);check(s);
 });
 
 test('courtship walks through the pasture without teleporting or moving twice in a tick',()=>{

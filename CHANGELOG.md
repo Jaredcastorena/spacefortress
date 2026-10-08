@@ -4,6 +4,11 @@ SPACEFORTRESS is an early playable colony simulator. Release entries describe co
 
 ## Unreleased — 2026-10-08
 
+- Bristlebacks and glazefoots inherit temperature tolerance and production/feed pace. Both temperature limits shift together; faster product progress increases nutrition drain. Conception freezes parent snapshots and the child genome, and birth preserves them. Folded inspectors show parents, rates and pending brood traits.
+- Schema 45 migrates hex saves 40–44 with neutral present effects for existing livestock, preserving physical quantities and lifecycle progress. Founder variation and inheritance use stable hashes without consuming global randomness. Named birth/inheritance events support local recordings.
+- Trait verification: first full run 1,210 passes, zero failures and one intentional skip. One supplied-parent/pasture trial produced a healthy hatchling at tick 301/three commands, with six exact reloads and unchanged physical inventory. Independent review and desktop/narrow folded-inspector checks passed. Ordinary herd construction and long-term balance remain unverified.
+- Ground-bed cultivation uses a matching raw portion and delivered water to grow finite harvests. The preceding fresh-colony fungal-cap cycle completed at tick 853/six commands with no grants, everyone healthy, 42 Production experience and 24 exact reloads.
+
 - Livestock now have species temperature tolerances and persistent injuries from fire or severe heat/cold strain. Injuries pause production, collection, growth and brood development; ordinary hunger remains a separate food-responsive weakness.
 - Manual veterinary treatment uses one physically delivered medicine and 20 Medicine work, covering up to 20 injury. Recovery restores health gradually at an intact post with suitable temperature and nutrition. Feeding can proceed while paid treatment waits; interruption, reassignment, transport and death retain normal supply refunds.
 - Schema 43 adds neutral animal condition records to schema-40/41/42 hex saves, preserving prior health and physical state without granting medicine or inventing wounds. Health transitions, treatment and recovery emit named events.
