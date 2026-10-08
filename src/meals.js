@@ -1,12 +1,17 @@
-import { foodLots, foodAge, storeLots, validFoodLots } from './food-lots.js';
+import { foodLots, foodAge, storeLots, validFoodLots, planFoodSelection } from './food-lots.js';
+import { DEFAULT_MEAL, MEAL_RECIPES, mealQualityForLevel } from './food-data.js';
 import { extract, add } from './inventory.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
 import { remember } from './crew.js';
 
-export function cookMeal(s,c,j,ingredients) {
-  const meal={id:`meal-${j.id}`,maker:c.id,quality:Math.min(4,1+Math.floor(c.skills.production.level/3)),created:s.tick};
-  const result={food:2};storeLots(result,[{amount:2,age:foodAge(ingredients),meal}]);
-  emitEvent(s,'meal.prepared',{entity:tileEntityId(j.site,j.x,j.y),actor:c.id,job:j.id,batch:meal.id,quality:meal.quality,food:2,age:foodAge(ingredients)});
+export function cookMeal(s,c,j,ingredients,recipeId=DEFAULT_MEAL) {
+  const recipe = Object.hasOwn(MEAL_RECIPES, recipeId) && MEAL_RECIPES[recipeId];
+  if (!recipe || ingredients.food !== recipe.input.food || planFoodSelection(ingredients, recipe.input.food, { rawOnly: true, ...(recipe.foodKinds ? { foodKinds: recipe.foodKinds } : {}) }) === null) throw new Error('Meal ingredients do not match the recipe.');
+  const composition = {};
+  for (const lot of foodLots(ingredients)) composition[lot.kind || 'ration'] = (composition[lot.kind || 'ration'] || 0) + lot.amount;
+  const meal={id:`meal-${j.id}`,maker:c.id,quality:mealQualityForLevel(c.skills.production.level),created:s.tick,recipeId,ingredients:composition};
+  const result={food:recipe.output.food};storeLots(result,[{amount:result.food,age:foodAge(ingredients),meal}]);
+  emitEvent(s,'meal.prepared',{entity:tileEntityId(j.site,j.x,j.y),actor:c.id,job:j.id,batch:meal.id,quality:meal.quality,food:result.food,age:foodAge(ingredients),recipeId,ingredients:composition});
   return result;
 }
 export function openedInventory(meal) {
@@ -22,9 +27,10 @@ export function openMeal(s,c,meal,food) {
 export function eatPortion(s,c,meal) {
   const portion=extract(meal.openedFood||openedInventory({...meal,servings:meal.servings+1}),{food:1/8});
   const quality=portion?foodLots(portion).reduce((n,l)=>n+l.amount*(l.meal?.quality||0),0)*8:0;
+  const comfort=portion?foodLots(portion).reduce((n,l)=>n+l.amount*(MEAL_RECIPES[l.meal?.recipeId]?.comfort||0),0)*8:0;
   meal.qualityTotal=(meal.qualityTotal||0)+quality;
-  c.life.stress=Math.max(0,c.life.stress-quality*.1);
-  emitEvent(s,'meal.portion.eaten',{entity:c.id,actor:c.id,food:1/8,quality,lots:portion?foodLots(portion):[]});
+  c.life.stress=Math.max(0,c.life.stress-quality*.1-comfort);
+  emitEvent(s,'meal.portion.eaten',{entity:c.id,actor:c.id,food:1/8,quality,comfort,lots:portion?foodLots(portion):[]});
   // Called after the existing physiology decrements servings.
   if(!meal.servings) {
     if(meal.qualityTotal>0)remember(s,c,'prepared-meal','Enjoyed a meal prepared by a crewmate.',2+Math.ceil(meal.qualityTotal/8));

@@ -1,3 +1,5 @@
+import { productionEligibility } from './production.js';
+import { livestockDef } from './livestock-data.js';
 import { expeditionCrewStatus, expeditionCandidates, expeditionLaunchBlock, expeditionCrewLimits } from './expedition-readiness.js';
 import { returnCrewIds } from './expedition.js';
 import { OUTPOST_SITES, residentIds, shuttleLocation, shuttlePresence } from './outposts.js';
@@ -52,7 +54,8 @@ export function observe(s) {
       const airlock=t.building==='airlockController'?airlockStatus(s,site,t):null;
       const ownership={building:airlockControlOwner(site,t,'building'),pipe:airlockControlOwner(site,t,'pipe')};
       const owned=ownership.building||ownership.pipe;
-      const derived=plumbing||electrical||airlock||owned?{...previousDerived,...(plumbing?{plumbing}:{}),...(electrical?{electrical}:{}),...(airlock?{airlock}:{}),...(owned?{airlockOwnership:ownership}:{})}:previousDerived;
+      const production=t.machine?productionEligibility(s,site,t):null;
+      const derived=plumbing||electrical||airlock||owned||production?{...previousDerived,...(production?{production}:{}),...(plumbing?{plumbing}:{}),...(electrical?{electrical}:{}),...(airlock?{airlock}:{}),...(owned?{airlockOwnership:ownership}:{})}:previousDerived;
       entities[tileEntityId(site.id,t.x,t.y)]={type:'tile',site:site.id,...t,...(derived?{derived}:{})};
     }
     for(const r of rooms) {
@@ -65,7 +68,7 @@ export function observe(s) {
   for(const j of jobs) entities[j.id]={type:'job',...j};
   const pastures=pastureRegions(sites.surface);
   for(const r of pastures.regions)if(r.enclosed)entities[r.id]={type:'pasture',site:'surface',...r};
-  for(const c of creatures) entities[c.id]={type:'creature',...c,...(c.husbandry?{derived:{husbandryStatus:husbandryStatus(s,c,pathTo),pasture:animalPasture(s,c,pastures),breeding:breedingStatus(s,c,pastures),transport:transportStatus(s,c)}}:{})};
+  for(const c of creatures) entities[c.id]={type:'creature',...c,...(c.husbandry?{derived:{diet:livestockDef(c)?.feedKinds||null,productKind:livestockDef(c)?.productKind||null,husbandryStatus:husbandryStatus(s,c,pathTo),pasture:animalPasture(s,c,pastures),breeding:breedingStatus(s,c,pastures),transport:transportStatus(s,c)}}:{})};
   for(const c of creatures)if(c.lifecycle?.brood){const brood=c.lifecycle.brood;entities[brood.id]={type:'brood',...brood,carrier:c.id};}
   for(const owner of itemOwners(s))for(const item of owner.inventory._items||[])entities[item.id]={type:'item',...item,location:owner.location};
   // A prepared batch can be split among several inventories and opened rations.

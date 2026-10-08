@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createGame, at, step, order, pathTo, serialize, deserialize} from '../src/simulation.js';
 import {add, extract, initializeStorage, syncResources, totalResources} from '../src/inventory.js';
 import {haul, setMachineEnabled} from '../src/industry.js';
-import {setProductionOrder, projectedStock} from '../src/production.js';
+import {setProductionOrder, projectedStock, recipeFor} from '../src/production.js';
 import {refreshPower} from '../src/power.js';
 import {initializePlumbingTile, newWaterPipe, waterNode, operatePlumbing, plumbingStatus, setWaterIntake, setWaterOutlet} from '../src/plumbing.js';
 
@@ -97,7 +97,7 @@ test('inventory outlets honor fixed and stock orders and retain delivered ingred
  setProductionOrder(s,'surface',12,9,'batches',1);run(f,8);close(target.machine.input.water,1);close(waterNode(node).water,1);
  setProductionOrder(s,'surface',12,9,'batches',0);run(f,4);close(target.machine.input.water,1);close(waterNode(node).water,1);
  assert.equal(plumbingStatus(s,site,f.outlet).blockedCode,'target_order_complete');
- const available=projectedStock(s,site,'food');assert.ok(Number.isInteger(available));
+ const available=projectedStock(s,site,'food',target,false,recipeFor(target,'selected'));assert.ok(Number.isInteger(available));
  setProductionOrder(s,'surface',12,9,'stock',available);run(f,4);close(target.machine.input.water,1);
  setProductionOrder(s,'surface',12,9,'stock',available+4);run(f,8);close(target.machine.input.water,2);close(waterNode(node).water,0);
  close(totalResources(s).water,before);check(s);

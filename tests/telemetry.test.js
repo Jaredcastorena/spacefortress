@@ -95,7 +95,7 @@ test('patch paths are arrays and preserve arbitrary keys without interpreting th
 test('production completion has an explicit actor, recipe, output and workstation marker',()=>{
   const s=createGame();startRecording(s);step(s,100);
   const event=records(s).find(r=>r.event?.id==='production.batch.completed');assert.ok(event);
-  assert.equal(event.event.recipe,'farm');assert.deepEqual(event.event.output,{food:2});assert.ok(event.event.actor.startsWith('crew-'));assert.equal(event.event.entity,'tile:surface:7:9');
+  assert.equal(event.event.recipe,'farm');assert.equal(event.event.output.food,2);assert.equal(event.event.recipeId,'fungalcap');assert.deepEqual(event.event.output._food,[{amount:2,age:0,kind:'fungalcap'}]);assert.ok(event.event.actor.startsWith('crew-'));assert.equal(event.event.entity,'tile:surface:7:9');
 });
 
 test('byte limit preserves an exportable prefix and reports the last complete observation',()=>{

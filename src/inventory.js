@@ -4,7 +4,8 @@ import { initializeGasTile, gasNode } from './gas-networks.js';
 import { gasAmount } from './atmosphere.js';
 import { initializeLiquidTile } from './liquids.js';
 import { validItemLots, takeItemLots } from './item-lots.js';
-import { foodLots, storeLots, takeFoodLots, rawFood } from './food-lots.js';
+import { foodLots, storeLots, takeFoodLots, planFoodSelection } from './food-lots.js';
+import { DEFAULT_CROP, DEFAULT_MEAL } from './food-data.js';
 import { RESOURCES, RECIPES } from './data.js';
 export const CARRY_CAPACITY = 6;
 export const OUTPUT_CAPACITY = 12;
@@ -22,15 +23,17 @@ export function add(inventory, items) {
   const lots = items.food ? [...foodLots(inventory), ...foodLots(items)] : null;
   addCounts(inventory, items); if(discrete)inventory._items=discrete; if (lots) storeLots(inventory, lots); return inventory;
 }
-export function extract(inventory, items, rawOnly = false) {
-  if (!contains(inventory, items) || rawOnly && (items.food || 0) > rawFood(inventory) + 1e-9) return null;
+export function extract(inventory, items, selector = false) {
+  if (!contains(inventory, items) || planFoodSelection(inventory, items.food || 0, selector) === null) return null;
+  // Preflight discrete identities too, before either lot family is changed.
+  if (items.keepsakes && !takeItemLots({ ...inventory }, items.keepsakes, items._items)) return null;
   const result = {};
   if(items.keepsakes){const moved=takeItemLots(inventory,items.keepsakes,items._items);if(!moved)return null;result._items=moved;}
-  if (items.food) storeLots(result, takeFoodLots(inventory, items.food, rawOnly));
+  if (items.food) storeLots(result, takeFoodLots(inventory, items.food, selector));
   for (const [r, n] of resourceEntries(items)) { if (!n) continue; result[r] = n; inventory[r] -= n; if (inventory[r] < 1e-10) delete inventory[r]; }
   return result;
 }
-export const take = (inventory, items) => extract(inventory, items) !== null;
+export const take = (inventory, items, selector = false) => extract(inventory, items, selector) !== null;
 export function spill(tile, items) {
   if (quantity(items)) tile.drop = add(tile.drop || {}, items);
 }
@@ -42,6 +45,7 @@ export function initializeStorage(tile) {
     if (!tile.storage) tile.storage = { accepted: [...RESOURCES], priority: 3 };
   }
   if (RECIPES[tile.building] && !tile.machine) tile.machine = { input: {}, output: {}, batch: {}, progress: 0, enabled: true, status: 'Waiting for delivery', ...(!(RECIPES[tile.building].lifeSupport || RECIPES[tile.building].automatic) ? { order: { mode: 'continuous', limit: 0, remaining: 0, priority: 1 }, completed: 0 } : {}) };
+  if (tile.machine && ['farm', 'galley'].includes(tile.building)) tile.machine.recipeId ??= tile.building === 'farm' ? DEFAULT_CROP : DEFAULT_MEAL;
 }
 export const stores = s => s.sites.surface.tiles.filter(t => t.building === 'stockpile' && t.stock);
 export function syncResources(s) {

@@ -1,4 +1,4 @@
-import { BREEDING } from './breeding.js';
+import { isLivestock, livestockDef } from './livestock-data.js';
 import { immobile } from './mobility.js';
 import { at, inside, key, isDay, roomAt } from './simulation.js';
 import { routeTime } from './expedition.js';
@@ -137,19 +137,29 @@ export class Renderer {
       if(t.fire){const h=16+t.fire.intensity*.22+(s.tick%3)*2;this.polygon([[x-14,y-4],[x-8,y-h],[x-1,y-h+12],[x+8,y-h-8],[x+15,y-4],[x,y+3]],'#ee7938','#ffb761');this.polygon([[x-6,y-3],[x+1,y-h+12],[x+8,y-4],[x,y+1]],'#ffe0a0');}
 
       for (const creature of s.creatures.filter(a => a.site === siteId && a.x === t.x && a.y === t.y)) {
-        if (creature.species === 'bristleback') {
+        if (isLivestock(creature)) {
+          const def=livestockDef(creature);
           const escorted=s.jobs.some(j=>j.kind==='animalLead'&&j.animal===creature.id&&j.phase==='escort');
           c.save();if(escorted)c.translate(-18,8);if(creature.health<=0)c.globalAlpha=.35;
-          if(creature.lifecycle?.growth<BREEDING.maturity){const scale=.55+.45*creature.lifecycle.growth/BREEDING.maturity;c.translate(x,y);c.scale(scale,scale);c.translate(-x,-y);}
+          if(creature.lifecycle?.growth<def.maturity){const scale=.55+.45*creature.lifecycle.growth/def.maturity;c.translate(x,y);c.scale(scale,scale);c.translate(-x,-y);}
+          if(creature.species==='glazefoot'){
+            c.fillStyle='#376a66';for(const [dx,dy] of [[-12,-5],[9,-5],[-10,4],[12,4]])c.fillRect(x+dx,y+dy,5,7);
+            this.box(x,y-1,17,9,10,'#a4d8ca','#70aba2','#477b77');
+            this.box(x-14,y-5,9,6,8,'#c6e8d6','#8dbdaf','#589188');
+            c.save();c.globalAlpha*=.72;this.polygon([[x-8,y-13],[x-5,y-34],[x+3,y-22],[x+9,y-32],[x+15,y-12]],'#8be3d8','#d3fff0');c.restore();
+            this.line(x-5,y-29,x-1,y-13,'#c5fbed',1);this.line(x+9,y-28,x+7,y-12,'#c5fbed',1);
+            c.fillStyle='#1e4748';c.fillRect(x-21,y-11,3,3);
+          }else{
           c.fillStyle = '#303c35'; for (let i = 0; i < 3; i++) { c.fillRect(x - 14 + i * 10, y - 2, 4, 10); c.fillRect(x - 16 + i * 10, y - 10, 3, 8); }
           this.box(x, y - 1, 18, 9, 13, '#ab9b71', '#817955', '#5b604d');
           this.box(x - 13, y - 5, 10, 5, 10, '#c0b088', '#978c61', '#6e7254');
           c.fillStyle = '#d3c5a0'; c.fillRect(x - 22, y - 18, 2, 7); c.fillRect(x - 17, y - 20, 2, 7); c.fillStyle = '#182d31'; c.fillRect(x - 21, y - 9, 3, 2);
           for (let i = 0; i < 3; i++) this.line(x - 7 + i * 7, y - 16 + i * 3, x - 7 + i * 7, y - 10 + i * 3, '#d6bb83', 1);
+          }
           if(escorted){this.line(x-19,y-10,x+12,y-22,'#8ee4d7',2);}
           if(creature.lifecycle?.brood){c.fillStyle='#e8bf85';c.fillRect(x+2,y-5,4,4);c.fillRect(x+9,y-2,4,4);}
           if(creature.husbandry?.trust===100){c.fillStyle='#82d6c1';c.fillRect(x-19,y-17,5,3);}c.restore();
-        } else { this.box(x, y, 5, 3, 4, '#e8c9b0', '#b38e77', '#866e65'); c.fillStyle = '#a5d3ac'; c.fillRect(x - 2, y - 5, 3, 2); this.line(x - 5, y - 1, x - 9, y - 4, '#c9baa3'); this.line(x - 5, y + 1, x - 9, y + 3, '#c9baa3'); }
+        } else if(creature.species==='tibble') { this.box(x, y, 5, 3, 4, '#e8c9b0', '#b38e77', '#866e65'); c.fillStyle = '#a5d3ac'; c.fillRect(x - 2, y - 5, 3, 2); this.line(x - 5, y - 1, x - 9, y - 4, '#c9baa3'); this.line(x - 5, y + 1, x - 9, y + 3, '#c9baa3'); }
       }
       if (t.drop) { this.box(x, y, 10, 5, 7, '#d5ae75', '#91704e', '#6c5944'); }
       if (t.machine && Object.values(t.machine.output).some(n => n > 0)) this.box(x + 19, y + 7, 7, 4, 6, '#a7ceb7', '#678c81', '#425e61');

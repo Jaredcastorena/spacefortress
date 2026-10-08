@@ -12,11 +12,13 @@ An early playable space colony simulator inspired by Dwarf Fortress. Keep seven 
 
 The local development build uses **six-sided hex tiles** for terrain, construction, movement, sealed rooms and utility connections, with the isometric view retained. Directional devices face one of six neighbors. Experimental [pressure-cycling airlocks](docs/airlock-cycling-design.md) recover and refill actual gas while crew retain their work and cargo.
 
-This work is **not published yet**; the online game remains v0.1.2. The final full regression run passed **1,057 Node checks with one intentional skip**; the earlier **26 Python checks** remain applicable to unchanged tooling. Local Chrome checks cover the hex view, picking, build preview, overlays and a narrow inspector. An ordinary colony has completed finite mining and manufacturing, replacement-air production, waste containment, medical recovery for all seven crew and a supply-replenishment cycle. A paid scrubber repair and battery-charging schedule also completed a stalled air-production order; a supplied repair trip restored two solar arrays. Paid airlock enclosure, commissioning and a parcel roundtrip remain pending. See the [verification record](docs/verification-status.md) for limits.
+This work is **not published yet**; the online game remains v0.1.2. The local build now includes three crops, two productive livestock species and eight recipes with ingredient and skill requirements. Food identity, age, maker and quality survive physical hauling and cooking. See [flora, livestock and cooking](docs/food-and-ecology.md) for the combinations and progression.
+
+The food expansion's full regression run recorded **1,092 passes, two failures and one intentional skip**. Both failures were corrected and all **17 affected checks passed**; the complete suite was not repeated. Earlier 26 Python checks apply to unchanged tooling. Ordinary colony work has reached a preserved checkpoint with all seven crew healthy, a repaired scrubber and two restored solar arrays. Paid airlock enclosure, commissioning and a parcel roundtrip remain pending. See the [verification record](docs/verification-status.md) for exact scopes and remaining acceptance work.
 
 An early construction trial exposed air loss during hauling. A continuation delivered all mined ore, sealed the door and restored breathable air; both manufacturers resumed work and all seven crew stayed healthy. A saved continuation met the recovery reserve target. Crew now share breathing air before optional suit charging, with warnings when habitat breathing needs suit reserves. The complete airlock construction journey still needs play testing.
 
-Hex colonies use save schema 40. Square saves from schemas 1–39 cannot be loaded into this version; their original contents remain protected and exportable. Continue those colonies with the matching square version. The separate gravity-based elements lab keeps its square grid.
+Hex colonies now use save schema 41. Schema-40 hex saves migrate without granting animals or changing existing food into named ingredients. Square saves from schemas 1–39 cannot be loaded into this version; their original contents remain protected and exportable. Continue those colonies with the matching square version. The separate gravity-based elements lab keeps its square grid.
 
 ## What's new in the published v0.1.2
 
@@ -95,7 +97,7 @@ Keyboard shortcuts are inactive while editing a form or using a dialog. If a but
 - **Environmental systems:** compartment gases, pressure doors, finite gas networks and retained exhaust, room heat, water plumbing and spills, fire/smoke, wired power, batteries, reactors and wet-fault breakers.
 - **Orbital expeditions:** explicit two-person crews, physical loading/boarding, limited cargo, satellite salvage, comet resources, solar collection, return trips and supplied fittings.
 - **Wreck settlement preview:** physical freight, local building, readiness, residence/return selection and site-local care controls. Full endurance and resupply acceptance is pending.
-- **Original setting:** alien crew, bristleback livestock, biomass-eating tibbles and small fictional anomalies, shown on an isometric map with details in drawers.
+- **Original setting:** alien crew, bristleback and glazefoot livestock, biomass-eating tibbles and small fictional anomalies, shown on an isometric map with details in drawers.
 - **Local simulation interface:** shared player/agent actions, stable entity IDs, structured observations and optional bounded recordings. No model or training service is included.
 
 These are game-scale models with documented gaps, not full Dwarf Fortress parity or realistic engineering simulations. The [conversion inventory](docs/conversion-inventory.md) tracks the broader work. The [staffed outpost design](docs/staffed-orbital-outpost-design.md) describes the implemented preview and remaining gameplay acceptance.

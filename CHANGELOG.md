@@ -4,6 +4,10 @@ SPACEFORTRESS is an early playable colony simulator. Release entries describe co
 
 ## Unreleased — 2026-10-08
 
+- Three selectable hydroponic crops and eight galley recipes use physically delivered ingredients and Production skill requirements, with four meal-quality tiers and recipe-specific comfort.
+- Original glazefoot livestock eat delivered fungal caps and yield glaze eggs. Bristleback harvests retain their nutrient-curd identity; both species use existing care, pasture, breeding and transport systems.
+- Ingredient kinds, oldest input age, recipe and maker survive reservations, hauling, cooking, storage and save/reload. Changing recipes preserves paid batches. Pausing a machine retains pending physical deliveries.
+- Save schema 41 migrates schema-40 hex colonies while preserving legacy food, animals and committed batches. New colonies receive two wild glazefoots; old colonies receive no free animals.
 - Production hauling ignores negligible floating-point input shortages, preventing microscopic air refills from displacing useful cargo. Stored supplies and real shortage priorities are preserved.
 - Experimental pressure-cycling airlocks recover and refill actual gas through controlled equipment, with two-door interlocks, power and atmosphere guards, queued travelers and safe manual release.
 - Crew preserve work, parcels, meals and carried patients while waiting. Manual release permits chamber maintenance through the selected side.

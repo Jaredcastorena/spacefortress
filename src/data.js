@@ -1,4 +1,5 @@
-export const VERSION = 40;
+import { LIVESTOCK } from './livestock-data.js';
+export const VERSION = 41;
 export const RESOURCES = ['alloy', 'ore', 'components', 'food', 'water', 'fuel', 'cells', 'air', 'medicine', 'waste', 'fertilizer', 'keepsakes', 'ice'];
 export const BUILDINGS = {
   airlockController:{name:'Airlock controller',cost:{alloy:4,components:1},work:8,demand:1,description:'Controls two pressure doors and an isolated gas recovery network. Uses 1 kW while enabled. Requires a habitat floor, wired power, a sealed chamber and separately built gas equipment. Retains real gas between measured pressure cycles.'},
@@ -18,10 +19,10 @@ export const BUILDINGS = {
   bilgePump: {name:'Recovery pump',cost:{alloy:6,components:1},work:10,demand:3,description:'Uses 3 kW to collect floor water from its tile and open adjacent tiles. Holds 12 recovered water for hauling. Requires a habitat floor; closed doors block its intake.'},
   reactor: { name:'Compact reactor', cost:{alloy:10,components:2}, work:16, output:40, noise:2, description:'Haulers deliver fuel into a four-unit buffer. Up to 40 kW day or night, with condition-scaled output and waste heat. Adjust output in the inspector. A hot reactor latches off at 120°C; cool below 60°C and reset. Requires a habitat floor.' },
   radiator: { name:'Reactor radiator', cost:{alloy:6,components:1}, work:10, description:'Passive external cooling for an adjacent reactor, or one two tiles away through an intact hull wall. Needs exterior or near-vacuum. Rejects up to 32 heat per tick scaled by condition; no electrical demand.' },
-  fence: { name: 'Pasture fence', cost: { alloy: 1 }, work: 3, description: 'Blocks crew and bristlebacks while intact. Tiny tibbles slip through. Does not seal atmosphere. A broken segment leaves a gap; use a latched gate for crew access.' },
-  pastureGate: { name: 'Pasture gate', cost: { alloy: 2 }, work: 4, description: 'A latched gate admits crew and their attached animals while keeping loose bristlebacks inside. Hold open for unescorted animal passage. No power or atmosphere seal; a broken gate cannot contain animals.' },
-  husbandryPost: { name: 'Husbandry post', cost: { alloy: 4 }, work: 8, description: 'Assign one bristleback. Handlers deliver food and build trust, then collect nutrient curd from a tame, well-fed animal. No power required. Leave nearby lichen for grazing; collected food and manure need hauling.' },
-  galley: { name: 'Galley', cost: { alloy: 6, components: 1 }, work: 10, demand: 2, description: 'A cook prepares two unprepared food with 0.25 water in 24 Production work. Quality follows the cook’s Production skill. Keeps ingredient age; prepared food cannot be cooked again. Requires safe air and 5–35 °C.' },
+  fence: { name: 'Pasture fence', cost: { alloy: 1 }, work: 3, description: 'Blocks crew and livestock while intact. Tiny tibbles slip through. Does not seal atmosphere. A broken segment leaves a gap; use a latched gate for crew access.' },
+  pastureGate: { name: 'Pasture gate', cost: { alloy: 2 }, work: 4, description: 'A latched gate admits crew and their attached animals while keeping loose livestock inside. Hold open for unescorted animal passage. No power or atmosphere seal; a broken gate cannot contain animals.' },
+  husbandryPost: { name: 'Husbandry post', cost: { alloy: 4 }, work: 8, description: 'Assign one livestock animal. Handlers deliver its diet and build trust, then collect curd or glaze eggs from a tame, well-fed adult. Bristlebacks graze lichen; glazefoots need cultivated fungal caps. Products and manure need hauling.' },
+  galley: { name: 'Galley', cost: { alloy: 6, components: 1 }, work: 10, demand: 2, description: 'Choose a recipe combining two raw food portions with water. Production skill unlocks recipes and determines meal quality; combinations add comfort. Keeps ingredient age. Requires safe air and 5–35 °C.' },
   iceProcessor: { name: 'Ice processor', cost: { alloy: 6, components: 1 }, work: 10, demand: 3, noise: 1, description: 'An operator melts and filters two mined ice into two water with 20 work. Requires a habitat floor, delivered ice and 3 kW of wired power. Water can be hauled into storage or collected through a water intake; consuming machines still need their other ingredients and operator.' },
   artisan: { name: 'Craft workstation', cost: { alloy: 6, components: 1 }, work: 10, demand: 2, noise: 1, description: 'An operator crafts a personal keepsake from two alloy and one component. Style follows the maker’s preference; Production skill determines quality. Needs safe air, 5–40 °C and wired power.' },
   sculpture: { name: 'Alloy sculpture', cost: { alloy: 4 }, work: 10, comfortArt: true, description: 'A hand-built orbital knot on a plinth. Adds art to its compartment; condition matters. Crew who enjoy art benefit most. Repeated sculptures do not stack.' },
@@ -40,7 +41,7 @@ export const BUILDINGS = {
   battery: { name: 'Battery bank', cost: { alloy: 4, components: 1 }, work: 8, description: 'Stores 120 kJ on its own circuit. New banks start empty; charge them from generation or a recovered power cell.' },
   scrubber: { name: 'Life support', cost: { alloy: 5, components: 1 }, work: 9, demand: 3, description: 'Recycles exhaled gas. Delivered breathing mix replaces lost gas and refills the habitat.' },
   atmosphere: { noise: 1, name: 'Atmosphere processor', cost: { alloy: 8, components: 2 }, work: 12, demand: 4, description: 'Crew use water and local volatiles to make breathing mix. Haulers supply life support with its output.' },
-  farm: { name: 'Hydroponics', cost: { alloy: 5, components: 1 }, work: 8, demand: 2, description: 'Crew grow two food from one water and 0.25 fertilizer. Needs power, breathable air and 10–35 °C. Recycle waste to replenish nutrients.' },
+  farm: { name: 'Hydroponics', cost: { alloy: 5, components: 1 }, work: 8, demand: 2, description: 'Grow fungal caps, siltgrain or sunberries with delivered water and fertilizer. Each crop yields two raw food portions. Crop choice sets work, temperature and Production skill requirements. Needs power and breathable air.' },
   recycler: { noise: 1, name: 'Nutrient recycler', cost: { alloy: 6, components: 1 }, work: 10, demand: 2, description: 'Crew process one waste and 0.25 water into 0.25 fertilizer with 25 work. Recovers nutrients from meal waste and spoiled food. Needs wired power; output must be hauled to storage.' },
   refinery: { noise: 1, name: 'Refinery', cost: { alloy: 6 }, work: 9, demand: 3, description: 'Crew refine one ore into two alloy with 20 work. Needs delivered ore and power.' },
   fabricator: { noise: 1, name: 'Parts fabricator', cost: { alloy: 8, components: 2 }, work: 12, demand: 4, description: 'Makes a component from three alloy. Needs a production operator, delivered inputs and power; output must be hauled away.' },
@@ -65,7 +66,7 @@ export const RECIPES = {
   fabricator: { input: { alloy: 3 }, output: { components: 1 }, duration: 45 },
 };
 export const SPECIES = {
-  bristleback: { name: 'Bristleback', description: 'A six-legged frontier grazer. Mineral plates protect a warm, soft abdomen; broad feelers comb lichen from the ground. Its low clicking calls travel through the rock. Paired adults can carry a single brood beneath their plates; hatchlings graze and grow before producing curd.', color: '#a79564' },
+  ...Object.fromEntries(Object.entries(LIVESTOCK).map(([id, { name, description, color }]) => [id, { name, description, color }])),
   tibble: { name: 'Tibble', description: 'A thumb-sized, translucent seed-mite with three hinged mouthparts. Eats stored food and hydroponic biomass. Well-fed colonies lay clutches quickly. Build a biofilter trap near cargo.', color: '#d8ac91' },
 };
 export const SITES = {

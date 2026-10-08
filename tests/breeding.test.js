@@ -22,7 +22,7 @@ const children=s=>s.creatures.filter(a=>a.lifecycle?.born!==null&&a.lifecycle);
 const events=s=>exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>r.event).map(r=>r.event);
 
 test('founders begin adult and breeding is off until explicitly enabled',()=>{
- const s=createGame();assert.ok(s.creatures.every(a=>a.lifecycle.growth===600&&!a.lifecycle.enabled));step(s,100);assert.equal(s.creatures.length,3);check(s);
+ const s=createGame();assert.ok(s.creatures.every(a=>a.lifecycle.growth===600&&!a.lifecycle.enabled));step(s,100);assert.equal(s.creatures.length,5);check(s);
 });
 
 test('two nearby tame adults conceive one carried brood and spend nutrition',()=>{

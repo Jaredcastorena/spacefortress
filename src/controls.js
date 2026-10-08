@@ -1,3 +1,5 @@
+import { CROPS, MEAL_RECIPES, FOOD_KINDS } from './food-data.js';
+import { LIVESTOCK } from './livestock-data.js';
 import { GRID, DIRECTIONS } from './geometry.js';
 import { BREAKER_DIRECTIONS, BREAKER_MODES, setBreaker, resetBreaker } from './breakers.js';
 import { PLUMBING, WATER_DIRECTIONS, setWaterValve, setWaterPump, setWaterIntake, setWaterOutlet } from './plumbing.js';
@@ -18,7 +20,7 @@ import { setRoomDesignation, ROOM_ROLES } from './rooms.js';
 import { setBunkOwner } from './housing.js';
 import { setClimate } from './thermal.js';
 import { setDepotAccepted, setDepotPriority } from './storage.js';
-import { setProductionOrder, setProductionPriority } from './production.js';
+import { setProductionOrder, setProductionPriority, setProductionRecipe } from './production.js';
 import { setMachineEnabled } from './industry.js';
 import { setDoorMode } from './atmosphere.js';
 import { configureAirlock, enableAirlock, requestAirlock, cancelAirlock, releaseAirlock, unbindAirlock } from './airlocks.js';
@@ -80,6 +82,7 @@ register('radiator.configure','setRadiator','Enable or isolate passive reactor c
 register('climate.configure','setClimate','Set a climate target and enabled state.',{...xy,target:{type:'number',minimum:-20,maximum:35},enabled},setClimate);
 register('depot.accept','setDepotAccepted','Change a depot filter without deleting stored supplies.',{...xy,resource:enumeration(RESOURCES),enabled},setDepotAccepted);
 register('depot.priority','setDepotPriority','Set delivery priority for a depot.',{...xy,priority},setDepotPriority);
+register('production.recipe','setProductionRecipe','Select the next crop or galley recipe while finishing the committed batch.',{...xy,recipe:enumeration([...Object.keys(CROPS).filter(id=>id!=='legacy_crop'),...Object.keys(MEAL_RECIPES)])},setProductionRecipe);
 register('production.order','setProductionOrder','Set continuous production, fixed batches or a stock target.',{...xy,mode:enumeration(['continuous','batches','stock']),limit:integer(0,1000)},setProductionOrder);
 register('production.priority','setProductionPriority','Set priority for workstation operators and input delivery.',{...xy,priority},setProductionPriority);
 register('production.enable','setMachineEnabled','Pause or resume a machine while retaining its inputs and batch.',{...xy,enabled},setMachineEnabled);
@@ -90,11 +93,11 @@ register('power.breaker.reset','resetBreaker','Reset an intact open breaker and 
 register('power.cable','setCableEnabled','Connect or isolate a cable segment.',{...xy,enabled},setCableEnabled);
 register('crew.routine','setLifePolicy','Set balanced, work-focused or off-duty routine.',{crew,policy:enumeration(Object.keys(LIFE_POLICIES))},setLifePolicy);
 register('fire.response','setFireResponse','Enable or disable automatic supplied fire-response orders. Existing orders remain.',{site,enabled},setFireResponse);
-register('pasture.gate','setPastureGate','Latch a crew wicket to contain bristlebacks, or hold it open for animal passage.',{...xy,mode:enumeration(['latched','open'])},setPastureGate);
+register('pasture.gate','setPastureGate','Latch a crew wicket to contain livestock, or hold it open for animal passage.',{...xy,mode:enumeration(['latched','open'])},setPastureGate);
 register('door.mode','setDoorMode','Set a pressure door to automatic, open or sealed.',{...xy,mode:enumeration(['auto','open','closed'])},setDoorMode);
 register('crew.possessions.collect','setPossessionCollection','Allow or stop physical keepsake collection during downtime.',{crew,enabled},setPossessionCollection);
 register('crew.possessions.release','releasePossession','Put the owned keepsake down at this crew member’s local position.',{crew},releasePossession);
-register('husbandry.assign','setAnimalPost','Assign one bristleback to a reachable post, or release it with null coordinates.',{creature:{type:'string',entityType:'creature'},x:{type:['integer','null'],minimum:0,maximum:25},y:{type:['integer','null'],minimum:0,maximum:25}},sim.setAnimalPost);
+register('husbandry.assign','setAnimalPost','Assign one livestock animal to a reachable post, or release it with null coordinates.',{creature:{type:'string',entityType:'creature'},x:{type:['integer','null'],minimum:0,maximum:25},y:{type:['integer','null'],minimum:0,maximum:25}},sim.setAnimalPost);
 register('husbandry.transport','transportAnimalToPost','Send a handler to physically escort a tame animal to a post.',{creature:{type:'string',entityType:'creature'},x:integer(0,25),y:integer(0,25)},sim.transportAnimalToPost);
 register('husbandry.breed','setBreeding','Allow or stop new brood pairing. Existing broods continue when conditions permit.',{creature:{type:'string',entityType:'creature'},enabled},setBreeding);
 register('husbandry.policy','setAnimalPolicy','Enable or pause automatic feeding/handling or curd collection.',{creature:{type:'string',entityType:'creature'},policy:enumeration(['care','harvest']),enabled},sim.setAnimalPolicy);
@@ -165,5 +168,5 @@ export function controlBindings(getState,source='player') {
   return Object.fromEntries(entries.filter(e=>e.binding!=='step').map(e=>[e.binding,(_state,...values)=>executeAction(getState(),e.id,Object.fromEntries(Object.keys(e.parameters).map((k,i)=>[k,values[i]]).filter(([,v])=>v!==undefined)),source)]));
 }
 export function createAgentInterface(getState,beforeAction=()=>{},afterAction=()=>{}) {
-  return Object.freeze({version:1,definitions:()=>JSON.parse(JSON.stringify({grid:GRID,directions:DIRECTIONS,gasNetworks:GAS_NETWORK,gasDirections:GAS_DIRECTIONS,plumbing:PLUMBING,waterDirections:WATER_DIRECTIONS,breakerDirections:BREAKER_DIRECTIONS,breakerModes:BREAKER_MODES,liquids:LIQUID,reactor:REACTOR,fire:FIRE,animalTransport:{work:TRANSPORT_WORK,stepInterval:TRANSPORT_STEP,tameOnly:true},breeding:BREEDING,buildings:BUILDINGS,recipes:RECIPES,resources:RESOURCES,shuttleFits:SHUTTLE_FITS,outposts:{sites:OUTPOST_SITES,commissioningReserves:OUTPOST_RESERVES},itemStyles:ITEM_STYLES,extraction:{ice:{capacity:ICE_SEAM_CAPACITY,perOrder:ICE_EXTRACTION_AMOUNT}}})),actions:actionCatalog,observe:()=>observe(getState()),act:(id,args={})=>{beforeAction();try{return executeAction(getState(),id,args,'agent');}finally{afterAction();}},recording:Object.freeze({status:()=>recordingStatus(getState()),start:options=>startRecording(getState(),options),stop:()=>stopRecording(getState()),export:()=>exportRecording(getState())})});
+  return Object.freeze({version:1,definitions:()=>JSON.parse(JSON.stringify({grid:GRID,directions:DIRECTIONS,gasNetworks:GAS_NETWORK,gasDirections:GAS_DIRECTIONS,plumbing:PLUMBING,waterDirections:WATER_DIRECTIONS,breakerDirections:BREAKER_DIRECTIONS,breakerModes:BREAKER_MODES,liquids:LIQUID,reactor:REACTOR,fire:FIRE,animalTransport:{work:TRANSPORT_WORK,stepInterval:TRANSPORT_STEP,tameOnly:true},breeding:BREEDING,livestock:LIVESTOCK,foodKinds:FOOD_KINDS,crops:CROPS,mealRecipes:MEAL_RECIPES,buildings:BUILDINGS,recipes:RECIPES,resources:RESOURCES,shuttleFits:SHUTTLE_FITS,outposts:{sites:OUTPOST_SITES,commissioningReserves:OUTPOST_RESERVES},itemStyles:ITEM_STYLES,extraction:{ice:{capacity:ICE_SEAM_CAPACITY,perOrder:ICE_EXTRACTION_AMOUNT}}})),actions:actionCatalog,observe:()=>observe(getState()),act:(id,args={})=>{beforeAction();try{return executeAction(getState(),id,args,'agent');}finally{afterAction();}},recording:Object.freeze({status:()=>recordingStatus(getState()),start:options=>startRecording(getState(),options),stop:()=>stopRecording(getState()),export:()=>exportRecording(getState())})});
 }

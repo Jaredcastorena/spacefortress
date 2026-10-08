@@ -1,14 +1,24 @@
 # SPACEFORTRESS roadmap
 
-**Published version: v0.1.2 · Published save schema: 38 · Local experimental schema: 40.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
+**Published version: v0.1.2 · Published save schema: 38 · Local experimental schema: 41.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
 
 See the [README](README.md) to play, [verification status](docs/verification-status.md) for evidence and limits, and the [180-system conversion inventory](docs/conversion-inventory.md) for the wider backlog. Completing a milestone below does not complete an entire inventory family or establish full Dwarf Fortress parity.
+
+## Current increment: flora, livestock and food variety
+
+- Implemented locally: fungal caps, siltgrain and sunberries; fungus-fed glazefoots producing eggs; distinct bristleback curd; eight galley recipes; Production skill gates and four meal-quality tiers.
+- Ingredients remain physical goods, with exact food kinds, spoilage ages, animal feed reservations and prepared-meal provenance. Recipe changes preserve committed batches and return incompatible waiting supplies.
+- Schema 41 migrates schema-40 hex saves; legacy food and animals are preserved. No dependencies or remote assets were added.
+- Automated checks cover crop/recipe selection, hauling contention, species care/breeding, migration and structured observations. The full gate found two plumbing-delivery issues; both are repaired with 17 affected checks passing. A supplied crop→care→eggs→omelet→eating trial passed at tick 605 with 12 shared commands and ten exact reloads. Browser crop/recipe controls, skill/input explanations and narrow layout also passed. Building the full food chain from a fresh colony remains unverified.
+- Next ecology depth: natural plant communities, biomes and growing stages; distinct animal physiology and veterinary care; inherited traits, meat/fibre products and more preservation. Connected physical decks remain separate work.
+
+See [food and ecology](docs/food-and-ecology.md) for current recipes and boundaries. This expansion is not published.
 
 ## Current direction: hexagonal construction grid
 
 Actual hexagonal terrain and building tiles are implemented locally, retaining the isometric view. Shared six-neighbor geometry now drives movement, walls, sealed rooms, utilities, livestock boundaries and airlocks, with matching rendering and picking. Schema 40 identifies hex saves; square schemas 1–39 are rejected with their original bytes protected for export. The independent gravity-based elements lab remains square.
 
-**Verified:** focused physical and geometry checks, a final full regression run of 1,055 Node passes / one intentional skip and retained 26 Python passes, and scoped Chrome checks for real hex rendering, pointer selection, a build ghost, utility overlays and a narrow inspector. Per-edge flow rates are retained, so six neighbors can increase total exchange compared with four.
+**Historical hex baseline:** focused physical and geometry checks, a full regression run of 1,057 Node passes / one intentional skip and retained 26 Python passes, and scoped Chrome checks for real hex rendering, pointer selection, a build ghost, utility overlays and a narrow inspector. Per-edge flow rates are retained, so six neighbors can increase total exchange compared with four.
 
 **Next acceptance:** build and commission a cycling airlock using ordinary finite supplies from a fresh hex colony; move a named parcel through it and return it. The actual held-pointer form submission now passes; the wider outpost endurance/resupply/care journey remains incomplete. Neither the new hex build nor its airlocks are published yet.
 

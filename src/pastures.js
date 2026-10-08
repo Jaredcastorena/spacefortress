@@ -1,3 +1,4 @@
+import { isLivestock } from './livestock-data.js';
 import { neighbors } from './geometry.js';
 import { animalPassable } from './navigation.js';
 import { emitEvent, recordingStatus, tileEntityId } from './telemetry.js';
@@ -25,12 +26,12 @@ export function animalPasture(s,a,regions=pastureRegions(s.sites.surface)) {
 export function pastureSnapshot(s) {
   if(!recordingStatus(s).active)return null;
   const regions=pastureRegions(s.sites.surface);
-  return new Map(s.creatures.filter(a=>a.species==='bristleback'&&a.health>0).map(a=>[a.id,animalPasture(s,a,regions)]));
+  return new Map(s.creatures.filter(a=>isLivestock(a)&&a.health>0).map(a=>[a.id,animalPasture(s,a,regions)]));
 }
 export function recordPastureChanges(s,before) {
   if(!before)return;
   const regions=pastureRegions(s.sites.surface);
-  for(const a of s.creatures.filter(a=>a.species==='bristleback'&&a.health>0)){
+  for(const a of s.creatures.filter(a=>isLivestock(a)&&a.health>0)){
     const previous=before.get(a.id),current=animalPasture(s,a,regions);if(!previous)continue;
     if(previous.enclosed!==current.enclosed)emitEvent(s,current.enclosed?'animal.containment.gained':'animal.containment.lost',{entity:a.id,previous:previous.region,region:current.region});
     else if(previous.region!==current.region)emitEvent(s,'animal.pasture.changed',{entity:a.id,previous:previous.region,region:current.region,enclosed:current.enclosed});
@@ -44,7 +45,7 @@ export function moveAnimal(s,a,next,reason) {
 export function setPastureGate(s,siteId,x,y,mode) {
   const site=s.sites[siteId],t=site&&x>=0&&y>=0&&x<site.size&&y<site.size?site.tiles[y*site.size+x]:null;
   if(t?.building!=='pastureGate'||!['latched','open'].includes(mode))return {ok:false,message:'Select a pasture gate.'};
-  if(mode==='latched'&&s.creatures.some(a=>a.site===siteId&&a.species==='bristleback'&&a.health>0&&a.x===x&&a.y===y))return {ok:false,message:'Wait for the bristleback to clear the gate.'};
+  if(mode==='latched'&&s.creatures.some(a=>a.site===siteId&&isLivestock(a)&&a.health>0&&a.x===x&&a.y===y))return {ok:false,message:'Wait for the animal to clear the gate.'};
   const before=pastureSnapshot(s),previous=t.gateMode;t.gateMode=mode;
   if(previous!==mode)emitEvent(s,'pasture.gate.mode_changed',{entity:tileEntityId(siteId,x,y),previous,mode,effective:t.hp>0});
   recordPastureChanges(s,before);return {ok:true};

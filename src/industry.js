@@ -1,11 +1,11 @@
 import { crewPathTo } from './navigation.js';
 import { advanceCrewRoute } from './crew-traversal.js';
 import { airlockControlOwner } from './airlock-access.js';
-import { rawFood, preparedFood } from './food-lots.js';
+import { rawFood, foodOfKind, planFoodSelection } from './food-lots.js';
 import { emitItemMovement, tileEntityId } from './telemetry.js';
 import { fitAmount } from './item-lots.js';
 import { depotUsage, acceptsResource, acceptsShipment } from './storage.js';
-import { scheduleProduction, inputBatchesWanted, releaseOperationsAt } from './production.js';
+import { scheduleProduction, inputBatchesWanted, releaseOperationsAt, recipeFor } from './production.js';
 import { refreshPower } from './power.js';
 import { RECIPES } from './data.js';
 import { add, extract, resourceEntries, contains, quantity, spill, CARRY_CAPACITY } from './inventory.js';
@@ -38,11 +38,11 @@ function pickHaul(s, c, site, pathTo) {
   const depots = site.tiles.filter(t => t.building === 'stockpile');
   const claimed = (t, kind) => s.crew.some(o=>o!==c&&o.site===c.site&&o.intent?.keepsake?.source===kind&&same(o.intent.keepsake.target,xy(t))) || hasOutgoingInventory(s, c.site, xy(t), kind, c);
   const candidates = [];
-  const offer = (t, kind, items, destination, priority, purpose) => {
+  const offer = (t, kind, items, destination, priority, purpose, foodKinds = undefined) => {
     if (!quantity(items)) return;
     const pickup = crewPathTo(s, site, c, [xy(t)]), delivery = crewPathTo(s, site, t, [destination.target]);
     if (pickup === null || delivery === null) return;
-    candidates.push({ priority, purpose, distance: pickup.length + delivery.length, intent: { type: 'haul', target: xy(t), source: kind, items, destination } });
+    candidates.push({ priority, purpose, distance: pickup.length + delivery.length, intent: { type: 'haul', target: xy(t), source: kind, items, destination, ...(destination.recipeId ? { recipeId: destination.recipeId } : {}), ...(foodKinds ? { foodKinds } : {}) } });
   };
   // Claims reserve space before pickup. Transfers only move uphill in priority, or evacuate rejected goods.
   for (const t of site.tiles) for (const kind of ['drop', 'output', 'stock', 'imports']) {
@@ -58,20 +58,64 @@ function pickHaul(s, c, site, pathTo) {
     }
   }
   for (const t of site.tiles) {
-    const recipe = RECIPES[t.building], m = t.machine;
+    const recipe = recipeFor(t, 'selected'), m = t.machine;
     if (!recipe || !m?.enabled || !t.hp) continue;
-    const destination = { kind: 'input', target: xy(t) };
+    const destination = { kind: 'input', target: xy(t), ...(recipe.id ? { recipeId: recipe.id } : {}) };
+    const batches = inputBatchesWanted(s, site, t);
     for (const [r, n] of Object.entries(recipe.input)) {
-      const needed = n * inputBatchesWanted(s, site, t) - (m.input[r] || 0) - incomingInventory(s, c.site, destination, r); if (needed <= 1e-9 || (recipe.automatic && ['reactor','waterTank','gasTank'].includes(t.building) && needed<n-1e-9)) continue;
+      const delivered = r === 'food' && t.building === 'galley' ? rawFood(m.input) : m.input[r] || 0;
+      const needed = n * batches - delivered - incomingInventory(s, c.site, destination, r);
+      const neededKinds = r === 'food' && recipe.foodKinds && Object.fromEntries(Object.entries(recipe.foodKinds).map(([kind, amount]) => [kind, Math.max(0, amount * batches - foodOfKind(m.input, kind) - incomingInventory(s, c.site, destination, r, kind))]));
+      if (neededKinds ? !Object.values(neededKinds).some(n => n > 1e-9) : needed <= 1e-9 || (recipe.automatic && ['reactor','waterTank','gasTank'].includes(t.building) && needed < n - 1e-9)) continue;
       for (const source of site.tiles) for (const kind of ['stock', 'imports']) {
         const inventory = buffer(source, kind);
         if ((inventory?.[r] || 0) <= 0 || claimed(source, kind)) continue;
-        offer(source, kind, { [r]: Math.min(needed, t.building==='galley'&&r==='food'?rawFood(inventory):inventory[r], CARRY_CAPACITY) }, destination, recipe.lifeSupport || recipe.automatic ? 5 : m.order.priority, 0);
+        let picked, foodKinds;
+        if (neededKinds) {
+          foodKinds = {}; let room = CARRY_CAPACITY;
+          for (const [foodKind, amount] of Object.entries(neededKinds)) {
+            const n = Math.min(amount, foodOfKind(inventory, foodKind), room);
+            if (n > 1e-9) { foodKinds[foodKind] = n; room -= n; }
+          }
+          picked = Object.values(foodKinds).reduce((sum, n) => sum + n, 0);
+        } else {
+          picked = Math.min(needed, t.building === 'galley' && r === 'food' ? rawFood(inventory) : inventory[r], CARRY_CAPACITY);
+          if (t.building === 'galley' && r === 'food' && picked > 0) foodKinds = kindsIn(planFoodSelection(inventory, picked, true));
+        }
+        offer(source, kind, { [r]: picked }, destination, recipe.lifeSupport || recipe.automatic ? 5 : m.order.priority, 0, foodKinds);
       }
     }
   }
   candidates.sort((a, b) => b.priority - a.priority || a.purpose - b.purpose || a.distance - b.distance);
   return candidates[0]?.intent || null;
+}
+const kindsIn = lots => (lots || []).reduce((kinds, lot) => { const kind = lot.kind || 'ration'; kinds[kind] = (kinds[kind] || 0) + lot.amount; return kinds; }, {});
+// Delivered cargo is physical: after a selection switch, keep only portions
+// useful to the new recipe and return the remainder through ordinary hauling.
+function inputShipment(s, c, site, tile, cargo) {
+  const recipe = recipeFor(tile, 'selected'), store = tile.machine?.input;
+  if (!recipe || !store || !tile.hp) return null;
+  const destination = { kind: 'input', target: xy(tile), ...(recipe.id ? { recipeId: recipe.id } : {}) };
+  const items = {}, foodKinds = {};
+  for (const [r, n] of resourceEntries(cargo)) {
+    if (!recipe.input[r]) continue;
+    let picked;
+    if (r === 'food' && recipe.foodKinds) {
+      for (const [kind, amount] of Object.entries(recipe.foodKinds)) {
+        const room = amount * 2 - foodOfKind(store, kind) - incomingInventory(s, c.site, destination, r, kind, c);
+        const take = Math.min(foodOfKind(cargo, kind), Math.max(0, room));
+        if (take > 1e-9) foodKinds[kind] = take;
+      }
+      picked = Object.values(foodKinds).reduce((sum, n) => sum + n, 0);
+    } else {
+      const raw = r === 'food' && tile.building === 'galley';
+      const room = recipe.input[r] * 2 - (raw ? rawFood(store) : store[r] || 0) - incomingInventory(s, c.site, destination, r, null, c);
+      picked = Math.min(raw ? rawFood(cargo) : n, Math.max(0, room));
+    }
+    if (picked > 1e-9) items[r] = picked;
+  }
+  if (!quantity(items)) return null;
+  return { items, selector: items.food && tile.building === 'galley' ? recipe.foodKinds ? { rawOnly: true, foodKinds } : true : false };
 }
 function move(s, c, site, target) { return advanceCrewRoute(s, c, site, [target]).status; }
 export function haul(s, c, site, pathTo) {
@@ -82,8 +126,7 @@ export function haul(s, c, site, pathTo) {
       if (!d) return false;
       const tile = tileAt(site, d.target), store = buffer(tile, d.kind);
       if (!store) return false;
-      if(d.kind==='input'&&tile.building==='galley'&&preparedFood(c.carry)>0)return false;
-      return (d.kind === 'stock' ? acceptsShipment(s, c.site, tile, c.carry, c) : resourceEntries(c.carry).every(([r, n]) => RECIPES[tile.building]?.input[r] && (store[r] || 0) + n <= RECIPES[tile.building].input[r] * 2));
+      return d.kind === 'stock' ? acceptsShipment(s, c.site, tile, c.carry, c) : d.kind === 'input' && !!inputShipment(s, c, site, tile, c.carry);
     };
     // A dismantled machine/depot releases the delivery; keep the cargo and find storage.
     if (!destinationAccepts(d) || crewPathTo(s, site, c, [d.target]) === null) {
@@ -98,8 +141,14 @@ export function haul(s, c, site, pathTo) {
     const result = move(s, c, site, d.target, pathTo);
     c.activity = result === 'blocked' ? 'Delivery route blocked; holding cargo' : d.kind === 'input' ? 'Delivering machine inputs' : 'Hauling to cargo depot';
     if (result === 'arrived') {
-      emitItemMovement(s,c.carry,c.id,{entity:c.id,slot:'carry'},{entity:tileEntityId(site.id,...d.target),slot:d.kind==='input'?'machine.input':d.kind});
-      add(buffer(tileAt(site, d.target), d.kind), c.carry); c.carry = null; c.delivery = null; c.intent = null;
+      const tile = tileAt(site, d.target), selection = d.kind === 'input' ? inputShipment(s, c, site, tile, c.carry) : { items: c.carry, selector: false };
+      const cargo = selection && extract(c.carry, selection.items, selection.selector);
+      if (cargo) {
+        emitItemMovement(s,cargo,c.id,{entity:c.id,slot:'carry'},{entity:tileEntityId(site.id,...d.target),slot:d.kind==='input'?'machine.input':d.kind});
+        add(buffer(tile, d.kind), cargo);
+      }
+      if (!quantity(c.carry)) c.carry = null;
+      c.delivery = null; c.intent = null;
       gainExperience(c, 'hauling', 4);
     }
     return true;
@@ -109,11 +158,18 @@ export function haul(s, c, site, pathTo) {
   if (c.intent?.type !== 'haul') return false;
   const intent = c.intent, source = tileAt(site, intent.target), items = buffer(source, intent.source);
   if (!items || !contains(items, intent.items) || !buffer(tileAt(site, intent.destination.target), intent.destination.kind) || (intent.destination.kind === 'stock' && !acceptsShipment(s, c.site, tileAt(site, intent.destination.target), intent.items, c))) { c.intent = null; return true; }
-  const rawOnly=intent.destination.kind==='input'&&tileAt(site,intent.destination.target).building==='galley';
-  if(rawOnly&&(intent.items.food||0)>rawFood(items)){c.intent=null;return true;}
+  const target = tileAt(site, intent.destination.target), recipe = intent.destination.kind === 'input' && recipeFor(target, 'selected');
+  const rawOnly = intent.destination.kind === 'input' && target.building === 'galley';
+  const selector = intent.foodKinds ? { rawOnly: true, foodKinds: intent.foodKinds } : rawOnly;
+  if (intent.items.food && !planFoodSelection(items, intent.items.food, selector)) { c.intent = null; return true; }
+  if (intent.destination.kind === 'input') {
+    if (!recipe || intent.recipeId && intent.recipeId !== recipe.id || recipe.foodKinds && intent.items.food && !intent.foodKinds) { c.intent = null; return true; }
+    const selected = inputShipment(s, c, site, target, intent.items.food ? { ...intent.items, _food: planFoodSelection(items, intent.items.food, selector) } : intent.items);
+    if (!selected || resourceEntries(intent.items).some(([r, n]) => (selected.items[r] || 0) + 1e-9 < n)) { c.intent = null; return true; }
+  }
   const result = move(s, c, site, intent.target, pathTo); c.activity = 'Collecting reserved shipment';
   if (result === 'arrived') {
-    c.carry = extract(items, intent.items, rawOnly); emitItemMovement(s,c.carry,c.id,{entity:tileEntityId(site.id,...intent.target),slot:intent.source==='output'?'machine.output':intent.source},{entity:c.id,slot:'carry'}); c.delivery = intent.destination; c.intent = null;
+    c.carry = extract(items, intent.items, selector); emitItemMovement(s,c.carry,c.id,{entity:tileEntityId(site.id,...intent.target),slot:intent.source==='output'?'machine.output':intent.source},{entity:c.id,slot:'carry'}); c.delivery = intent.destination; c.intent = null;
     if (intent.source === 'drop' && !quantity(source.drop)) source.drop = null;
   } else if (result === 'blocked') { c.intent = null; c.activity = 'Pickup route blocked'; }
   return true;

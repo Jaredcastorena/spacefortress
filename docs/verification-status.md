@@ -2,7 +2,20 @@
 
 Updated October 8, 2026. This is the compact evidence index for implemented and proposed systems. **Verified** means the named scope passed its stated check. **Pending** means evidence is not yet complete. **Failed** means a known check contradicts the requirement. None of these rows declares the whole game finished.
 
-## Unreleased hex colony and cycling airlocks — schema 40
+## Unreleased food and ecology — schema 41
+
+| Check | Status | Evidence and scope |
+| --- | --- | --- |
+| Crops, recipe identity and finite ingredients | Verified — focused checks | Three crops and eight recipes; kind-preserving extraction, physical reservations, recipe switching, committed batches, skill gates, oldest input age and meal provenance. Core receipt `food-variety/core-receipt-sha256-e889eeb0c01bb1dd5a4bab43b38cc141d68a978e4226b5a1cad91b2002c28359.json`. |
+| Livestock | Verified — focused checks | Glazefoot fungal diet and eggs, bristleback curd, same-species breeding, juvenile protection, shared enclosure capacity and transport. Ecology receipt `9339ebaf`; 78 distinct checks passed. No broad population balance claim. |
+| Full Node gate and repairs | Verified — combined evidence | Full run: **1,092 passed, two failed, one skipped**; 216 source/test inputs unchanged. Root reviewed both failures: paused deliveries were rejected, and a stock fixture counted generic food for a named crop. After the minimal repair and crop-aware fixture correction, all **17 affected checks passed** with unchanged fingerprints. The full suite was not repeated. Receipts `food-variety/node-gate-report-sha256-72376ff812315caf3b8dfa7b45edf3188462e6bc83702449cb501568c7c43078.json` and `food-logistics/v55-scoped-report-sha256-e6dfde37301200f94ce4bc68b0b4fe34c57036b75b68dfb41bbe03674dfb7322.json`. The earlier 26 Python checks apply to unchanged tooling. |
+| Save migration and observations | Verified — scoped checks | 31 distinct checks cover schema-40 hex migration, active batch defaults, action validation, ingredient claims and telemetry. The actual tick-3173 colony reloads exactly after migration, preserving seven crew, three animals, zero jobs and all physical totals; no gameplay replay. Migration receipt `food-variety/integration-migration-sha256-14b2bff078c1c20e15f7fce2e35d93e4a79751053f780ca6c026009e2ed52640.json`. |
+| Food panels | Verified — scoped checks and browser | Seven panel checks pass. Actual browser checks confirm glazefoot species details, visible food kinds and freshness, crop selection retained through live refresh, committed-batch preservation and a 390-pixel-wide crop inspector. A galley was physically built by tick 81; all eight recipes, advanced skill/missing-ingredient explanations, selection save/reload and current/next requirements labels passed browser review. No browser warnings or errors were observed. A final wording-only correction passed all seven panel checks; receipt `food-ui/wording-receipt-sha256-5c6ab09f879adfe4915f34c87885bf21b090273ede565ee9f3e26ed51d78a260.json`. |
+| Complete supplied food chain | Verified — one supplied fixture | First success at **tick 605 / 12 shared commands**: four fungal caps → three actual care deliveries → natural readiness → two eggs → two quality-two omelet units → 0.125 eaten. One raw egg and 1.875 prepared units remain; ledgers reconcile, all seven crew healthy and ten checkpoints reload exactly. No ingredient, trust, readiness or experience grants. Buildings, wiring and finite energy/supplies were declared setup provisions. This does not prove fresh-colony construction or replay the historical tick-3173 colony. Receipt `food-variety/food-chain-receipt-sha256-db2c5c38bef08439b830bcf0d34d7853c02e77a6b7f36444dd8d38c8c8cb2aa0.json`; root audit `8aef8d95`. |
+
+The receipts named above are local immutable files under `.runtime-qa/`; large saves and logs remain private. [Food and ecology](food-and-ecology.md) lists implemented content and future depth.
+
+## Historical hex colony and cycling airlock baseline — schema 40
 
 | Check | Status | Evidence and scope |
 | --- | --- | --- |

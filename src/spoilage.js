@@ -61,8 +61,12 @@ export function updateFood(s, pathTo) {
     if (crew && !quantity(crew.carry)) { crew.carry = null; crew.delivery = null; }
     if (batch) {
       // A spoiled medical batch cannot finish. Recover its other ingredients physically.
-      spill(tileAt(place), inventory); machine.machine.batch = {}; machine.machine.progress = 0;
-      for (const j of s.jobs) if (j.kind === 'operate' && j.site === place.site.id && j.x === machine.x && j.y === machine.y) j.remaining = j.work;
+      spill(tileAt(place), inventory); machine.machine.batch = {}; machine.machine.progress = 0; delete machine.machine.batchRecipeId; delete machine.machine.legacyCrop;
+      // A changed next recipe may have different work. Discard only the unpaid
+      // assignment; the ordinary scheduler will create the correct next job.
+      const cancelled = s.jobs.filter(j => j.kind === 'operate' && j.site === place.site.id && j.x === machine.x && j.y === machine.y);
+      for (const j of cancelled) for (const c of s.crew) if (c.job === j.id) { c.job = null; c.activity = 'Batch spoiled; awaiting new ingredients'; }
+      s.jobs = s.jobs.filter(j => !cancelled.includes(j));
       machine.machine.status = 'Batch spoiled; needs fresh ingredients';
     }
   }
@@ -88,7 +92,8 @@ export function updateFood(s, pathTo) {
     s.log.unshift({ tick: s.tick, message: 'Food spoiled into waste. Inspect food age and storage temperature; jobs will request replacement ingredients.', type: 'danger' }); s.log = s.log.slice(0, 60);
   }
   for (const j of s.jobs) if (j.missingFood > 1e-9) {
-    const replacement = reserveConstruction(s, j.site, j.x, j.y, { food: j.missingFood }, pathTo);
+    const selector = j.foodKinds ? { rawOnly: true, foodKinds: Object.fromEntries(Object.entries(j.foodKinds).map(([kind, n]) => [kind, n * j.missingFood / j.cost.food])) } : false;
+    const replacement = reserveConstruction(s, j.site, j.x, j.y, { food: j.missingFood }, pathTo, selector);
     if (replacement) { j.sources.push(...replacement); j.missingFood = 0; j.blockedReason = 'Collecting replacement food'; }
   }
 }

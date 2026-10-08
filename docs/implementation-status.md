@@ -1,12 +1,18 @@
 # Implementation status and next depth pass
 
-Updated September 30, 2026.
+Updated October 8, 2026.
 
-## Active development checkpoint
+## Local hex and food development
+
+The local branch uses hex colonies and schema 41. Three crop types, glazefoot eggs, bristleback curd, eight recipes, skill requirements and preserved ingredient provenance are implemented. See [food and ecology](food-and-ecology.md) and the [verification record](verification-status.md). A complete supplied food-chain trial and scoped browser acceptance passed; building that full chain from a fresh colony is still unverified. The published release remains v0.1.2/schema38.
+
+Historical ordinary play reached tick 3173 with seven healthy founders, repaired life support and restored solar generation. The actual checkpoint migrates to schema 41 without physical quantity loss; it has not been replayed under the new food expansion. Paid airlock enclosure, commissioning, a parcel roundtrip and long-term outpost endurance remain pending. Physical decks and the generated universe remain future work.
+
+## Published development checkpoint — historical
 
 **v0.1.2 publishes the schema38 wreck-outpost development preview.** Physical freight, local construction, measured habitat checks, residence/return controls, site-local crew care and conditional single-pilot pickup extend the schema37 foundation. The user requested a stopping point and publication of the current tested build. Complete fresh-colony endurance, delayed resupply, ordinary remote care and final pickup remain unfinished. See the [outpost scope](staffed-orbital-outpost-design.md) and [current verification](verification-status.md).
 
-The current source gate through the loading, recovery, terminal and oxygen fixes passes 958 of 959 Node checks, with zero failures and one intentional historical capture-only skip (64.33 seconds). All163 JavaScript source/test files parse; earlier Python15/15 remains valid. The final ordinary journey test is still pending. Scoped tests distinguish prepared care/readiness fixtures from ordinary play. Fresh colonies have paid for freight and habitat structures while keeping all seven founders alive. A genuine continuation stations a named resident and physically returns the pilot; bounded default/narrow player controls pass. The resident then encounters a real night power shortage, and depleted home air blocks pickup. A real comet return supplies additional finite ice and fuel for the revised route. Durable residence, delayed resupply/recovery and one fresh current-source acceptance remain pending. The lower-only oxygen rounding correction passes 35 focused checks and an independent actual gas ledger review; subsequent UI changes also passed their bounded browser check.
+The published source gate through the loading, recovery, terminal and oxygen fixes passes 958 of 959 Node checks, with zero failures and one intentional historical capture-only skip (64.33 seconds). All163 JavaScript source/test files parse; earlier Python15/15 remains valid. The final ordinary journey test is still pending. Scoped tests distinguish prepared care/readiness fixtures from ordinary play. Fresh colonies have paid for freight and habitat structures while keeping all seven founders alive. A genuine continuation stations a named resident and physically returns the pilot; bounded default/narrow player controls pass. The resident then encounters a real night power shortage, and depleted home air blocks pickup. A real comet return supplies additional finite ice and fuel for the revised route. Durable residence, delayed resupply/recovery and one fresh current-source acceptance remain pending. The lower-only oxygen rounding correction passes 35 focused checks and an independent actual gas ledger review; subsequent UI changes also passed their bounded browser check.
 
 The historical schema 36 [colony-to-orbit-and-back loop](orbital-colony-loop.md) and schema 37 ownership release remain accepted historical evidence. Previously accepted electrical/plumbing/gas systems remain regression requirements. Connected local decks, generated regions and the wider conversion inventory remain incomplete.
 

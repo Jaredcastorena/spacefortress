@@ -1,3 +1,4 @@
+import { isLivestock, livestockDef } from './livestock-data.js';
 import { pathTo } from './navigation.js';
 import { moveCrew } from './atmosphere.js';
 import { immobile } from './mobility.js';
@@ -7,13 +8,13 @@ import { emitEvent, tileEntityId } from './telemetry.js';
 export const TRANSPORT_WORK=6,TRANSPORT_STEP=3;
 export const transportJob=j=>j.kind==='animalLead';
 export const transportFor=(s,a)=>s.jobs.find(j=>transportJob(j)&&j.animal===a.id);
-export const transportAnimal=(s,j)=>s.creatures.find(a=>a.id===j.animal&&a.species==='bristleback'&&a.health>0&&a.husbandry.trust===100);
+export const transportAnimal=(s,j)=>s.creatures.find(a=>a.id===j.animal&&isLivestock(a)&&a.health>0&&a.husbandry.trust===100);
 const target=(s,j)=>s.sites.surface.tiles[j.y*s.sites.surface.size+j.x];
 const same=(a,b)=>a.x===b.x&&a.y===b.y&&a.site===b.site;
 export const postReserved=(s,x,y,animal)=>s.jobs.some(j=>transportJob(j)&&j.x===x&&j.y===y&&j.animal!==animal);
 export function requestTransport(s,id,x,y,cancelJob){
- const a=s.creatures.find(a=>a.id===id&&a.species==='bristleback'&&a.health>0&&a.husbandry.trust===100),site=s.sites.surface;
- if(!a)return {ok:false,message:'Transport requires a living, tame bristleback.'};
+ const a=s.creatures.find(a=>a.id===id&&isLivestock(a)&&a.health>0&&a.husbandry.trust===100),site=s.sites.surface;
+ if(!a)return {ok:false,message:'Transport requires living, tame livestock.'};
  if(!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=site.size||y>=site.size)return {ok:false,message:'Choose a husbandry post.'};
  const t=site.tiles[y*site.size+x];
  if(t.building!=='husbandryPost'||t.hp<=0)return {ok:false,message:'Choose a working husbandry post.'};
@@ -54,12 +55,12 @@ export function actTransport(s,c,j,release){
  if(route===null||pathTo(site,a,[[j.x,j.y]])===null){release(s,c);j.blockedReason=c.activity='Animal transport route blocked';return false;}
  j.blockedReason=null;
  if(j.phase==='collect'){
-  c.activity='Collecting a tame bristleback';
+  c.activity=`Collecting a tame ${livestockDef(a).name.toLowerCase()}`;
   if(route.length){moveCrew(c,site,route[0]);return false;}
   const effort=Math.min(j.remaining,workRate(c,'husbandry'));j.remaining-=effort;gainExperience(c,'husbandry',effort);
   if(j.remaining<=0){j.phase='escort';emitEvent(s,'animal.transport.attached',{entity:a.id,actor:c.id,job:j.id,target:tileEntityId('surface',a.x,a.y)});}return false;
  }
- c.activity='Escorting a bristleback';
+ c.activity=`Escorting a ${livestockDef(a).name.toLowerCase()}`;
  if(!route.length)return true;
  if(s.tick%TRANSPORT_STEP===0&&moveCrew(c,site,route[0]))moveAnimal(s,a,[c.x,c.y],'handler_escort');
  return false;

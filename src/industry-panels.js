@@ -1,13 +1,29 @@
 import { itemsDetails } from './possession-panels.js';
-import { foodDetails } from './food-panels.js';
+import { foodDetails, foodKindName, foodComposition } from './food-panels.js';
 import { temperatureAt } from './thermal.js';
 import { DEPOT_CAPACITY, depotUsage } from './storage.js';
-import { RECIPES, RESOURCES } from './data.js';
+import { RESOURCES } from './data.js';
 import { OUTPUT_CAPACITY } from './industry.js';
 import { quantity, resourceEntries } from './inventory.js';
+import { recipeFor, productionEligibility } from './production.js';
+import { CROPS, MEAL_RECIPES } from './food-data.js';
 
 export const inventoryText = items => resourceEntries(items).filter(([, n]) => n > 0).map(([r, n]) => `${Number(n.toFixed(2))} ${r === 'air' ? 'breathing mix' : r}`).join(', ') || 'Empty';
 const esc = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const number=value=>Number(value.toFixed(3));
+function recipeInput(recipe) {
+  if(!recipe.foodKinds)return inventoryText(recipe.input);
+  return [foodComposition(recipe.foodKinds),inventoryText({...recipe.input,food:0})].filter(v=>v!=='Empty').join(', ');
+}
+function recipeDetails(t,s,siteId) {
+  const choices=t.building==='farm'?CROPS:t.building==='galley'?MEAL_RECIPES:null;
+  if(!choices)return '';
+  const selected=recipeFor(t,'selected'),active=recipeFor(t),batch=quantity(t.machine.batch)>0;
+  const eligibility=s&&siteId?productionEligibility(s,s.sites[siteId],t,selected.id):null;
+  const label=t.building==='farm'?'Crop':'Recipe';
+  const requirementsLabel=batch?(active.id===selected.id?'Current batch requirements':'Next batch requirements'):'Recipe requirements';
+  return `<form class="production-form" data-recipe-form data-simulation-action="production.recipe"><label>${label}<select name="production-recipe" aria-label="${label}">${Object.values(choices).filter(r=>r.selectable!==false).map(r=>`<option value="${esc(r.id)}" ${r.id===selected.id?'selected':''}>${esc(r.name)} · tier ${r.tier} · Production ${r.minSkill}</option>`).join('')}</select></label><button type="submit">Apply ${label.toLowerCase()}</button></form><dl>${batch?`<dt>Current batch</dt><dd>${esc(active.name)} · finishes before a change</dd>`:''}<dt>${batch?'Next batch':'Selected '+label.toLowerCase()}</dt><dd>${esc(selected.name)} · tier ${selected.tier} · requires Production ${selected.minSkill}</dd></dl>${eligibility?`<p class="crew-hint" data-production-reason="${esc(eligibility.blockedCode||'ready')}">${esc(eligibility.message||'Qualified crew can operate this recipe.')}</p><dl aria-label="${requirementsLabel}">${eligibility.requirements.map(r=>`<dt>${esc(r.kind?foodKindName(r.kind):r.resource==='food'?'Unprepared food':r.resource)}</dt><dd>Needs ${number(r.required)} · ${number(r.delivered)} delivered · ${number(r.available)} available · ${number(r.missing)} missing</dd>`).join('')}</dl>`:''}<p class="crew-hint">Changes apply to the next batch. The current batch keeps its ingredients and work.</p>`;
+}
 export function storageDetails(t, s = null, siteId = null) {
   const temp = s ? temperatureAt(s.sites[siteId], t.x, t.y) : 20;
   if (t.building === 'stockpile') {
@@ -19,12 +35,12 @@ export function storageDetails(t, s = null, siteId = null) {
       <div class="eyebrow">HAULING PRIORITY</div><div class="job-priority">${[[1, 'Low'], [3, 'Normal'], [5, 'Urgent']].map(([n, label]) => `<button data-action="depot-priority" data-priority="${n}" aria-pressed="${t.storage.priority === n}" class="${t.storage.priority === n ? 'active' : ''}">${label}</button>`).join('')}</div>
       <p class="crew-hint">Haulers prefer urgent destinations and restock higher-priority depots from lower-priority ones. Life-support deliveries are urgent; other machine deliveries follow their production priority. The resource bar counts available depot stock.</p>`;
   }
-  const recipe = RECIPES[t.building], m = t.machine;
+  const recipe = recipeFor(t), m = t.machine;
   if (!recipe || !m || recipe.automatic) return '';
   if (recipe.lifeSupport) return `<hr><div class="eyebrow">LIFE SUPPORT</div><p>${esc(m.status)}</p><dl><dt>Make-up supply</dt><dd>${esc(inventoryText(m.input))}</dd></dl><p class="crew-hint">Power recycles exhaled gas. Crew deliver breathing mix to replace leaks and suit refills. Make more in an atmosphere processor.</p><button data-action="machine" aria-pressed="${m.enabled}">${m.enabled ? 'Pause life support' : 'Resume life support'}</button>`;
   const job = s?.jobs.find(j => j.kind === 'operate' && j.site === siteId && j.x === t.x && j.y === t.y);
   const operator = s?.crew.find(c => c.id === job?.worker), o = m.order;
-  return `<hr><div class="eyebrow">PRODUCTION</div><p>${esc(m.status)}</p><p>${inventoryText(recipe.input)} → ${inventoryText(recipe.output)} · ${recipe.duration} work</p>
+  return `<hr><div class="eyebrow">PRODUCTION</div><p>${esc(m.status)}</p>${recipeDetails(t,s,siteId)}<p>${esc(recipeInput(recipe))} → ${esc(recipe.outputKind?`${recipe.output.food} ${foodKindName(recipe.outputKind)}`:inventoryText(recipe.output))} · ${recipe.duration} work</p>
     <dl><dt>Operator</dt><dd>${operator ? esc(operator.name) : "Unassigned"}</dd><dt>Completed batches</dt><dd>${m.completed}</dd>${o.mode === "batches" ? `<dt>Batches remaining</dt><dd>${o.remaining}</dd>` : ""}<dt>Input buffer</dt><dd>${esc(inventoryText(m.input))}</dd><dt>Active batch</dt><dd>${esc(inventoryText(m.batch))}</dd><dt>Progress</dt><dd>${m.progress.toFixed(1)} / ${recipe.duration} work</dd><dt>Output (${quantity(m.output)} / ${OUTPUT_CAPACITY})</dt><dd>${esc(inventoryText(m.output))}</dd></dl>
     ${t.building==='galley'?'<p class="crew-hint">Uses unprepared food only. Stock target counts prepared food; cooking preserves ingredient age. Quality benefits crew when eaten.</p>':''}
     ${m.legacyCrop ? '<p class="crew-hint">This crop was started before nutrient supplies were introduced. It finishes with its original water; the next crop needs fertilizer.</p>' : ''}

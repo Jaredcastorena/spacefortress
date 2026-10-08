@@ -3,6 +3,7 @@ import { fitAmount } from './item-lots.js';
 import { crewPathTo } from './navigation.js';
 import { advanceCrewRoute } from './crew-traversal.js';
 import { RESOURCES } from './data.js';
+import { planFoodSelection } from './food-lots.js';
 import { CARRY_CAPACITY, add, addCounts, extract, resourceEntries, contains, quantity, spill, syncResources } from './inventory.js';
 import { availableInventory } from './inventory-reservations.js';
 import { shuttleLocation } from './outposts.js';
@@ -10,7 +11,7 @@ import { emitEvent, emitItemMovement } from './telemetry.js';
 
 const at = (site, x, y) => x >= 0 && y >= 0 && x < site.size && y < site.size ? site.tiles[y * site.size + x] : undefined;
 const workPositions = j => neighbors(j.x, j.y);
-export const materialsReady = j => contains(j.materials, j.cost);
+export const materialsReady = j => contains(j.materials, j.cost) && (!j.foodKinds || !!planFoodSelection(j.materials, j.cost.food || 0, { rawOnly: true, foodKinds: j.foodKinds }));
 const sourceInventory = (t, kind) => kind === 'stock' ? t.building === 'stockpile' ? t.stock : null : kind === 'imports' ? t.building === 'dock' ? t.imports : null : kind === 'drop' ? t.drop : null;
 // Work authority follows living people at the site, independently of which map
 // is viewed or whether the shuttle is still visiting a resident's home.
@@ -29,27 +30,47 @@ export function constructionSupplyLocations(s, siteId = 'surface') {
   // bootstrap can build storage without ever consulting another site's stock.
   return ['stock', 'imports', 'drop'].flatMap(kind => site.tiles.filter(t => quantity(sourceInventory(t, kind))).map(t => ({ t, kind })));
 }
-export function constructionResources(s, siteId = 'surface') {
+export function constructionResources(s, siteId = 'surface', selector = false) {
   const total = Object.fromEntries(RESOURCES.map(r => [r, 0]));
-  for (const { t, kind } of constructionSupplyLocations(s, siteId)) for (const r of RESOURCES) total[r] += availableInventory(s, siteId, [t.x, t.y], kind, r);
+  const kinds = selector?.foodKinds && Object.fromEntries(Object.keys(selector.foodKinds).map(kind => [kind, 0]));
+  for (const { t, kind } of constructionSupplyLocations(s, siteId)) for (const r of RESOURCES) {
+    if (r === 'food' && kinds) {
+      for (const foodKind of Object.keys(kinds)) kinds[foodKind] += availableInventory(s, siteId, [t.x, t.y], kind, r, null, { rawOnly: true, foodKinds: { [foodKind]: selector.foodKinds[foodKind] } });
+    } else total[r] += availableInventory(s, siteId, [t.x, t.y], kind, r, null, r === 'food' ? selector : false);
+  }
+  if (kinds) total.food = Object.entries(kinds).reduce((sum, [kind, n]) => sum + Math.min(n, selector.foodKinds[kind]), 0);
   return total;
 }
-export function reserveConstruction(s, siteId, x, y, cost, pathTo) {
+export function reserveConstruction(s, siteId, x, y, cost, pathTo, selector = false) {
   if (!quantity(cost)) return [];
   const site = s.sites[siteId];
   if (!site || !Number.isInteger(x) || !Number.isInteger(y) || !at(site, x, y)) return null;
+  if (selector?.foodKinds && Math.abs(Object.values(selector.foodKinds).reduce((sum, n) => sum + n, 0) - (cost.food || 0)) > 1e-9) return null;
   const goals = workPositions({ x, y });
   const sources = constructionSupplyLocations(s, siteId).filter(({ t }) => crewPathTo(s, site, t, [[t.x, t.y]]) !== null && crewPathTo(s, site, t, goals) !== null);
-  const available = {};
-  for (const { t, kind } of sources) for (const r of RESOURCES) available[r] = (available[r] || 0) + availableInventory(s, siteId, [t.x, t.y], kind, r);
-  if (!contains(available, cost)) return null;
-  const remaining = { ...cost }, reserved = [];
+  const remaining = { ...cost }, remainingKinds = selector?.foodKinds && { ...selector.foodKinds }, planned = [];
+  // Preflight every source before extracting anything, including exact diets.
   for (const { t, kind } of sources) {
-    const inventory = sourceInventory(t, kind);
-    const items = {};
-    for (const [r, amount] of Object.entries(remaining)) { const n = Math.min(amount, availableInventory(s, siteId, [t.x, t.y], kind, r)); if (n) { items[r] = n; remaining[r] -= n; } }
-    if (!quantity(items)) continue;
-    const shipment = extract(inventory, items); reserved.push({ x: t.x, y: t.y, kind, items: shipment });
+    const items = {}, selectedKinds = {};
+    for (const [r, amount] of resourceEntries(remaining)) {
+      let n;
+      if (r === 'food' && remainingKinds) {
+        for (const [foodKind, needed] of Object.entries(remainingKinds)) {
+          const picked = availableInventory(s, siteId, [t.x, t.y], kind, r, null, { rawOnly: true, foodKinds: { [foodKind]: needed } });
+          if (picked > 0) { selectedKinds[foodKind] = picked; remainingKinds[foodKind] -= picked; }
+        }
+        n = Object.values(selectedKinds).reduce((sum, n) => sum + n, 0);
+      } else n = Math.min(amount, availableInventory(s, siteId, [t.x, t.y], kind, r, null, r === 'food' ? selector : false));
+      if (n > 0) { items[r] = n; remaining[r] -= n; }
+    }
+    if (quantity(items)) planned.push({ t, kind, items, selector: remainingKinds ? { rawOnly: true, foodKinds: selectedKinds } : selector });
+  }
+  if (resourceEntries(remaining).some(([, n]) => n > 0)) return null;
+  if (planned.some(({ t, kind, items, selector: selected }) => !contains(sourceInventory(t, kind), items) || items.food && !planFoodSelection(sourceInventory(t, kind), items.food, selected))) return null;
+  const reserved = [];
+  for (const { t, kind, items, selector: sourceSelector } of planned) {
+    const shipment = extract(sourceInventory(t, kind), items, sourceSelector);
+    reserved.push({ x: t.x, y: t.y, kind, items: shipment });
     if (kind === 'drop' && !quantity(t.drop)) t.drop = null;
   }
   syncResources(s); return reserved;
