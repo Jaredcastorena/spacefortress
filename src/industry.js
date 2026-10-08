@@ -62,7 +62,7 @@ function pickHaul(s, c, site, pathTo) {
     if (!recipe || !m?.enabled || !t.hp) continue;
     const destination = { kind: 'input', target: xy(t) };
     for (const [r, n] of Object.entries(recipe.input)) {
-      const needed = n * inputBatchesWanted(s, site, t) - (m.input[r] || 0) - incomingInventory(s, c.site, destination, r); if (needed <= 0 || (recipe.automatic && ['reactor','waterTank','gasTank'].includes(t.building) && needed<n-1e-9)) continue;
+      const needed = n * inputBatchesWanted(s, site, t) - (m.input[r] || 0) - incomingInventory(s, c.site, destination, r); if (needed <= 1e-9 || (recipe.automatic && ['reactor','waterTank','gasTank'].includes(t.building) && needed<n-1e-9)) continue;
       for (const source of site.tiles) for (const kind of ['stock', 'imports']) {
         const inventory = buffer(source, kind);
         if ((inventory?.[r] || 0) <= 0 || claimed(source, kind)) continue;
