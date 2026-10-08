@@ -12,7 +12,7 @@ const until=(s,p,max=400)=>{for(let i=0;i<max&&!p();i++)step(s);assert.ok(p(),`C
 function pen(){
  const s=createGame(),site=s.sites.surface,[a,b]=s.creatures;
  for(const t of site.tiles)if(t.machine&&t.building!=='scrubber')setMachineEnabled(s,'surface',t.x,t.y,false);
- for(let y=15;y<=23;y++)for(let x=3;x<=9;x++){const t=at(site,x,y);t.terrain='ground';t.building=x===3||x===9||y===15||y===23?'fence':null;t.hp=100;t.lichen=80;}
+ for(let y=15;y<=23;y++)for(let x=3;x<=9;x++){const t=at(site,x,y);t.terrain='ground';t.building=x===3||x===9||y===15||y===23?'fence':null;t.hp=100;t.flora={lichen:{biomass:80,harvests:0}};}
  const gate=at(site,6,15);gate.building='pastureGate';gate.gateMode='latched';
  a.x=6;a.y=18;b.x=7;b.y=18;
  for(const animal of [a,b]){animal.husbandry.trust=100;animal.fed=100;animal.lifecycle.enabled=true;}

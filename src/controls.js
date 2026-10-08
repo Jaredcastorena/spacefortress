@@ -1,3 +1,4 @@
+import { FLORA } from './flora-data.js';
 import { CROPS, MEAL_RECIPES, FOOD_KINDS } from './food-data.js';
 import { LIVESTOCK } from './livestock-data.js';
 import { GRID, DIRECTIONS } from './geometry.js';
@@ -51,7 +52,7 @@ registerAirlock('airlock.request','requestAirlock','Queue one local traveler or 
 registerAirlock('airlock.cancel','cancelAirlock','Cancel a waiting request or safely return an admitted party.',{...xy,crew},cancelAirlock);
 registerAirlock('airlock.release','releaseAirlock','Manually release one side with the opposite door physically sealed.',{...xy,side:enumeration(['inner','outer']),acceptAtmosphereLoss:{type:'boolean',enum:[true]}},releaseAirlock);
 registerAirlock('airlock.unbind','unbindAirlock','Restore manual control of an idle, empty, closed airlock.',{...xy},unbindAirlock);
-register('job.order','order','Designate physical work. Materials and workers must still reach the target.',{...xy,kind:enumeration(['extinguish','build','mine','remove','repair','service','refit','unloadShuttle','repairPipe','removePipe','repairWaterPipe','removeWaterPipe','repairCable','removeCable','treat','feed','hygiene']),building:optional({type:['string','null'],description:'Building ID, shuttle fit ID, or patient crew ID, depending on kind.'})},sim.order);
+register('job.order','order','Designate physical work or gather a mature wild plant. Materials and workers must still reach the target.',{...xy,kind:enumeration(['extinguish','build','mine','gather','remove','repair','service','refit','unloadShuttle','repairPipe','removePipe','repairWaterPipe','removeWaterPipe','repairCable','removeCable','treat','feed','hygiene']),building:optional({type:['string','null'],description:'Building ID, edible plant species for gathering, shuttle fit ID, or patient crew ID, depending on kind.'})},sim.order);
 register('job.cancel','cancelJob','Cancel an existing order; preserve its located materials.',{job},(s,id)=>{if(!s.jobs.some(j=>j.id===id))return {ok:false,message:'Unknown job.'};sim.cancelJob(s,id);return {ok:true};});
 register('crew.labor','setLabor','Enable or disable one work duty.',{crew,labor:enumeration(Object.keys(LABORS)),enabled},sim.setLabor);
 register('job.priority','setJobPriority','Set assignment priority for a pending job.',{job,priority},sim.setJobPriority);
@@ -141,6 +142,7 @@ function invalid(s,definition,args) {
     const current=s.sites[args.site || 'surface'];if(!current||!sim.inside(current,args.x,args.y))return 'Tile is outside this site.';
   }
   if(definition.id==='job.order') {
+    if(args.kind==='gather'&&(!Object.hasOwn(FLORA,args.building)||!FLORA[args.building].foodKind))return 'Choose an edible wild plant species.';
     if(args.kind==='build'&&!Object.hasOwn(BUILDINGS,args.building))return 'Unknown building.';
     if(args.kind==='refit'&&!Object.hasOwn(SHUTTLE_FITS,args.building))return 'Unknown shuttle fit.';
     if(['treat','feed','hygiene'].includes(args.kind)&&!s.crew.some(c=>c.id===args.building))return 'Unknown patient.';
@@ -168,5 +170,5 @@ export function controlBindings(getState,source='player') {
   return Object.fromEntries(entries.filter(e=>e.binding!=='step').map(e=>[e.binding,(_state,...values)=>executeAction(getState(),e.id,Object.fromEntries(Object.keys(e.parameters).map((k,i)=>[k,values[i]]).filter(([,v])=>v!==undefined)),source)]));
 }
 export function createAgentInterface(getState,beforeAction=()=>{},afterAction=()=>{}) {
-  return Object.freeze({version:1,definitions:()=>JSON.parse(JSON.stringify({grid:GRID,directions:DIRECTIONS,gasNetworks:GAS_NETWORK,gasDirections:GAS_DIRECTIONS,plumbing:PLUMBING,waterDirections:WATER_DIRECTIONS,breakerDirections:BREAKER_DIRECTIONS,breakerModes:BREAKER_MODES,liquids:LIQUID,reactor:REACTOR,fire:FIRE,animalTransport:{work:TRANSPORT_WORK,stepInterval:TRANSPORT_STEP,tameOnly:true},breeding:BREEDING,livestock:LIVESTOCK,foodKinds:FOOD_KINDS,crops:CROPS,mealRecipes:MEAL_RECIPES,buildings:BUILDINGS,recipes:RECIPES,resources:RESOURCES,shuttleFits:SHUTTLE_FITS,outposts:{sites:OUTPOST_SITES,commissioningReserves:OUTPOST_RESERVES},itemStyles:ITEM_STYLES,extraction:{ice:{capacity:ICE_SEAM_CAPACITY,perOrder:ICE_EXTRACTION_AMOUNT}}})),actions:actionCatalog,observe:()=>observe(getState()),act:(id,args={})=>{beforeAction();try{return executeAction(getState(),id,args,'agent');}finally{afterAction();}},recording:Object.freeze({status:()=>recordingStatus(getState()),start:options=>startRecording(getState(),options),stop:()=>stopRecording(getState()),export:()=>exportRecording(getState())})});
+  return Object.freeze({version:1,definitions:()=>JSON.parse(JSON.stringify({grid:GRID,directions:DIRECTIONS,gasNetworks:GAS_NETWORK,gasDirections:GAS_DIRECTIONS,plumbing:PLUMBING,waterDirections:WATER_DIRECTIONS,breakerDirections:BREAKER_DIRECTIONS,breakerModes:BREAKER_MODES,liquids:LIQUID,reactor:REACTOR,fire:FIRE,animalTransport:{work:TRANSPORT_WORK,stepInterval:TRANSPORT_STEP,tameOnly:true},breeding:BREEDING,livestock:LIVESTOCK,flora:FLORA,foodKinds:FOOD_KINDS,crops:CROPS,mealRecipes:MEAL_RECIPES,buildings:BUILDINGS,recipes:RECIPES,resources:RESOURCES,shuttleFits:SHUTTLE_FITS,outposts:{sites:OUTPOST_SITES,commissioningReserves:OUTPOST_RESERVES},itemStyles:ITEM_STYLES,extraction:{ice:{capacity:ICE_SEAM_CAPACITY,perOrder:ICE_EXTRACTION_AMOUNT}}})),actions:actionCatalog,observe:()=>observe(getState()),act:(id,args={})=>{beforeAction();try{return executeAction(getState(),id,args,'agent');}finally{afterAction();}},recording:Object.freeze({status:()=>recordingStatus(getState()),start:options=>startRecording(getState(),options),stop:()=>stopRecording(getState()),export:()=>exportRecording(getState())})});
 }

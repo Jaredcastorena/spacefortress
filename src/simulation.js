@@ -1,3 +1,5 @@
+import { FLORA } from './flora-data.js';
+import { initializeFlora, updateFlora, floraId, floraBiomass, consumeLichen, gatheringEligibility, gatheringJobValid, completeGathering, validateFlora } from './flora.js';
 import { isLivestock, livestockDef } from './livestock-data.js';
 import { CROPS, MEAL_RECIPES, FOOD_KINDS } from './food-data.js';
 import { GRID, neighbors, distance, tileAt } from './geometry.js';
@@ -116,6 +118,7 @@ export function createGame(seed = 74219) {
   log(s, 'Relay K-07 detected in near orbit. Its components could transform this colony.', 'discovery');
   updateRooms(ground); ground.rooms.forEach(r => fillRoom(r)); updateRooms(ground);
   for (const site of Object.values(s.sites)) { initializeAtmosphere(site); site.tiles.forEach(initializeStorage); initializePower(s, site, site.id === 'surface' ? 100 : 0); }
+  initializeFlora(s,{seedEdibles:true});
   initializeReliability(s); initializeShuttle(s); initializePreflight(s); initializeThermal(s); initializeFood(s); initializeSanitation(s); initializeHygiene(s); initializeDesignations(s); initializeHousing(s); initializeComfort(s); initializePossessions(s); initializeWater(s); initializeHusbandry(s); initializeBreeding(s); initializeFire(s); initializeReactors(s); initializeLiquids(s); initializeGasNetworks(s); initializePlumbing(s);
   initializeProduction(s); initializeOutpostState(s); initializeAirlocks(s);
   add(at(ground, 8, 10).stock, s.resources); syncResources(s);
@@ -132,7 +135,7 @@ export function order(s, siteId, x, y, kind, building = null) {
   if (!siteWorkAllowed(s, siteId) && (s.mission?.site !== siteId || s.mission.phase !== 'working')) return { ok: false, message: 'Resume field work before assigning expedition orders.' };
   if (s.jobs.some(j => j.site === siteId && j.x === x && j.y === y && (kind==='extinguish'?j.kind==='extinguish':['feed', 'hygiene'].includes(kind) ? j.kind === kind && j.patient === building : !['feed', 'hygiene', 'operate', 'animalCare', 'animalHarvest', 'animalLead', 'extinguish'].includes(j.kind)))) return { ok: false, message: 'Work already designated here.' };
   if(t.fire&&kind!=='extinguish')return {ok:false,message:'Suppress the fire before working on this tile.'};
-  let cost = {}, work = 5, foodKinds;
+  let cost = {}, work = 5, foodKinds, gathering;
   if(kind==='extinguish'){if(!t.fire)return {ok:false,message:'Select an active fire.'};cost={water:FIRE.suppressionWater};work=FIRE.suppressionWork;
   } else if (kind === 'build') {
     if (!['surface', 'wreck'].includes(siteId)) return { ok: false, message: 'Construction requires the surface colony or wreck habitat.' };
@@ -196,6 +199,10 @@ export function order(s, siteId, x, y, kind, building = null) {
     if (!t.cable || (kind === 'repairCable' && t.cable.hp >= 100)) return { ok: false, message: 'Select a cable that needs this work.' };
     if (kind === 'repairCable') cost = { alloy: 1 };
     work = 3;
+  } else if (kind === 'gather') {
+    gathering=gatheringEligibility(s,site,t,building);
+    if(!gathering.ok)return {ok:false,code:gathering.code,message:gathering.message};
+    work=gathering.work;
   } else if (kind === 'mine') {
     if (!iceAvailable(t) && !['rock', 'ore'].includes(t.terrain) && !['salvage', 'volatile'].includes(t.building)) return { ok: false, message: 'Select an ice seam, rock, ore, satellite salvage, or comet volatiles.' };
     work = t.building === 'salvage' ? 12 : 7;
@@ -212,12 +219,13 @@ export function order(s, siteId, x, y, kind, building = null) {
   if (!sources) return { ok: false, message: 'Not enough reachable supplies in depots or loose piles.' };
   const job = { id: `job-${s.nextId++}`, site: siteId, x, y, kind, building, cost, sources, materials: {}, work, remaining: work, worker: null, priority: 3, blockedReason: null, missingFood: 0, foodSpoiled: 0 };
   if(foodKinds)job.foodKinds=foodKinds;
+  if(kind==='gather'){job.plantSpecies=building;job.plantHarvests=gathering.harvests;job.building=null;}
   if(kind==='extinguish'){job.building=null;job.fire=t.fire.id;job.priority=5;}
   if (animalJob(job)) {job.animal=building;job.building=null;}
   if (kind === 'operate') { job.remaining = work - t.machine.progress; job.priority = t.machine.order.priority; }
   if (['feed', 'hygiene'].includes(kind)) { job.patient = building; job.building = null; job.priority = 5; }
   if (kind === 'treat') { job.patient = building; job.building = null; job.dose = Math.min(25, s.crew.find(c => c.id === building).medical.injury - s.crew.find(c => c.id === building).medical.treated); job.priority = 5; }
-  s.jobs.push(job); if (isFreightJob(job)) freightOrdered(s, job); emitEvent(s,'job.created',{entity:job.id,target:tileEntityId(siteId,x,y),kind,building,cost}); return { ok: true, job };
+  s.jobs.push(job); if (isFreightJob(job)) freightOrdered(s, job); emitEvent(s,'job.created',{entity:job.id,target:tileEntityId(siteId,x,y),kind,building,cost,...(kind==='gather'?{plant:floraId(siteId,x,y,job.plantSpecies),plantSpecies:job.plantSpecies,plantHarvests:job.plantHarvests}:{})}); return { ok: true, job };
 }
 export function loadFreight(s, items) {
   const request = freightRequest(s, 'surface', 'loadCargo', items);
@@ -261,6 +269,9 @@ export function setJobPriority(s, id, priority) {
   if (!job || ![1, 3, 5].includes(priority)) return { ok: false, message: 'Invalid work priority.' };
   job.priority = priority; if (job.kind === 'operate') at(s.sites[job.site], job.x, job.y).machine.order.priority = priority; return { ok: true };
 }
+function reconcileGathering(s) {
+  for(const j of [...s.jobs])if(j.kind==='gather'&&!gatheringJobValid(s,j))cancelJob(s,j.id,true);
+}
 function assignJobs(s) {
   const returning = new Set(s.mission?.phase === 'boarding' ? returnCrewIds(s) : []);
   const queued = s.jobs.filter(j => !j.worker).sort((a, b) => b.priority - a.priority || (({ feed: 2, hygiene: 1 })[b.kind] || 0) - (({ feed: 2, hygiene: 1 })[a.kind] || 0) || Number(a.id.split('-')[1]) - Number(b.id.split('-')[1]));
@@ -285,6 +296,8 @@ function finish(s, c, j) {
     else if (j.building === 'cable') tile.cable = { hp: 100, enabled: true };
     else { if (j.building === 'floor') tile.terrain = 'floor'; else tile.building = j.building; tile.hp = 100; if(j.building==='pastureGate')tile.gateMode='latched'; initializeStorage(tile); initializeElectrical(tile); if(j.building==='airlockController')initializeAirlocks(s); }
     s.stats.built++; log(s, `${c.name.split(' ')[0]} completed ${BUILDINGS[j.building].name.toLowerCase()}.`, 'good');
+  } else if(j.kind==='gather'){
+    if(!completeGathering(s,c,j).ok){cancelJob(s,j.id,true);return;}
   } else if (j.kind === 'mine') {
     const fromSeam = iceAvailable(tile);
     const loot = fromSeam ? { ice: Math.min(ICE_EXTRACTION_AMOUNT, tile.deposit.remaining) } : tile.building === 'salvage' ? { components: 3, alloy: 2 } : tile.building === 'volatile' ? { ice: 12, fuel: 3 } : { ore: tile.terrain === 'ore' ? 5 : 2 };
@@ -451,6 +464,7 @@ function act(s, c, air) {
   const j = s.jobs.find(j => j.id === c.job);
   if (j) {
     const labor = laborFor(j);
+    if(j.kind==='gather'&&!gatheringJobValid(s,j)){cancelJob(s,j.id,true);return;}
     if(j.kind==='extinguish'&&!fireJobValid(s,j)){cancelJob(s,j.id,true);return;}
     if(j.kind!=='extinguish'&&at(site,j.x,j.y).fire){release(s,c);j.blockedReason='Waiting for fire suppression';return;}
     if(animalJob(j)&&!animalJobValid(s,j)){cancelJob(s,j.id,true);return;}
@@ -461,7 +475,7 @@ function act(s, c, air) {
     if(transportJob(j)){if(actTransport(s,c,j,release))finish(s,c,j);return;}
     if (j.kind === 'operate') { operateMachine(s, c, j, site, plannedPath); return; }
     if (!materialsReady(j)) { fetchMaterials(s, c, j, site, plannedPath); return; }
-    c.activity = j.kind==='extinguish'?'Suppressing a fire':animalJob(j) ? (j.kind==='animalCare'?`Feeding and handling ${livestockDef(animalForJob(s,j)).name.toLowerCase()}`:`Collecting ${livestockDef(animalForJob(s,j)).productName.toLowerCase()}`) : j.kind === 'hygiene' ? 'Providing bedside hygiene' : j.kind === 'feed' ? 'Serving a bedside meal' : j.kind === 'treat' ? 'Treating injuries' : j.kind === 'loadCargo' ? 'Loading freight' : j.kind === 'unloadCargo' ? 'Unloading freight' : j.kind === 'loadShuttle' ? 'Loading shuttle stores' : j.kind === 'unloadShuttle' ? 'Unloading shuttle stores' : j.kind === 'refit' ? `Installing ${SHUTTLE_FITS[j.building].name.toLowerCase()}` : j.kind === 'build' ? `Building ${BUILDINGS[j.building].name.toLowerCase()}` : j.kind === 'mine' ? 'Extracting material' : `${j.kind === 'service' ? 'Servicing' : ['repair', 'repairCable'].includes(j.kind) ? 'Repairing' : 'Dismantling'} ${j.kind.endsWith('Cable') ? 'cable' : 'structure'}`;
+    c.activity = j.kind==='gather'?`Gathering ${FLORA[j.plantSpecies].name.toLowerCase()}`:j.kind==='extinguish'?'Suppressing a fire':animalJob(j) ? (j.kind==='animalCare'?`Feeding and handling ${livestockDef(animalForJob(s,j)).name.toLowerCase()}`:`Collecting ${livestockDef(animalForJob(s,j)).productName.toLowerCase()}`) : j.kind === 'hygiene' ? 'Providing bedside hygiene' : j.kind === 'feed' ? 'Serving a bedside meal' : j.kind === 'treat' ? 'Treating injuries' : j.kind === 'loadCargo' ? 'Loading freight' : j.kind === 'unloadCargo' ? 'Unloading freight' : j.kind === 'loadShuttle' ? 'Loading shuttle stores' : j.kind === 'unloadShuttle' ? 'Unloading shuttle stores' : j.kind === 'refit' ? `Installing ${SHUTTLE_FITS[j.building].name.toLowerCase()}` : j.kind === 'build' ? `Building ${BUILDINGS[j.building].name.toLowerCase()}` : j.kind === 'mine' ? 'Extracting material' : `${j.kind === 'service' ? 'Servicing' : ['repair', 'repairCable'].includes(j.kind) ? 'Repairing' : 'Dismantling'} ${j.kind.endsWith('Cable') ? 'cable' : 'structure'}`;
     const result = move(s, c, site, neighbors(j.x, j.y));
     if(result==='arrived'&&animalJob(j)){const a=animalForJob(s,j);if(a.x!==j.x||a.y!==j.y){c.activity=j.blockedReason='Waiting for animal at the post';return;}}
     if (result === 'arrived' && j.kind === 'hygiene' && !hygieneReady(s, j, c)) { c.activity = j.blockedReason = 'Waiting for patient and safe hygiene conditions'; return; }
@@ -637,6 +651,7 @@ export function step(s, ticks = 1) {
     reconcileTransport(s,cancelJob);
     prepareHusbandry(s,order,cancelJob);
     prepareDowntime(s, release);
+    reconcileGathering(s);
     assignJobs(s);
     const breathing = new Map();
     let habitatSuitAssistance = false;
@@ -656,6 +671,7 @@ export function step(s, ticks = 1) {
     updateDeparture(s, order, release); tryDeparture(s, log);
     reconcileTransport(s,cancelJob);
     updateEcology(s);
+    reconcileGathering(s);
     reconcileTransport(s,cancelJob);
     prepareHusbandry(s,order,cancelJob);
     prepareFire(s,order,cancelJob);
@@ -696,8 +712,8 @@ function updateEcology(s) {
     if (s.tick % (def?.movementTicks || 5) !== 0) continue;
     if (def) {
       const tile = at(site, creature.x, creature.y);
-      if (def.grazesLichen && tile.lichen > 0) { const eaten=Math.min(adult(creature)?5:2.5,tile.lichen);tile.lichen -= eaten; creature.fed = Math.min(100, creature.fed + 4);emitEvent(s,'animal.grazed',{entity:creature.id,target:tileEntityId('surface',tile.x,tile.y),lichen:eaten}); }
-      else { const choices = neighbors(creature.x, creature.y).filter(([x, y]) => animalPassable(site, x, y) && at(site, x, y).terrain === 'ground' && (!at(site, x, y).building || ['fence','pastureGate','husbandryPost'].includes(at(site,x,y).building)) && (roamPasture || !creature.husbandry.post || distance([x,y],creature.husbandry.post)<=2)); if (choices.length) { if(def.grazesLichen)choices.sort((a, b) => (at(site, ...b).lichen || 0) - (at(site, ...a).lichen || 0)); moveAnimal(s,creature,choices[Math.floor(random(s) * Math.min(2, choices.length))],def.grazesLichen?'grazing':'wandering'); } }
+      if (def.grazesLichen && floraBiomass(tile) > 0) { const bite=adult(creature)?5:2.5,eaten=consumeLichen(s,site,tile,bite,creature.id);creature.fed=Math.min(100,creature.fed+4*eaten/bite);if(eaten>0)emitEvent(s,'animal.grazed',{entity:creature.id,target:tileEntityId('surface',tile.x,tile.y),plant:floraId('surface',tile.x,tile.y,'lichen'),lichen:eaten}); }
+      else { const choices = neighbors(creature.x, creature.y).filter(([x, y]) => animalPassable(site, x, y) && at(site, x, y).terrain === 'ground' && (!at(site, x, y).building || ['fence','pastureGate','husbandryPost'].includes(at(site,x,y).building)) && (roamPasture || !creature.husbandry.post || distance([x,y],creature.husbandry.post)<=2)); if (choices.length) { if(def.grazesLichen)choices.sort((a, b) => floraBiomass(at(site,...b)) - floraBiomass(at(site,...a))); moveAnimal(s,creature,choices[Math.floor(random(s) * Math.min(2, choices.length))],def.grazesLichen?'grazing':'wandering'); } }
     } else if (creature.species === 'tibble') {
       const foodTiles = site.tiles.filter(t => (t.stock?.food || 0) >= 1 || (t.machine?.output.food || 0) >= 1 || (t.drop?.food || 0) >= 1);
       const p = animalPath(site, creature, foodTiles.map(t => [t.x, t.y]));
@@ -720,7 +736,7 @@ function updateEcology(s) {
     const pest = s.creatures.find(c => c.species === 'tibble' && c.health>0 && distance([c.x,c.y],[trap.x,trap.y]) <= 6);
     if (pest && spend(s, { food: .25 }, t => distance([t.x,t.y],[trap.x,trap.y]) <= 6 && pathTo(site, t, [[trap.x, trap.y]]) !== null)) { s.creatures = s.creatures.filter(c => c.id !== pest.id); s.stats.trapped++;emitEvent(s,'pest.captured',{entity:pest.id,target:tileEntityId('surface',trap.x,trap.y)}); log(s, 'Biofilter trap secured a tibble. Cargo infestation reduced.', 'good'); }
   }
-  if (s.tick % 60 === 0) for (const t of site.tiles) if (t.lichen !== undefined) t.lichen = Math.min(100, t.lichen + 2);
+  updateFlora(s);
 }
 export function resolveSignal(s, investigate) {
   if (!s.anomaly || s.anomaly.resolved) return { ok: false, message: 'No unresolved signal.' };
@@ -747,8 +763,7 @@ export function deserialize(text) {
   if (text.length > 5_000_000) throw new Error('Save is too large.');
   const s = JSON.parse(text);
   if (Number.isInteger(s?.version) && s.version >= 1 && s.version <= 39) throw new Error('Legacy square-grid saves (schemas 1–39) cannot be loaded into the hex colony. Export the original save and use the preserved square version to continue it.');
-  if (![40, VERSION].includes(s?.version) || s.grid !== GRID) throw new Error('Unsupported save topology: schemas 40–41 require grid hex-odd-q-v1.');
-  const migrateFood=s.version===40;
+  if (![40, 41, VERSION].includes(s?.version) || s.grid !== GRID) throw new Error('Unsupported save topology: schemas 40–42 require grid hex-odd-q-v1.');
   if ( !Number.isSafeInteger(s.tick) || s.tick < 0 || !Number.isInteger(s.rng) || !Number.isSafeInteger(s.nextId)) throw new Error('Unsupported or invalid save.');
   if (!s.sites || !Array.isArray(s.crew) || s.crew.length !== 7 || !Array.isArray(s.jobs) || !Array.isArray(s.log) || !s.stats || !s.comet || !s.flags || !s.objectives) throw new Error('Incomplete save.');
   for (const r of RESOURCES) if (!Number.isFinite(s.resources?.[r]) || s.resources[r] < 0) throw new Error('Invalid resources.');
@@ -757,7 +772,8 @@ export function deserialize(text) {
     if (site?.id !== id || site.size !== size || site.tiles?.length !== size ** 2 || !Array.isArray(site.rooms) || !site.power) throw new Error('Invalid site.');
     site.tiles.forEach((t, i) => { if (t.x !== i % size || t.y !== Math.floor(i / size) || !['ground', 'rock', 'ore', 'floor', 'deck', 'ice', 'void'].includes(t.terrain) || (t.building && !BUILDINGS[t.building] && !['shuttle', 'dock', 'salvage', 'volatile', 'collector'].includes(t.building)) || !Number.isFinite(t.hp)) throw new Error('Invalid tile.'); });
   }
-  if(migrateFood){initializeProduction(s);s.version=VERSION;}
+  if(s.version===40){initializeProduction(s);s.version=41;}
+  if(s.version===41){initializeFlora(s);s.version=VERSION;}
   const ids = new Set();
   for (const c of s.crew) {
     if (ids.has(c.id) || typeof c.name !== 'string' || c.name.length > 80 || !['surface', 'wreck', 'comet', 'solar', 'transit'].includes(c.site) || ![c.health, c.oxygen, c.energy, c.hunger, c.skill].every(Number.isFinite) || !Number.isInteger(c.x) || !Number.isInteger(c.y) || (c.site !== 'transit' && !inside(s.sites[c.site], c.x, c.y))) throw new Error('Invalid crew.');
@@ -843,7 +859,7 @@ export function deserialize(text) {
   if (s.jobs.length > 2000) throw new Error('Too many orders.');
   for (const j of s.jobs) {
     if (![1, 3, 5].includes(j.priority) || (j.blockedReason !== null && typeof j.blockedReason !== 'string')) throw new Error('Invalid job priority.');
-    if (typeof j.id !== 'string' || !/^job-\d+$/.test(j.id) || jobs.has(j.id) || !s.sites[j.site] || !Number.isInteger(j.x) || !Number.isInteger(j.y) || !inside(s.sites[j.site], j.x, j.y) || !['build', 'mine', 'remove', 'repair', 'service', 'refit', 'loadShuttle', 'unloadShuttle', 'loadCargo', 'unloadCargo', 'repairWaterPipe', 'removeWaterPipe', 'repairPipe', 'removePipe', 'repairCable', 'removeCable', 'treat', 'feed', 'hygiene', 'operate', 'animalCare', 'animalHarvest', 'animalLead', 'extinguish'].includes(j.kind) || !inventory(j.cost) || !amount(j.remaining) || !amount(j.work) || j.work === 0 || j.remaining > j.work || (j.kind === 'build' && !BUILDINGS[j.building]) || (j.worker && !ids.has(j.worker))) throw new Error('Invalid work order.');
+    if (typeof j.id !== 'string' || !/^job-\d+$/.test(j.id) || jobs.has(j.id) || !s.sites[j.site] || !Number.isInteger(j.x) || !Number.isInteger(j.y) || !inside(s.sites[j.site], j.x, j.y) || !['build', 'mine', 'gather', 'remove', 'repair', 'service', 'refit', 'loadShuttle', 'unloadShuttle', 'loadCargo', 'unloadCargo', 'repairWaterPipe', 'removeWaterPipe', 'repairPipe', 'removePipe', 'repairCable', 'removeCable', 'treat', 'feed', 'hygiene', 'operate', 'animalCare', 'animalHarvest', 'animalLead', 'extinguish'].includes(j.kind) || !inventory(j.cost) || !amount(j.remaining) || !amount(j.work) || j.work === 0 || j.remaining > j.work || (j.kind === 'build' && !BUILDINGS[j.building]) || (j.worker && !ids.has(j.worker))) throw new Error('Invalid work order.');
     const k = ['feed', 'hygiene'].includes(j.kind) ? `${j.kind}/${j.patient}` : `${j.kind === 'operate' ? 'operate/' : ''}${j.site}/${j.x}/${j.y}`; if (reserved.has(k)) throw new Error('Duplicate tile reservation.'); reserved.add(k); jobs.add(j.id);
     if (j.worker && !s.crew.some(c=>c.id===j.worker&&c.job===j.id&&c.site===j.site)) throw new Error('Invalid worker reservation.');
     if (!inventory(j.materials) || !Array.isArray(j.sources) || !j.sources.every(source => targetValid([source.x, source.y],j.site) && ['stock', 'drop', 'imports', 'freight'].includes(source.kind) && inventory(source.items))) throw new Error('Invalid material reservation.');
@@ -854,6 +870,9 @@ export function deserialize(text) {
       if(parcels.some(inv=>Math.abs(Object.keys(diet).reduce((n,kind)=>n+foodOfKind(inv,kind),0)-(inv?.food||0))>1e-8)||Object.entries(diet).some(([kind,n])=>parcels.reduce((total,inv)=>total+foodOfKind(inv,kind),0)>n+1e-8))throw new Error('Animal feed contains incompatible food.');
     }
     if(j.kind==='operate'&&j.worker){const c=s.crew.find(c=>c.id===j.worker),recipe=recipeFor(at(s.sites[j.site],j.x,j.y));if((c.skills.production?.level||0)<(recipe?.minSkill||0))throw new Error('Production operator lacks recipe skill.');}
+    if(j.kind==='gather'){
+      if(!Object.hasOwn(FLORA,j.plantSpecies)||!FLORA[j.plantSpecies].foodKind||!Number.isSafeInteger(j.plantHarvests)||j.plantHarvests<0||j.building!==null||j.work!==FLORA[j.plantSpecies].work||Object.keys(j.cost).length||Object.keys(j.materials).length||j.sources.length||j.missingFood!==0||j.foodSpoiled!==0||!gatheringJobValid(s,j))throw new Error('Invalid gathering order.');
+    }else if(j.plantSpecies!==undefined||j.plantHarvests!==undefined)throw new Error('Plant reservation on unrelated work.');
     const reservedItems = { ...j.materials }; j.sources.forEach(source => addCounts(reservedItems, source.items));
     for (const c of s.crew) if (c.delivery?.kind === 'job' && c.delivery.job === j.id) addCounts(reservedItems, c.carry);
     if (j.remaining < j.work && !materialsReady(j) && !(j.foodSpoiled > 0 && RESOURCES.filter(r => r !== 'food').every(r => (j.materials[r] || 0) >= (j.cost[r] || 0)))) throw new Error('Work performed without delivered materials.');
@@ -876,7 +895,7 @@ export function deserialize(text) {
   if (!Array.isArray(s.creatures) || s.creatures.length > 100 || !s.creatures.every(c => c && typeof c.id === 'string' && (isLivestock(c)||c.species==='tibble') && c.site === 'surface' && Number.isInteger(c.x) && Number.isInteger(c.y) && inside(s.sites.surface, c.x, c.y) && percent(c.health) && percent(c.fed) && amount(c.age))) throw new Error('Invalid wildlife.');
   if (s.anomaly !== null && (typeof s.anomaly.title !== 'string' || typeof s.anomaly.description !== 'string' || typeof s.anomaly.resolved !== 'boolean')) throw new Error('Invalid signal.');
   if (s.log.length > 60 || !s.log.every(e => amount(e.tick) && typeof e.message === 'string' && e.message.length < 4000)) throw new Error('Invalid event log.');
-  validateAirlocks(s); validateFreightState(s); validateBreakers(s); validatePlumbing(s); validateGasNetworks(s); validateLiquids(s); validateReactors(s); validateFire(s); validateTransport(s); validateHusbandry(s); validateBreeding(s); validatePastures(s); validateWater(s); validateHousing(s); validateComfort(s); validatePossessions(s); validateDesignations(s); validateHygiene(s); validateSanitation(s); validateFood(s); validateThermal(s); validateStorage(s); validateProduction(s); validateMedicine(s); validateNursing(s); validateCrewLife(s); validateShuttle(s); validatePreflight(s);
+  validateFlora(s); validateAirlocks(s); validateFreightState(s); validateBreakers(s); validatePlumbing(s); validateGasNetworks(s); validateLiquids(s); validateReactors(s); validateFire(s); validateTransport(s); validateHusbandry(s); validateBreeding(s); validatePastures(s); validateWater(s); validateHousing(s); validateComfort(s); validatePossessions(s); validateDesignations(s); validateHygiene(s); validateSanitation(s); validateFood(s); validateThermal(s); validateStorage(s); validateProduction(s); validateMedicine(s); validateNursing(s); validateCrewLife(s); validateShuttle(s); validatePreflight(s);
   validateReliability(s);
   for (const site of Object.values(s.sites)) validatePower(s, site);
   const recorded = s.resources; syncResources(s);

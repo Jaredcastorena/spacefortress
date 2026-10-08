@@ -57,7 +57,7 @@ test('tame healthy animals mature curd over time and handlers leave food and man
 
 test('nutrition and health gate curd maturation and collection policy preserves ready output',()=>{
  const {s,a,h}=colony();h.trust=100;h.product=50;a.fed=30;setAnimalPost(s,a.id,10,15);setAnimalPolicy(s,a.id,'care',false);setAnimalPolicy(s,a.id,'harvest',false);
- for(const t of s.sites.surface.tiles)t.lichen=0;step(s,10);assert.equal(h.product,50);a.fed=90;a.health=30;step(s,5);assert.equal(h.product,50);a.health=100;h.product=99;step(s,4);assert.equal(h.product,100);assert.ok(!s.jobs.some(j=>j.kind==='animalHarvest'));setAnimalPolicy(s,a.id,'harvest',true);until(s,()=>h.product<100);check(s);
+ for(const t of s.sites.surface.tiles)if(t.flora?.lichen)t.flora.lichen.biomass=0;step(s,10);assert.equal(h.product,50);a.fed=90;a.health=30;step(s,5);assert.equal(h.product,50);a.health=100;h.product=99;step(s,4);assert.equal(h.product,100);assert.ok(!s.jobs.some(j=>j.kind==='animalHarvest'));setAnimalPolicy(s,a.id,'harvest',true);until(s,()=>h.product<100);check(s);
 });
 
 test('post reassignment and release preserve trust, product and resource ownership',()=>{

@@ -1,6 +1,6 @@
 # SPACEFORTRESS roadmap
 
-**Published version: v0.1.2 · Published save schema: 38 · Local experimental schema: 41.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
+**Published version: v0.1.2 · Published save schema: 38 · Local experimental schema: 42.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
 
 See the [README](README.md) to play, [verification status](docs/verification-status.md) for evidence and limits, and the [180-system conversion inventory](docs/conversion-inventory.md) for the wider backlog. Completing a milestone below does not complete an entire inventory family or establish full Dwarf Fortress parity.
 
@@ -8,9 +8,11 @@ See the [README](README.md) to play, [verification status](docs/verification-sta
 
 - Implemented locally: fungal caps, siltgrain and sunberries; fungus-fed glazefoots producing eggs; distinct bristleback curd; eight galley recipes; Production skill gates and four meal-quality tiers.
 - Ingredients remain physical goods, with exact food kinds, spoilage ages, animal feed reservations and prepared-meal provenance. Recipe changes preserve committed batches and return incompatible waiting supplies.
-- Schema 41 migrates schema-40 hex saves; legacy food and animals are preserved. No dependencies or remote assets were added.
-- Automated checks cover crop/recipe selection, hauling contention, species care/breeding, migration and structured observations. The full gate found two plumbing-delivery issues; both are repaired with 17 affected checks passing. A supplied crop→care→eggs→omelet→eating trial passed at tick 605 with 12 shared commands and ten exact reloads. Browser crop/recipe controls, skill/input explanations and narrow layout also passed. Building the full food chain from a fresh colony remains unverified.
-- Next ecology depth: natural plant communities, biomes and growing stages; distinct animal physiology and veterinary care; inherited traits, meat/fibre products and more preservation. Connected physical decks remain separate work.
+- Native lichen, fungal caps and sunberries have persistent biomass, visible growth stages and environmental dormancy. Real Production work gathers mature plants into typed ground goods for hauling and cooking; grazing nutrition reflects actual biomass eaten.
+- Schema 42 migrates schema-40/41 hex saves; legacy food, animals and lichen are preserved, with no edible-plant grants. No dependencies or remote assets were added.
+- Current full regression gate: 1,120 passed, zero failed and one intentional skip. Focused checks cover growth, dormancy, grazing, harvesting, interrupted jobs, migration and structured observations. A fresh colony built a galley and completed gathering→hauling→fungal stew at tick 66 using five commands, with four exact reloads and everyone healthy. Browser checks cover the plant inspector, gathering/cancellation, maturity explanations, save/reload and a narrow screen.
+- The previous supplied crop→care→eggs→omelet→eating trial passed at tick 605. Building that entire farming/livestock chain from a fresh colony remains unverified.
+- Next ecology depth: soil moisture, plant spreading, orchards and full biomes; distinct animal physiology and veterinary care; inherited traits, meat/fibre products and more preservation. Connected physical decks remain separate work.
 
 See [food and ecology](docs/food-and-ecology.md) for current recipes and boundaries. This expansion is not published.
 

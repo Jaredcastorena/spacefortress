@@ -25,7 +25,7 @@ function colony(){
 function pen(){
   const f=colony(),{s,site}=f,[a,b]=s.creatures.filter(a=>a.species==='glazefoot');
   for(const [i,animal] of s.creatures.filter(a=>a.species==='bristleback').entries()){animal.x=12+i;animal.y=20;}
-  for(let y=15;y<=23;y++)for(let x=3;x<=9;x++){const t=at(site,x,y);t.terrain='ground';t.building=x===3||x===9||y===15||y===23?'fence':null;t.hp=100;t.lichen=80;}
+  for(let y=15;y<=23;y++)for(let x=3;x<=9;x++){const t=at(site,x,y);t.terrain='ground';t.building=x===3||x===9||y===15||y===23?'fence':null;t.hp=100;t.flora={lichen:{biomass:80,harvests:0}};}
   const gate=at(site,6,15);gate.building='pastureGate';gate.gateMode='latched';
   a.x=6;a.y=18;b.x=7;b.y=18;
   for(const animal of [a,b]){animal.fed=100;animal.husbandry.trust=100;animal.lifecycle.enabled=true;}
@@ -68,8 +68,8 @@ test('wrong and prepared feed cannot complete care or mutate the animal',()=>{
 
 test('glazefoots consume neither lichen nor stored rations during their ecology updates',()=>{
   const {s,a,depot}=colony();s.creatures=[a];a.x=8;a.y=10;a.husbandry.care=false;a.husbandry.harvest=false;
-  const lichen=s.sites.surface.tiles.reduce((n,t)=>n+(t.lichen||0),0),food=depot.stock.food,nutrition=a.fed;
-  step(s,30);assert.equal(s.sites.surface.tiles.reduce((n,t)=>n+(t.lichen||0),0),lichen);assert.equal(depot.stock.food,food);assert.ok(a.fed<nutrition);check(s);
+  const lichen=s.sites.surface.tiles.reduce((n,t)=>n+(t.flora?.lichen?.biomass||0),0),food=depot.stock.food,nutrition=a.fed;
+  step(s,30);assert.equal(s.sites.surface.tiles.reduce((n,t)=>n+(t.flora?.lichen?.biomass||0),0),lichen);assert.equal(depot.stock.food,food);assert.ok(a.fed<nutrition);check(s);
 });
 
 test('glazefoot broods, hungry juveniles and same-species ancestry survive deterministic reload',()=>{

@@ -2,7 +2,18 @@
 
 Updated October 8, 2026. This is the compact evidence index for implemented and proposed systems. **Verified** means the named scope passed its stated check. **Pending** means evidence is not yet complete. **Failed** means a known check contradicts the requirement. None of these rows declares the whole game finished.
 
-## Unreleased food and ecology — schema 41
+## Current wild flora and gathering — schema 42
+
+| Check | Status | Evidence and scope |
+| --- | --- | --- |
+| Plant simulation and grazing | Verified — focused checks | 88 passes on the first run cover deterministic patches, exact legacy lichen conversion, growth/dormancy, environmental removal, finite harvesting, cycle pins and proportional grazing. Core receipt `acd77422`; native growth remains an abstract environmental source. |
+| Jobs, migration and observations | Verified — focused checks | 57 distinct checks pass across three bounded runs. Gathering uses real routes and Production work, survives interruption/reload and cannot duplicate a completed harvest. The actual historical tick-3173 save migrates without stepping: 121 lichen patches and 11,136 biomass preserved, no edible plants granted, other state unchanged. Integration receipt `26b951b4`. |
+| Full regression gate | Verified | **1,120 passed, zero failed, one intentional skip** in 68.45 seconds. All 222 source/test inputs unchanged. Report `.runtime-qa/flora/node-gate-report-sha256-fd8bcbdda441adaf8dc676d3c31d421f82c68e17275b58d1b461d7fb41489bff.json`. The earlier 26 Python checks apply to unchanged tooling. |
+| Ordinary gathering and cooking | Verified — bounded fresh-colony trial | Seed 74219, 66 ticks and five commands. Actual galley construction cost 6 alloy/1 component; two native caps became ground goods, carried goods, galley input and two quality-two fungal-stew portions using 0.5 water. Original 24 rations remain. Seven crew/five animals healthy, four exact reloads, 93 runtime inputs unchanged. Summary `.runtime-qa/flora-gathering/summary-sha256-24791d067ec26a79cd1fbf29084e1823dddb4a9e7836db4f280bef581bb7e7f8.json`; receipt index `98da9560`. Root independently verified 21 artifact hashes, runtime fingerprints and all four reloads (`9825020e`). |
+| Plant interface | Verified — scoped browser review | Seven markup checks plus actual mature/growing plant selection, Gather/cancel, disabled maturity explanation, sunberry details, 390-pixel layout and save/reopen. No browser warnings/errors observed. Original stage-scaled sprites remain in the isometric hex view. UI receipt `2ef6a0c6`; browser receipt `c25b48d3`. |
+| Broader ecology | Pending | Soil moisture, spreading, orchards, full biomes, animal physiology/veterinary care, traits, meat/fibre and preservation remain future work. A complete ordinary colony-built farming/livestock chain is not yet accepted. |
+
+## Earlier food and ecology increment — schema 41
 
 | Check | Status | Evidence and scope |
 | --- | --- | --- |

@@ -1,6 +1,6 @@
 # Flora, livestock and cooking
 
-Status: implemented in the local hex build, verified by focused checks and a complete supplied food-chain trial. The published v0.1.2 game does not include this expansion.
+Status: implemented in the local hex build, verified by focused checks, a fresh-colony gathering/cooking trial and a complete supplied farming/livestock trial. The published v0.1.2 game does not include this expansion.
 
 ## A connected food chain
 
@@ -11,7 +11,10 @@ flowchart LR
   W[Water] --> F[Hydroponics]
   N[Fertilizer] --> F
   F --> G[Fungal caps, grain and berries]
-  G --> A[Glazefoot care]
+  V[Wild caps and berries] --> H[Gathering and hauling]
+  H --> A[Glazefoot care]
+  H --> K[Galley]
+  G --> A
   A --> E[Glaze eggs]
   B[Bristleback care and grazing] --> C[Nutrient curd]
   G --> K[Galley]
@@ -36,12 +39,28 @@ Each crop produces two food units. Water and fertilizer must be physically deliv
 
 Choose a crop in the hydroponics inspector. Its identity remains attached to harvested portions while they are carried, stored, reserved or processed. Historical generic food remains ordinary rations; it is never silently converted into a named crop.
 
+## Native plants and gathering — local development
+
+Wild plants now have persistent biomass and visible bare, sparse, growing, budding and mature stages. New colonies contain three wild fungal-cap patches and three sunberry patches, beginning at different stages. Plant placement is deterministic and does not alter the simulation's random sequence. Lichen remains the natural grazing food for bristlebacks.
+
+| Native plant | Growth conditions | Natural regrowth | Mature harvest |
+| --- | --- | --- | --- |
+| Ground lichen | Ground, −40 to 35 °C | 2 biomass per 60 eligible ticks | Grazed by bristlebacks; not crew food |
+| Wild fungalcap | Ground, −40 to 20 °C | 1 biomass per 30 eligible ticks | 2 fungal caps after 10 Production work |
+| Wild sunberry | Ground, daylight, 0 to 30 °C | 1 biomass per 30 eligible ticks | 2 sunberries after 12 Production work |
+
+Inspect a mature edible patch and choose **Gather**. A Production worker must physically reach it and finish the work. The plant then falls from 100 to 20 biomass, and two typed food units appear on that tile for haulers. Fungal caps can feed glazefoots or enter recipes; berries combine with bristleback curd. Cancelling or interrupting a gathering order grants no food. A completed harvest cannot be repeated until the patch matures again.
+
+Cold or darkness pauses growth where the species requires it. Fire and construction that covers the ground remove affected plants. Fences and gates preserve patches; husbandry posts preserve lichen. Grazing nutrition is proportional to the biomass actually eaten. Native biological growth is currently an abstract environmental source: it does not draw stored colony water or air. Soil moisture, spreading, seeds, orchards and full biomes remain future work.
+
+Schema 42 migrates existing schema-40/41 hex colonies by preserving their exact lichen quantities in plant records. It creates no edible patches or food in those older colonies. Covered legacy lichen survives a no-step reload, then is removed during the first normal ecology update. Focused checks, a fresh-colony gathering/cooking trial and browser review passed; see the verification index for scope and evidence.
+
 ## Animals
 
 | Species | Food source | Product | Distinct behavior |
 | --- | --- | --- | --- |
 | Bristleback | Existing colony food and natural lichen grazing | Nutrient curd | Six-legged native grazer with mineral plates |
-| Glazefoot | Delivered raw fungal caps | Glaze eggs | Four-footed grazer with a translucent dorsal fan; depends on cultivated feed |
+| Glazefoot | Delivered raw fungal caps | Glaze eggs | Four-footed grazer with a translucent dorsal fan; depends on gathered or cultivated fungal feed |
 | Tibble | Existing food stocks and crop biomass | None | A pest that can raid supplies and damage hydroponics |
 
 Livestock require care and sufficient nutrition before producing. Young animals do not yield products. Breeding pairs must be unrelated adults of the same species; both livestock species share pasture space and enclosure limits. Fences, gates and physical handler transport remain part of the chain.
@@ -69,11 +88,17 @@ The galley inspector shows the selected recipe, delivered and missing ingredient
 
 ## Saves, controls and scope
 
-The expansion uses schema 41 with migration from schema-40 hex saves. Existing food amounts, ages, prepared meals and committed batches are preserved by migration checks. Square saves retain their protected export behavior. Crop/recipe selection uses shared player/agent actions, and ingredient, animal-product and meal events retain machine-readable labels. The interface stays in existing hidden inspectors.
+The expansion uses schema 42 with migration from schema-40/41 hex saves. Existing food amounts, ages, prepared meals and committed batches are preserved by migration checks. Square saves retain their protected export behavior. Gathering and crop/recipe selection use shared player/agent actions. Plant stages, harvests, removals, ingredients, animal products and meals retain machine-readable labels. The interface stays in existing hidden inspectors.
 
-Further ecology work includes natural plant communities and biomes, plant growth stages, seasonal or orbital growing conditions, more species, distinct animal physiology, veterinary care, inherited traits, meat and fibre production, and additional preservation methods. Physical habitat decks remain a separate roadmap item.
+Further ecology work includes soil moisture, plant spreading, seeds, orchards, full biomes and seasonal or orbital growing conditions, more species, distinct animal physiology, veterinary care, inherited traits, meat and fibre production, and additional preservation methods. Physical habitat decks remain a separate roadmap item.
 
-## Verified connected trial
+## Verified fresh-colony gathering trial
+
+Starting from an ordinary new colony, crew spent six alloy and one component to build a galley. They gathered two wild fungal caps, physically carried them inside and used 0.5 water to cook two quality-two fungal-stew portions. This finished at tick 66 using five shared commands. The original 24 rations were untouched; all seven crew and five animals remained healthy. Initial, partial-work, harvested and cooked checkpoints reopened byte-for-byte exactly.
+
+This proves ordinary gathering and galley construction. It does not yet prove building and sustaining the entire farming/livestock chain from scratch.
+
+## Verified supplied farming and livestock trial
 
 One explicitly supplied habitat completed the sequence at tick 605 using 12 shared commands: two fungal-cap crops yielded four units, three care deliveries tamed a native glazefoot, natural product accumulation yielded two eggs, and the galley combined one cap with one egg and 0.25 water into two quality-two omelet units. A crew member ate 0.125; 1.875 prepared units and one spare egg remained. No ingredients, animal trust, product readiness or experience were granted. The setup provided buildings, wiring, finite charged batteries and ordinary finite supplies; it did not prove construction from a fresh colony.
 

@@ -80,8 +80,8 @@ test('save round trip continues deterministically; incompatible and malformed sa
   const bad = createGame(); bad.resources.alloy = -4; assert.throws(() => deserialize(serialize(bad)));
 });
 test('bristlebacks consume local lichen without draining colony food', () => {
-  const s = createGame(), t = at(s.sites.surface, 6, 16), lichen = t.lichen;
-  step(s, 9); assert.ok(t.lichen < lichen); assert.equal(s.resources.food, 24);
+  const s = createGame(), t = at(s.sites.surface, 6, 16), lichen = t.flora.lichen.biomass;
+  step(s, 9); assert.ok(t.flora.lichen.biomass < lichen); assert.equal(s.resources.food, 24);
 });
 test('tibbles consume biomass, multiply, and can be caught with a constructed trap', () => {
   const s = createGame(); s.creatures.push({ id: 'test-tibble', species: 'tibble', site: 'surface', x: 8, y: 10, health: 100, fed: 60, age: 59 });

@@ -1,6 +1,7 @@
 import { isLivestock } from './livestock-data.js';
 import { neighbors } from './geometry.js';
 import { animalPassable } from './navigation.js';
+import { floraBiomass } from './flora.js';
 import { emitEvent, recordingStatus, tileEntityId } from './telemetry.js';
 // Derived animal-access regions. Neither regions nor observations own supplies or RNG.
 export function pastureRegions(site) {
@@ -11,7 +12,7 @@ export function pastureRegions(site) {
     const r={id:`pasture:${site.id}:${tile.x}:${tile.y}`,cells:[],enclosed:true,lichen:0};
     const queue=[tile];byCell.set(start,r);
     for(let i=0;i<queue.length;i++){
-      const t=queue[i];r.cells.push([t.x,t.y]);if(t.terrain==='ground'&&(!t.building||['fence','pastureGate','husbandryPost'].includes(t.building)))r.lichen+=t.lichen||0;
+      const t=queue[i];r.cells.push([t.x,t.y]);if(t.terrain==='ground'&&(!t.building||['fence','pastureGate','husbandryPost'].includes(t.building)))r.lichen+=floraBiomass(t);
       if(t.x===0||t.y===0||t.x===site.size-1||t.y===site.size-1)r.enclosed=false;
       for(const [x,y] of neighbors(t.x,t.y))if(animalPassable(site,x,y)&&!byCell.has(y*site.size+x)){byCell.set(y*site.size+x,r);queue.push(site.tiles[y*site.size+x]);}
     }

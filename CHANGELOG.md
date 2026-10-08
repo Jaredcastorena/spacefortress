@@ -4,17 +4,23 @@ SPACEFORTRESS is an early playable colony simulator. Release entries describe co
 
 ## Unreleased — 2026-10-08
 
+- Current verification: 1,120 Node checks passed, zero failed and one intentional skip. A fresh-colony gathering→hauling→stew trial passed after actual galley construction; all seven crew and five animals remained healthy, with four exact reloads. Plant controls and narrow layout passed browser review. This build is local and unpublished.
+
+- Native fungal caps and sunberries grow through visible stages, with species temperature and daylight limits. Crew gather mature plants through finite Production jobs; typed food drops on the ground and uses existing physical hauling and cooking.
+- Lichen shares the plant biomass system; grazing nutrition scales with the actual bite. Fire and ground-covering construction remove affected plants. Plant stages, removals and harvests emit structured events.
+- Save schema 42 migrates schema-40/41 hex colonies without adding edible plants or changing existing lichen quantities. Native growth currently uses abstract environmental resources; soil moisture, spreading and orchards remain future work.
+
 - Three selectable hydroponic crops and eight galley recipes use physically delivered ingredients and Production skill requirements, with four meal-quality tiers and recipe-specific comfort.
 - Original glazefoot livestock eat delivered fungal caps and yield glaze eggs. Bristleback harvests retain their nutrient-curd identity; both species use existing care, pasture, breeding and transport systems.
 - Ingredient kinds, oldest input age, recipe and maker survive reservations, hauling, cooking, storage and save/reload. Changing recipes preserves paid batches. Pausing a machine retains pending physical deliveries.
-- Save schema 41 migrates schema-40 hex colonies while preserving legacy food, animals and committed batches. New colonies receive two wild glazefoots; old colonies receive no free animals.
+- The earlier schema-41 food migration preserves schema-40 hex colonies while preserving legacy food, animals and committed batches. New colonies receive two wild glazefoots; old colonies receive no free animals.
 - Production hauling ignores negligible floating-point input shortages, preventing microscopic air refills from displacing useful cargo. Stored supplies and real shortage priorities are preserved.
 - Experimental pressure-cycling airlocks recover and refill actual gas through controlled equipment, with two-door interlocks, power and atmosphere guards, queued travelers and safe manual release.
 - Crew preserve work, parcels, meals and carried patients while waiting. Manual release permits chamber maintenance through the selected side.
 - Crew share finite room oxygen for breathing before optional suit charging. Actual suit reserves cover shortages; injury follows unmet demand. Home warnings identify dependence on suit air, and structured `crew.air.allocated` events record the transfers for players and local agents.
 - True hex terrain and construction retain the isometric view. Movement, work range, room seals, livestock boundaries, gas, water, heat and electricity use six neighbors; device orientations, overlays and pointer picking share the same geometry.
 - Save schema 40 identifies the hex grid. Square schemas 1–39 are rejected before topology changes, with original save bytes protected for export. Existing action IDs, named events and entity IDs are retained. The separate elements laboratory remains square.
-- Final full regression coverage: 1,057 Node checks passed, zero failed, one intentional skip. The prior 26 Python passes remain applicable to unchanged tooling. Local Chrome verification covers rendering, picking, a build preview, gas overlays and narrow-screen inspector focus. A held-pointer form submission across a real refresh dispatched exactly once. Paid airlock construction/parcel acceptance remains incomplete. This build is not published.
+- Historical hex regression coverage: 1,057 Node checks passed, zero failed, one intentional skip. The prior 26 Python passes remain applicable to unchanged tooling. Local Chrome verification covers rendering, picking, a build preview, gas overlays and narrow-screen inspector focus. A held-pointer form submission across a real refresh dispatched exactly once. Paid airlock construction/parcel acceptance remains incomplete. This build is not published.
 - Ordinary hex-colony acceptance now includes paid air production, supplied exterior construction, waste containment and complete medical and finite-supply recovery. All seven founders recovered, and construction materials were replenished through real mining and manufacturing. A paid scrubber repair and battery-charging schedule completed stalled air production without resetting its existing materials or progress. One supplied exterior trip restored two damaged solar arrays while preserving the enclosure materials. Enclosure, commissioning and parcel acceptance remain unfinished; detailed evidence and night-power limits are in the verification record.
 
 ## v0.1.2 — 2026-09-30

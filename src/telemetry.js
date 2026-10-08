@@ -1,3 +1,4 @@
+import { floraStatus } from './flora.js';
 import { productionEligibility } from './production.js';
 import { livestockDef } from './livestock-data.js';
 import { expeditionCrewStatus, expeditionCandidates, expeditionLaunchBlock, expeditionCrewLimits } from './expedition-readiness.js';
@@ -55,7 +56,8 @@ export function observe(s) {
       const ownership={building:airlockControlOwner(site,t,'building'),pipe:airlockControlOwner(site,t,'pipe')};
       const owned=ownership.building||ownership.pipe;
       const production=t.machine?productionEligibility(s,site,t):null;
-      const derived=plumbing||electrical||airlock||owned||production?{...previousDerived,...(production?{production}:{}),...(plumbing?{plumbing}:{}),...(electrical?{electrical}:{}),...(airlock?{airlock}:{}),...(owned?{airlockOwnership:ownership}:{})}:previousDerived;
+      const flora=t.flora?floraStatus(s,site,t):null;
+      const derived=plumbing||electrical||airlock||owned||production||flora?{...previousDerived,...(flora?{flora}:{}),...(production?{production}:{}),...(plumbing?{plumbing}:{}),...(electrical?{electrical}:{}),...(airlock?{airlock}:{}),...(owned?{airlockOwnership:ownership}:{})}:previousDerived;
       entities[tileEntityId(site.id,t.x,t.y)]={type:'tile',site:site.id,...t,...(derived?{derived}:{})};
     }
     for(const r of rooms) {
@@ -88,7 +90,7 @@ export function systemFor(type,path) {
   if(type==='pasture')return 'pastures';
   if(type==='meal_batch')return 'food';
   if(type==='crew')return ({possessions:'possessions',memories:'memory',relationships:'relationships',housing:'housing',medical:'medicine',sanitation:'sanitation',life:'crew_life',intent:'intent',carry:'inventory',delivery:'logistics',skills:'skills',labors:'labor',thermalStress:'temperature',health:'health',oxygen:'atmosphere',energy:'needs',hunger:'needs',morale:'morale',x:'movement',y:'movement',site:'movement'})[root] || 'crew';
-  if(type==='tile')return ({protection:'power',waterPipe:'plumbing',waterStore:'plumbing',waterDevice:'plumbing',pipe:'gas_networks',gasStore:'gas_networks',gasDevice:'gas_networks',liquid:'liquids',tank:'liquids',wetShort:'power',reactor:'power',radiator:'temperature',fire:'fire',fireFault:'fire',deposit:'geology',stock:'inventory',drop:'inventory',imports:'inventory',machine:'production',building:'construction',hp:'condition',cable:'power',charge:'power',powered:'power',powerPriority:'power',circuit:'power',powerStatus:'power',maintenance:'maintenance',sanitary:'sanitation',climate:'temperature',gateMode:'pastures',doorMode:'doors',doorUntil:'doors'})[root] || 'terrain';
+  if(type==='tile')return ({flora:'flora',protection:'power',waterPipe:'plumbing',waterStore:'plumbing',waterDevice:'plumbing',pipe:'gas_networks',gasStore:'gas_networks',gasDevice:'gas_networks',liquid:'liquids',tank:'liquids',wetShort:'power',reactor:'power',radiator:'temperature',fire:'fire',fireFault:'fire',deposit:'geology',stock:'inventory',drop:'inventory',imports:'inventory',machine:'production',building:'construction',hp:'condition',cable:'power',charge:'power',powered:'power',powerPriority:'power',circuit:'power',powerStatus:'power',maintenance:'maintenance',sanitary:'sanitation',climate:'temperature',gateMode:'pastures',doorMode:'doors',doorUntil:'doors'})[root] || 'terrain';
   if(type==='room')return root==='smoke'?'fire':root==='heat'?'temperature':root==='cells'||root==='volume'?'room_topology':'atmosphere';
   if(type==='job')return 'jobs';
   if(type==='creature')return 'wildlife';

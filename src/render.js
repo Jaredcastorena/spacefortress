@@ -14,6 +14,7 @@ import { crewSprite, ANATOMIES } from './sprites.js';
 import { doorOpen } from './atmosphere.js';
 import { airlockStatus } from './airlock-access.js';
 import { quantity } from './inventory.js';
+import { floraBiomass, floraStage } from './flora.js';
 
 export const HEX_RADIUS = 32;
 const ROOT2 = Math.sqrt(2);
@@ -67,6 +68,30 @@ export class Renderer {
     this.polygon([[x, y - d - h], [x + w, y - h], [x, y + d - h], [x - w, y - h]], top);
   }
   line(x1, y1, x2, y2, color, width = 1) { const c = this.ctx; c.strokeStyle = color; c.lineWidth = width; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); }
+  wildFlora(t,x,y) {
+    for(const species of ['fungalcap','sunberry']) {
+      if(!t.flora?.[species])continue;
+      const biomass=floraBiomass(t,species),stage=floraStage(biomass),scale=.3+.7*biomass/100;
+      const point=(dx,dy)=>[x+dx*scale,y+dy*scale];
+      if(stage==='bare'){this.line(x-4,y+2,x+4,y-1,'#665762',1);continue;}
+      if(species==='fungalcap') {
+        const stems=stage==='sparse'?[[0,-8]]:stage==='growing'?[[-6,-10],[6,-6]]:[[-9,-8],[0,-16],[10,-6]];
+        for(const [dx,dy] of stems) {
+          this.line(...point(dx,3),...point(dx,dy),'#b7a2d0',Math.max(1,2*scale));
+          this.polygon([[-7,0],[-4,-5],[3,-6],[8,-2],[4,2],[-3,3]].map(([px,py])=>point(dx+px,dy+py)),stage==='mature'?'#ab98d6':'#71628f','#d4c3df');
+          this.line(...point(dx-4,dy),...point(dx+4,dy-1),stage==='mature'?'#bdebe0':'#a897b9',1);
+        }
+      } else {
+        for(const [dx,dy] of [[-13,-3],[-8,-14],[4,-18],[13,-8],[10,3]]) {
+          this.polygon([point(0,3),point(dx,dy),point(dx*.55+2,dy*.55+2)],'#6d967e','#91ba91');
+        }
+        if(stage==='budding'||stage==='mature')for(const [dx,dy] of [[-7,-9],[3,-14],[10,-5]]) {
+          const radius=stage==='mature'?3.5:1.8;
+          this.polygon([point(dx,dy-radius),point(dx+radius,dy),point(dx,dy+radius),point(dx-radius,dy)],stage==='mature'?'#edaf59':'#d3ca88','#f6d99a');
+        }
+      }
+    }
+  }
   crewSprite(color) {
     if (this.spriteCache.has(color)) return this.spriteCache.get(color);
     const canvas = document.createElement('canvas'); canvas.width = 20; canvas.height = 30; const c = canvas.getContext('2d');
@@ -105,7 +130,8 @@ export class Renderer {
       if (selectedCells.has(key(t.x, t.y))) this.hex(x, y, '#93d5c218');
       if (t.terrain === 'floor' || t.terrain === 'deck') { c.fillStyle = '#b2c0af42'; c.fillRect(x - 1, y - 12, 2, 1); c.fillRect(x - 24, y, 2, 1); }
       if (t.terrain === 'ground') { c.fillStyle = '#b59a702b'; c.fillRect(x - 15 + t.variant * 5, y - 3 + t.variant, 3, 1); }
-      if (t.lichen > 10) { for (let i = 0; i < 4; i++) { c.fillStyle = ['#98a076', '#788765', '#a6a778', '#748468'][i]; c.fillRect(x - 12 + i * 7, y - 2 + i % 2 * 4, 6, 2); } }
+      const lichen=floraBiomass(t);
+      if (lichen > 0) { for (let i = 0; i < Math.ceil(lichen/25); i++) { c.fillStyle = ['#98a076', '#788765', '#a6a778', '#748468'][i]; c.fillRect(x - 12 + i * 7, y - 2 + i % 2 * 4, 3+lichen*.03, 2); } }
     }
     for (const cell of selectedCells) {
       const [tx,ty] = cell.split(',').map(Number), [x,y] = this.project(tx,ty);
@@ -121,6 +147,7 @@ export class Renderer {
     const sorted = [...site.tiles].sort(compareHexDepth);
     for (const t of sorted) {
       const [x, y] = this.project(t.x, t.y);
+      this.wildFlora(t,x,y);
       if (t.terrain === 'rock') { const h = 12 + t.variant * 5; this.box(x, y, 26, 13, h, '#8a7963', '#685b4e', '#4b4842'); this.line(x - 12, y - h - 5, x + 2, y - h + 3, '#a49375'); }
       if (t.terrain === 'ore') { this.box(x, y, 22, 10, 11, '#897563', '#6d5744', '#4c473b'); for (let k = 0; k < 3; k++) { c.fillStyle = ['#ce9863', '#dfb777', '#b78052'][k]; c.fillRect(x - 14 + k * 10, y - 17 + (k % 2) * 5, 6, 4); } }
       if (t.deposit?.remaining > 0) { const h = 4 + t.deposit.remaining / 2; this.box(x,y,19,9,h,'#b9d8de','#7aaebf','#4c788c'); this.line(x-12,y-h-2,x+5,y-h+4,'#e0eff0',2); this.line(x+5,y-h+4,x+10,y-h-2,'#668fa5',2); }

@@ -35,7 +35,7 @@ export const refs = s => {
 export function fixture({configure=true,chamberGas=20,reserveGas=35,smoke=.02}={}) {
  const s=createGame(74219), site=s.sites.surface;
  const stock=structuredClone(at(site,8,10).stock),shuttle=structuredClone(at(site,16,11));
- const blank=structuredClone(site.tiles.find(t=>!t.building&&!t.lichen&&!t.machine));
+ const blank=structuredClone(site.tiles.find(t=>!t.building&&!t.flora&&!t.machine));
  site.tiles=site.tiles.map((_,i)=>({...structuredClone(blank),x:i%site.size,y:Math.floor(i/site.size),terrain:'ground',building:null,hp:100,drop:null,cable:null,powered:false}));
  const tile=(x,y)=>at(site,x,y);
  site.tiles[11*site.size+16]=shuttle;

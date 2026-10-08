@@ -4,9 +4,9 @@ Updated October 8, 2026.
 
 ## Local hex and food development
 
-The local branch uses hex colonies and schema 41. Three crop types, glazefoot eggs, bristleback curd, eight recipes, skill requirements and preserved ingredient provenance are implemented. See [food and ecology](food-and-ecology.md) and the [verification record](verification-status.md). A complete supplied food-chain trial and scoped browser acceptance passed; building that full chain from a fresh colony is still unverified. The published release remains v0.1.2/schema38.
+The local branch uses hex colonies and schema 42. Native plant stages, environmental growth, physical gathering, three crop types, glazefoot eggs, bristleback curd, eight recipes, skill requirements and preserved ingredient provenance are implemented. See [food and ecology](food-and-ecology.md) and the [verification record](verification-status.md). A fresh colony built a galley and gathered, hauled and cooked native caps with everyone healthy; four checkpoints reloaded exactly. The full regression gate passes 1,120 checks with zero failures and one intentional skip. The earlier supplied crop/livestock/omelet trial and scoped browser acceptance passed; building that whole chain from a fresh colony is still unverified. The published release remains v0.1.2/schema38.
 
-Historical ordinary play reached tick 3173 with seven healthy founders, repaired life support and restored solar generation. The actual checkpoint migrates to schema 41 without physical quantity loss; it has not been replayed under the new food expansion. Paid airlock enclosure, commissioning, a parcel roundtrip and long-term outpost endurance remain pending. Physical decks and the generated universe remain future work.
+Historical ordinary play reached tick 3173 with seven healthy founders, repaired life support and restored solar generation. The actual checkpoint migrates to schema 42 without physical quantity loss; it has not been replayed under the new food expansion. Paid airlock enclosure, commissioning, a parcel roundtrip and long-term outpost endurance remain pending. Physical decks and the generated universe remain future work.
 
 ## Published development checkpoint — historical
 

@@ -14,7 +14,7 @@ function pen(){
  const s=createGame(),site=s.sites.surface,a=s.creatures[0];
  for(const t of site.tiles)if(t.machine&&t.building!=='scrubber')setMachineEnabled(s,'surface',t.x,t.y,false);
  for(const c of s.crew)setLabor(s,c.id,'hauling',false);
- for(let y=15;y<=23;y++)for(let x=3;x<=9;x++){const t=at(site,x,y);t.terrain='ground';t.building=x===3||x===9||y===15||y===23?'fence':null;t.hp=100;t.lichen=80;}
+ for(let y=15;y<=23;y++)for(let x=3;x<=9;x++){const t=at(site,x,y);t.terrain='ground';t.building=x===3||x===9||y===15||y===23?'fence':null;t.hp=100;t.flora={lichen:{biomass:80,harvests:0}};}
  const gate=at(site,6,15);gate.building='pastureGate';gate.gateMode='latched';const post=at(site,6,19);post.building='husbandryPost';a.x=10;a.y=18;a.husbandry.trust=100;a.husbandry.care=false;a.husbandry.harvest=false;
  return {s,site,a,gate,post};
 }

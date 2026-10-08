@@ -14,7 +14,7 @@ function pen(){
  const s=createGame(),site=s.sites.surface,a=s.creatures[0];
  for(const t of site.tiles)if(t.machine&&t.building!=='scrubber')setMachineEnabled(s,'surface',t.x,t.y,false);
  for(const c of s.crew)setLabor(s,c.id,'hauling',false);
- for(let y=14;y<=20;y++)for(let x=3;x<=9;x++){const t=at(site,x,y);t.terrain='ground';t.building=x===3||x===9||y===14||y===20?'fence':null;t.hp=100;t.lichen=80;delete t.maintenance;}
+ for(let y=14;y<=20;y++)for(let x=3;x<=9;x++){const t=at(site,x,y);t.terrain='ground';t.building=x===3||x===9||y===14||y===20?'fence':null;t.hp=100;t.flora={lichen:{biomass:80,harvests:0}};delete t.maintenance;}
  const gate=at(site,6,14);gate.building='pastureGate';gate.gateMode='latched';
  const post=at(site,6,17);post.building='husbandryPost';a.x=6;a.y=16;
  refreshPower(s,site);
@@ -51,7 +51,7 @@ test('wild grazers remain enclosed during repeated grazing and movement',()=>{
 });
 
 test('an assigned animal can graze beyond the soft post radius inside a physical pasture',()=>{
- const {s,site,a}=pen();a.x=4;a.y=19;setAnimalPost(s,a.id,6,17);a.husbandry.trust=100;a.husbandry.care=false;a.husbandry.harvest=false;const t=at(site,a.x,a.y),lichen=t.lichen;step(s,9);assert.equal(a.x,4);assert.equal(a.y,19);assert.equal(t.lichen,lichen-5);check(s);
+ const {s,site,a}=pen();a.x=4;a.y=19;setAnimalPost(s,a.id,6,17);a.husbandry.trust=100;a.husbandry.care=false;a.husbandry.harvest=false;const t=at(site,a.x,a.y),lichen=t.flora.lichen.biomass;step(s,9);assert.equal(a.x,4);assert.equal(a.y,19);assert.equal(t.flora.lichen.biomass,lichen-5);check(s);
 });
 
 test('broken fences open a route, and supplied repair restores containment',()=>{
@@ -84,7 +84,7 @@ test('gate controls label boundary loss separately from movement and derived pas
 });
 
 test('recording adds movement records without changing simulation outcomes or saves',()=>{
- const {s,site,a}=pen();at(site,a.x,a.y).lichen=0;const copy=check(s);startRecording(s,{maxRecords:10000,maxBytes:16000000});step(s,160);step(copy,160);assert.deepEqual(s,copy);assert.ok(events(s).some(e=>e.id==='animal.moved'));check(s);
+ const {s,site,a}=pen();at(site,a.x,a.y).flora.lichen.biomass=0;const copy=check(s);startRecording(s,{maxRecords:10000,maxBytes:16000000});step(s,160);step(copy,160);assert.deepEqual(s,copy);assert.ok(events(s).some(e=>e.id==='animal.moved'));check(s);
 });
 
 test('hex saves preserve supplies and animals; legacy labels and malformed gates are rejected',()=>{
