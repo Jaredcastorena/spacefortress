@@ -61,7 +61,7 @@ export function updateBreeding(s,positions=new Map()){
   if(l.brood.progress<def.gestation)continue;
   const tile=birthTile(s,a,r,regions);if(!tile)continue;
   let childId;do{childId=`${a.species}-${s.nextId++}`;}while(s.creatures.some(a=>a.id===childId));
-  const mate=l.brood.mate,brood=l.brood.id,inheritance=structuredClone(l.brood.inheritance),child={id:childId,species:a.species,site:'surface',x:tile[0],y:tile[1],health:100,fed:40,age:0,genetics:structuredClone(inheritance.child),husbandry:{post:null,trust:40,product:0,care:true,harvest:true,retryAt:0,blocked:null},lifecycle:newLifecycle(s.tick,[a.id,mate],a.species)};
+  const mate=l.brood.mate,brood=l.brood.id,inheritance=structuredClone(l.brood.inheritance),child={id:childId,species:a.species,site:'surface',x:tile[0],y:tile[1],health:100,fed:40,age:0,death:null,genetics:structuredClone(inheritance.child),husbandry:{post:null,trust:40,product:0,care:true,harvest:true,retryAt:0,blocked:null},lifecycle:newLifecycle(s.tick,[a.id,mate],a.species)};
   initializeAnimalCondition(child);s.creatures.push(child);a.fed=Math.max(0,a.fed-20);l.brood=null;l.cooldown=def.cooldown;
   emitEvent(s,'animal.born',{entity:child.id,species:child.species,brood,parents:[...child.lifecycle.parents],target:tileEntityId('surface',...tile),carrier:a.id,inheritance,genetics:structuredClone(child.genetics),profile:animalTraits(child)});
   emitEvent(s,'animal.traits.inherited',{entity:child.id,brood,parents:[...child.lifecycle.parents],carrier:a.id,genetics:structuredClone(child.genetics),profile:animalTraits(child)});

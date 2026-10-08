@@ -1,17 +1,17 @@
 # Livestock health and veterinary care
 
-Status: implemented locally, verified by focused checks, a supplied patient recovery trial and browser review. This feature is not in the published v0.1.2 game.
+Status: implemented locally, verified by focused checks, a supplied patient recovery trial and browser review. It is included in v0.1.3; current local release checks are separate from the historical care evidence below. The ordinary livestock continuation stopped on home air with all seven crew and five animals at full health and no injury, before slaughter or meat.
 
 ## Injuries and species needs
 
 Bristlebacks and glazefoots have persistent injuries from fire and severe temperature exposure. Ordinary hunger still causes weakness that responds to feeding; it does not create a wound. A wounded animal cannot recover its injured health through food alone.
 
-| Species | Comfortable temperature |
+| Species | Balanced-trait comfortable temperature |
 | --- | --- |
 | Bristleback | −40 to 35 °C |
 | Glazefoot | −40 to 30 °C |
 
-Both species tolerate the starting planet's normal day and night. Temperature strain builds outside their range and subsides in suitable conditions. Severe sustained strain causes cold or heat injuries. This is a gameplay physiology model; it does not add animal oxygen consumption or diseases.
+[Inherited thermal traits](animal-traits.md) shift both limits together by up to 5 °C; inspect the individual animal's range. Balanced animals tolerate the starting planet's normal day and night. Temperature strain builds outside their range and subsides in suitable conditions. Severe sustained strain causes cold or heat injuries. This is a gameplay physiology model; it does not add animal oxygen consumption or diseases.
 
 Injury or substantial temperature strain pauses product accumulation, collection, juvenile growth and brood development. Stored products and existing brood progress remain intact. Feeding and physical handler transport continue to use their existing rules.
 
@@ -29,15 +29,15 @@ Covered injuries heal gradually at the animal's intact assigned post. Recovery r
 
 While injured or recovering, automatic food care responds below 60 nutrition instead of the ordinary 40 threshold. It still respects the player's feeding policy and the animal's diet. Glazefoots need real fungal caps; bristlebacks use their existing feed rules. Keeping animals healthy therefore competes for actual food, medicine and crew time.
 
-Death, post loss, reassignment and transport cancel pending treatment through the normal rules for located supplies. Already-applied treatment stays with the animal during transport. Dead animals cannot be treated or resurrected.
+Death, post loss, reassignment and transport cancel pending treatment through the normal rules for located supplies. Already-applied treatment stays with the animal during transport. Dead animals cannot be treated or resurrected. Their retained identity is separate from the physical body handled through [butchery](butchery.md); processing or disposal does not remove ancestry.
 
 ## Saves and observation labels
 
-Schema 43 adds neutral condition records to older hex colonies. It preserves existing health, nutrition, products, broods, inventories, jobs and random state; it neither diagnoses historical wounds nor grants medicine or healing. Square saves remain protected for export.
+Schema 43 adds neutral condition records to older hex colonies. It preserves existing health, nutrition, products, broods, inventories, jobs and random state; it neither diagnoses historical wounds nor grants medicine or healing. Current schema 46 adds death records; historical deaths receive no new body or food. Square saves remain protected for export.
 
 Players and local agents use the same `husbandry.treat` action. Injury, temperature-state changes, treatment completion, recovery-state changes and full recovery have named events and stable animal IDs. Continuous health changes remain visible in observations. No model downloads or remote training calls are involved.
 
-Diseases, inherited traits, body-part wounds, veterinary surgery, meat/fibre products and broader ecology remain future work. See [food and ecology](food-and-ecology.md), [husbandry](husbandry.md) and the [verification record](verification-status.md).
+Inherited traits and the current body/meat increment are covered separately. Diseases, body-part wounds, veterinary surgery, fibre products and broader ecology remain future work. See [food and ecology](food-and-ecology.md), [husbandry](husbandry.md) and the [verification record](verification-status.md).
 
 ## Verified care trial
 

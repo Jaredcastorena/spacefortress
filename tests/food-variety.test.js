@@ -121,7 +121,7 @@ test('crop variants have real inputs, qualified work, fresh typed output and sep
   setProductionRecipe(s,site.id,t.x,t.y,'sunberry');m.input={water:1.5,fertilizer:.25};
   const state=productionEligibility(s,site,t);
   assert.equal(state.recipeId,'sunberry');assert.equal(state.minSkill,3);assert.equal(recipeFor(t).duration,40);
-  assert.equal(Object.values(CROPS).filter(r=>r.selectable!==false).length,3);assert.equal(Object.keys(MEAL_RECIPES).length,8);
+  assert.equal(Object.values(CROPS).filter(r=>r.selectable!==false).length,3);assert.equal(Object.keys(MEAL_RECIPES).length,10);
   assert.deepEqual([0,3,6,9].map(mealQualityForLevel),[1,2,3,4]);assert.equal(nextQualityLevel(6),9);assert.equal(nextQualityLevel(9),null);
   c.skills.production.level=9;
   const before=totalResources(s), result=order(s,site.id,t.x,t.y,'operate');assert.equal(result.ok,true,result.message);

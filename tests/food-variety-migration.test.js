@@ -22,7 +22,7 @@ function legacy40(waterOnly=false) {
   const medical=s.crew[1].medical;medical.servings=3;medical.foodAge=50;medical.openedFood={food:3/8,_food:[{amount:3/8,age:50,meal:{...meal}}]};medical.qualityTotal=2;
   for(const site of Object.values(s.sites))for(const tile of site.tiles)if(tile.machine){delete tile.machine.recipeId;delete tile.machine.batchRecipeId;}
   for(const site of Object.values(s.sites))for(const tile of site.tiles){if(tile.flora?.lichen)tile.lichen=tile.flora.lichen.biomass;delete tile.flora;}
-  for(const a of s.creatures){delete a.condition;delete a.genetics;}
+  for(const a of s.creatures){delete a.condition;delete a.genetics;delete a.death;}
   for(const site of Object.values(s.sites)){delete site.cultivation;delete site.liquids.absorbed;}
   return s;
 }
@@ -30,7 +30,7 @@ function withoutFoodSchema(s) {
   const copy=structuredClone(s);copy.version=40;
   for(const site of Object.values(copy.sites))for(const tile of site.tiles)if(tile.machine){delete tile.machine.recipeId;delete tile.machine.batchRecipeId;}
   for(const site of Object.values(copy.sites))for(const tile of site.tiles){if(tile.flora?.lichen)tile.lichen=tile.flora.lichen.biomass;delete tile.flora;}
-  for(const a of copy.creatures){delete a.condition;delete a.genetics;}
+  for(const a of copy.creatures){delete a.condition;delete a.genetics;delete a.death;}
   for(const site of Object.values(copy.sites)){delete site.cultivation;delete site.liquids.absorbed;}
   return copy;
 }
@@ -38,7 +38,7 @@ function withoutFoodSchema(s) {
 test('schema40 hex migration changes only food schema defaults, retaining old batches, portions and animals',()=>{
   for(const waterOnly of [false,true]){
     const old=legacy40(waterOnly),text=serialize(old),before=totalResources(old),loaded=deserialize(text);
-    assert.equal(loaded.version,45);assert.deepEqual(totalResources(loaded),before);
+    assert.equal(loaded.version,46);assert.deepEqual(totalResources(loaded),before);
     assert.deepEqual(withoutFoodSchema(loaded),old);assert.equal(serialize(old),text);
     const farm=at(loaded.sites.surface,7,9),galley=at(loaded.sites.surface,10,10);
     assert.equal(farm.machine.recipeId,'fungalcap');assert.equal(farm.machine.batchRecipeId,'legacy_crop');
@@ -68,7 +68,7 @@ test('shared recipe action exposes crop and meal choices, exact requirements and
   for(const recipe of ['legacy_crop','invalid','curd_bake']){const before=serialize(s);assert.equal(executeAction(s,'production.recipe',{site:'surface',x:7,y:9,recipe},'test').ok,false);assert.equal(serialize(s),before);}
 });
 
-test('schema45 rejects malformed recipe pins, durations, ingredient claims and diets',()=>{
+test('schema46 rejects malformed recipe pins, durations, ingredient claims and diets',()=>{
   const valid=deserialize(serialize(legacy40())),farm=at(valid.sites.surface,7,9);
   for(const mutate of [s=>at(s.sites.surface,7,9).machine.recipeId='unknown',s=>delete at(s.sites.surface,7,9).machine.recipeId,s=>at(s.sites.surface,7,9).machine.batchRecipeId='sunberry',s=>at(s.sites.surface,7,9).machine.progress=30]){
     const bad=structuredClone(valid);mutate(bad);assert.throws(()=>deserialize(serialize(bad)));
@@ -83,7 +83,7 @@ test('schema45 rejects malformed recipe pins, durations, ingredient claims and d
 });
 
 
-test('schema45 validates exact haul claims and actual operator skill while retaining old delivery recipe IDs',()=>{
+test('schema46 validates exact haul claims and actual operator skill while retaining old delivery recipe IDs',()=>{
   const s=createGame(705),site=s.sites.surface,t=at(site,10,10);t.building='galley';initializeStorage(t);initializeReliability(s);refreshPower(s,s.sites.surface);t.machine.recipeId='curd_bake';
   const c=s.crew[0];c.intent={type:'haul',target:[8,10],source:'stock',items:{food:1},foodKinds:{siltgrain:1},recipeId:'curd_bake',destination:{kind:'input',target:[10,10],recipeId:'curd_bake'}};
   assert.equal(serialize(deserialize(serialize(s))),serialize(s));

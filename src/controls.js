@@ -2,6 +2,7 @@ import { FLORA, CULTIVATION } from './flora-data.js';
 import { CROPS, MEAL_RECIPES, FOOD_KINDS } from './food-data.js';
 import { LIVESTOCK, VETERINARY } from './livestock-data.js';
 import { ANIMAL_TRAITS } from './animal-traits.js';
+import { BUTCHERY, reconcileCarcasses } from './animal-carcasses.js';
 import { GRID, DIRECTIONS } from './geometry.js';
 import { BREAKER_DIRECTIONS, BREAKER_MODES, setBreaker, resetBreaker } from './breakers.js';
 import { PLUMBING, WATER_DIRECTIONS, setWaterValve, setWaterPump, setWaterIntake, setWaterOutlet } from './plumbing.js';
@@ -101,6 +102,9 @@ register('crew.possessions.collect','setPossessionCollection','Allow or stop phy
 register('crew.possessions.release','releasePossession','Put the owned keepsake down at this crew member’s local position.',{crew},releasePossession);
 register('husbandry.assign','setAnimalPost','Assign one livestock animal to a reachable post, or release it with null coordinates.',{creature:{type:'string',entityType:'creature'},x:{type:['integer','null'],minimum:0,maximum:25},y:{type:['integer','null'],minimum:0,maximum:25}},sim.setAnimalPost);
 register('husbandry.treat','setAnimalTreatment','Reserve one medicine and designate veterinary work at the animal’s assigned post.',{creature:{type:'string',entityType:'creature'}},sim.setAnimalTreatment);
+register('husbandry.dispatch','dispatchAnimal','Order cancelable slaughter for meat at a tame adult animal’s post: 8 Husbandry work.',{creature:{type:'string',entityType:'creature'}},sim.dispatchAnimal);
+register('husbandry.butcher','butcherAnimal','Retrieve one fresh carcass whole and butcher it at an unoccupied post: 20 Husbandry work.',{creature:{type:'string',entityType:'creature'},x:integer(0,25),y:integer(0,25)},sim.butcherAnimal);
+register('husbandry.discard','discardAnimal','Dispose of one spoiled ground carcass: 4 Husbandry work and 0.25 located waste.',{creature:{type:'string',entityType:'creature'}},sim.discardAnimal);
 register('husbandry.transport','transportAnimalToPost','Send a handler to physically escort a tame animal to a post.',{creature:{type:'string',entityType:'creature'},x:integer(0,25),y:integer(0,25)},sim.transportAnimalToPost);
 register('husbandry.breed','setBreeding','Allow or stop new brood pairing. Existing broods continue when conditions permit.',{creature:{type:'string',entityType:'creature'},enabled},setBreeding);
 register('husbandry.policy','setAnimalPolicy','Enable or pause automatic feeding/handling or curd collection.',{creature:{type:'string',entityType:'creature'},policy:enumeration(['care','harvest']),enabled},sim.setAnimalPolicy);
@@ -165,6 +169,7 @@ export function executeAction(s,id,args={},source='agent') {
   let result;
   if(error)result={ok:false,message:error};
   else { try { const output=definition.run(s,...Object.keys(definition.parameters).map(k=>request[k]));result=output?.ok===undefined?{ok:true}:output; } catch(error) { endAction(s,{ok:false,message:error.message,exception:true});throw error; } }
+  if(result.ok)reconcileCarcasses(s,sim.cancelJob);
   const response={...result,...(!error&&!result.ok&&typeof result.code==='string'?{reason:result.code}:{}),code:error?(definition?'invalid_arguments':'unknown_action'):result.ok?'applied':'simulation_rejected',...(result.job?{job:result.job.id}:{})};
   endAction(s,response);return response;
 }
@@ -173,5 +178,5 @@ export function controlBindings(getState,source='player') {
   return Object.fromEntries(entries.filter(e=>e.binding!=='step').map(e=>[e.binding,(_state,...values)=>executeAction(getState(),e.id,Object.fromEntries(Object.keys(e.parameters).map((k,i)=>[k,values[i]]).filter(([,v])=>v!==undefined)),source)]));
 }
 export function createAgentInterface(getState,beforeAction=()=>{},afterAction=()=>{}) {
-  return Object.freeze({version:1,definitions:()=>JSON.parse(JSON.stringify({grid:GRID,directions:DIRECTIONS,gasNetworks:GAS_NETWORK,gasDirections:GAS_DIRECTIONS,plumbing:PLUMBING,waterDirections:WATER_DIRECTIONS,breakerDirections:BREAKER_DIRECTIONS,breakerModes:BREAKER_MODES,liquids:LIQUID,reactor:REACTOR,fire:FIRE,animalTransport:{work:TRANSPORT_WORK,stepInterval:TRANSPORT_STEP,tameOnly:true},breeding:BREEDING,livestock:LIVESTOCK,animalTraits:ANIMAL_TRAITS,veterinary:VETERINARY,flora:FLORA,cultivation:CULTIVATION,foodKinds:FOOD_KINDS,crops:CROPS,mealRecipes:MEAL_RECIPES,buildings:BUILDINGS,recipes:RECIPES,resources:RESOURCES,shuttleFits:SHUTTLE_FITS,outposts:{sites:OUTPOST_SITES,commissioningReserves:OUTPOST_RESERVES},itemStyles:ITEM_STYLES,extraction:{ice:{capacity:ICE_SEAM_CAPACITY,perOrder:ICE_EXTRACTION_AMOUNT}}})),actions:actionCatalog,observe:()=>observe(getState()),act:(id,args={})=>{beforeAction();try{return executeAction(getState(),id,args,'agent');}finally{afterAction();}},recording:Object.freeze({status:()=>recordingStatus(getState()),start:options=>startRecording(getState(),options),stop:()=>stopRecording(getState()),export:()=>exportRecording(getState())})});
+  return Object.freeze({version:1,definitions:()=>JSON.parse(JSON.stringify({grid:GRID,directions:DIRECTIONS,gasNetworks:GAS_NETWORK,gasDirections:GAS_DIRECTIONS,plumbing:PLUMBING,waterDirections:WATER_DIRECTIONS,breakerDirections:BREAKER_DIRECTIONS,breakerModes:BREAKER_MODES,liquids:LIQUID,reactor:REACTOR,fire:FIRE,animalTransport:{work:TRANSPORT_WORK,stepInterval:TRANSPORT_STEP,tameOnly:true},breeding:BREEDING,livestock:LIVESTOCK,animalTraits:ANIMAL_TRAITS,veterinary:VETERINARY,butchery:BUTCHERY,flora:FLORA,cultivation:CULTIVATION,foodKinds:FOOD_KINDS,crops:CROPS,mealRecipes:MEAL_RECIPES,buildings:BUILDINGS,recipes:RECIPES,resources:RESOURCES,shuttleFits:SHUTTLE_FITS,outposts:{sites:OUTPOST_SITES,commissioningReserves:OUTPOST_RESERVES},itemStyles:ITEM_STYLES,extraction:{ice:{capacity:ICE_SEAM_CAPACITY,perOrder:ICE_EXTRACTION_AMOUNT}}})),actions:actionCatalog,observe:()=>observe(getState()),act:(id,args={})=>{beforeAction();try{return executeAction(getState(),id,args,'agent');}finally{afterAction();}},recording:Object.freeze({status:()=>recordingStatus(getState()),start:options=>startRecording(getState(),options),stop:()=>stopRecording(getState()),export:()=>exportRecording(getState())})});
 }

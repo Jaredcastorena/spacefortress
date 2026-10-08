@@ -1,18 +1,34 @@
 # SPACEFORTRESS roadmap
 
-**Published version: v0.1.2 · Published save schema: 38 · Local experimental schema: 45.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
+**Release build: v0.1.3 · Save schema: 46.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
 
 See the [README](README.md) to play, [verification status](docs/verification-status.md) for evidence and limits, and the [180-system conversion inventory](docs/conversion-inventory.md) for the wider backlog. Completing a milestone below does not complete an entire inventory family or establish full Dwarf Fortress parity.
 
-## Current increment: inherited livestock traits
+## Current release: physical bodies and meat meals
+
+Version 0.1.3 collects seventeen development commits since v0.1.2 and the new butchery increment. Hex construction, finite air recovery, crops and meals, native plants, cultivation, veterinary care and inherited traits are included. Local verification covers 1,264 distinct passes and one intentional skip, including the exact repair of one stale recipe-option fixture after the first full run. Focused food/body/interface/integration coverage is 8/49/9/77. See [release readiness](docs/release-readiness.md) and the linked release record for local and hosted scopes.
+
+- Death leaves one physical body while retaining the animal's identity and ancestry. Handlers must collect and carry fresh bodies to a post before processing them; spoiled bodies can be discarded. Age continues through every phase.
+- Tame adults can be ordered for slaughter with breeding disabled and no carried brood. Fixed yields are four bristleback meat or three glazefoot meat per adult; naturally dead juveniles yield one. Processing creates 0.25 waste. No skill or trait yield bonus applies.
+- Bristlecap braise and Sunberry glaze roast bring the galley to ten recipes. Both combine one meat and one plant ingredient into two prepared units, retaining ingredient age and existing quality rules.
+- Schema 46 migrates hex schemas 40–45 without creating food from historical deaths. Square schemas 1–39 remain incompatible and protected for export.
+- Focused mechanics and migration checks pass. The ordinary trial stopped on unbreathable home air at tick 144 after two paid posts and two care deliveries, before slaughter or meat; all seven crew and five animals stayed healthy. Complete ordinary chain acceptance remains pending. Fat, bone, hide, fibre, disease, old age and broader food webs remain future work.
+
+See [butchery](docs/butchery.md) for controls, costs and scope.
+
+### Next: habitat air and the ordinary livestock/kitchen journey
+
+First address finite habitat air and suit/exterior-work demand exposed by the tick-144 stop. Then continue from reviewed physical state to prove ordinary taming, slaughter, body carrying, butchery, ingredient delivery, cooking and eating, while keeping the colony safe. This precedes wider ecosystem expansion. The earlier supplied food and breeding trials do not replace that acceptance.
+
+## Recent increment: inherited livestock traits
 
 - Individual bristlebacks and glazefoots have inherited thermal preference and metabolic pace. Temperature specialization shifts both limits by up to 5 °C; production speed and nutrition drain move together by up to 20%.
 - Actual production, juvenile/adult nutrition, thermal injury and veterinary recovery use the same profile. Yields, work, growth time, brood duration and existing injury/pasture gates remain fixed.
 - Conception freezes ordered parent genomes and selected child traits; birth copies that result. Founders vary deterministically without consuming global randomness. Existing hex colonies migrate to balanced current performance, with segregation possible in later offspring.
 - Focused domain 49, integration 85 and panel 12 distinct checks pass. First full regression: **1,210 passed, zero failed, one intentional skip**, with 229 dependencies unchanged. An actual old save and supplied family/injury cases migrate without physical changes and reload exactly. One supplied-parent/pasture trial stopped at the first healthy inherited hatchling at tick 301/three commands, with six exact reloads and no physical inventory changes. Folded founder/brood/offspring details, breeding policy and a 390-pixel layout passed browser review. Ordinary herd construction and long-term balance remain unverified.
-- Mutation, disease, old age, meat/fibre, wider ancestry rules, fuller ecosystems and ordinary herd-construction/endurance acceptance remain future work.
+- Mutation, disease, old age, fibre, wider ancestry rules, fuller ecosystems and ordinary herd-construction/endurance acceptance remain future work.
 
-See [animal traits](docs/animal-traits.md) and [breeding](docs/breeding.md). This build is not published.
+See [animal traits](docs/animal-traits.md) and [breeding](docs/breeding.md). These systems are included in v0.1.3.
 
 ## Recent increment: cultivated ground beds
 
@@ -23,7 +39,7 @@ See [animal traits](docs/animal-traits.md) and [breeding](docs/breeding.md). Thi
 - One fresh-colony propagation-to-harvest cycle passed at tick 853 with six commands and no grants: one raw fungal-cap portion plus one water yielded two portions. Everyone stayed healthy; 24 checkpoints reloaded exactly. Longer-term balance and a complete ordinary livestock/cooking construction chain remain unverified.
 - Spreading, wild-soil moisture, orchards, soil chemistry and broad ecosystem balance remain future work.
 
-See [cultivation](docs/cultivation.md) for the physical costs and conditions. This build is not published.
+See [cultivation](docs/cultivation.md) for the physical costs and conditions. These systems are included in v0.1.3.
 
 ## Recent increment: livestock health and recovery
 
@@ -31,21 +47,21 @@ See [cultivation](docs/cultivation.md) for the physical costs and conditions. Th
 - Medics physically reserve, carry and apply one medicine through 20 Medicine work. Treatment covers up to 20 injury; a fed animal recovers at its intact post. Feeding and treatment can share the post, with feeding first; cancellation, death, post loss and transport preserve located supplies.
 - Schema 43 adds neutral condition records to earlier hex saves without changing health or granting treatment. Shared actions, observations and named injury/recovery events remain available to local agents.
 - Verification: 1,150 Node checks passed, zero failed and one intentional skip. The supplied injured-adult/post trial completed at tick 116: one medicine, ten injury healed gradually, 20 Medicine experience, everyone healthy and five exact reloads. Actual browser treatment/cancel, recovery display, save/reopen and narrow layout passed. A final display-only label correction was verified in the refreshed browser.
-- Diseases, detailed wounds/surgery and meat/fibre production remain future work. The ordinary farming/livestock construction chain and longer-term husbandry balance still need acceptance. Inherited traits are covered above.
+- Diseases, detailed wounds/surgery and fibre production remain future work. Physical bodies and meat are covered in the current increment above. The ordinary farming/livestock construction chain and longer-term husbandry balance still need acceptance. Inherited traits are covered above.
 
-See [veterinary care](docs/veterinary-care.md) for the care loop and its scope. This build is not published.
+See [veterinary care](docs/veterinary-care.md) for the care loop and its scope. These systems are included in v0.1.3.
 
 ## Recent increment: flora, livestock and food variety
 
-- Implemented locally: fungal caps, siltgrain and sunberries; fungus-fed glazefoots producing eggs; distinct bristleback curd; eight galley recipes; Production skill gates and four meal-quality tiers.
+- Implemented locally: fungal caps, siltgrain and sunberries; fungus-fed glazefoots producing eggs; distinct bristleback curd; eight initial galley recipes; Production skill gates and four meal-quality tiers.
 - Ingredients remain physical goods, with exact food kinds, spoilage ages, animal feed reservations and prepared-meal provenance. Recipe changes preserve committed batches and return incompatible waiting supplies.
 - Native lichen, fungal caps and sunberries have persistent biomass, visible growth stages and environmental dormancy. Real Production work gathers mature plants into typed ground goods for hauling and cooking; grazing nutrition reflects actual biomass eaten.
 - Schema 42 migrates schema-40/41 hex saves; legacy food, animals and lichen are preserved, with no edible-plant grants. No dependencies or remote assets were added.
 - Historical flora regression gate: 1,120 passed, zero failed and one intentional skip. Focused checks cover growth, dormancy, grazing, harvesting, interrupted jobs, migration and structured observations. A fresh colony built a galley and completed gathering→hauling→fungal stew at tick 66 using five commands, with four exact reloads and everyone healthy. Browser checks cover the plant inspector, gathering/cancellation, maturity explanations, save/reload and a narrow screen.
 - The previous supplied crop→care→eggs→omelet→eating trial passed at tick 605. Building that entire farming/livestock chain from a fresh colony remains unverified.
-- Next ecology depth: wild-soil moisture, plant spreading, orchards and full biomes; diseases, meat/fibre products and more preservation. Inherited traits are covered above; connected physical decks remain separate work.
+- Next ecology depth: wild-soil moisture, plant spreading, orchards and full biomes; diseases, fibre products and more preservation. Physical bodies and meat are covered above. Inherited traits are covered above; connected physical decks remain separate work.
 
-See [food and ecology](docs/food-and-ecology.md) for current recipes and boundaries. This expansion is not published.
+See [food and ecology](docs/food-and-ecology.md) for current recipes and boundaries. This expansion is included in v0.1.3.
 
 ## Current direction: hexagonal construction grid
 
@@ -53,7 +69,7 @@ Actual hexagonal terrain and building tiles are implemented locally, retaining t
 
 **Historical hex baseline:** focused physical and geometry checks, a full regression run of 1,057 Node passes / one intentional skip and retained 26 Python passes, and scoped Chrome checks for real hex rendering, pointer selection, a build ghost, utility overlays and a narrow inspector. Per-edge flow rates are retained, so six neighbors can increase total exchange compared with four.
 
-**Next acceptance:** build and commission a cycling airlock using ordinary finite supplies from a fresh hex colony; move a named parcel through it and return it. The actual held-pointer form submission now passes; the wider outpost endurance/resupply/care journey remains incomplete. Neither the new hex build nor its airlocks are published yet.
+**Next acceptance:** build and commission a cycling airlock using ordinary finite supplies from a fresh hex colony; move a named parcel through it and return it. The actual held-pointer form submission now passes; the wider outpost endurance/resupply/care journey remains incomplete. The hex grid and experimental airlocks are included in v0.1.3.
 
 Ordinary finite play has reached a preserved **tick-3173 checkpoint**. Mining, manufacturing, replacement-air production, exterior construction, waste containment and a complete care-and-supply cycle have now passed within their recorded limits. All seven founders are healthy, with construction materials restored through real mining and production. The trial also exposed and fixed microscopic refill requests displacing useful hauling. A bounded air-replenishment trial then completed ice processing but reached its time limit with three air batches still pending because of limited power. A one-alloy scrubber repair and a measured battery-charging schedule subsequently finished the three pending batches while keeping everyone safe. A single supplied exterior trip then repaired two damaged solar arrays and restored daytime generation with a full battery, preserving the enclosure materials. Next, acquire enough replacement air, finish the paid enclosure, commission its gas reserve and complete the named-parcel journey. The [verification record](docs/verification-status.md) preserves the intermediate stops and limits.
 
@@ -77,7 +93,7 @@ The schema37 foundation provided ownership primitives. The v0.1.2 preview now ex
 
 ## v0.1.2 preview — implemented systems, remaining acceptance
 
-This round publishes the tested schema38 preview at the user’s request. It implements physical freight, wreck construction, measured habitat checks, residence and return selection, site-local crew care and a one-pilot visit to an established wreck for final pickup. The evidence below keeps unfinished gameplay acceptance visible.
+The v0.1.2 release published the tested schema38 preview at the user’s request. It implements physical freight, wreck construction, measured habitat checks, residence and return selection, site-local crew care and a one-pilot visit to an established wreck for final pickup. The evidence below keeps unfinished gameplay acceptance visible.
 
 | Milestone | Current evidence |
 | --- | --- |
@@ -116,7 +132,7 @@ Join freight, construction and care into the first complete staffed-outpost jour
 
 ### 5. Pressure-cycling airlocks
 
-Experimental automatic cycling is implemented locally and has scoped physical and control coverage: admit a crew member, close the entry door, recover air into finite storage before exterior release, and refill before opening toward the habitat. It uses gas extractors, pumps, reservoirs, vents and actual electrical power. The [cycling-airlock design](docs/airlock-cycling-design.md) defines the broader acceptance checks; ordinary paid assembly and parcel traversal remain pending. The published build has manual doors and vestibules.
+Experimental automatic cycling is implemented locally and has scoped physical and control coverage: admit a crew member, close the entry door, recover air into finite storage before exterior release, and refill before opening toward the habitat. It uses gas extractors, pumps, reservoirs, vents and actual electrical power. The [cycling-airlock design](docs/airlock-cycling-design.md) defines the broader acceptance checks; ordinary paid assembly and parcel traversal remain pending. The previous v0.1.2 build had manual doors and vestibules.
 
 **Acceptance:** an ordinary supplied colony builds the assembly and physically carries goods out and back. Doors interlock; gas species, smoke and energy retain actual owners across repeated cycles. A normal cycle wait preserves the crew’s task and parcel. Full storage, empty reserves, power loss, damage and a carried patient produce measured safe pauses or explicit manual recovery. Save during partial transfer and traversal, replay named transitions, and verify compact player controls.
 

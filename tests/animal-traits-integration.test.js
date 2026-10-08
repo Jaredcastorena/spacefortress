@@ -14,7 +14,7 @@ const checked=s=>{const text=serialize(s);assert.equal(serialize(deserialize(tex
 const rows=s=>exportRecording(s).trim().split('\n').map(JSON.parse);
 function legacy(s,version){
   const old=structuredClone(s);old.version=version;
-  for(const a of old.creatures){delete a.genetics;if(a.lifecycle?.brood)delete a.lifecycle.brood.inheritance;if(version<=42)delete a.condition;}
+  for(const a of old.creatures){delete a.death;delete a.genetics;if(a.lifecycle?.brood)delete a.lifecycle.brood.inheritance;if(version<=42)delete a.condition;}
   if(version<=43){
     for(const site of Object.values(old.sites)){
       delete site.cultivation;delete site.liquids.absorbed;
@@ -55,7 +55,7 @@ function apply(observation,record){
   if(record.fromTick!==undefined)observation.tick=record.tick;
 }
 
-test('schema45 founders and detached definitions persist without changing reproducibility',()=>{
+test('schema46 founders and detached definitions persist without changing reproducibility',()=>{
   const a=createGame(900),b=createGame(900);assert.equal(serialize(a),serialize(b));
   for(const animal of a.creatures)assert.deepEqual(animal.genetics,founderGenome(a.seed,animal.species,animal.id));
   const definitions=createAgentInterface(()=>a).definitions();assert.deepEqual(definitions.animalTraits,ANIMAL_TRAITS);definitions.animalTraits.alleles[0]=99;
@@ -65,7 +65,7 @@ test('schema45 founders and detached definitions persist without changing reprod
 test('all hex legacy migration stages add balanced genes and preserve complete physical state',()=>{
   for(const version of [40,41,42,43,44]){
     const old=legacy(createGame(903),version),text=serialize(old),physical=totalResources(old),loaded=deserialize(text);
-    assert.equal(loaded.version,45);assert.deepEqual(legacy(loaded,version),old);assert.deepEqual(totalResources(loaded),physical);assert.equal(serialize(old),text);
+    assert.equal(loaded.version,46);assert.deepEqual(legacy(loaded,version),old);assert.deepEqual(totalResources(loaded),physical);assert.equal(serialize(old),text);
     for(const a of loaded.creatures){assert.deepEqual(a.genetics,neutralGenome());const profile=animalTraits(a),def=livestockDef(a);assert.deepEqual(profile.temperatureRange,def.temperature);assert.equal(profile.productRate,def.productRate);assert.equal(profile.metabolism,def.metabolism);}
     checked(loaded);
   }

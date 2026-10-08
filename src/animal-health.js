@@ -3,6 +3,7 @@ import { temperatureAt } from './thermal.js';
 import { distance } from './geometry.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
 import { animalTraits } from './animal-traits.js';
+import { registerAnimalDeath } from './animal-carcasses.js';
 
 const EPS=1e-8;
 const recoveryReasons={none:'No active treatment credit.',needs_post:'Needs to reach its working assigned post.',needs_food:'Needs nutrition of at least 60 to recover.',unsafe_temperature:'Needs temperature within its species range.',fire:'Recovery paused by fire.',transport:'Recovery paused during transport.',recovering:'Recovering from treated injuries at the post.'};
@@ -35,7 +36,7 @@ export function injureAnimal(s,a,amount,cause){
   if(!isLivestock(a)||a.health<=0||!Number.isFinite(amount)||amount<=0||!['fire','cold','heat'].includes(cause))return 0;
   const loss=Math.min(a.health,amount);a.health-=loss;a.condition.injury=Math.min(100,a.condition.injury+loss);a.condition.cause=cause;
   emitEvent(s,'animal.injured',{entity:a.id,amount:loss,cause,health:a.health,injury:a.condition.injury});
-  if(a.health<=0){updateRecoveryState(s,a);emitEvent(s,'animal.died',{entity:a.id,cause});}
+  if(a.health<=0){updateRecoveryState(s,a);registerAnimalDeath(s,a,cause);}
   return loss;
 }
 export function updateAnimalHealth(s,a){
@@ -47,7 +48,7 @@ export function updateAnimalHealth(s,a){
   if(current!==previous)emitEvent(s,'animal.thermal.state_changed',{entity:a.id,previous,current,stress:q.thermalStress,temp});
   if(Math.abs(q.thermalStress)>70)injureAnimal(s,a,(Math.abs(q.thermalStress)-70)*.006,q.thermalStress<0?'cold':'heat');
   if(a.health<=0)return;
-  if(a.fed===0){a.health=Math.max(0,a.health-.2);if(a.health===0){updateRecoveryState(s,a);emitEvent(s,'animal.died',{entity:a.id,cause:'starvation'});return;}}
+  if(a.fed===0){a.health=Math.max(0,a.health-.2);if(a.health===0){updateRecoveryState(s,a);registerAnimalDeath(s,a,'starvation');return;}}
   else if(a.fed>=60&&!tile?.fire)a.health=Math.min(100-q.injury,a.health+.01);
   if(updateRecoveryState(s,a)==='recovering'){
     const healed=Math.min(VETERINARY.recoveryRate,q.injury,q.treated,100-a.health);

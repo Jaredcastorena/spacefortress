@@ -15,6 +15,7 @@ import { doorOpen } from './atmosphere.js';
 import { airlockStatus } from './airlock-access.js';
 import { quantity } from './inventory.js';
 import { floraBiomass, floraStage } from './flora.js';
+import { carcassPosition } from './animal-carcasses.js';
 
 export const HEX_RADIUS = 32;
 const ROOT2 = Math.sqrt(2);
@@ -144,6 +145,7 @@ export class Renderer {
       for (const source of j.sources) if (quantity(source.items)) reservedTiles.add(key(source.x, source.y));
     }
     const crew = s.crew.filter(p => p.site === siteId);
+    const carcasses=s.creatures.flatMap(animal=>{const position=carcassPosition(s,animal);return position?.site===siteId?[{animal,position}]:[];});
     const sorted = [...site.tiles].sort(compareHexDepth);
     for (const t of sorted) {
       const [x, y] = this.project(t.x, t.y);
@@ -163,11 +165,11 @@ export class Renderer {
       if(smokeRoom?.smoke>0){const density=smokeRoom.smoke/smokeRoom.volume;c.save();c.globalAlpha=Math.min(.4,density*3);this.box(x,y-14,20,10,5,'#a29b8f','#716d69','#595d60');c.restore();}
       if(t.fire){const h=16+t.fire.intensity*.22+(s.tick%3)*2;this.polygon([[x-14,y-4],[x-8,y-h],[x-1,y-h+12],[x+8,y-h-8],[x+15,y-4],[x,y+3]],'#ee7938','#ffb761');this.polygon([[x-6,y-3],[x+1,y-h+12],[x+8,y-4],[x,y+1]],'#ffe0a0');}
 
-      for (const creature of s.creatures.filter(a => a.site === siteId && a.x === t.x && a.y === t.y)) {
+      for (const creature of s.creatures.filter(a => a.site === siteId && a.x === t.x && a.y === t.y && (a.health>0||!isLivestock(a)))) {
         if (isLivestock(creature)) {
           const def=livestockDef(creature);
           const escorted=s.jobs.some(j=>j.kind==='animalLead'&&j.animal===creature.id&&j.phase==='escort');
-          c.save();if(escorted)c.translate(-18,8);if(creature.health<=0)c.globalAlpha=.35;
+          c.save();if(escorted)c.translate(-18,8);
           if(creature.lifecycle?.growth<def.maturity){const scale=.55+.45*creature.lifecycle.growth/def.maturity;c.translate(x,y);c.scale(scale,scale);c.translate(-x,-y);}
           if(creature.species==='glazefoot'){
             c.fillStyle='#376a66';for(const [dx,dy] of [[-12,-5],[9,-5],[-10,4],[12,4]])c.fillRect(x+dx,y+dy,5,7);
@@ -188,6 +190,7 @@ export class Renderer {
           if(creature.husbandry?.trust===100){c.fillStyle='#82d6c1';c.fillRect(x-19,y-17,5,3);}c.restore();
         } else if(creature.species==='tibble') { this.box(x, y, 5, 3, 4, '#e8c9b0', '#b38e77', '#866e65'); c.fillStyle = '#a5d3ac'; c.fillRect(x - 2, y - 5, 3, 2); this.line(x - 5, y - 1, x - 9, y - 4, '#c9baa3'); this.line(x - 5, y + 1, x - 9, y + 3, '#c9baa3'); }
       }
+      for(const {animal,position}of carcasses)if(position.x===t.x&&position.y===t.y)this.carcassSprite(animal,x,y);
       if (t.drop) { this.box(x, y, 10, 5, 7, '#d5ae75', '#91704e', '#6c5944'); }
       if (t.machine && Object.values(t.machine.output).some(n => n > 0)) this.box(x + 19, y + 7, 7, 4, 6, '#a7ceb7', '#678c81', '#425e61');
       if (reservedTiles.has(key(t.x, t.y))) this.box(x - 18, y + 6, 7, 4, 6, '#d2b9db', '#92769d', '#605071');
@@ -272,6 +275,17 @@ export class Renderer {
     if(this.powerOverlay){c.fillStyle='#b0d5c3';c.fillText('POWER / BREAKER TRIANGLE: OUTPUT SIDE   GAP: OPEN CONTACT',22,this.h-122);}
     if(this.waterOverlay){c.fillStyle='#a8c7ef';c.fillText('WATER / DASHED ROUTE   SQUARE: VALVE   AMBER: CLOSED   CORAL: LEAK   ARROW: FLOW',22,this.h-122);}
     if(this.gasOverlay){c.fillStyle='#9ed6d9';c.fillText('GAS / CYAN: ROUTE   AMBER: VALVE CLOSED   CORAL: LEAK   ARROW: PUMP OUTLET',22,this.h-122);}
+  }
+  carcassSprite(animal,x,y){
+    const c=this.ctx,carried=animal.death.owner?.kind==='crew',spoiled=animal.death.disposition==='spoiled';
+    c.save();if(carried){x+=18;y-=14;}if(animal.death.stage==='juvenile'){c.translate(x,y);c.scale(.65,.65);c.translate(-x,-y);}
+    const color=spoiled?'#8b7768':animal.species==='glazefoot'?'#7daba5':'#9a8c70';
+    this.box(x,y,18,9,4,color,spoiled?'#645c50':'#687b70','#485551');
+    this.box(x-14,y-2,8,5,3,color,'#687b70','#485551');
+    if(animal.species==='glazefoot')this.polygon([[x-5,y-5],[x+4,y-13],[x+14,y-5]],spoiled?'#827d69':'#81b5ac','#b0c3b0');
+    else for(let i=0;i<3;i++)this.line(x-7+i*7,y-5+i,x-7+i*7,y-1+i,'#c4b28c',1);
+    this.line(x-18,y-1,x-12,y+3,'#485551',1);this.line(x-12,y-1,x-18,y+3,'#485551',1);
+    c.restore();
   }
   gasArrow(x,y,direction,color){
     const [vx,vy]=hexDirectionVector(direction||'ne',.35);

@@ -36,7 +36,7 @@ test('galley inspector names missing physical ingredients and minimum operator s
   for(const site of Object.values(f.s.sites))for(const t of site.tiles)if(t.stock)t.stock={};
   for(const c of f.s.crew)c.skills.production.level=0;
   const html=render(f);
-  assert.equal((recipeOptions(html).match(/<option /g)||[]).length,8);
+  assert.equal((recipeOptions(html).match(/<option /g)||[]).length,10);
   assert.match(html,/requires Production 3/);
   assert.match(html,/<dt>Bristleback curd<\/dt><dd>Needs 1 · 0.25 delivered · 0 available · 0.75 missing/);
   assert.match(html,/data-production-reason="[^\"]+"/);

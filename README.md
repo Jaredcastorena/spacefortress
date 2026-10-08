@@ -2,21 +2,29 @@
 
 An early playable space colony simulator inspired by Dwarf Fortress. Keep seven alien founders alive, build a planetary colony, and send supplied expeditions into orbit to recover material for its next expansion.
 
-**[Play online](https://jaredcastorena.github.io/spacefortress/)** · [Online elements lab](https://jaredcastorena.github.io/spacefortress/elements.html) · [Release v0.1.2](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.2) · [Roadmap](ROADMAP.md)
+**[Play online](https://jaredcastorena.github.io/spacefortress/)** · [Online elements lab](https://jaredcastorena.github.io/spacefortress/elements.html) · [Release v0.1.3](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.3) · [Roadmap](ROADMAP.md)
 
 ![Local SPACEFORTRESS hex colony with original alien crew, an isometric habitat and closed detail drawers](docs/images/spacefortress-hex.png)
 
 **The game is still in development.** The current build has one colony floor and fixed orbital destinations. Long-lived staffed outposts, connected vertical decks, a generated universe/history and much of the wider simulation remain unfinished. The [implementation status](docs/implementation-status.md) separates working systems from plans.
 
-## Current development: hex colonies
+## v0.1.3: hex colonies and deeper food chains
 
-The local development build uses **six-sided hex tiles** for terrain, construction, movement, sealed rooms and utility connections, with the isometric view retained. Directional devices face one of six neighbors. Experimental [pressure-cycling airlocks](docs/airlock-cycling-design.md) recover and refill actual gas while crew retain their work and cargo.
+The release build uses **six-sided hex tiles** for terrain, construction, movement, sealed rooms and utility connections, with the isometric view retained. Directional devices face one of six neighbors. Experimental [pressure-cycling airlocks](docs/airlock-cycling-design.md) recover and refill actual gas while crew retain their work and cargo.
 
-This work is **not published yet**; the online game remains v0.1.2. The local build includes three crops, two productive livestock species and eight recipes with ingredient and skill requirements. Livestock now inherit individual temperature preferences and production pace: faster products require faster feed use, while cold tolerance trades against heat tolerance. A carried brood saves the offspring's inherited traits at conception. See [animal traits](docs/animal-traits.md) and [breeding](docs/breeding.md).
+Version 0.1.3 includes three crops, two productive livestock species and ten recipes with ingredient and skill requirements. Livestock now inherit individual temperature preferences and production pace: faster products require faster feed use, while cold tolerance trades against heat tolerance. A carried brood saves the offspring's inherited traits at conception. See [animal traits](docs/animal-traits.md) and [breeding](docs/breeding.md).
 
 Wild fungal caps and sunberries grow through visible stages and can be gathered by crew; lichen supports grazing. Crew can also plant matching raw food as ground beds, deliver finite water and harvest their regrowth. See [cultivation](docs/cultivation.md) for costs and growing conditions. Persistent fire and temperature injuries use delivered medicine and gradual recovery at a post. Food identity, age, maker and quality survive physical hauling and cooking. See [flora, livestock and cooking](docs/food-and-ecology.md) for combinations and progression, and [veterinary care](docs/veterinary-care.md) for treatment.
 
-The current trait build passed **1,210 regression checks, zero failures and one intentional skip** on its first full run. Actual previous-build migration preserves physical state and reopens exactly; focused checks also cover carried broods, offspring and injuries. One supplied-parent/pasture trial produced a healthy inherited hatchling at tick 301 using three commands, with six exact reloads. Folded founder/brood/offspring details and a 390-pixel layout passed browser review; ordinary herd construction and long-term balance remain unverified. Earlier 26 Python checks apply to unchanged tooling.
+Livestock deaths now leave physical bodies that handlers can carry to a husbandry post for butchery. Tame adults can be ordered for slaughter; fresh bristleback and glazefoot meat combine with fungal caps or sunberries in two new meals. Body age continues through carrying and processing, and spoiled bodies require disposal. See [butchery](docs/butchery.md) for fixed yields, work and restrictions.
+
+Local verification covers **1,264 distinct passing checks and one intentional historical skip**. The first full run passed 1,263 checks and found one stale recipe-option expectation; its exact repaired check then passed, without repeating the full suite. Focused food, body, interface and integration checks cover 8, 49, 9 and 77 cases. Actual schema-45 saves preserve their prior state through migration, with six exact current reloads.
+
+The ordinary livestock trial stopped at tick 144 after 78 additional ticks and three commands because home air was no longer breathable. Two paid posts finished at tick 85 and two care deliveries raised the target's trust to 80. All seven crew and five animals stayed healthy; no slaughter, body, meat or new meal occurred. The complete ordinary chain remains unverified. Habitat and exterior-work air reserves are the next priority.
+
+Local browser review passed fresh save/reopen, actual save import, ten recipe choices, applying and preserving Bristlecap braise selection, and a readable 390-pixel layout. It did not cover corpse handling or a cooked meat meal. See [release readiness](docs/release-readiness.md) for local scopes and the [v0.1.3 release record](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.3) for hosted verification. Earlier results below describe their own increments.
+
+The preceding trait build passed **1,210 regression checks, zero failures and one intentional skip** on its first full run. Actual previous-build migration preserves physical state and reopens exactly; focused checks also cover carried broods, offspring and injuries. One supplied-parent/pasture trial produced a healthy inherited hatchling at tick 301 using three commands, with six exact reloads. Folded founder/brood/offspring details and a 390-pixel layout passed browser review; ordinary herd construction and long-term balance remain unverified. Earlier 26 Python checks apply to unchanged tooling.
 
 The preceding cultivation increment completed a fresh-colony planting→watering→harvest cycle at tick 853 using six commands: one gathered fungal-cap portion and one water produced two cultivated portions. All seven crew and five animals stayed healthy, and 24 checkpoints reopened exactly. Its browser checks covered planting/watering cancellation, growing and mature beds, harvest availability and a narrow layout.
 
@@ -24,9 +32,9 @@ Earlier ordinary play built a galley, gathered native caps and cooked two fungal
 
 An early construction trial exposed air loss during hauling. A continuation delivered all mined ore, sealed the door and restored breathable air; both manufacturers resumed work and all seven crew stayed healthy. A saved continuation met the recovery reserve target. Crew now share breathing air before optional suit charging, with warnings when habitat breathing needs suit reserves. The complete airlock construction journey still needs play testing.
 
-Hex colonies now use save schema 45. Schema-40/41/42/43/44 hex saves migrate while preserving existing plants, animals, food, health and progress. Balanced livestock traits preserve current rates and temperature ranges; later offspring can inherit stronger expressions. Migration grants no plants, animals, medicine or healing and does not invent old wounds or turn old food into named ingredients. Square saves from schemas 1–39 cannot be loaded into this version; their original contents remain protected and exportable. Continue those colonies with the matching square version. The separate gravity-based elements lab keeps its square grid.
+Hex colonies now use save schema 46. Schema-40/41/42/43/44/45 hex saves have explicit migrations preserving existing plants, animals, food, health, ancestry and progress. Balanced livestock traits preserve current rates and temperature ranges; later offspring can inherit stronger expressions. Migration grants no plants, animals, medicine or healing and does not invent old wounds or turn old food into named ingredients. Animals already dead in older saves gain an exhausted legacy record, with no new body or meat. Square saves from schemas 1–39 cannot be loaded into this version; their original contents remain protected and exportable. Continue those colonies with the matching square version. The separate gravity-based elements lab keeps its square grid.
 
-## What's new in the published v0.1.2
+## Earlier v0.1.2: freight and wreck settlement
 
 - Physical freight manifests: workers load and unload existing goods, with cancellation, capacity and flight reserves preserved.
 - Experimental wreck settlement: delivered local construction, measured habitat readiness, named residence and return-passenger controls.
@@ -36,7 +44,7 @@ Hex colonies now use save schema 45. Schema-40/41/42/43/44 hex saves migrate whi
 
 **Outpost endurance is still experimental.** Bounded real freight and residence controls passed player checks, but a complete fresh-colony settlement, delayed resupply, ordinary remote care and final pickup walkthrough remains unfinished. Plan actual gas, heating and night battery reserves; a room being ready now does not prove it can survive the night.
 
-The last published build passed **958 tests with one intentional historical skip**, plus 15 Python checks. See the [verification record](docs/verification-status.md), [changelog](CHANGELOG.md) and [roadmap](ROADMAP.md) for scope and next work.
+The v0.1.2 build passed **958 tests with one intentional historical skip**, plus 15 Python checks. See the [verification record](docs/verification-status.md), [changelog](CHANGELOG.md) and [roadmap](ROADMAP.md) for scope and next work.
 
 ## Play online
 

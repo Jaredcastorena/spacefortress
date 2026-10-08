@@ -3,6 +3,7 @@ import { FLORA } from './flora-data.js';
 import { productionEligibility } from './production.js';
 import { animalHealthStatus } from './animal-health.js';
 import { animalTraits } from './animal-traits.js';
+import { carcassPosition, carcassStatus, dispatchEligibility, butcheryEligibility, discardEligibility } from './animal-carcasses.js';
 import { livestockDef } from './livestock-data.js';
 import { expeditionCrewStatus, expeditionCandidates, expeditionLaunchBlock, expeditionCrewLimits } from './expedition-readiness.js';
 import { returnCrewIds } from './expedition.js';
@@ -74,7 +75,9 @@ export function observe(s) {
   for(const j of jobs) entities[j.id]={type:'job',...j};
   const pastures=pastureRegions(sites.surface);
   for(const r of pastures.regions)if(r.enclosed)entities[r.id]={type:'pasture',site:'surface',...r};
-  for(const c of creatures) entities[c.id]={type:'creature',...c,...(c.husbandry?{derived:{traits:animalTraits(c),inheritance:c.lifecycle?.brood?.inheritance||null,health:animalHealthStatus(s,c),diet:livestockDef(c)?.feedKinds||null,productKind:livestockDef(c)?.productKind||null,husbandryStatus:husbandryStatus(s,c,pathTo),pasture:animalPasture(s,c,pastures),breeding:breedingStatus(s,c,pastures),transport:transportStatus(s,c)}}:{})};
+  const butcherPosts=sites.surface.tiles.filter(t=>t.building==='husbandryPost'&&t.hp>0);
+  for(const c of creatures) entities[c.id]={type:'creature',...c,...(c.husbandry?{derived:{carcass:carcassStatus(s,c),dispatch:dispatchEligibility(s,c),discard:discardEligibility(s,c),butchery:c.death?butcherPosts.map(t=>({target:tileEntityId('surface',t.x,t.y),...butcheryEligibility(s,c,t.x,t.y)})):[],traits:animalTraits(c),inheritance:c.lifecycle?.brood?.inheritance||null,health:animalHealthStatus(s,c),diet:livestockDef(c)?.feedKinds||null,productKind:livestockDef(c)?.productKind||null,husbandryStatus:husbandryStatus(s,c,pathTo),pasture:animalPasture(s,c,pastures),breeding:breedingStatus(s,c,pastures),transport:transportStatus(s,c)}}:{})};
+  for(const c of creatures){const position=carcassPosition(s,c);if(position)entities[`carcass:${c.id}`]={type:'carcass',animal:c.id,...c.death,...position};}
   for(const c of creatures)if(c.lifecycle?.brood){const brood=c.lifecycle.brood;entities[brood.id]={type:'brood',...brood,carrier:c.id};}
   for(const owner of itemOwners(s))for(const item of owner.inventory._items||[])entities[item.id]={type:'item',...item,location:owner.location};
   // A prepared batch can be split among several inventories and opened rations.
@@ -90,6 +93,7 @@ export function systemFor(type,path) {
   if(type==='colony'&&root==='shuttle'&&path[1]==='freight')return 'inventory';
   if(type==='item')return 'possessions';
   if(type==='fire')return 'fire';
+  if(type==='carcass')return 'animal_carcasses';
   if(type==='brood')return root==='inheritance'?'animal_genetics':'breeding';
   if(type==='pasture')return 'pastures';
   if(type==='meal_batch')return 'food';
@@ -97,7 +101,7 @@ export function systemFor(type,path) {
   if(type==='tile')return ({flora:'flora',protection:'power',waterPipe:'plumbing',waterStore:'plumbing',waterDevice:'plumbing',pipe:'gas_networks',gasStore:'gas_networks',gasDevice:'gas_networks',liquid:'liquids',tank:'liquids',wetShort:'power',reactor:'power',radiator:'temperature',fire:'fire',fireFault:'fire',deposit:'geology',stock:'inventory',drop:'inventory',imports:'inventory',machine:'production',building:'construction',hp:'condition',cable:'power',charge:'power',powered:'power',powerPriority:'power',circuit:'power',powerStatus:'power',maintenance:'maintenance',sanitary:'sanitation',climate:'temperature',gateMode:'pastures',doorMode:'doors',doorUntil:'doors'})[root] || 'terrain';
   if(type==='room')return root==='smoke'?'fire':root==='heat'?'temperature':root==='cells'||root==='volume'?'room_topology':'atmosphere';
   if(type==='job')return 'jobs';
-  if(type==='creature')return root==='genetics'||root==='lifecycle'&&path[1]==='brood'&&path[2]==='inheritance'?'animal_genetics':root==='condition'?'animal_health':'wildlife';
+  if(type==='creature')return root==='death'?'animal_carcasses':root==='genetics'||root==='lifecycle'&&path[1]==='brood'&&path[2]==='inheritance'?'animal_genetics':root==='condition'?'animal_health':'wildlife';
   return ({cultivation:'flora',plumbing:'plumbing',gasNetwork:'gas_networks',liquids:'liquids',reactorLedger:'power',fireSafety:'fire',waterSupply:'water',outposts:'outposts',mission:'expedition',departure:'departure',shuttle:'shuttle',resources:'inventory',anomaly:'anomaly',comet:'orbit',debris:'hazards',designations:'room_purpose',thermal:'temperature',power:'power',circuits:'power',energy:'power',atmosphere:'atmosphere',foodSpoiled:'food',log:'narrative',objectives:'objectives'})[root] || 'state';
 }
 export function changesBetween(before,after) {

@@ -1,6 +1,6 @@
 # Ground beds and finite watering
 
-Status: implemented and verified within the scopes below in the local hex build. This increment has not been published.
+Status: implemented and verified within the scopes below in the local hex build. It is included in v0.1.3; current local acceptance and hosted release evidence are tracked in [release readiness](release-readiness.md).
 
 ## Planting
 
@@ -29,13 +29,13 @@ Fire or construction covering the ground removes the plant. Its remaining moistu
 
 ## Connected food choices
 
-Fungal caps can feed glazefoots, whose eggs become cooking ingredients. Sunberries combine with bristleback curd. See [food and ecology](food-and-ecology.md) for the crop, livestock and recipe progression.
+Fungal caps can feed glazefoots, whose eggs become cooking ingredients. Sunberries combine with bristleback curd. Version 0.1.3 also pairs fungal caps with bristleback meat for Bristlecap braise and sunberries with glazefoot meat for Sunberry glaze roast; see [butchery](butchery.md). See [food and ecology](food-and-ecology.md) for the crop, livestock and recipe progression.
 
 Wild plants retain their slower ambient regrowth and consume no stored colony water. Hydroponics remains a separate powered production chain using delivered water and fertilizer.
 
 ## Saves and labeled interactions
 
-Schema 44 adds native plant metadata and empty cultivation ledgers to earlier hex saves. Existing quantities, health, biomass, floor water and random state are preserved; older worlds receive no new edible patches or resources.
+Schema 44 adds native plant metadata and empty cultivation ledgers to earlier hex saves. Existing quantities, health, biomass, floor water and random state are preserved; older worlds receive no new edible patches or resources. Current schema 46 retains these beds and ledgers through the later animal migrations.
 
 Players and local agents use the same planting, watering and gathering actions. Observations identify each plant and its generation, moisture and growth conditions. Named events record actual planting, water delivery, absorption, growth consumption, harvest and removal. An order targeting a replaced bed cannot complete against the replacement.
 

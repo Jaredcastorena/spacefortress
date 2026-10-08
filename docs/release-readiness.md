@@ -1,8 +1,24 @@
 # Public releases — readiness
 
-**Historical v0.1.0 status: published and verified.** Updated 2026-09-23 UTC. The first public source release is at [Jaredcastorena/spacefortress](https://github.com/Jaredcastorena/spacefortress). The checklist below records the v0.1.0 source release and its historical schema 36 checks. Current schema38 preview evidence is in [verification status](verification-status.md).
+**Historical v0.1.0 status: published and verified.** Updated 2026-09-23 UTC. The first public source release is at [Jaredcastorena/spacefortress](https://github.com/Jaredcastorena/spacefortress). The checklist below records the v0.1.0 source release and its historical schema 36 checks. Historical and current scoped evidence is in [verification status](verification-status.md).
 
 `Verified` means the stated scoped check has evidence. `Pending` means the release check has not yet been accepted. Historical results do not substitute for current release verification.
+
+## v0.1.3 — local acceptance and release record
+
+Updated October 8, 2026. Version 0.1.3 collects seventeen development commits since v0.1.2 plus physical bodies, butchery and two meat meals. It includes hex construction, finite air recovery, expanded food chains, native plants, cultivation, veterinary care and inherited traits. Exact hosted verification belongs to the [v0.1.3 release record](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.3); local checks below do not establish deployment success.
+
+| Release check | Status | Evidence / remaining work |
+| --- | --- | --- |
+| Current mechanics and scope | Verified — scoped review | Public guides describe physical body ownership/age/disposal, fixed yields and two meals. The [butchery guide](butchery.md) records conditions and limits; no broader ecosystem or complete ordinary-chain claim follows. |
+| Focused and local regression checks | Verified — combined evidence | Food/body/interface/integration: 8/49/9/77 distinct passes. Local regression: **1,264 distinct passes and one intentional historical skip**. First full run: 1,263 passes and one stale recipe-option fixture failure; exact repaired check: one pass, no full rerun. Detailed repair/migration scopes are in [verification status](verification-status.md). |
+| Ordinary livestock/kitchen journey | Measured stop — full chain pending | Continued the ordinary tick-66 colony to 144: 78 ticks/three commands. Paid posts completed at 85, two care deliveries, target trust 80. Stopped on unbreathable home air; all seven crew/five animals remained healthy. No slaughter/body/meat/new meal. Complete recording, matched accounting and three exact reloads; no retry. |
+| Player controls and local browser | Verified — bounded | Fresh save/reopen, actual migrated file import, ten recipes, applying/preserving Bristlecap braise selection and readable 390-pixel layout; captured warnings/errors empty. No corpse-handling/rendering or cooked-meat browser acceptance. |
+| Save compatibility | Verified — scoped migration | Schema 46 supports explicit migrations from hex schemas 40–45. Actual previous schema-45 state projections and six current reloads are preserved; historical deaths grant no body/food. Square schemas 1–39 cannot load into the hex build; original bytes remain protected for export and use with their matching version. |
+| Version and website artifact | Release metadata | Source version is 0.1.3 with 95 runtime source files listed. Exact final artifact completeness, privacy exclusions, release SHA and deployment outcomes belong to the release record below. |
+| Source commit, CI, Pages and hosted checks | Release record | See [v0.1.3](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.3) for the final commit/tag, required CI/Pages results and live manifest/entrypoint checks recorded after verification. The [live manifest](https://jaredcastorena.github.io/spacefortress/version.json) identifies the deployed build. |
+
+Next work is habitat/exterior-work air and the complete ordinary livestock/kitchen journey. Paid airlock construction/commissioning and a parcel roundtrip, long-term food balance, outpost endurance/resupply, connected decks and a generated universe remain unfinished. Publication does not change those limits.
 
 ## v0.1.1 publication and hosted play
 
@@ -14,7 +30,9 @@ The Pages job runs only for main-branch publication after the same commit passes
 
 Release acceptance requires the published manifest to match the release commit, both entrypoints and their module assets to load from the project path, and a fresh browser to pass colony save/reload and lab-isolation checks. Hosted saves stay in the browser; transfer an existing local colony with JSON export/import.
 
-## v0.1.2 — freight and wreck settlement preview
+## Historical v0.1.2 — freight and wreck settlement preview
+
+This is the verification snapshot from v0.1.2 preparation. Pending entries describe that time; the current release record is linked above.
 
 The user requested wrapping this round and publishing the latest tested build. Schema38 exposes physical freight, supplied local construction/readiness, residence/return controls, site-local care and conditional single-pilot pickup. This release is a development preview: full fresh-colony endurance, delayed resupply, ordinary remote care and final pickup remain unfinished. Automatic pressure-cycling airlocks remain proposed.
 

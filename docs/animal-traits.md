@@ -1,6 +1,6 @@
 # Inherited livestock traits
 
-Status: implemented and verified within the scopes below in the local development branch. This increment is not published. These are original, abstract alien biology rules.
+Status: implemented and verified within the scopes below in the local development branch. It is included in v0.1.3; current local acceptance and hosted release evidence are tracked separately in [release readiness](release-readiness.md). These are original, abstract alien biology rules.
 
 ## Choosing a herd
 
@@ -17,7 +17,7 @@ Traits have two tradeoffs:
 
 Balanced traits use the species defaults. Bristlebacks normally tolerate −40 to 35 °C; glazefoots −40 to 30 °C. These limits affect actual thermal strain, pauses and the safe conditions needed for veterinary recovery.
 
-Traits change the wait for products and the ongoing nutrition demand. They do not change the two food portions from a collection, its work or nutrition cost, delivered feed amounts, taming, movement, growth time or brood duration. Injury, insufficient nutrition, cold and broken enclosures still interrupt the existing systems. This is not a complete biological mass or energy model.
+Traits change the wait for products and the ongoing nutrition demand. They do not change the two food portions from a collection, its work or nutrition cost, delivered feed amounts, taming, movement, growth time or brood duration. Injury, insufficient nutrition, cold and broken enclosures still interrupt the existing systems. [Meat yields](butchery.md) are also fixed by species and life stage, without a trait bonus. This is not a complete biological mass or energy model.
 
 For example, a bristleback with a 10% faster pace gains 0.275 product progress and loses 0.0165 nutrition per eligible adult tick, compared with the balanced 0.25 and 0.015. Its curd can still enter the existing [recipes](food-and-ecology.md), with actual ingredient, spoilage and cook-skill requirements.
 
@@ -31,7 +31,7 @@ New founders vary deterministically with the colony seed and their identities. T
 
 ## Existing colonies and saves
 
-Schema 45 adds balanced traits to earlier hex saves through explicit migrations from schemas 40–44. Existing animals receive −1/+1 pairs: their current rates and temperature ranges stay neutral, while later descendants can express either inherited side. Existing carried broods receive a balanced offspring snapshot. Migration adds no food, medicine, healing, animals or other physical supplies, and retains existing progress and random state.
+Schema 45 adds balanced traits to earlier hex saves through explicit migrations from schemas 40–44. Existing animals receive −1/+1 pairs: their current rates and temperature ranges stay neutral, while later descendants can express either inherited side. Existing carried broods receive a balanced offspring snapshot. Migration adds no food, medicine, healing, animals or other physical supplies, and retains existing progress and random state. Current schema 46 preserves these genomes, ancestry and frozen broods while adding death/body ownership; already-dead animals receive no new body or meat. Actual schema-45 migration preserved its prior-state projection, with six exact current reloads; see [verification status](verification-status.md).
 
 Current saves must contain complete valid genomes and brood snapshots. Missing, extra, out-of-range or incompatible inheritance fields are rejected. An older save with future trait fields is rejected rather than silently repaired. Square saves retain their protected export behavior.
 
@@ -41,6 +41,6 @@ Players and local agents use the existing shared breeding policies. Creature obs
 
 ## Verification and limits
 
-Focused domain, integration and inspector checks passed (49, 85 and 12 distinct checks); the first full regression run passed 1,210 with zero failures and one intentional skip. One supplied-parent/pasture trial stopped at a healthy inherited hatchling at tick 301/three commands. Parent snapshots, stored offspring traits, actual production progress, six exact reloads and unchanged physical inventory passed independent review. Browser founder/brood/offspring details, the breeding policy and a 390-pixel layout passed. The adults/enclosure were supplied; ordinary herd construction and long-term balance remain unverified. See [verification status](verification-status.md) for accepted evidence.
+For the preceding schema-45 increment, focused domain, integration and inspector checks passed (49, 85 and 12 distinct checks); the first full regression run passed 1,210 with zero failures and one intentional skip. One supplied-parent/pasture trial stopped at a healthy inherited hatchling at tick 301/three commands. Parent snapshots, stored offspring traits, actual production progress, six exact reloads and unchanged physical inventory passed independent review. Browser founder/brood/offspring details, the breeding policy and a 390-pixel layout passed. The adults/enclosure were supplied; ordinary herd construction and long-term balance remain unverified. See [verification status](verification-status.md) for accepted evidence.
 
 Disease, old age, mutation, detailed anatomy, more livestock products, fuller food webs and broader biomes remain future work.

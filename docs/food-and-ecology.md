@@ -1,10 +1,10 @@
 # Flora, livestock and cooking
 
-Status: implemented in the local hex build, verified by focused checks, a fresh-colony gathering/cooking trial and a complete supplied farming/livestock trial. The published v0.1.2 game does not include this expansion.
+Status: included in v0.1.3/schema 46. Earlier food systems passed focused checks, a fresh-colony gathering/cooking trial and a supplied farming/livestock trial. Physical bodies and two meat meals have accepted focused and migration coverage; the complete ordinary chain remains unverified after a finite-air stop.
 
 ## A connected food chain
 
-Hydroponics grows distinct crops. Handlers can feed fungal caps to glazefoots and collect eggs; bristlebacks provide nutrient curd. Cooks combine the actual harvested ingredients into meals. Haulers move those ingredients through the same finite inventories as other supplies.
+Hydroponics grows distinct crops. Handlers can feed fungal caps to glazefoots and collect eggs; bristlebacks provide nutrient curd. Fresh livestock bodies can also be carried to a post and butchered into distinct meat. Cooks combine the actual harvested ingredients into meals. Haulers move those ingredients through the same finite inventories as other supplies.
 
 ```mermaid
 flowchart LR
@@ -23,6 +23,10 @@ flowchart LR
   G --> K[Galley]
   E --> K
   C --> K
+  D[Livestock death] --> R[Physical body]
+  R --> T[Carry to post and butcher]
+  T --> I[Bristleback or glazefoot meat]
+  I --> K
   K --> M[Prepared meals]
   M --> S[Sanitation and recycling]
   S --> N
@@ -62,11 +66,11 @@ Schema 42 migrates existing schema-40/41 hex colonies by preserving their exact 
 
 | Species | Food source | Product | Distinct behavior |
 | --- | --- | --- | --- |
-| Bristleback | Existing colony food and natural lichen grazing | Nutrient curd | Six-legged native grazer with mineral plates |
-| Glazefoot | Delivered raw fungal caps | Glaze eggs | Four-footed grazer with a translucent dorsal fan; depends on gathered or cultivated fungal feed |
+| Bristleback | Existing colony food and natural lichen grazing | Nutrient curd; meat from a fresh body | Six-legged native grazer with mineral plates |
+| Glazefoot | Delivered raw fungal caps | Glaze eggs; meat from a fresh body | Four-footed grazer with a translucent dorsal fan; depends on gathered or cultivated fungal feed |
 | Tibble | Existing food stocks and crop biomass | None | A pest that can raid supplies and damage hydroponics |
 
-Livestock require care and sufficient nutrition before producing. [Veterinary care](veterinary-care.md) adds species temperature limits, persistent fire/thermal injuries, delivered medicine and gradual recovery. Injury or substantial thermal strain pauses product and brood progress without discarding it. Young animals do not yield products. Breeding pairs must be unrelated adults of the same species; both livestock species share pasture space and enclosure limits. Fences, gates and physical handler transport remain part of the chain.
+Livestock require care and sufficient nutrition before producing. [Veterinary care](veterinary-care.md) adds species temperature limits, persistent fire/thermal injuries, delivered medicine and gradual recovery. Injury or substantial thermal strain pauses product and brood progress without discarding it. Young animals do not yield curd or eggs. Naturally dead juveniles yield one meat when their fresh body is processed; deliberate slaughter requires a tame adult. See [butchery](butchery.md) for physical handling and spoilage. Breeding pairs must be unrelated adults of the same species; both livestock species share pasture space and enclosure limits. Fences, gates and physical handler transport remain part of the chain.
 
 New colonies gain two wild adult glazefoots. Loading an older colony does not create animals or grant food. Broods and edible harvested eggs are separate gameplay states.
 
@@ -84,6 +88,8 @@ Every recipe consumes two raw-food units and produces two prepared-food units. W
 | Glaze omelet | One glaze egg and one fungal cap | 3 |
 | Colony feast | Half a unit each of grain, caps, curd and eggs | 6 |
 | Starlight platter | Half a unit each of grain, berries, curd and eggs | 9 |
+| Bristlecap braise | One bristleback meat and one fungal cap | 3 |
+| Sunberry glaze roast | One glazefoot meat and one sunberry | 6 |
 
 Farming and cooking currently use the existing **Production** skill. An operator must qualify for the selected recipe. Cooking quality has four levels, reached at skill 0, 3, 6 and 9. More elaborate dishes add a small comfort benefit when actually eaten; ingredients are never multiplied into extra servings.
 
@@ -91,9 +97,15 @@ The galley inspector shows the selected recipe, delivered and missing ingredient
 
 ## Saves, controls and scope
 
-The current expansion uses schema 45 with migration from schema-40/41/42/43/44 hex saves. Existing food amounts, ages, prepared meals and committed batches are preserved by migration checks. [Inherited animal traits](animal-traits.md) affect product progress, feed drain and temperature tolerance; they do not change collection yields or recipe ingredients. Square saves retain their protected export behavior. Planting, watering, gathering, breeding and crop/recipe selection use shared player/agent actions. Plants, genomes, ingredients, animal products and meals retain machine-readable labels. The interface stays in existing hidden inspectors.
+The current expansion uses schema 46 with explicit migration from schema-40/41/42/43/44/45 hex saves. Historical deaths gain no new body or food. Existing food amounts, ages, prepared meals and committed batches are preserved by migration checks. [Inherited animal traits](animal-traits.md) affect product progress, feed drain and temperature tolerance; they do not change collection yields or recipe ingredients. Square saves retain their protected export behavior. Planting, watering, gathering, breeding, slaughter, body handling and crop/recipe selection use shared player/agent actions. Plants, genomes, ingredients, animal products and meals retain machine-readable labels. The interface stays in existing hidden inspectors.
 
-Further ecology work includes wild-soil moisture, plant spreading, seed genetics, orchards, full biomes and seasonal or orbital growing conditions, more species, diseases, meat and fibre production, and additional preservation methods. Physical habitat decks remain a separate roadmap item.
+Further ecology work includes wild-soil moisture, plant spreading, seed genetics, orchards, full biomes and seasonal or orbital growing conditions, more species, diseases, fibre production, and additional preservation methods. Physical habitat decks remain a separate roadmap item.
+
+## Current ordinary livestock trial and interface scope
+
+One continuation from the ordinary tick-66 galley checkpoint stopped at tick 144 after 78 ticks and three commands because home air became unbreathable. Both paid posts finished at tick 85, and two care deliveries raised the target's trust to 80. All seven crew and five animals remained healthy. No slaughter, body, meat or new meal occurred. Habitat/exterior-work air reserves and the remaining ordinary chain are the next acceptance work.
+
+The current local browser check covers fresh save/reopen, actual migrated-save import, ten recipe choices, applying and retaining Bristlecap braise selection and a readable 390-pixel layout. Corpse handling and a cooked meat meal were not covered. See [verification status](verification-status.md) for the 1,264 distinct local passes, migration scope and historical checks below.
 
 ## Verified fresh-colony gathering trial
 
@@ -105,4 +117,4 @@ This proves ordinary gathering and galley construction. It does not yet prove bu
 
 One explicitly supplied habitat completed the sequence at tick 605 using 12 shared commands: two fungal-cap crops yielded four units, three care deliveries tamed a native glazefoot, natural product accumulation yielded two eggs, and the galley combined one cap with one egg and 0.25 water into two quality-two omelet units. A crew member ate 0.125; 1.875 prepared units and one spare egg remained. No ingredients, animal trust, product readiness or experience were granted. The setup provided buildings, wiring, finite charged batteries and ordinary finite supplies; it did not prove construction from a fresh colony.
 
-All seven crew remained healthy, physical ledgers reconciled and ten checkpoints reloaded exactly. Browser checks cover crop selection during live updates, current/next batch preservation, eight recipe choices, skill and ingredient explanations, save/reload and a narrow inspector. See [verification status](verification-status.md) for test scope and retained limitations.
+All seven crew remained healthy, physical ledgers reconciled and ten checkpoints reloaded exactly. Earlier browser checks covered crop selection during live updates, current/next batch preservation, the original eight recipe choices, skill and ingredient explanations, save/reload and a narrow inspector. See [verification status](verification-status.md) for test scope and retained limitations.

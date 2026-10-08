@@ -18,7 +18,7 @@ export function initializeCrew(c, index) {
   c.favoriteLabor = profile.favorite; c.temperament = profile.temperament;
   c.intent = null; c.morale = 72; c.memories = [];
 }
-export const laborFor = job => ({ extinguish:'engineering',animalLead:'husbandry',animalTreat:'medicine',animalCare:'husbandry',animalHarvest:'husbandry',operate: 'production', gather:'production', plant:'production', waterPlant:'production', hygiene: 'medicine', feed: 'medicine', treat: 'medicine', mine: 'mining', build: 'construction', remove: 'construction', repair: 'engineering', service: 'engineering', refit: 'engineering', loadShuttle: 'hauling', unloadShuttle: 'hauling', loadCargo: 'hauling', unloadCargo: 'hauling', repairWaterPipe:'engineering',removeWaterPipe:'construction',repairPipe:'engineering',removePipe:'construction',repairCable: 'engineering', removeCable: 'construction' })[job.kind];
+export const laborFor = job => ({ extinguish:'engineering',animalDispatch:'husbandry',animalButcher:'husbandry',animalDiscard:'husbandry',animalLead:'husbandry',animalTreat:'medicine',animalCare:'husbandry',animalHarvest:'husbandry',operate: 'production', gather:'production', plant:'production', waterPlant:'production', hygiene: 'medicine', feed: 'medicine', treat: 'medicine', mine: 'mining', build: 'construction', remove: 'construction', repair: 'engineering', service: 'engineering', refit: 'engineering', loadShuttle: 'hauling', unloadShuttle: 'hauling', loadCargo: 'hauling', unloadCargo: 'hauling', repairWaterPipe:'engineering',removeWaterPipe:'construction',repairPipe:'engineering',removePipe:'construction',repairCable: 'engineering', removeCable: 'construction' })[job.kind];
 export const airThreshold = c => c.temperament === 'cautious' ? 35 : 25;
 export function availableForWork(c) {
   return c.health > 0 && Math.abs(c.thermalStress || 0) < 45 && !immobile(c) && !c.rescue && !c.medical?.bed && c.life?.policy !== 'rest' && c.site !== 'transit' && !c.intent && !c.carry && !c.job && c.oxygen >= airThreshold(c) && c.hunger >= 35 && c.energy >= 25;
@@ -29,7 +29,12 @@ export function workRate(c, labor) {
 export function gainExperience(c, labor, effort) {
   const skill = c.skills[labor];
   skill.xp += effort;
-  while (skill.level < 10 && skill.xp >= 20 + skill.level * 15) { skill.xp -= 20 + skill.level * 15; skill.level++; }
+  while (skill.level < 10) {
+    const threshold = 20 + skill.level * 15;
+    const tolerance = Number.EPSILON * 32 * Math.max(threshold, Math.abs(skill.xp));
+    if (skill.xp + tolerance < threshold) break;
+    skill.xp = Math.max(0, skill.xp - threshold); skill.level++;
+  }
   if (skill.level === 10) skill.xp = Math.min(skill.xp, 170);
 }
 export function remember(s, c, kind, text, mood) {

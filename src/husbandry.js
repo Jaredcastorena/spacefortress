@@ -9,7 +9,8 @@ import { isLivestock, livestockDef, VETERINARY } from './livestock-data.js';
 import { animalActivityAllowed, animalHealthStatus, animalTreatmentValid, completeAnimalTreatment } from './animal-health.js';
 import { animalTraits } from './animal-traits.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
-export const ANIMAL_JOBS = ['animalCare','animalHarvest','animalTreat'];
+import { BUTCHERY, dispatchJob, carcassJob, dispatchJobValid, completeDispatch } from './animal-carcasses.js';
+export const ANIMAL_JOBS = ['animalCare','animalHarvest','animalTreat','animalDispatch'];
 export const animalJob = j => ANIMAL_JOBS.includes(j.kind);
 export function initializeHusbandry(s) {
   for(const c of s.crew){c.labors.husbandry??=true;c.skills.husbandry??={level:c.role==='Botanist'?2:0,xp:0};}
@@ -18,13 +19,14 @@ export function initializeHusbandry(s) {
 const postTile=(s,a)=>a.husbandry.post?s.sites.surface.tiles[a.husbandry.post[1]*s.sites.surface.size+a.husbandry.post[0]]:null;
 export const animalForJob=(s,j)=>s.creatures.find(a=>a.id===j.animal&&isLivestock(a)&&a.health>0&&a.husbandry.post?.[0]===j.x&&a.husbandry.post?.[1]===j.y);
 export function animalJobValid(s,j) {
+  if(dispatchJob(j))return dispatchJobValid(s,j);
   if(j.kind==='animalTreat')return animalTreatmentValid(s,j);
   const a=animalForJob(s,j),t=a&&postTile(s,a);if(!a||t?.building!=='husbandryPost'||!t.hp)return false;
   return j.kind==='animalCare'?a.husbandry.care:j.kind==='animalHarvest'&&animalActivityAllowed(a)&&adult(a)&&a.husbandry.harvest&&a.husbandry.trust===100&&a.husbandry.product>=100&&a.fed>=40&&a.health>=40;
 }
 export function assignAnimal(s,id,x,y,pathTo,cancelJob) {
   const a=s.creatures.find(a=>a.id===id&&isLivestock(a)&&a.health>0);if(!a)return {ok:false,message:'Choose living livestock.'};
-  if(x!==null||y!==null){const site=s.sites.surface;if(!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=site.size||y>=site.size)return {ok:false,message:'Choose a husbandry post.'};const t=site.tiles[y*site.size+x];if(t.building!=='husbandryPost'||t.hp<=0)return {ok:false,message:'Choose a working husbandry post.'};if(postReserved(s,x,y,id))return {ok:false,message:'This post is reserved for transport.'};if(s.creatures.some(o=>o!==a&&o.health>0&&o.husbandry?.post?.[0]===x&&o.husbandry.post[1]===y))return {ok:false,message:'This post already has an animal.'};if(pathTo(site,a,[[x,y]])===null)return {ok:false,message:'The animal cannot reach this post.'};}
+  if(x!==null||y!==null){const site=s.sites.surface;if(!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=site.size||y>=site.size)return {ok:false,message:'Choose a husbandry post.'};const t=site.tiles[y*site.size+x];if(t.building!=='husbandryPost'||t.hp<=0)return {ok:false,message:'Choose a working husbandry post.'};if(postReserved(s,x,y,id))return {ok:false,message:'This post is reserved for transport.'};if(s.jobs.some(j=>carcassJob(j)&&j.site==='surface'&&j.x===x&&j.y===y))return {ok:false,message:'This post is reserved for carcass handling.'};if(s.creatures.some(o=>o!==a&&o.health>0&&o.husbandry?.post?.[0]===x&&o.husbandry.post[1]===y))return {ok:false,message:'This post already has an animal.'};if(pathTo(site,a,[[x,y]])===null)return {ok:false,message:'The animal cannot reach this post.'};}
   for(const j of [...s.jobs])if(j.animal===id)cancelJob(s,j.id,true);
   a.husbandry.post=x===null?null:[x,y];a.husbandry.retryAt=0;a.husbandry.blocked=null;
   emitEvent(s,'animal.post.assigned',{entity:id,target:x===null?null:tileEntityId('surface',x,y)});return {ok:true};
@@ -54,6 +56,7 @@ export function animalCareSupplied(s,j) {
   return !!def&&planFoodSelection(j.materials,def.careFood,def.feedKinds?{rawOnly:true,foodKinds:def.feedKinds}:false)!==null;
 }
 export function completeAnimalJob(s,c,j) {
+  if(dispatchJob(j))return completeDispatch(s,c,j);
   if(j.kind==='animalTreat')return completeAnimalTreatment(s,c,j);
   if(!animalJobValid(s,j))return false;
   const a=animalForJob(s,j);if(!a||!animalCareSupplied(s,j))return false;
@@ -100,6 +103,7 @@ export function validateHusbandry(s) {
   }
   const assigned=new Map();for(const j of s.jobs.filter(animalJob)){const a=animalForJob(s,j),prior=assigned.get(j.animal)||[];
     if(prior.length>=2||prior.includes(j.kind)||prior.length===1&&![...prior,j.kind].every(kind=>['animalCare','animalTreat'].includes(kind)))throw new Error('Conflicting animal work orders.');
+    if(dispatchJob(j)){if(!a||!animalJobValid(s,j)||j.work!==BUTCHERY.dispatchWork||Object.keys(j.cost).length||j.foodKinds!==undefined)throw new Error('Invalid animal dispatch order.');assigned.set(a.id,[...prior,j.kind]);continue;}
     const def=livestockDef(a),feed=j.kind==='animalCare'&&def?.feedKinds;
     if(!a||j.site!=='surface'||j.building!==null||j.work!==(j.kind==='animalCare'?def.careWork:j.kind==='animalTreat'?VETERINARY.work:def.harvestWork)||Object.keys(j.cost).length!==(j.kind==='animalHarvest'?0:1)||(j.kind==='animalCare'&&j.cost.food!==def.careFood)||(j.kind==='animalTreat'&&(j.cost.medicine!==VETERINARY.medicine||!animalTreatmentValid(s,j))))throw new Error('Invalid animal work order.');
     if(feed?(!j.foodKinds||Object.keys(j.foodKinds).length!==Object.keys(feed).length||Object.entries(feed).some(([kind,n])=>j.foodKinds[kind]!==n)):j.foodKinds!==undefined)throw new Error('Invalid animal feed requirement.');

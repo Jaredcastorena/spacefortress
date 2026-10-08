@@ -12,6 +12,8 @@ export const FOOD_KINDS = {
   sunberry: { id: 'sunberry', name: 'Sunberry', origin: 'crop' },
   curd: { id: 'curd', name: 'Bristleback curd', origin: 'animal' },
   glazeegg: { id: 'glazeegg', name: 'Glazefoot egg', origin: 'animal' },
+  bristlemeat: { id: 'bristlemeat', name: 'Bristleback meat', origin: 'animal' },
+  glazemeat: { id: 'glazemeat', name: 'Glazefoot meat', origin: 'animal' },
 };
 const crop = (id, name, water, duration, temperature, minSkill = 0, outputKind = id) => ({
   id, name, tier: 1 + Math.floor(minSkill / 3), minSkill,
@@ -38,4 +40,6 @@ export const MEAL_RECIPES = {
   glaze_omelet: meal('glaze_omelet', 'Glaze omelet', { glazeegg: 1, fungalcap: 1 }, .25, 32, 3, .05),
   colony_feast: meal('colony_feast', 'Colony feast', { siltgrain: .5, fungalcap: .5, curd: .5, glazeegg: .5 }, .5, 40, 6, .08),
   starlight_platter: meal('starlight_platter', 'Starlight platter', { siltgrain: .5, sunberry: .5, curd: .5, glazeegg: .5 }, .5, 48, 9, .10),
+  bristlecap_braise: meal('bristlecap_braise', 'Bristlecap braise', { bristlemeat: 1, fungalcap: 1 }, .5, 40, 3, .06),
+  sunberry_glaze_roast: meal('sunberry_glaze_roast', 'Sunberry glaze roast', { glazemeat: 1, sunberry: 1 }, .25, 44, 6, .08),
 };
