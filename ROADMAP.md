@@ -1,12 +1,16 @@
 # SPACEFORTRESS roadmap
 
-**Published version: v0.1.2 · Published save schema: 38 · Local experimental schema: 39.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
+**Published version: v0.1.2 · Published save schema: 38 · Local experimental schema: 40.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
 
 See the [README](README.md) to play, [verification status](docs/verification-status.md) for evidence and limits, and the [180-system conversion inventory](docs/conversion-inventory.md) for the wider backlog. Completing a milestone below does not complete an entire inventory family or establish full Dwarf Fortress parity.
 
 ## Current direction: hexagonal construction grid
 
-Use actual hexagonal terrain and building tiles, retaining the isometric view. This requires one shared six-neighbor geometry model for movement, walls, rooms, utilities and airlocks, plus matching rendering and picking. Preserve legacy square saves without silently changing their connections. The conversion is being audited; the current game still uses square tiles. Further square-grid construction walkthroughs are paused while this conversion is designed.
+Actual hexagonal terrain and building tiles are implemented locally, retaining the isometric view. Shared six-neighbor geometry now drives movement, walls, sealed rooms, utilities, livestock boundaries and airlocks, with matching rendering and picking. Schema 40 identifies hex saves; square schemas 1–39 are rejected with their original bytes protected for export. The independent gravity-based elements lab remains square.
+
+**Verified:** focused physical and geometry checks, combined regression coverage of 1,041 Node passes / one intentional skip and 26 Python passes, and scoped Chrome checks for real hex rendering, pointer selection, a build ghost, utility overlays and a narrow inspector. Per-edge flow rates are retained, so six neighbors can increase total exchange compared with four.
+
+**Next acceptance:** build and commission a cycling airlock using ordinary finite supplies from a fresh hex colony; move a named parcel through it and return it. Complete actual form-submission checks and the wider outpost endurance/resupply/care journey. Neither the new hex build nor its airlocks are published yet.
 
 ## Completed within the current scope
 

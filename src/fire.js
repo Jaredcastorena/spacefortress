@@ -1,3 +1,4 @@
+import { neighbors } from './geometry.js';
 import { gasNode } from './gas-networks.js';
 import { LIQUID, quenchWater } from './liquids.js';
 import { BUILDINGS } from './data.js';
@@ -7,7 +8,7 @@ import { temperature } from './thermal.js';
 import { damage } from './maintenance.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
 export const FIRE={faultTicks:120,smokeLimit:.04,filterRate:.08,suppressionWater:2,suppressionWork:8,retry:120};
-const adjacent=t=>[[t.x+1,t.y],[t.x-1,t.y],[t.x,t.y+1],[t.x,t.y-1]];
+const adjacent=t=>neighbors(t.x,t.y);
 const at=(site,x,y)=>x>=0&&y>=0&&x<site.size&&y<site.size?site.tiles[y*site.size+x]:null;
 export const combustible=t=>t?.hp>0&&!!BUILDINGS[t.building]&&!['floor','wall','door','fence','pastureGate','cable','solar','advanced','sculpture'].includes(t.building);
 const oxygen=r=>!!r&&r.gas.oxygen/(r.volume*10)>=.12;

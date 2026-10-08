@@ -4,9 +4,10 @@ import { at, inside, key, isDay, roomAt } from './simulation.js';
 import { routeTime } from './expedition.js';
 import { shuttleLocation, shuttlePresence } from './outposts.js';
 import { electrical } from './power.js';
-import { buildPowerTopology, POWER_DIRECTIONS, breakerContactClosed } from './power-topology.js';
-import { WATER_DIRECTIONS, waterNode, waterCapacity } from './plumbing.js';
-import { GAS_DIRECTIONS, gasNode, gasCapacity, gasPayload } from './gas-networks.js';
+import { buildPowerTopology, breakerContactClosed } from './power-topology.js';
+import { waterNode, waterCapacity, waterPorts } from './plumbing.js';
+import { gasNode, gasCapacity, gasPayload, pumpPorts } from './gas-networks.js';
+import { DIRECTIONS, step, opposite, groundCenter, corners, edge, fromGround, tileAt } from './geometry.js';
 import { SITES } from './data.js';
 import { crewSprite, ANATOMIES } from './sprites.js';
 
@@ -14,7 +15,27 @@ import { doorOpen } from './atmosphere.js';
 import { airlockStatus } from './airlock-access.js';
 import { quantity } from './inventory.js';
 
-const T = 32, H = 16;
+export const HEX_RADIUS = 32;
+const ROOT2 = Math.sqrt(2);
+export const projectGround = (u,v) => [(u-v)*HEX_RADIUS/ROOT2,(u+v)*HEX_RADIUS/(2*ROOT2)];
+export const projectTile = (x,y) => projectGround(...groundCenter(x,y));
+export function unprojectTile(x,y) {
+  return fromGround((x+2*y)/(ROOT2*HEX_RADIUS),(2*y-x)/(ROOT2*HEX_RADIUS));
+}
+export function hexDirectionVector(direction, fraction=1) {
+  const [x,y]=projectTile(...step(0,0,direction));
+  return [x*fraction,y*fraction];
+}
+const HEX_CORNERS = corners(0,0).map(([u,v])=>projectGround(u,v));
+export function projectedBounds(size) {
+  const points=[];
+  for(const x of [0,size-1])for(const y of [0,size-1])points.push(...corners(x,y).map(([u,v])=>projectGround(u,v)));
+  return {left:Math.min(...points.map(p=>p[0])),right:Math.max(...points.map(p=>p[0])),top:Math.min(...points.map(p=>p[1])),bottom:Math.max(...points.map(p=>p[1]))};
+}
+export function compareHexDepth(a,b) {
+  const [ax,ay]=projectTile(a.x,a.y),[bx,by]=projectTile(b.x,b.y);
+  return ay-by || ax-bx || a.y-b.y || a.x-b.x;
+}
 export class Renderer {
   constructor(canvas) {
     this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.zoom = 1; this.pan = { x: 0, y: 0 }; this.cutaway = true; this.powerOverlay = false; this.gasOverlay = false; this.waterOverlay = false; this.hover = null; this.selection = null;
@@ -23,11 +44,23 @@ export class Renderer {
   }
   resize() { const r = this.canvas.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2); this.w = r.width; this.h = r.height; this.dpr = dpr; this.canvas.width = Math.round(r.width * dpr); this.canvas.height = Math.round(r.height * dpr); }
   center() { this.pan = { x: 0, y: 0 }; this.zoom = Math.min(1.1, Math.max(.5, this.w / 900)); }
-  origin(site) { return { x: this.w / 2 + this.pan.x, y: this.h / 2 - (site.size - 1) * H * this.zoom + 60 + this.pan.y }; }
-  project(x, y) { return [(x - y) * T, (x + y) * H]; }
-  screenToTile(px, py, site) { const o = this.origin(site), x = (px - o.x) / this.zoom, y = (py - o.y) / this.zoom; return { x: Math.floor((x / T + y / H) / 2 + .5), y: Math.floor((y / H - x / T) / 2 + .5) }; }
+  origin(site) { const b=projectedBounds(site.size);return {x:this.w/2-(b.left+b.right)*this.zoom/2+this.pan.x,y:this.h/2-(b.top+b.bottom)*this.zoom/2+this.pan.y}; }
+  project(x, y) { return projectTile(x,y); }
+  screenToTile(px, py, site) { const o=this.origin(site),[x,y]=unprojectTile((px-o.x)/this.zoom,(py-o.y)/this.zoom);return tileAt(site,x,y)?{x,y}:null; }
   polygon(points, fill, stroke) { const c = this.ctx; c.beginPath(); points.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = .7; c.stroke(); } }
-  diamond(x, y, fill, stroke) { this.polygon([[x, y - H], [x + T, y], [x, y + H], [x - T, y]], fill, stroke); }
+  diamond(x, y, fill, stroke) { this.polygon([[x, y - 16], [x + 32, y], [x, y + 16], [x - 32, y]], fill, stroke); }
+  hex(x,y,fill,stroke,scale=1) { this.polygon(HEX_CORNERS.map(([dx,dy])=>[x+dx*scale,y+dy*scale]),fill,stroke); }
+  hexPrism(x,y,h,top,left,right,scale=1) {
+    const vertices=HEX_CORNERS.map(([dx,dy])=>[x+dx*scale,y+dy*scale]);
+    for(let i=0;i<6;i++){
+      const a=vertices[i],b=vertices[(i+1)%6];
+      if(b[0]<a[0])this.polygon([[a[0],a[1]-h],[b[0],b[1]-h],b,a],(a[0]+b[0])/2<x?left:right);
+    }
+    this.hex(x,y-h,top,null,scale);
+  }
+  portStar(x,y,color,outline) {
+    for(const direction of DIRECTIONS){const [dx,dy]=hexDirectionVector(direction,.4);this.line(x,y,x+dx,y+dy,outline,7);this.line(x,y,x+dx,y+dy,color,3);}
+  }
   box(x, y, w, d, h, top, left, right) {
     this.polygon([[x - w, y - h], [x, y + d - h], [x, y + d], [x - w, y]], left);
     this.polygon([[x, y + d - h], [x + w, y - h], [x + w, y], [x, y + d]], right);
@@ -66,17 +99,17 @@ export class Renderer {
     for (const t of site.tiles) {
       if (t.terrain === 'void') continue;
       const [x, y] = this.project(t.x, t.y);
-      this.box(x, y + 5, T, H, 5, tileColors[t.terrain][t.variant], t.terrain === 'ice' ? '#4c718e' : '#3e4140', '#343b3c');
-      this.diamond(x, y, tileColors[t.terrain][t.variant], t.terrain === 'floor' ? '#8f9d923d' : '#a5aa9417');
-      if(airlockCells.has(key(t.x,t.y)))this.diamond(x,y,'#8ddce622','#82cbd580');
-      if (selectedCells.has(key(t.x, t.y))) this.diamond(x, y, '#93d5c218');
+      this.hexPrism(x, y + 5, 5, tileColors[t.terrain][t.variant], t.terrain === 'ice' ? '#4c718e' : '#3e4140', '#343b3c');
+      this.hex(x, y, tileColors[t.terrain][t.variant], t.terrain === 'floor' ? '#8f9d923d' : '#a5aa9417');
+      if(airlockCells.has(key(t.x,t.y)))this.hex(x,y,'#8ddce622','#82cbd580');
+      if (selectedCells.has(key(t.x, t.y))) this.hex(x, y, '#93d5c218');
       if (t.terrain === 'floor' || t.terrain === 'deck') { c.fillStyle = '#b2c0af42'; c.fillRect(x - 1, y - 12, 2, 1); c.fillRect(x - 24, y, 2, 1); }
       if (t.terrain === 'ground') { c.fillStyle = '#b59a702b'; c.fillRect(x - 15 + t.variant * 5, y - 3 + t.variant, 3, 1); }
       if (t.lichen > 10) { for (let i = 0; i < 4; i++) { c.fillStyle = ['#98a076', '#788765', '#a6a778', '#748468'][i]; c.fillRect(x - 12 + i * 7, y - 2 + i % 2 * 4, 6, 2); } }
     }
     for (const cell of selectedCells) {
       const [tx,ty] = cell.split(',').map(Number), [x,y] = this.project(tx,ty);
-      for (const [nx,ny,ax,ay,bx,by] of [[tx+1,ty,x+T,y,x,y+H],[tx-1,ty,x-T,y,x,y-H],[tx,ty+1,x-T,y,x,y+H],[tx,ty-1,x+T,y,x,y-H]]) if (!selectedCells.has(key(nx,ny))) this.line(ax,ay,bx,by,'#a5dcc5',2);
+      for(const direction of DIRECTIONS){const [nx,ny]=step(tx,ty,direction);if(!selectedCells.has(key(nx,ny))){const [a,b]=edge(tx,ty,direction).map(([u,v])=>projectGround(u,v));this.line(...a,...b,'#a5dcc5',2);}}
     }
     const pending = new Map(s.jobs.filter(j => j.site === siteId).map(j => [key(j.x, j.y), j]));
     const reservedTiles = new Set();
@@ -85,14 +118,14 @@ export class Renderer {
       for (const source of j.sources) if (quantity(source.items)) reservedTiles.add(key(source.x, source.y));
     }
     const crew = s.crew.filter(p => p.site === siteId);
-    const sorted = [...site.tiles].sort((a, b) => a.x + a.y - b.x - b.y || a.x - b.x);
+    const sorted = [...site.tiles].sort(compareHexDepth);
     for (const t of sorted) {
       const [x, y] = this.project(t.x, t.y);
       if (t.terrain === 'rock') { const h = 12 + t.variant * 5; this.box(x, y, 26, 13, h, '#8a7963', '#685b4e', '#4b4842'); this.line(x - 12, y - h - 5, x + 2, y - h + 3, '#a49375'); }
       if (t.terrain === 'ore') { this.box(x, y, 22, 10, 11, '#897563', '#6d5744', '#4c473b'); for (let k = 0; k < 3; k++) { c.fillStyle = ['#ce9863', '#dfb777', '#b78052'][k]; c.fillRect(x - 14 + k * 10, y - 17 + (k % 2) * 5, 6, 4); } }
       if (t.deposit?.remaining > 0) { const h = 4 + t.deposit.remaining / 2; this.box(x,y,19,9,h,'#b9d8de','#7aaebf','#4c788c'); this.line(x-12,y-h-2,x+5,y-h+4,'#e0eff0',2); this.line(x+5,y-h+4,x+10,y-h-2,'#668fa5',2); }
-      if(t.liquid>1e-8){c.save();c.globalAlpha=Math.min(.8,.2+t.liquid/4*.6);this.diamond(x,y,'#3b94ba','#8bcee0');this.line(x-12,y,x+2,y+7,'#b2deeb',1);c.restore();}
-      if (t.building) this.structure(t, x, y, s,airlocks.find(a=>a.entity===`tile:${site.id}:${t.x}:${t.y}`));
+      if(t.liquid>1e-8){c.save();c.globalAlpha=Math.min(.8,.2+t.liquid/4*.6);this.hex(x,y,'#3b94ba','#8bcee0');this.line(x-12,y,x+2,y+7,'#b2deeb',1);c.restore();}
+      if (t.building) this.structure(t, x, y, s,airlocks.find(a=>a.entity===`tile:${site.id}:${t.x}:${t.y}`),site);
       const controlledDoor=airlockDoors.get(key(t.x,t.y));
       if(controlledDoor){const color=!controlledDoor.intact?'#ed937e':controlledDoor.permitted?'#9be1bf':'#ecc37c';c.fillStyle=color;c.fillRect(x-4,y-30,8,6);if(!controlledDoor.permitted){c.strokeStyle=color;c.lineWidth=2;c.strokeRect(x-2,y-34,4,5);}}
       // The berth remains on the map while the craft follows its physical location.
@@ -122,7 +155,7 @@ export class Renderer {
       if (t.machine && Object.values(t.machine.output).some(n => n > 0)) this.box(x + 19, y + 7, 7, 4, 6, '#a7ceb7', '#678c81', '#425e61');
       if (reservedTiles.has(key(t.x, t.y))) this.box(x - 18, y + 6, 7, 4, 6, '#d2b9db', '#92769d', '#605071');
       const job = pending.get(key(t.x, t.y));
-      if (job) { c.globalAlpha = .55; this.diamond(x, y, job.kind === 'build' ? '#5ac9c144' : '#e3ae6055', '#edc882'); c.globalAlpha = 1; c.fillStyle = '#e7d09a'; c.font = '14px monospace'; c.textAlign = 'center'; c.fillText(job.kind === 'build' ? '+' : job.kind === 'mine' ? '⌁' : job.kind === 'operate' ? '⚙' : '×', x, y + 4); if (job.worker) { c.fillStyle = '#18242c'; c.fillRect(x - 16, y + 12, 32, 3); c.fillStyle = '#a7d6ba'; c.fillRect(x - 16, y + 12, 32 * (1 - job.remaining / job.work), 3); } }
+      if (job) { c.globalAlpha = .55; this.hex(x, y, job.kind === 'build' ? '#5ac9c144' : '#e3ae6055', '#edc882'); c.globalAlpha = 1; c.fillStyle = '#e7d09a'; c.font = '14px monospace'; c.textAlign = 'center'; c.fillText(job.kind === 'build' ? '+' : job.kind === 'mine' ? '⌁' : job.kind === 'operate' ? '⚙' : '×', x, y + 4); if (job.worker) { c.fillStyle = '#18242c'; c.fillRect(x - 16, y + 12, 32, 3); c.fillStyle = '#a7d6ba'; c.fillRect(x - 16, y + 12, 32 * (1 - job.remaining / job.work), 3); } }
       for (const person of crew.filter(p => p.x === t.x && p.y === t.y)) {
         c.fillStyle = '#0b182d55'; c.beginPath(); c.ellipse(x, y + 3, 10, 5, 0, 0, Math.PI * 2); c.fill();
         if (person.health <= 0 || immobile(person)) { const transported = s.crew.some(helper => helper.rescue?.carrying && helper.rescue.patient === person.id); if (transported) this.box(x + 19, y + 8, 18, 8, 5, '#a7c0b4', '#6b8987', '#405e69'); c.save(); c.translate(x + (transported ? 19 : 0), y + (transported ? 5 : 0)); c.rotate(Math.PI / 2); c.globalAlpha = person.health <= 0 ? .65 : 1; c.drawImage(crewSprite(person.color, ANATOMIES[Number(person.id.split('-')[1]) % ANATOMIES.length]), -19, -26); c.restore(); }
@@ -130,34 +163,35 @@ export class Renderer {
         if (person.carry) this.box(x + 12, y - 10, 6, 3, 7, '#dcc290', '#8c8869', '#596865');
         if(airlockWaiting.has(person.id)){c.fillStyle='#edc783';c.font='10px monospace';c.textAlign='center';c.fillText('WAIT',x,y-64);}
         if (person.oxygen < 30) { c.fillStyle = '#ee957b'; c.font = 'bold 12px monospace'; c.fillText('!', x, y - 52); }
-        if (this.selection?.crew === person.id) { this.diamond(x, y, null, '#baf2da'); c.fillStyle = '#d8eee1'; c.font = '10px monospace'; c.textAlign = 'center'; c.fillText(person.name.split(' ')[0], x, y - 56); }
+        if (this.selection?.crew === person.id) { this.hex(x, y, null, '#baf2da'); c.fillStyle = '#d8eee1'; c.font = '10px monospace'; c.textAlign = 'center'; c.fillText(person.name.split(' ')[0], x, y - 56); }
       }
     }
     if(this.powerOverlay||(mode==='build'&&['cable','breaker'].includes(build))){
       if(this.powerGraphSite!==site||this.powerGraphCircuits!==site.circuits){this.powerGraph=buildPowerTopology(site);this.powerGraphSite=site;this.powerGraphCircuits=site.circuits;}
       const graph=this.powerGraph,color=id=>`hsl(${(Number(id?.split('-')[1])*47+(id?.endsWith('-input')?17:id?.endsWith('-output')?83:0))%360} 65% 72%)`;
-      const point=v=>{const [x,y]=this.project(v.tile.x,v.tile.y);if(!v.terminal)return [x,y];const [dx,dy]=POWER_DIRECTIONS[v.tile.protection.direction],f=v.terminal==='input'?-1:1;return [x+(dx-dy)*11*f,y+(dx+dy)*5.5*f];};
+      const point=v=>{const [x,y]=this.project(v.tile.x,v.tile.y);if(!v.terminal)return [x,y];const direction=v.terminal==='input'?opposite(v.tile.protection.direction):v.tile.protection.direction,[dx,dy]=hexDirectionVector(direction,.25);return [x+dx,y+dy];};
       for(const [id,neighbors] of graph.adjacency){const a=graph.vertices.get(id),[x,y]=point(a);for(const next of neighbors){if(id>=next)continue;const [nx,ny]=point(graph.vertices.get(next));this.line(x,y,nx,ny,'#17313b',6);this.line(x,y,nx,ny,color(graph.membership.get(id)),3);}}
       for(const [id,v] of graph.vertices){const [x,y]=point(v),t=v.tile,col=t.cable&&(!t.cable.enabled||!t.cable.hp)?'#ec8e7e':color(graph.membership.get(id));c.fillStyle=col;
-        if(v.terminal==='output'){const [dx,dy]=POWER_DIRECTIONS[t.protection.direction],vx=(dx-dy)*6,vy=(dx+dy)*3,len=Math.hypot(vx,vy),ux=vx/len,uy=vy/len;this.polygon([[x+vx,y+vy],[x-vx-uy*4,y-vy+ux*4],[x-vx+uy*4,y-vy-ux*4]],col,'#17313b');}
+        if(v.terminal==='output'){const [vx,vy]=hexDirectionVector(t.protection.direction,.15),len=Math.hypot(vx,vy),ux=vx/len,uy=vy/len;this.polygon([[x+vx,y+vy],[x-vx-uy*4,y-vy+ux*4],[x-vx+uy*4,y-vy-ux*4]],col,'#17313b');}
         else{c.fillRect(x-3,y-3,6,6);}
       }
     }
     if (this.gasOverlay || (mode === 'build' && ['gasPipe','gasTank','gasPump','gasVent','gasExtractor','gasReservoir'].includes(build))) {
-      const accepts=(t,dx,dy)=>{
+      const accepts=(t,neighbor)=>{
         if(gasNode(t))return true;
-        if(t?.building!=='gasPump')return false;
-        const [px,py]=GAS_DIRECTIONS[t.gasDevice.direction];return dx*py===dy*px;
+        if(t?.building!=='gasPump'||!gasNode(neighbor))return false;
+        const ports=pumpPorts(site,t);return ports.input===neighbor||ports.output===neighbor;
       };
       for(const t of site.tiles){
         if(!gasNode(t)&&t.building!=='gasPump')continue;
         const [x,y]=this.project(t.x,t.y),node=gasNode(t),hp=t.pipe?.hp??t.hp;
         const color=hp<50?'#f49883':node&&!node.open?'#edc174':t.gasDevice?.enabled===false?'#899ba8':'#82dbe2';
-        for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
-          const neighbor=inside(site,t.x+dx,t.y+dy)?at(site,t.x+dx,t.y+dy):null;
-          if(accepts(t,dx,dy)&&accepts(neighbor,dx,dy)){
-            this.line(x,y,x+(dx-dy)*T/2,y+(dx+dy)*H/2,'#173644',7);
-            this.line(x,y,x+(dx-dy)*T/2,y+(dx+dy)*H/2,color,3);
+        for(const direction of DIRECTIONS){
+          const neighbor=tileAt(site,...step(t.x,t.y,direction));
+          if(neighbor&&accepts(t,neighbor)&&accepts(neighbor,t)){
+            const [nx,ny]=this.project(neighbor.x,neighbor.y);
+            this.line(x,y,(x+nx)/2,(y+ny)/2,'#173644',7);
+            this.line(x,y,(x+nx)/2,(y+ny)/2,color,3);
           }
         }
         if(t.building==='gasPump')this.gasArrow(x,y,t.gasDevice.direction,color);
@@ -169,35 +203,41 @@ export class Renderer {
       }
     }
     if(this.waterOverlay||(mode==='build'&&['waterPipe','waterReservoir','waterPump','waterIntake','waterOutlet'].includes(build))){
-      const accepts=(t,dx,dy)=>{if(waterNode(t))return true;if(!t?.waterDevice)return false;const [px,py]=WATER_DIRECTIONS[t.waterDevice.direction];return dx*py===dy*px;};
+      const accepts=(t,neighbor)=>{
+        if(waterNode(t))return true;if(!t?.waterDevice)return false;
+        const ports=waterPorts(site,t),source=t.building==='waterIntake'&&ports.input===neighbor,target=t.building==='waterOutlet'&&ports.output===neighbor;
+        if(source||target)return t.waterDevice.mode==='floor'||!!neighbor?.machine;
+        return (ports.input===neighbor||ports.output===neighbor)&&!!waterNode(neighbor);
+      };
       for(const t of site.tiles){
         const node=waterNode(t);if(!node&&!t.waterDevice)continue;
         const [x,y]=this.project(t.x,t.y),hp=t.waterPipe?.hp??t.hp,color=hp<50?'#f49c83':node&&!node.open?'#efc674':t.waterDevice?.enabled===false?'#869aa9':'#82baf4';
-        for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
-          const neighbor=inside(site,t.x+dx,t.y+dy)?at(site,t.x+dx,t.y+dy):null;
-          let connect=accepts(t,dx,dy)&&accepts(neighbor,dx,dy);
-          if(t.waterDevice&&neighbor){const [px,py]=WATER_DIRECTIONS[t.waterDevice.direction],endpoint=t.building==='waterIntake'?dx===-px&&dy===-py:t.building==='waterOutlet'?dx===px&&dy===py:false;if(endpoint)connect=t.waterDevice.mode==='floor'||!!neighbor.machine;}
-          if(connect){this.line(x,y,x+(dx-dy)*T/2,y+(dx+dy)*H/2,'#18304d',7);c.setLineDash([5,3]);this.line(x,y,x+(dx-dy)*T/2,y+(dx+dy)*H/2,color,3);c.setLineDash([]);}
+        for(const direction of DIRECTIONS){
+          const neighbor=tileAt(site,...step(t.x,t.y,direction));if(!neighbor)continue;
+          const ports=t.waterDevice?waterPorts(site,t):null;
+          const endpoint=ports&&((t.building==='waterIntake'&&ports.input===neighbor)||(t.building==='waterOutlet'&&ports.output===neighbor));
+          const connect=accepts(t,neighbor)&&(endpoint||accepts(neighbor,t));
+          if(connect){const [nx,ny]=this.project(neighbor.x,neighbor.y),fraction=endpoint?1:.5,px=x+(nx-x)*fraction,py=y+(ny-y)*fraction;this.line(x,y,px,py,'#18304d',7);c.setLineDash([5,3]);this.line(x,y,px,py,color,3);c.setLineDash([]);}
         }
         if(t.waterDevice)this.gasArrow(x,y,t.waterDevice.direction,color);
         else{c.fillStyle='#193551';c.strokeStyle=color;c.lineWidth=2;c.fillRect(x-5,y-4,10,8);c.strokeRect(x-5,y-4,10,8);if(!node.open)this.line(x-6,y-5,x+6,y+5,'#efc674',3);if(hp<50){this.line(x+7,y-4,x+10,y-10,'#f49c83',2);this.line(x+10,y-1,x+16,y-4,'#f49c83',2);}}
       }
     }
-    if (siteId === 'surface' && s.debris.target) { const [x, y] = this.project(s.debris.target.x, s.debris.target.y); this.diamond(x, y, '#ec8e7e44', '#ffc28a'); c.fillStyle = '#ffe4bb'; c.font = 'bold 12px monospace'; c.textAlign = 'center'; c.fillText('IMPACT', x, y - 40); }
-    if (this.selection && !this.selection.crew && this.selection.site === siteId) { const [x, y] = this.project(this.selection.x, this.selection.y); c.lineWidth = 2; this.diamond(x, y, '#b7dbbb12', '#c7e5ce'); }
+    if (siteId === 'surface' && s.debris.target) { const [x, y] = this.project(s.debris.target.x, s.debris.target.y); this.hex(x, y, '#ec8e7e44', '#ffc28a'); c.fillStyle = '#ffe4bb'; c.font = 'bold 12px monospace'; c.textAlign = 'center'; c.fillText('IMPACT', x, y - 40); }
+    if (this.selection && !this.selection.crew && this.selection.site === siteId) { const [x, y] = this.project(this.selection.x, this.selection.y); c.lineWidth = 2; this.hex(x, y, '#b7dbbb12', '#c7e5ce'); }
     if (this.hover && this.hover.x >= 0 && this.hover.y >= 0 && this.hover.x < site.size && this.hover.y < site.size) {
-      const [x, y] = this.project(this.hover.x, this.hover.y); this.diamond(x, y, mode === 'build' ? '#8ee5cc55' : '#ffffdd1a', mode === 'mine' ? '#edbd7e' : '#c5e6d8');
-      if (mode === 'build') { c.globalAlpha = .5; this.structure({ building: build, terrain: 'floor', hp: 100, powered: true, x: this.hover.x, y: this.hover.y }, x, y, s); c.globalAlpha = 1; }
+      const [x, y] = this.project(this.hover.x, this.hover.y); this.hex(x, y, mode === 'build' ? '#8ee5cc55' : '#ffffdd1a', mode === 'mine' ? '#edbd7e' : '#c5e6d8');
+      if (mode === 'build') { c.globalAlpha = .5; this.structure({ building: build, terrain: 'floor', hp: 100, powered: true, x: this.hover.x, y: this.hover.y }, x, y, s,null,site); c.globalAlpha = 1; }
     }
     c.restore();
     if (siteId === 'surface' && !isDay(s)) { c.fillStyle = '#0a1b3840'; c.fillRect(0, 0, this.w, this.h); }
-    c.fillStyle = '#58717e'; c.font = '9px monospace'; c.textAlign = 'left'; c.fillText(`LOCAL GRID / ${site.size} × ${site.size}     ${Math.round(this.zoom * 100)}%`, 22, this.h - 108);
+    c.fillStyle = '#58717e'; c.font = '9px monospace'; c.textAlign = 'left'; c.fillText(`HEX GRID / ${site.size} × ${site.size}     ${Math.round(this.zoom * 100)}%`, 22, this.h - 108);
     if(this.powerOverlay){c.fillStyle='#b0d5c3';c.fillText('POWER / BREAKER TRIANGLE: OUTPUT SIDE   GAP: OPEN CONTACT',22,this.h-122);}
     if(this.waterOverlay){c.fillStyle='#a8c7ef';c.fillText('WATER / DASHED ROUTE   SQUARE: VALVE   AMBER: CLOSED   CORAL: LEAK   ARROW: FLOW',22,this.h-122);}
     if(this.gasOverlay){c.fillStyle='#9ed6d9';c.fillText('GAS / CYAN: ROUTE   AMBER: VALVE CLOSED   CORAL: LEAK   ARROW: PUMP OUTLET',22,this.h-122);}
   }
   gasArrow(x,y,direction,color){
-    const [dx,dy]=GAS_DIRECTIONS[direction||'east'],vx=(dx-dy)*15,vy=(dx+dy)*7.5;
+    const [vx,vy]=hexDirectionVector(direction||'ne',.35);
     this.line(x-vx,y-vy,x+vx,y+vy,'#173644',7);this.line(x-vx,y-vy,x+vx,y+vy,color,3);
     const length=Math.hypot(vx,vy),ux=vx/length,uy=vy/length;
     this.polygon([[x+vx,y+vy],[x+vx-ux*10-uy*5,y+vy-uy*10+ux*5],[x+vx-ux*10+uy*5,y+vy-uy*10-ux*5]],color,'#173644');
@@ -208,9 +248,9 @@ export class Renderer {
     this.box(x - 22, y + 2, 9, 4, 16, '#a7b6a6', '#637e7e', '#405e67');
     this.ctx.fillStyle = '#e4b16b'; this.ctx.fillRect(x - 24, y - 5, 5, 5);
   }
-  structure(t, x, y, s, airlock=null) {
+  structure(t, x, y, s, airlock=null,site=null) {
     const c = this.ctx, b = t.building;
-    if(b==='gasPipe'){this.line(x-24,y-12,x+24,y+12,'#35677a',7);this.line(x-24,y-12,x+24,y+12,'#93d0d4',3);this.line(x+24,y-12,x-24,y+12,'#35677a',7);this.line(x+24,y-12,x-24,y+12,'#93d0d4',3);this.box(x,y,6,3,5,'#e1be7f','#a18d60','#756e53');}
+    if(b==='gasPipe'){this.portStar(x,y,'#93d0d4','#35677a');this.box(x,y,6,3,5,'#e1be7f','#a18d60','#756e53');}
     else if(b==='airlockController'){
       this.box(x,y,17,9,13,'#9aaea9','#50747b','#365660');
       this.box(x,y-13,13,7,8,'#506e79','#324e5b','#29434e');
@@ -219,14 +259,14 @@ export class Renderer {
       c.fillStyle=color;c.fillRect(x-2,y-29,4,3);
     }
     else if(b==='breaker'){
-      const [dx,dy]=POWER_DIRECTIONS[t.protection?.direction||'east'],vx=(dx-dy)*15,vy=(dx+dy)*7.5,closed=t.protection&&breakerContactClosed(t),tripped=t.protection?.tripped,col=tripped?'#e7a28b':closed?'#e2d091':'#b7c7c0';
+      const [vx,vy]=hexDirectionVector(t.protection?.direction||'ne',.35),closed=t.protection&&breakerContactClosed(t),tripped=t.protection?.tripped,col=tripped?'#e7a28b':closed?'#e2d091':'#b7c7c0';
       this.box(x,y,22,11,8,'#b4b5a0','#777f7c','#4d5d66');this.box(x,y-8,14,7,8,'#6f8589','#465f6c','#344c5d');
       this.box(x-vx,y-vy-8,5,3,4,'#ddd9b2','#a5a087','#727d7c');this.box(x+vx,y+vy-8,5,3,4,'#ddd9b2','#a5a087','#727d7c');
       this.line(x-vx,y-vy-12,closed?x+vx:x-vx+vx*.6,closed?y+vy-12:y-vy-28,col,5);
       const len=Math.hypot(vx,vy),ux=vx/len,uy=vy/len;this.polygon([[x+vx+ux*7,y+vy-12+uy*7],[x+vx-uy*4,y+vy-12+ux*4],[x+vx+uy*4,y+vy-12-ux*4]],'#ece2b1','#56696d');
       if(tripped||t.hp<=0){this.line(x-4,y-24,x+4,y-16,'#ef9984',3);this.line(x+4,y-24,x-4,y-16,'#ef9984',3);}
     }
-    else if(b==='waterPipe'){this.line(x-24,y-12,x+24,y+12,'#354e72',7);this.line(x-24,y-12,x+24,y+12,'#8bbdf0',3);this.line(x+24,y-12,x-24,y+12,'#354e72',7);this.line(x+24,y-12,x-24,y+12,'#8bbdf0',3);this.box(x,y,7,4,3,'#c7d7e1','#7a96ac','#4e6c8d');}
+    else if(b==='waterPipe'){this.portStar(x,y,'#8bbdf0','#354e72');this.box(x,y,7,4,3,'#c7d7e1','#7a96ac','#4e6c8d');}
     else if(b==='waterReservoir'){
       this.box(x,y,27,13,5,'#83a1b5','#4b6b8a','#334c70');this.box(x,y-5,24,10,18,'#b7cfda','#7298b5','#4b6c93');
       this.line(x-22,y-19,x,y-8,'#d5e5e7',2);this.line(x,y-8,x+22,y-19,'#7facce',2);
@@ -239,7 +279,7 @@ export class Renderer {
       if(b==='waterPump'){this.box(x,y-5,12,7,9,'#c5dae0','#7babc1','#4c799e');for(const dx of [-8,0,8])this.line(x+dx-5,y-13,x+dx+2,y-9,'#345c83',2);}
       if(b==='waterIntake'){this.box(x-9,y-5,12,7,5,'#cedde0','#7babc1','#4c799e');for(let i=0;i<4;i++)this.line(x-17+i*4,y-11+i*2,x-7+i*4,y-16+i*2,'#365779',2);this.box(x+12,y-5,5,3,20,'#d3e2da','#8cafbd','#527b9c');}
       if(b==='waterOutlet'){this.box(x-11,y-5,6,4,19,'#cededb','#84aabd','#527a9b');this.line(x-9,y-25,x+8,y-17,'#a4d5e7',6);this.line(x+8,y-17,x+8,y-9,'#7faecb',5);this.box(x+12,y-3,7,4,3,'#76b5d3','#5186ab','#345d81');}
-      this.gasArrow(x,y-28,t.waterDevice?.direction||'east',t.powered&&t.waterDevice?.enabled!==false?'#a9d9fa':'#859cab');
+      this.gasArrow(x,y-28,t.waterDevice?.direction||'ne',t.powered&&t.waterDevice?.enabled!==false?'#a9d9fa':'#859cab');
     }
     else if(b==='gasTank'){
       this.box(x,y,20,10,6,'#769ca7','#476b7d','#2f4c65');
@@ -250,7 +290,7 @@ export class Renderer {
     else if(b==='gasPump'){
       this.box(x,y,21,10,9,'#91afb7','#527487','#354f6b');this.box(x,y-7,10,5,13,'#c3cebd','#789a9c','#476d81');
       for(const dx of [-9,0,9])this.line(x+dx-5,y-14,x+dx+1,y-11,'#334f65',2);
-      this.gasArrow(x,y-22,t.gasDevice?.direction||'east',t.powered&&t.gasDevice?.enabled!==false?'#a3e7d5':'#a7b6b6');
+      this.gasArrow(x,y-22,t.gasDevice?.direction||'ne',t.powered&&t.gasDevice?.enabled!==false?'#a3e7d5':'#a7b6b6');
     }
     else if(b==='gasVent'){
       this.box(x,y,22,11,5,'#9caeb1','#5d7e8b','#3c5c71');this.box(x,y-4,17,8,3,'#466e7d','#365363','#293f54');
@@ -278,17 +318,25 @@ export class Renderer {
       c.fillStyle='#c4ade0';c.fillRect(x+4,y-5-fill*20,5,fill*20);
       this.line(x-5,y-38,x+5,y-38,t.gasStore?.open===false?'#edbd77':'#a8ddd7',2);
     }
-    else if (b === 'cable') { this.line(x - 24, y - 12, x + 24, y + 12, '#b1e5c4', 3); this.line(x + 24, y - 12, x - 24, y + 12, '#b1e5c4', 3); }
-    else if (b === 'wall') { const front = t.y >= 12 || t.x >= 14; const h = this.cutaway && front ? 9 : 32; this.box(x, y, 31, 15, h, '#a7aea0', '#64787c', '#40565f'); this.line(x - 29, y - h, x, y + 14 - h, '#c3c6ac'); this.line(x, y + 14 - h, x + 30, y - h, '#bbc0ac'); if (h > 10) { this.line(x, y + 13 - h + 5, x, y + 9, '#293f4a'); c.fillStyle = '#cfac6a'; c.fillRect(x + 15, y - h + 12, 5, 3); } }
-    else if (b === 'door') { this.box(x, y, 24, 12, 27, '#94ada9', '#3c6870', '#325663'); if (!doorOpen(t, s.tick)) this.box(x, y + 1, 14, 7, 23, '#849997', '#56787c', '#3e5d67'); else this.diamond(x, y, '#324955', '#8cb5b0'); c.fillStyle = '#98dfba'; c.fillRect(x - 4, y - 23, 8, 3); }
+    else if (b === 'cable') { this.portStar(x,y,'#b1e5c4','#315750'); }
+    else if (b === 'wall') {
+      const bounds=site?projectedBounds(site.size):null,front=bounds&&y>=(bounds.top+bounds.bottom)/2,h=this.cutaway&&front?9:32;
+      this.hexPrism(x,y,h,'#a7aea0','#64787c','#40565f');this.hex(x,y-h,null,'#c3c6ac');
+      if(h>10){c.fillStyle='#cfac6a';c.fillRect(x+9,y-h+12,5,3);}
+    }
+    else if (b === 'door') {
+      this.hex(x,y,'#324955','#8cb5b0');
+      if(!doorOpen(t,s.tick))this.hexPrism(x,y,27,'#94ada9','#3c6870','#325663',.86);
+      else {this.box(x-19,y-2,4,2,27,'#94ada9','#3c6870','#325663');this.box(x+19,y+2,4,2,27,'#94ada9','#3c6870','#325663');}
+      c.fillStyle='#98dfba';c.fillRect(x-4,y-23,8,3);
+    }
     else if (b === 'solar' || b === 'advanced') { this.box(x, y, 5, 3, 9, '#77878a', '#485765', '#3a4a53'); this.box(x, y - 9, 27, 14, 3, b === 'advanced' ? '#477f99' : '#315b76', '#345268', '#213d52'); for (let n = -2; n <= 2; n++) { this.line(x - 25 + (n + 2) * 6, y - 11 + (n + 2) * 3, x + 1 + (n + 2) * 6, y - 24 + (n + 2) * 3, '#8abcd35c'); } this.line(x - 13, y - 17, x + 13, y - 4, '#80b9d363'); if (b === 'advanced') { c.fillStyle = '#e2c886'; c.fillRect(x - 3, y - 14, 6, 3); } }
     else if (b === 'fence' || b === 'pastureGate') {
       const open=t.hp<=0||(b==='pastureGate'&&t.gateMode==='open'),height=t.hp<=0?6:19;
       this.box(x,y,3,2,height,'#bcc6ad','#798b7c','#4d6966');
-      const site=s.sites.surface;
-      const links=[[1,0,32,16],[-1,0,-32,-16],[0,1,-32,16],[0,-1,32,-16]].filter(([dx,dy])=>t.x+dx>=0&&t.y+dy>=0&&t.x+dx<site.size&&t.y+dy<site.size&&['fence','pastureGate','wall'].includes(site.tiles[(t.y+dy)*site.size+t.x+dx]?.building));
-      if(!links.length)links.push([1,0,28,14],[-1,0,-28,-14]);
-      for(const [,,dx,dy] of links){
+      const links=DIRECTIONS.filter(direction=>['fence','pastureGate','wall'].includes(tileAt(site,...step(t.x,t.y,direction))?.building)).map(direction=>hexDirectionVector(direction,.5));
+      if(!links.length)links.push(hexDirectionVector('ne',.4),hexDirectionVector('sw',.4));
+      for(const [dx,dy] of links){
         if(!open){for(const h of [6,16])this.line(x,y-h,x+dx,y+dy-h,'#a4b79d',3);for(const f of [.3,.7])this.line(x+dx*f,y+dy*f-16,x+dx*f,y+dy*f-6,'#5c8079',1);}
         else this.line(x,y-height+2,x+dx*.3,y+dy*.3-height-4,'#92a78e',3);
       }
@@ -317,12 +365,12 @@ export class Renderer {
     else if (b === 'battery') { this.box(x, y, 16, 8, 21, '#9aa898', '#566f71', '#3d575e'); for (let i = 0; i < 3; i++) { c.fillStyle = (t.charge || 0) >= (3 - i) * 40 ? '#85c1ad' : '#364e54'; c.fillRect(x + 3, y - 16 + i * 4, 7, 2); } }
     else if (b === 'refinery') { this.box(x, y, 22, 11, 18, '#a19a85', '#796b5b', '#4d5655'); this.box(x - 7, y - 7, 8, 4, 25, '#89968c', '#536c70', '#3c535e'); c.fillStyle = t.powered ? '#eaba79' : '#66564a'; c.fillRect(x + 5, y - 8, 9, 6); this.line(x + 5, y - 1, x + 14, y - 6, '#2b3f43', 2); }
     else if (b === 'fabricator') { this.box(x, y, 23, 12, 18, '#879eaa', '#557887', '#355264'); this.box(x - 9, y - 9, 7, 4, 25, '#c1c4af', '#8b9d97', '#567077'); this.line(x - 9, y - 34, x + 13, y - 23, '#b3bdb0', 4); c.fillStyle = t.powered ? '#87decb' : '#59676d'; c.fillRect(x + 3, y - 16, 9, 4); this.box(x + 8, y + 2, 6, 3, 4, '#cfbd8b', '#8e8465', '#635d50'); }
-    else if (b === 'stockpile') { this.diamond(x, y, '#485950', '#a3b894'); this.box(x - 9, y, 10, 5, 10, '#c4b78d', '#928665', '#696b58'); this.box(x + 10, y + 2, 9, 5, 7, '#8facaa', '#597b7d', '#3b5e64'); }
+    else if (b === 'stockpile') { this.hex(x, y, '#485950', '#a3b894'); this.box(x - 9, y, 10, 5, 10, '#c4b78d', '#928665', '#696b58'); this.box(x + 10, y + 2, 9, 5, 7, '#8facaa', '#597b7d', '#3b5e64'); }
     else if (b === 'trap') { this.box(x, y, 12, 6, 9, '#a8bb9d', '#6d877b', '#4b6867'); this.box(x, y - 3, 7, 3, 5, '#577776', '#335555', '#233f47'); c.fillStyle = '#d9c389'; c.fillRect(x - 2, y - 7, 4, 3); }
     else if (b === 'shuttle') { this.box(x, y + 3, 30, 15, 7, '#536874', '#314650', '#293c47'); }
     else if (b === 'salvage') { this.box(x, y, 20, 10, 16, '#9da9a2', '#5c757e', '#3c5361'); this.box(x + 8, y - 10, 11, 6, 12, '#517f95', '#36556c', '#263a4e'); c.fillStyle = '#d8b878'; c.fillRect(x - 9, y - 15, 4, 4); this.line(x - 16, y - 22, x - 9, y - 14, '#9ab9bd', 2); }
     else if (b === 'volatile') { this.box(x, y, 19, 10, 18, '#b4d7dc', '#719eb7', '#487991'); this.box(x + 8, y + 4, 10, 5, 13, '#c4e2e4', '#9abdcf', '#6d9eb8'); }
-    else if (b === 'dock') { this.diamond(x, y, '#536772', '#d5c891'); c.strokeStyle = '#d6cb99'; c.lineWidth = 2; c.beginPath(); c.ellipse(x, y, 16, 8, 0, 0, Math.PI * 2); c.stroke(); this.line(x - 8, y, x + 8, y, '#d6cb99', 2); }
+    else if (b === 'dock') { this.hex(x, y, '#536772', '#d5c891'); c.strokeStyle = '#d6cb99'; c.lineWidth = 2; c.beginPath(); c.ellipse(x, y, 16, 8, 0, 0, Math.PI * 2); c.stroke(); this.line(x - 8, y, x + 8, y, '#d6cb99', 2); }
     else if (b === 'collector') { this.box(x, y, 12, 6, 27, '#c7b991', '#8b8971', '#596d68'); this.box(x, y - 28, 31, 16, 4, '#bfa567', '#756e52', '#525e51'); this.box(x, y - 32, 6, 3, 9, '#dcdfb9', '#9cb5a5', '#688e8a'); }
     if (t.hp < 100) { c.fillStyle = '#352e2a'; c.fillRect(x - 12, y - 37, 24, 3); c.fillStyle = '#d99971'; c.fillRect(x - 12, y - 37, 24 * t.hp / 100, 3); }
   }

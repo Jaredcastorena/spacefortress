@@ -1,7 +1,6 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
+import { distance } from '../src/geometry.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, cancelJob, setLabor, serialize, deserialize } from '../src/simulation.js';
 import { setProductionOrder, setProductionPriority, projectedStock } from '../src/production.js';
 import { setMachineEnabled } from '../src/industry.js';
@@ -20,7 +19,7 @@ const operation = (s, t) => s.jobs.find(j => j.kind === 'operate' && j.x === t.x
 test('a supplied powered machine waits for a permitted operator physically at its workstation', () => {
   const { s, t, m } = workshop(); operators(s, false); step(s, 10); assert.equal(m.progress, 0); assert.equal(m.input.ore, 2); assert.deepEqual(m.batch, {}); assert.match(m.status, /production/i);
   const c = s.crew[2]; c.x = 8; c.y = 8; setLabor(s, c.id, 'production', true); step(s); assert.equal(m.progress, 0); assert.equal(operation(s, t).worker, c.id);
-  until(s, () => m.progress > 0); assert.equal(Math.abs(c.x - t.x) + Math.abs(c.y - t.y), 1); assert.equal(m.input.ore, 1); assert.deepEqual(m.batch, { ore: 1 });
+  until(s, () => m.progress > 0); assert.equal(distance([c.x, c.y], [t.x, t.y]), 1); assert.equal(m.input.ore, 1); assert.deepEqual(m.batch, { ore: 1 });
 });
 
 test('operator skill affects throughput and learns from actual processing work', () => {
@@ -98,11 +97,13 @@ test('work orders, active operators and fractional progress continue determinist
   const copy = deserialize(serialize(s)); step(s, 50); step(copy, 50); assert.deepEqual(copy, s);
 });
 
-test('schema-twelve migration preserves inventory and batch progress while adding work orders and duties', () => {
-  const { s, m } = workshop(); m.batch = { ore: 1 }; m.progress = 7; s.version = 12;
-  for (const site of Object.values(s.sites)) for (const tile of site.tiles) if (tile.machine) { delete tile.machine.order; delete tile.machine.completed; }
-  for (const c of s.crew) { delete c.skills.production; delete c.labors.production; }
-  const before = totalResources(s), copy = deserialize(serialize(projectPreAirlock(s))); assert.equal(copy.version, VERSION); assert.deepEqual(totalResources(copy), before); assert.equal(at(copy.sites.surface, 13, 10).machine.progress, 7); assert.equal(copy.crew[3].skills.production.level, 3); assert.equal(copy.crew[0].labors.production, true);
+test('production inventory and active batch progress reload exactly and reject a legacy schema label', () => {
+  const { s, m } = workshop(); until(s, () => m.progress > 0);
+  const before = structuredClone(s), supplies = totalResources(s), copy = deserialize(serialize(s));
+  assert.deepEqual(copy, before); assert.deepEqual(totalResources(copy), supplies);
+  const forged = JSON.parse(serialize(s)); forged.version = 12; const original = JSON.stringify(forged);
+  assert.throws(() => deserialize(original), /Legacy square-grid saves/);
+  assert.equal(JSON.stringify(forged), original); assert.deepEqual(s, before);
 });
 
 test('invalid production limits, priorities, completion counts and mismatched work progress are rejected', () => {

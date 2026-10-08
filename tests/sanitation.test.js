@@ -1,4 +1,4 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
+import { neighbors } from '../src/geometry.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -46,7 +46,7 @@ test('one facility serves competing crew sequentially without overlapping claims
 test('blocked, unsafe and full facilities leave waste with crew and allow other work', () => {
   for (const kind of ['blocked', 'unsafe', 'full']) {
     const { s, site, c, unit } = fixture(); c.sanitation.waste = .5;
-    if (kind === 'blocked') { for (const [x,y] of [[11,10],[13,10],[12,9],[12,11]]) { const t = at(site,x,y); spillStorage(t); t.building='wall'; } updateRooms(site); }
+    if (kind === 'blocked') { for (const [x,y] of neighbors(12,10)) { const t = at(site,x,y); spillStorage(t); t.building='wall'; } updateRooms(site); }
     if (kind === 'unsafe') { fillRoom(roomAt(site, unit.x, unit.y), 0); refreshAtmosphere(site); }
     if (kind === 'full') unit.sanitary.output.waste = 8;
     step(s, 5); assert.notEqual(c.intent?.type, 'sanitation'); assert.equal(c.sanitation.waste, .5);
@@ -113,9 +113,9 @@ test('active visits, retained cargo, tanks and exposure continue deterministical
   const copy=check(s);step(s,12);step(copy,12);assert.deepEqual(copy,s);
 });
 
-test('schema-seventeen migration adds empty needs without changing existing waste or food', () => {
-  const { s,depot }=fixture(false);depot.stock.waste=3;syncResources(s);s.version=17;for(const c of s.crew)delete c.sanitation;
-  const before=totalResources(s),copy=check(projectPreAirlock(s));assert.equal(copy.version, VERSION);assert.deepEqual(totalResources(copy),before);assert.ok(copy.crew.every(c=>c.sanitation.waste===0&&c.sanitation.exposure===0));
+test('legacy square schema 17 is rejected before physical state migration',()=>{
+ const legacy=createGame();legacy.version=17;delete legacy.grid;
+ const bytes=JSON.stringify(legacy);assert.throws(()=>deserialize(bytes),/Legacy square-grid saves/);assert.equal(JSON.stringify(legacy),bytes);
 });
 
 test('invalid needs, tank owners, overfilled tanks and duplicate visits are rejected', () => {

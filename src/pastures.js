@@ -1,6 +1,6 @@
+import { neighbors } from './geometry.js';
 import { animalPassable } from './navigation.js';
 import { emitEvent, recordingStatus, tileEntityId } from './telemetry.js';
-const adjacent=(x,y)=>[[x+1,y],[x-1,y],[x,y+1],[x,y-1]];
 // Derived animal-access regions. Neither regions nor observations own supplies or RNG.
 export function pastureRegions(site) {
   const byCell=new Map(),regions=[];
@@ -12,7 +12,7 @@ export function pastureRegions(site) {
     for(let i=0;i<queue.length;i++){
       const t=queue[i];r.cells.push([t.x,t.y]);if(t.terrain==='ground'&&(!t.building||['fence','pastureGate','husbandryPost'].includes(t.building)))r.lichen+=t.lichen||0;
       if(t.x===0||t.y===0||t.x===site.size-1||t.y===site.size-1)r.enclosed=false;
-      for(const [x,y] of adjacent(t.x,t.y))if(animalPassable(site,x,y)&&!byCell.has(y*site.size+x)){byCell.set(y*site.size+x,r);queue.push(site.tiles[y*site.size+x]);}
+      for(const [x,y] of neighbors(t.x,t.y))if(animalPassable(site,x,y)&&!byCell.has(y*site.size+x)){byCell.set(y*site.size+x,r);queue.push(site.tiles[y*site.size+x]);}
     }
     regions.push(r);
   }

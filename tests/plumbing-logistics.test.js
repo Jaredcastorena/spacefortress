@@ -30,23 +30,24 @@ function run(f,n=1){for(let i=0;i<n;i++){refreshPower(f.s,f.site);operatePlumbin
 function until(s,p,limit=160){for(let i=0;i<limit&&!p();i++)step(s);assert.ok(p(),`Condition not reached by tick ${s.tick}`);}
 function deliver(s,c,limit=40){for(let i=0;i<limit&&(c.carry||c.intent?.type==='haul');i++)haul(s,c,s.sites.surface,pathTo);assert.equal(c.carry,null);assert.notEqual(c.intent?.type,'haul');}
 function outputFixture(){
- const f=base(),source=install(f,'bilgePump',8,9),intake=install(f,'waterIntake',9,9),node=pipe(f,10,9);
- source.machine.enabled=false;refreshPower(f.s,f.site);return {...f,source,intake,node};
+ const f=base(),source=install(f,'bilgePump',8,9),intake=install(f,'waterIntake',9,9),node=pipe(f,10,10);
+ intake.waterDevice.direction='se';source.machine.enabled=false;refreshPower(f.s,f.site);return {...f,source,intake,node};
 }
 function inputFixture(){
- const f=base(),node=pipe(f,10,9),outlet=install(f,'waterOutlet',11,9),target=install(f,'farm',12,9);
+ const f=base(),node=pipe(f,10,10),outlet=install(f,'waterOutlet',11,9),target=install(f,'farm',12,9);
  refreshPower(f.s,f.site);return {...f,node,outlet,target};
 }
 
 test('hauled tank water reaches a staffed farm through intake, pipes, pump, reservoir and outlet without replacing fertilizer or labor',()=>{
- const f=base(),{s,site}=f,tank=install(f,'waterTank',8,9),intake=install(f,'waterIntake',9,9),node=pipe(f,10,9),pump=install(f,'waterPump',11,9),reservoir=install(f,'waterReservoir',12,9),outlet=install(f,'waterOutlet',12,10),farm=install(f,'farm',12,11);
+ const f=base(),{s,site}=f,tank=install(f,'waterTank',8,9),intake=install(f,'waterIntake',9,9),node=pipe(f,10,10),pump=install(f,'waterPump',11,9),reservoir=install(f,'waterReservoir',12,9),outlet=install(f,'waterOutlet',12,10),farm=install(f,'farm',12,11);
+ intake.waterDevice.direction='se';
  // This scenario's finite six water units begin in the depot and reach the tank by hauling.
  stock(s).water=6;farm.machine.enabled=false;const hauler=s.crew[0];hauler.labors.hauling=true;hauler.x=8;hauler.y=10;
  for(let i=0;i<50&&(tank.machine.input.water||0)<6;i++)haul(s,hauler,site,pathTo);
  close(tank.machine.input.water,6);close(stock(s).water||0,0);assert.equal(hauler.carry,null);
  setMachineEnabled(s,'surface',tank.x,tank.y,false);hauler.labors.hauling=false;
  setMachineEnabled(s,'surface',farm.x,farm.y,true);setProductionOrder(s,'surface',farm.x,farm.y,'batches',1);
- assert.ok(setWaterOutlet(s,'surface',outlet.x,outlet.y,true,'south','inventory').ok);
+ assert.ok(setWaterOutlet(s,'surface',outlet.x,outlet.y,true,'s','inventory').ok);
  const before=totalResources(s).water;
  until(s,()=>(farm.machine.input.water||0)>=1-1e-8);
  assert.ok(site.plumbing.loaded>0);assert.ok(site.plumbing.delivered>0);assert.ok(waterNode(reservoir));
@@ -105,17 +106,17 @@ test('inventory outlets honor fixed and stock orders and retain delivered ingred
 test('two outlets share the remaining input capacity instead of each using a stale free-space count',()=>{
  const f=inputFixture(),{s,target,node}=f,southNode=pipe(f,12,11),southOutlet=install(f,'waterOutlet',12,10);
  fill(f,node,2);fill(f,southNode,2);into(f,target,'input',1.75);
- assert.ok(setWaterOutlet(s,'surface',12,10,true,'north','inventory').ok);const before=totalResources(s).water;
+ assert.ok(setWaterOutlet(s,'surface',12,10,true,'n','inventory').ok);const before=totalResources(s).water;
  run(f,5);close(target.machine.input.water,2);close(waterNode(node).water+waterNode(southNode).water,3.75);close(f.site.plumbing.delivered,.25);close(totalResources(s).water,before);check(s);
 });
 
 test('reversing inventory adapters does not reverse their transfer roles or siphon consumer inputs',()=>{
  const output=outputFixture();into(output,output.source,'output',1);
- setWaterIntake(output.s,'surface',9,9,true,'west','inventory');run(output,3);
+ setWaterIntake(output.s,'surface',9,9,true,'nw','inventory');run(output,3);
  close(output.source.machine.output.water,1);close(waterNode(output.node).water,0);
- setWaterIntake(output.s,'surface',9,9,true,'east','inventory');run(output,1);close(waterNode(output.node).water,.5);
+ setWaterIntake(output.s,'surface',9,9,true,'se','inventory');run(output,1);close(waterNode(output.node).water,.5);
  const input=inputFixture();fill(input,input.node,1);into(input,input.target,'input',.5);
- setWaterOutlet(input.s,'surface',11,9,true,'west','inventory');run(input,3);
+ setWaterOutlet(input.s,'surface',11,9,true,'sw','inventory');run(input,3);
  close(waterNode(input.node).water,1);close(input.target.machine.input.water,.5);
  check(output.s);check(input.s);
 });

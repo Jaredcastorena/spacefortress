@@ -6,14 +6,15 @@ import { BUILDINGS } from './data.js';
 import { buildPowerTopology, breakerTerminals, breakerContactClosed, branchForBreaker } from './power-topology.js';
 import { initializeBreakerTile, tripBreaker } from './breakers.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
+import { neighbors as hexNeighbors, tileAt } from './geometry.js';
 
 export const BATTERY_CAPACITY = 120;
 export const BATTERY_RATE = 20;
 export const isDay = s => s.tick % 300 < 220;
 export const electrical = t => !!(BUILDINGS[t.building]?.output || BUILDINGS[t.building]?.demand || t.building === 'battery' || t.building === 'breaker');
 export const key = t => `${t.x},${t.y}`;
-const at = (site, x, y) => x >= 0 && y >= 0 && x < site.size && y < site.size ? site.tiles[y * site.size + x] : null;
-const neighbors = (site, t) => [[t.x + 1, t.y], [t.x - 1, t.y], [t.x, t.y + 1], [t.x, t.y - 1]].map(([x, y]) => at(site, x, y)).filter(Boolean);
+const at = tileAt;
+const neighbors = (site, t) => hexNeighbors(t.x, t.y).map(([x, y]) => at(site, x, y)).filter(Boolean);
 export function initializeElectrical(t) {
   initializeMaintenance(t); initializeClimate(t); initializeReactorTile(t); initializeBreakerTile(t);
   t.cable ??= null;

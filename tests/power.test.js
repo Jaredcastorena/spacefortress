@@ -1,7 +1,8 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
+import { neighbors } from '../src/geometry.js';
+import { readFileSync } from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import assert from 'node:assert/strict';
-import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, serialize, deserialize, dischargeCell } from '../src/simulation.js';
 import { initializePower, initializeElectrical, refreshPower, updatePower, releaseBatteryEnergy, setCableEnabled, setPowerPriority, validatePower } from '../src/power.js';
 import { initializeStorage, syncResources, totalResources } from '../src/inventory.js';
@@ -28,10 +29,10 @@ test('starting equipment shares a working circuit and charges only from generate
   step(s); assert.equal(at(site, 13, 7).charge, 104); balance(site); validatePower(s, site);
 });
 
-test('distant and diagonal generators cannot power equipment until a cable route connects them', () => {
+test('nonadjacent generators cannot power equipment until a hex cable route connects them', () => {
   const { s, site } = grid(); device(site, 1, 1, 'solar'); const load = device(site, 3, 1, 'scrubber');
   refreshPower(s, site); assert.equal(load.powered, false); assert.equal(site.power.output, 4);
-  wire(site, 2, 2); refreshPower(s, site); assert.equal(load.powered, false);
+  wire(site, 2, 3); refreshPower(s, site); assert.equal(load.powered, false);
   wire(site, 2, 1); updatePower(s, site); assert.equal(load.powered, true); assert.equal(site.energy.consumed, 3); balance(site);
 });
 
@@ -89,7 +90,8 @@ test('new battery construction starts empty and demolition discards its stored e
   const s = createGame(), site = s.sites.surface;
   const build = order(s, 'surface', 11, 9, 'build', 'battery'); assert.equal(build.ok, true);
   until(s, () => !s.jobs.includes(build.job)); const bank = at(site, 11, 9); assert.equal(bank.charge, 0);
-  bank.charge = 30; site.energy.injected += 30;
+  bank.cable = { hp: 100, enabled: false };
+  bank.charge = 30; site.energy.injected += 30; refreshPower(s, site);
   const remove = order(s, 'surface', 11, 9, 'remove'); until(s, () => !s.jobs.includes(remove.job));
   assert.equal(bank.charge, undefined); assert.equal(site.energy.discarded, 30); balance(site); assert.deepEqual(deserialize(serialize(s)), s);
 });
@@ -100,7 +102,7 @@ test('portable cells require reachable free capacity and charge only the selecte
   releaseBatteryEnergy(site, bank); refreshPower(s, site); setCableEnabled(s, 'surface', 13, 7, false);
   assert.equal(dischargeCell(s, 13, 7).ok, true); assert.equal(bank.charge, 100); assert.equal(depot.stock.cells, 1); balance(site);
   releaseBatteryEnergy(site, bank); refreshPower(s, site);
-  for (const [x, y] of [[12, 7], [14, 7], [13, 6], [13, 8]]) at(site, x, y).building = 'wall';
+  for (const [x, y] of neighbors(bank.x, bank.y)) at(site, x, y).building = 'wall';
   assert.equal(dischargeCell(s, 13, 7).ok, false); assert.equal(depot.stock.cells, 1);
 });
 
@@ -110,16 +112,13 @@ test('power shortages and pending cable repairs resume deterministically from a 
   const copy = deserialize(serialize(s)); step(s, 100); step(copy, 100); assert.deepEqual(copy, s); assert.equal(at(site, 7, 7).cable.hp, 100); balance(site);
 });
 
-test('legacy pooled charge migrates once into individual banks without creating energy', () => {
-  const old = createGame(), site = old.sites.surface; device(site, 11, 9, 'battery'); old.version = 5; site.power.battery = 235;
-  const s = deserialize(serialize(projectPreAirlock(old))), loaded = s.sites.surface;
-  assert.equal(s.version, VERSION); assert.equal(at(loaded, 13, 7).charge, 117.5); assert.equal(at(loaded, 11, 9).charge, 117.5);
-  assert.equal(loaded.power.battery, 235); balance(loaded); assert.deepEqual(deserialize(serialize(s)), s);
-});
-
-test('legacy pooled charge without a bank is recorded as discarded', () => {
-  const old = createGame(), site = old.sites.surface, bank = at(site, 13, 7); old.version = 5; site.power.battery = 80; bank.building = null; delete bank.charge;
-  const s = deserialize(serialize(projectPreAirlock(old))); assert.equal(s.sites.surface.power.battery, 0); assert.equal(s.sites.surface.energy.discarded, 80); balance(s.sites.surface);
+test('legacy square electrical saves are rejected without changing their original bytes', () => {
+  const file = new URL('./fixtures/breakers-schema35-owned.json.gz', import.meta.url);
+  const bytes = readFileSync(file), original = gunzipSync(bytes).toString();
+  const before = JSON.parse(original);
+  assert.equal(before.version, 35);
+  assert.throws(() => deserialize(original), /legacy|square/i);
+  assert.deepEqual(readFileSync(file), bytes);
 });
 
 test('save validation rejects corrupt wiring, charge, priorities, circuit caches and energy creation', () => {

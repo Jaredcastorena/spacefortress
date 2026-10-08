@@ -1,3 +1,4 @@
+import { neighbors } from './geometry.js';
 import { FIRE } from './fire.js';
 import { remapThermal } from './thermal.js';
 import { immobile, impaired } from './mobility.js';
@@ -10,7 +11,7 @@ export const emptyGas = () => ({ oxygen: 0, inert: 0, co2: 0 });
 export const gasAmount = gas => GASES.reduce((n, k) => n + gas[k], 0);
 export const mix = amount => ({ oxygen: amount * .21, inert: amount * .79, co2: 0 });
 const key = (x, y) => `${x},${y}`;
-const adjacent = (x, y) => [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]];
+const adjacent = neighbors;
 const at = (site, x, y) => x >= 0 && y >= 0 && x < site.size && y < site.size ? site.tiles[y * site.size + x] : null;
 const addGas = (to, gas, factor = 1) => { for (const k of GASES) to[k] += gas[k] * factor; };
 export function initializeAtmosphere(site) {

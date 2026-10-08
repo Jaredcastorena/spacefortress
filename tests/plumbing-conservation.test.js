@@ -1,3 +1,4 @@
+import { neighbors } from '../src/geometry.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, at, step, serialize, deserialize } from '../src/simulation.js';
@@ -50,10 +51,11 @@ function wire(site,cells) {
 function chain() {
   const f=base(),{s,site}=f;
   const tank=install(s,'waterTank',8,8), intake=install(s,'waterIntake',9,8);
-  const inlet=pipe(site,10,8), pump=install(s,'waterPump',11,8), reservoir=install(s,'waterReservoir',12,8);
+  const inlet=pipe(site,10,9), pump=install(s,'waterPump',11,8), reservoir=install(s,'waterReservoir',12,8);
   const outlet=install(s,'waterOutlet',12,9), floor=at(site,12,10);
+  intake.waterDevice.direction='se';
   wire(site,[[9,8],[10,8],[11,8],[12,8],[12,9],[12,10]]);
-  assert.ok(setWaterOutlet(s,site.id,12,9,true,'south','floor').ok);
+  assert.ok(setWaterOutlet(s,site.id,12,9,true,'s','floor').ok);
   refreshPower(s,site); updatePower(s,site);
   return {...f,tank,intake,inlet,pump,reservoir,outlet,floor};
 }
@@ -95,7 +97,7 @@ test(`a ruptured water pipe under a ${boundary.name} uses open neighbor capacity
   const {s,site}=base(), t=pipe(site,boundary.x,boundary.y);
   if(t.building==='door') { t.doorMode='closed'; t.doorUntil=0; }
   seedNode(s,t,2); t.waterPipe.hp=0; t.waterPipe.open=false;
-  const targets=[[t.x+1,t.y],[t.x-1,t.y],[t.x,t.y+1],[t.x,t.y-1]]
+  const targets=neighbors(t.x,t.y)
     .map(([x,y])=>at(site,x,y)).filter(n=>liquidOpen(site,n,s.tick));
   assert.ok(targets.length>0); for(const n of targets) puddle(s,n,4);
   const before=accounted(s);
@@ -112,8 +114,8 @@ test('bilge output can circulate through plumbing and floor discharge without in
   const {s,site}=base(), bilge=install(s,'bilgePump',12,9), intake=install(s,'waterIntake',12,8);
   const a=pipe(site,12,7), b=pipe(site,11,7), outlet=install(s,'waterOutlet',11,8), floor=at(site,11,9);
   wire(site,[[12,7],[12,8],[12,9],[12,10],[11,8]]);
-  assert.ok(setWaterIntake(s,site.id,intake.x,intake.y,true,'north','inventory').ok);
-  assert.ok(setWaterOutlet(s,site.id,outlet.x,outlet.y,true,'south','floor').ok);
+  assert.ok(setWaterIntake(s,site.id,intake.x,intake.y,true,'n','inventory').ok);
+  assert.ok(setWaterOutlet(s,site.id,outlet.x,outlet.y,true,'s','floor').ok);
   puddle(s,floor,2); const before=accounted(s);
   for(let i=0;i<80;i++) {
     s.tick++; flowPlumbing(s); updatePower(s,site); pumpLiquids(s); operatePlumbing(s); conserved(s,before);
@@ -128,16 +130,16 @@ for(const mode of ['intake','outlet'])
 test(`competing floor ${mode}s share only the actual water or free space on their one selected tile`,()=>{
   const {s,site}=base(), kind=mode==='intake'?'waterIntake':'waterOutlet';
   const west=install(s,kind,9,9), north=install(s,kind,10,8), floor=at(site,10,9), untouched=at(site,11,9);
-  const a=pipe(site,8,9), b=pipe(site,10,7), before=accounted(s);
+  const a=pipe(site,8,10), b=pipe(site,10,7), before=accounted(s);
   wire(site,[[9,9],[10,9],[11,9],[12,9],[12,10],[10,8]]);
   if(mode==='intake') {
     puddle(s,floor,.75); puddle(s,untouched,2);
-    assert.ok(setWaterIntake(s,site.id,west.x,west.y,true,'west','floor').ok);
-    assert.ok(setWaterIntake(s,site.id,north.x,north.y,true,'north','floor').ok);
+    assert.ok(setWaterIntake(s,site.id,west.x,west.y,true,'sw','floor').ok);
+    assert.ok(setWaterIntake(s,site.id,north.x,north.y,true,'n','floor').ok);
   } else {
     puddle(s,floor,3.75); seedNode(s,a,1); seedNode(s,b,1);
-    assert.ok(setWaterOutlet(s,site.id,west.x,west.y,true,'east','floor').ok);
-    assert.ok(setWaterOutlet(s,site.id,north.x,north.y,true,'south','floor').ok);
+    assert.ok(setWaterOutlet(s,site.id,west.x,west.y,true,'ne','floor').ok);
+    assert.ok(setWaterOutlet(s,site.id,north.x,north.y,true,'s','floor').ok);
   }
   // Use one real allocation; overlapping adapters then see prior transfers
   // immediately, even though both were eligible at the beginning of the tick.
@@ -156,7 +158,7 @@ test(`competing floor ${mode}s share only the actual water or free space on thei
 test('floor outlet water reaches an active fire before suppression and records one explicit quenching sink',()=>{
   const {s,site}=base(), source=pipe(site,11,7), outlet=install(s,'waterOutlet',11,8), burning=install(s,'commons',11,9);
   wire(site,[[11,8],[12,8],[12,9],[12,10]]); seedNode(s,source,2);
-  assert.ok(setWaterOutlet(s,site.id,outlet.x,outlet.y,true,'south','floor').ok);
+  assert.ok(setWaterOutlet(s,site.id,outlet.x,outlet.y,true,'s','floor').ok);
   assert.ok(ignite(s,site,burning)); const before=accounted(s);
   updatePower(s,site); operatePlumbing(s); close(burning.liquid,.5);
   updateFire(s); assert.equal(burning.fire,undefined); close(site.liquids.quenched,.25);
@@ -177,10 +179,10 @@ test('mixed directional controls, leaks, floor transfers and save continuation p
   const b=deserialize(serialize(a));
   for(let i=0;i<90;i++) for(const s of [a,b]) {
     const site=s.sites.surface;
-    if(i%13===0) assert.ok(setWaterValve(s,site.id,10,8,i%26===0).ok);
-    if(i%17===0) assert.ok(setWaterPump(s,site.id,11,8,true,i%34===0?'east':'west').ok);
-    if(i%23===0) assert.ok(setWaterOutlet(s,site.id,12,9,i%46===0,'south','floor').ok);
-    at(site,10,8).waterPipe.hp=i>=35&&i<55?25:100;
+    if(i%13===0) assert.ok(setWaterValve(s,site.id,10,9,i%26===0).ok);
+    if(i%17===0) assert.ok(setWaterPump(s,site.id,11,8,true,i%34===0?'ne':'sw').ok);
+    if(i%23===0) assert.ok(setWaterOutlet(s,site.id,12,9,i%46===0,'s','floor').ok);
+    at(site,10,9).waterPipe.hp=i>=35&&i<55?25:100;
     step(s); conserved(s,before);
   }
   assert.deepEqual(a,b); assert.ok(a.sites.surface.plumbing.loaded>0);

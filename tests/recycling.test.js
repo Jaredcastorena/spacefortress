@@ -1,3 +1,4 @@
+import { distance } from '../src/geometry.js';
 import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -38,7 +39,7 @@ test('recycling needs an adjacent operator and consumes only a complete batch', 
   const { s, m } = colony(); m.input = { waste: 1 }; step(s, 5); assert.match(m.status, /water/); assert.equal(m.input.waste, 1);
   m.input.water = .25; s.crew.forEach(c => setLabor(s, c.id, 'production', false)); step(s, 5); assert.equal(m.progress, 0);
   const c = s.crew[6]; setLabor(s, c.id, 'production', true); const before = totalResources(s);
-  until(s, () => m.progress > 0); assert.equal(Math.abs(c.x - 12) + Math.abs(c.y - 10), 1); assert.deepEqual(m.batch, { waste: 1, water: .25 });
+  until(s, () => m.progress > 0); assert.equal(distance([c.x,c.y],[12,10]), 1); assert.deepEqual(m.batch, { waste: 1, water: .25 });
   until(s, () => m.completed === 1); assert.equal(m.output.fertilizer, .25); assert.equal(totalResources(s).waste, before.waste - 1); assert.equal(totalResources(s).water, before.water - .25); assert.equal(totalResources(s).fertilizer, before.fertilizer + .25);
 });
 
@@ -91,12 +92,10 @@ test('dismantling a recycler returns raw unfinished ingredients and finished fer
   assert.deepEqual(totalResources(s), before); assert.deepEqual(recycler.drop, { waste: 1, water: .25, fertilizer: .25 }); check(s);
 });
 
-test('legacy growing crops retain their inputs and progress, then require nutrients for the next crop', () => {
-  const { s, farm, depot } = colony(); setMachineEnabled(s, 'surface', 7, 9, true); farm.machine.batch = { water: 1 }; farm.machine.progress = 11;
-  // Model an actual schema-16 save: no fertilizer inventories or new resource filters.
-  s.version = 16; delete depot.stock.fertilizer; delete s.resources.fertilizer; depot.storage.accepted = depot.storage.accepted.filter(r => r !== 'fertilizer');
-  const copy = check(projectPreAirlock(s)), crop = at(copy.sites.surface, 7, 9); assert.equal(crop.machine.progress, 11); assert.equal(crop.machine.legacyCrop, true); assert.equal(totalResources(copy).fertilizer, 0); assert.ok(at(copy.sites.surface, 8, 10).storage.accepted.includes('fertilizer'));
-  until(copy, () => crop.machine.completed === 1); assert.equal(crop.machine.output.food, 2); assert.equal(crop.machine.legacyCrop, undefined); crop.machine.input.water = 1; step(copy, 5); assert.match(crop.machine.status, /fertilizer/); assert.equal(crop.machine.completed, 1);
+test('forged schema16 crops reject with their inputs and progress preserved', () => {
+  const {s,farm}=colony();farm.machine.batch={water:1};farm.machine.progress=11;s.version=16;
+  const bytes=serialize(s),before=totalResources(s);assert.throws(()=>deserialize(bytes),/Legacy square-grid saves/);
+  assert.equal(serialize(s),bytes);assert.deepEqual(totalResources(s),before);assert.equal(farm.machine.progress,11);
 });
 
 test('recycler batches persist deterministically and malformed nutrient batches are rejected', () => {

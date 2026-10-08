@@ -12,7 +12,7 @@ function act(s, id, args = {}) {
   assert.equal(result.ok, true, `${id}: ${JSON.stringify(result)}`);
   return result;
 }
-function delayedDeparture() {
+function delayedDeparture({ record = false } = {}) {
   const s = createGame();
   // Ordinary labor and mining orders leave two selected miners outside. While
   // hauling is disabled, their real suits keep supplying their oxygen needs.
@@ -23,6 +23,7 @@ function delayedDeparture() {
   for (const [x, y] of [[17, 7], [18, 8]]) act(s, 'job.order', { site: 'surface', x, y, kind: 'mine' });
   step(s, 80);
   act(s, 'expedition.launch', { site: 'wreck', crewIds });
+  if (record) startRecording(s, { maxRecords: 10000, maxBytes: 32_000_000 });
   step(s, 170);
   assert.equal(s.mission, null);
   assert.equal(quantity(s.shuttle.supplies), 0);
@@ -37,11 +38,13 @@ const loading = s => s.jobs.find(j => j.kind === 'loadShuttle');
 const carrying = s => s.crew.find(c => c.delivery?.kind === 'job' && c.delivery.job === loading(s)?.id && c.carry);
 
 test('delayed physical loading catches real suit consumption with paid batches and deterministic reload', () => {
-  const s = delayedDeparture(), restored = deserialize(serialize(s));
-  startRecording(s, { maxRecords: 10000, maxBytes: 32_000_000 });
+  const s = delayedDeparture({ record: true }), restored = deserialize(serialize(s));
+  // Count the buffered top-ups during the entire physical loading delay. Hex
+  // routes can finish the resumed hauls before another reserve is needed.
+  const delayedChanges = exportRecording(s).trim().split('\n').map(JSON.parse).filter(row => row.event?.id === 'expedition.preparation.supplies_changed');
   resumeHauling(s); resumeHauling(restored);
   const fuelBefore = totalResources(s).fuel;
-  let sawCarry = false, sawStaging = false, previousTarget = s.departure.target.air, targetChanges = 0;
+  let sawCarry = false, sawStaging = false, previousTarget = s.departure.target.air, targetChanges = delayedChanges.length;
   for (let i = 0; i < 400 && !s.mission; i++) {
     step(s); step(restored);
     sawCarry ||= !!carrying(s);
@@ -54,7 +57,7 @@ test('delayed physical loading catches real suit consumption with paid batches a
   }
   assert.equal(s.mission?.phase, 'outbound', 'available finite stock and working haulers must eventually catch the refill requirement');
   assert.ok(sawCarry && sawStaging, 'supplies pass through real carried and staged owners');
-  assert.ok(targetChanges > 0 && targetChanges < 5, 'loading does not chase a new tiny target every few ticks');
+  assert.ok(targetChanges > 0 && targetChanges < 5, `loading does not chase a new tiny target every few ticks (changes=${targetChanges}, tick=${s.tick})`);
   assert.deepEqual(s.mission.crew, crewIds);
   assert.equal(serialize(restored), serialize(s));
   assert.ok(s.crew.filter(c => crewIds.includes(c.id)).every(c => c.site === 'transit' && c.oxygen === 100));
@@ -63,7 +66,7 @@ test('delayed physical loading catches real suit consumption with paid batches a
   const rows = exportRecording(s).trim().split('\n').map(JSON.parse);
   const changes = rows.filter(row => row.event?.id === 'expedition.preparation.supplies_changed');
   assert.equal(changes.length, targetChanges);
-  assert.ok(changes.every(row => row.event.resource === 'air' && row.event.next > row.event.previous && row.event.crewIds.join() === crewIds.join()));
+  assert.ok(changes.every(row => row.event.resource === 'air' && row.event.next >= row.event.previous + 9 && row.event.crewIds.join() === crewIds.join()));
   const departure = rows.find(row => row.event?.id === 'expedition.departed').event;
   assert.ok(departure.consumed.air > 20, 'actual depleted suits are refilled from the paid loaded mix');
   assert.equal(departure.consumed.food, 2);

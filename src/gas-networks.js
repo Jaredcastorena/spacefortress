@@ -1,3 +1,4 @@
+import { DIRECTIONS, neighbors, forwardNeighbors, step, opposite } from './geometry.js';
 import { GASES, emptyGas, gasAmount, mix, roomAt, refreshAtmosphere, GAS_PER_TILE } from './atmosphere.js';
 import { take } from './inventory.js';
 import { refreshPower } from './power.js';
@@ -7,7 +8,7 @@ import { airlockControlOwner } from './airlock-access.js';
 // Rates and capacities are total payload (gas + suspended smoke). Pressure uses
 // only gas density; smoke is a separate conserved tracer, not a fourth gas.
 export const GAS_NETWORK = { pipeVolume:.25, pipeCapacity:10, tankVolume:2, tankCapacity:80, flow:2, pump:2, vent:2, extract:2, load:2, leak:2, diffusion:.02 };
-export const GAS_DIRECTIONS = { east:[1,0], south:[0,1], west:[-1,0], north:[0,-1] };
+export const GAS_DIRECTIONS = Object.freeze(Object.fromEntries(DIRECTIONS.map(direction => [direction, true])));
 const STORES=['gasTank','gasVent','gasExtractor','gasReservoir'];
 export const gasEquipment = t => [...STORES,'gasPump'].includes(t.building);
 const at=(site,x,y)=>x>=0&&y>=0&&x<site.size&&y<site.size?site.tiles[y*site.size+x]:null;
@@ -41,7 +42,7 @@ const plus=(a,b,f=1)=>{for(const k of GASES)a[k]+=b[k]*f;};
 const blank=()=>({gas:emptyGas(),smoke:0,open:true});
 export function initializeGasTile(t){
  if(STORES.includes(t.building))t.gasStore??=blank();
- if(t.building==='gasPump')t.gasDevice??={enabled:true,direction:'east'};
+ if(t.building==='gasPump')t.gasDevice??={enabled:true,direction:'ne'};
  if(t.building==='gasVent')t.gasDevice??={enabled:true,target:100};
  if(t.building==='gasExtractor')t.gasDevice??={enabled:true,mode:'filter',target:100};
 }
@@ -102,8 +103,8 @@ export function releaseGas(s,site,t,n,reason,airlockContext=null){
  if(room)destinations.push(room);
  else if(['wall','door'].includes(t.building)){
   // Boundary tiles release into adjacent compartments and any exposed exterior.
-  for(const [dx,dy] of Object.values(GAS_DIRECTIONS)){
-   const neighbor=at(site,t.x+dx,t.y+dy),adjacent=neighbor&&roomAt(site,neighbor.x,neighbor.y);
+  for(const [x,y] of neighbors(t.x,t.y)){
+   const neighbor=at(site,x,y),adjacent=neighbor&&roomAt(site,neighbor.x,neighbor.y);
    const destination=adjacent||(!neighbor||(!['wall','door'].includes(neighbor.building)&&!['floor','rock'].includes(neighbor.terrain))?null:undefined);
    if(destination!==undefined&&!destinations.includes(destination))destinations.push(destination);
   }
@@ -124,8 +125,9 @@ export function removeGas(s,site,t,overlay=false,airlockContext=null){
  refreshAtmosphere(site);
 }
 export function pumpPorts(site,t){
- const [dx,dy]=GAS_DIRECTIONS[t.gasDevice.direction];
- return {input:at(site,t.x-dx,t.y-dy),output:at(site,t.x+dx,t.y+dy)};
+ const direction=t.gasDevice?.direction;
+ if(!Object.hasOwn(GAS_DIRECTIONS,direction))return {input:null,output:null};
+ return {input:at(site,...step(t.x,t.y,opposite(direction))),output:at(site,...step(t.x,t.y,direction))};
 }
 export function gasStatus(site,t){
  const node=gasNode(t),readings=node?{pressure:gasPressure(t),payload:gasPayload(t),capacity:gasCapacity(t),smoke:node.smoke}:{};
@@ -173,7 +175,8 @@ export function updateGasNetworks(s){
    t.machine.status=!t.machine.enabled?'Refill paused':t.hp<=0?'Needs repair':t.fire?'Fire at tank':free(t)<=1e-9?'Gas tank full':n?'Loading delivered breathing mix':'Awaiting breathing mix';
   }
   const ordered=s.tick%2?nodes:[...nodes].reverse();
-  for(const t of ordered)for(const [dx,dy] of [[1,0],[0,1]]){const n=at(site,t.x+dx,t.y+dy);if(gasNode(n))equalize(s,site,t,n);}
+  // Flow and diffusion remain per edge; each of the six-sided graph's edges is visited once.
+  for(const t of ordered)for(const [x,y] of forwardNeighbors(t.x,t.y)){const n=at(site,x,y);if(gasNode(n))equalize(s,site,t,n);}
   for(const t of site.tiles)if(t.building==='gasPump'&&!gasStatus(site,t).blocked){const {input,output}=pumpPorts(site,t);move(s,site,input,output,GAS_NETWORK.pump*t.hp/100,'pump',t);}
   for(const t of nodes){
    if(condition(t)<50)releaseGas(s,site,t,GAS_NETWORK.leak*(1-condition(t)/50),'damaged');

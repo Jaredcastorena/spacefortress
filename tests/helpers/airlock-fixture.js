@@ -12,7 +12,12 @@ import { continueCrewTraversal } from '../../src/crew-traversal.js';
 import { airlockStatus, airlockOpen } from '../../src/airlock-access.js';
 import { executeAction } from '../../src/controls.js';
 
-export const CONFIG = { site:'surface',x:5,y:5,chamber:[7,7],inner:[6,7],outer:[9,7],extractor:[7,7],pump:[7,5],reservoir:[7,3],vent:[8,7] };
+export const CONFIG = { site:'surface',x:5,y:5,chamber:[7,7],inner:[6,8],outer:[9,6],extractor:[7,7],pump:[7,5],reservoir:[7,3],vent:[8,7] };
+export const CHAMBER = [[7,7],[8,7]];
+export const STAGING = {inner:[5,8],outer:[10,6]};
+export const WALLS = [[9,5],[7,6],[8,6],[5,7],[6,7],[9,7],[10,7],[4,8],[7,8],[8,8],[4,9],[5,9],[6,9]];
+export const PIPE_CELLS = [[7,6],[8,6],[7,4]];
+export const PUMP_DIRECTION = 'n';
 const finiteMix = amount => ({oxygen:amount*.21,inert:amount*.785,co2:amount*.005});
 export const TARGET = {site:'surface',x:5,y:5};
 export const digest = value => createHash('sha256').update(typeof value==='string'?value:JSON.stringify(value)).digest('hex');
@@ -20,13 +25,13 @@ export const close = (actual, expected, label='quantity') => assert.ok(Math.abs(
 export const snapshot = s => digest(serialize(s));
 export const refs = s => {
  const site=s.sites.surface, tile=(x,y)=>at(site,x,y);
- return {s,site,tile,controller:tile(5,5),crew:s.crew[0],chamber:roomAt(site,7,7),habitat:roomAt(site,5,7),inner:tile(6,7),outer:tile(9,7),reservoir:tile(7,3),pump:tile(7,5),extractor:tile(7,7),vent:tile(8,7)};
+ return {s,site,tile,controller:tile(CONFIG.x,CONFIG.y),crew:s.crew[0],chamber:roomAt(site,...CONFIG.chamber),habitat:roomAt(site,...STAGING.inner),inner:tile(...CONFIG.inner),outer:tile(...CONFIG.outer),reservoir:tile(...CONFIG.reservoir),pump:tile(...CONFIG.pump),extractor:tile(...CONFIG.extractor),vent:tile(...CONFIG.vent)};
 };
 
 // SYNTHETIC boundary fixture: directly installed parts, wiring, charge and gas.
 // This does not establish paid construction, commissioning, or ordinary hauling.
-// Core handoff geometry plus its reviewed independent vent feed at (8,6),
-// embedded in a valid size26 save.
+// True odd-q hex geometry: each door has four sealing side walls. The independent
+// chamber feed remains connected with either device's physical valve closed.
 export function fixture({configure=true,chamberGas=20,reserveGas=35,smoke=.02}={}) {
  const s=createGame(74219), site=s.sites.surface;
  const stock=structuredClone(at(site,8,10).stock),shuttle=structuredClone(at(site,16,11));
@@ -35,12 +40,12 @@ export function fixture({configure=true,chamberGas=20,reserveGas=35,smoke=.02}={
  const tile=(x,y)=>at(site,x,y);
  site.tiles[11*site.size+16]=shuttle;
  function install(building,x,y) {const t=tile(x,y);t.terrain='floor';t.building=building;initializeStorage(t);initializeElectrical(t);return t;}
- for(const [x,y] of [[4,7],[5,6],[5,8],[6,6],[6,8],[7,6],[7,8],[8,6],[8,8],[9,6],[9,8]])install('wall',x,y);
- for(const [x,y] of [[5,7],[7,7],[8,7]])tile(x,y).terrain='floor';
+ for(const [x,y] of WALLS)install('wall',x,y);
+ for(const [x,y] of [STAGING.inner,...CHAMBER])tile(x,y).terrain='floor';
  for(const [x,y] of [CONFIG.inner,CONFIG.outer])Object.assign(install('door',x,y),{doorMode:'closed',doorUntil:0});
  for(const [name,building] of [['extractor','gasExtractor'],['pump','gasPump'],['reservoir','gasReservoir'],['vent','gasVent']])install(building,...CONFIG[name]);
- install('airlockController',5,5);tile(7,5).gasDevice.direction='north';
- for(const [x,y] of [[7,6],[8,6],[7,4]])tile(x,y).pipe=newPipe();
+ install('airlockController',CONFIG.x,CONFIG.y);tile(...CONFIG.pump).gasDevice.direction=PUMP_DIRECTION;
+ for(const [x,y] of PIPE_CELLS)tile(x,y).pipe=newPipe();
  install('stockpile',18,11).stock=stock;
  for(const [x,y] of [[3,3],[4,3]])install('solar',x,y);
  for(let x=3;x<=7;x++)install('battery',x,2);
@@ -48,11 +53,11 @@ export function fixture({configure=true,chamberGas=20,reserveGas=35,smoke=.02}={
  for(let x=3;x<=8;x++)for(let y=2;y<=7;y++)tile(x,y).cable={enabled:true,hp:100};
  site.rooms=[];site.atmosphere={tick:0,vented:mix(0),injected:mix(0),breathed:0,refilled:0};
  updateRooms(site);initializeThermal(s);
- const r=roomAt(site,7,7),h=roomAt(site,5,7);r.gas=finiteMix(chamberGas);r.smoke=smoke;h.gas=finiteMix(10);
+ const r=roomAt(site,...CONFIG.chamber),h=roomAt(site,...STAGING.inner);r.gas=finiteMix(chamberGas);r.smoke=smoke;h.gas=finiteMix(10);
  site.fireSafety.smokeProduced=smoke;site.fireSafety.smokeCleared=0;site.fireSafety.smokeVented=0;
  tile(7,3).gasStore.gas=finiteMix(reserveGas);site.gasNetwork.loaded=finiteMix(reserveGas);
  refreshAtmosphere(site);initializeAirlocks(s);initializePower(s,site,600);
- for(let i=0;i<s.crew.length;i++){const c=s.crew[i];c.x=i?18:5;c.y=i?13+i:7;c.job=null;c.intent=null;for(const k of Object.keys(c.labors))c.labors[k]=false;}
+ for(let i=0;i<s.crew.length;i++){const c=s.crew[i];[c.x,c.y]=i?[18,13+i]:STAGING.inner;c.job=null;c.intent=null;for(const k of Object.keys(c.labors))c.labors[k]=false;}
  s.creatures=[];syncResources(s);
  if(configure)assert.equal(executeAction(s,'airlock.configure',CONFIG,'test').ok,true,'synthetic geometry must bind');
  refreshPower(s,site);

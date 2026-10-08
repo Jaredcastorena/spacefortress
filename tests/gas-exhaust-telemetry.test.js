@@ -173,7 +173,7 @@ test('named extraction and return events preserve same-tick transitions invisibl
 
 test('smoke-only diffusion, pumping and release events name their physical endpoints and explicit payloads', () => {
   const {s, site, extractor} = fixture({smoke:8, co2:0});
-  const pump = install(s, 'gasPump', 12, 9), receiver = install(s, 'gasReservoir', 13, 9);
+  const pump = install(s, 'gasPump', 12, 9), receiver = install(s, 'gasReservoir', 13, 8);
   at(site, 11, 10).pipe = newPipe();
   refreshPower(s, site);
   updatePower(s, site);
@@ -191,9 +191,9 @@ test('smoke-only diffusion, pumping and release events name their physical endpo
   assert.equal(diffused.event.from, 'tile:surface:11:9');
   assert.equal(diffused.event.to, 'tile:surface:11:10');
   assert.equal(pumped.event.from, 'tile:surface:11:9');
-  assert.equal(pumped.event.to, 'tile:surface:13:9');
+  assert.equal(pumped.event.to, 'tile:surface:13:8');
   assert.equal(pumped.event.device, 'tile:surface:12:9');
-  const released = recording.find(row => row.event?.id === 'gas.released' && row.event.from === 'tile:surface:13:9');
+  const released = recording.find(row => row.event?.id === 'gas.released' && row.event.from === 'tile:surface:13:8');
   assert.ok(released);
   assert.match(released.event.to, /^room:surface:\d+,\d+$/);
   for (const row of [diffused, pumped, released]) {

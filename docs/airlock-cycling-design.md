@@ -1,6 +1,6 @@
 # Pressure-cycling airlocks
 
-**Proposed, September 30, 2026. No controller, automatic cycle, new save fields, or balance changes are implemented by this document.** The user requested a chamber with doors on two sides: close the doors, recover its air before opening outside, and refill it before opening toward the habitat. Current manual doors, gas equipment and ordinary outpost work remain separate implemented systems.
+**Implemented locally, October 8, 2026; ordinary construction acceptance pending.** The user requested a chamber with doors on two sides: close the doors, recover its air before opening outside, and refill it before opening toward the habitat. The controller, shared actions, physical cycles and persistence now have scoped synthetic coverage on the hex grid. This design records their intended requirements; see [verification status](verification-status.md) for measured scope and unfinished acceptance. The build is not published.
 
 ## Existing parts and constraints
 
@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | [Atmosphere](../src/atmosphere.js) | Rooms own oxygen, inert gas and CO2; ten gas units per floor tile is nominal pressure. Doors connect rooms without merging them. `moveCrew` opens automatic doors for three ticks. | Controlled doors must check the controller on **every** physical step; a path alone cannot authorize opening. |
 | [Gas networks](../src/gas-networks.js) | Bulk extractor retains the chamber mixture and smoke; pumps transfer against pressure; reservoir stores it; vent returns it. Nodes, capacities and species/smoke ledgers already exist. | Select and isolate the recovery/return branches. A vent cannot extract; a tank cannot purify its contents. |
-| [Navigation](../src/navigation.js) | Orthogonal physical movement and a shared route search. Closed doors currently return no route. | Represent a route through an operable cycling chamber and distinguish waiting from an unreachable route. Preserve animal barriers. |
+| [Navigation](../src/navigation.js) | Six-neighbor hex movement and a shared route search. | Represent a route through an operable cycling chamber and distinguish waiting from an unreachable route. Preserve animal barriers. |
 | [Power](../src/power.js) and [topology](../src/power-topology.js) | Circuit allocation, finite batteries, condition, priority, outages and actual energy accounting. | Controller load and phase-dependent device commands before allocation; no assumed power from a nameplate. |
 | [Thermal simulation](../src/thermal.js) | Actual room heat, door conduction and supplied climate units. | Filling gas does not warm a chamber. Measure temperature independently. |
 | [Simulation](../src/simulation.js) | Crew needs, cargo, work, meals, rescue, tick ordering and strict save validation. | Cycle traversal and interrupted-cycle persistence. A normal wait must not trigger blocked-recovery cargo set-down. |
@@ -23,7 +23,7 @@ Use one dedicated chamber, two pressure doors, one controller, one extractor, on
 Binding must validate the physical layout:
 
 - A chosen chamber floor anchor resolves to exactly one compartment. Its only door openings are the named inner and outer doors; no open floor edge or additional breach is accepted. Both doors and all sealing hull tiles must be intact before starting a normal cycle.
-- The inner door separates that chamber from one different habitat compartment. The outer door connects it to walkable exterior, rather than to a second habitat. Door side walls prevent perpendicular gas connections. Entry/exit staging tiles are actual reachable tiles on the two sides.
+- The inner door separates that chamber from one different habitat compartment. The outer door connects it to walkable exterior, rather than to a second habitat. Each hex door has one chamber neighbor, one opposite staging neighbor and four intact side-wall neighbors. Entry/exit staging tiles are actual reachable tiles on the two sides.
 - The extractor and vent belong to the chamber. Controller, pump and reservoir may be in an adjacent utility area. Devices still require their existing terrain, ports, clear construction tiles and physical power connections.
 - A registered recovery branch connects extractor → pump → reservoir. Reversing that pump returns reservoir gas through the chamber-side branch → vent. The extractor valve is closed during refill; the vent valve is closed during recovery. A valve closes a node's ports, so disabling a device alone is insufficient isolation.
 - The pump is the only connection between its two branches: no adjacent pipe bypass and no unregistered open connection to habitat supply, another airlock or dirty exhaust storage. Check the actual gas graph, not just the selected coordinates. All branch nodes are exclusively controlled while bound.

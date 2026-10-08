@@ -1,3 +1,4 @@
+import { distance } from './geometry.js';
 import { transportFor, postReserved } from './animal-transport.js';
 import { adult } from './breeding.js';
 import { animalPath } from './navigation.js';
@@ -56,7 +57,7 @@ export function moveAssignedAnimal(s,a,pathTo,roamPasture=false) {
   if(transportFor(s,a))return false;
   const t=postTile(s,a);if(!t||t.building!=='husbandryPost'||t.hp<=0)return false;
   const working=s.jobs.some(j=>animalJob(j)&&j.animal===a.id);
-  if(working||(!roamPasture&&Math.abs(a.x-t.x)+Math.abs(a.y-t.y)>2)){
+  if(working||(!roamPasture&&distance([a.x,a.y],[t.x,t.y])>2)){
     if(s.tick%3===0){const route=pathTo(s.sites.surface,a,[[t.x,t.y]]);if(route?.length)moveAnimal(s,a,route[0],'post');}
     return true;
   }

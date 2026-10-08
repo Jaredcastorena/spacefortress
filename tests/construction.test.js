@@ -1,7 +1,5 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, cancelJob, setLabor, serialize, deserialize } from '../src/simulation.js';
 import { totalResources, syncResources, quantity } from '../src/inventory.js';
 import { materialsReady, reservedAt } from '../src/construction.js';
@@ -119,18 +117,13 @@ test('repairs require a delivered alloy unit before restoring condition', () => 
   until(s, () => !s.jobs.includes(j)); assert.equal(tile.hp, 100); assert.equal(totalResources(s).alloy, 35);
 });
 
-test('version-three orders preserve their costs and already completed work during migration', () => {
-  const s = colony(), waiting = order(s, 'surface', 11, 14, 'build', 'solar').job;
-  const started = order(s, 'surface', 12, 14, 'build', 'solar').job; started.remaining -= 2;
-  const before = totalResources(s); s.version = 3;
-  for (const j of s.jobs) { delete j.materials; for (const source of j.sources) delete source.kind; }
-  const migrated = deserialize(serialize(projectPreAirlock(s)));
-  assert.equal(migrated.version, VERSION); assert.deepEqual(totalResources(migrated), before);
-  assert.deepEqual(migrated.jobs[0].materials, {}); assert.deepEqual(migrated.jobs[1].materials, { alloy: 5 });
-  assert.equal(migrated.jobs[1].remaining, started.remaining);
-  cancelJob(migrated, waiting.id); cancelJob(migrated, started.id);
-  assert.equal(migrated.resources.alloy, 31); assert.equal(at(migrated.sites.surface, 12, 14).drop.alloy, 5);
-  assert.deepEqual(totalResources(migrated), before);
+test('paid construction reservations and progress reload exactly and reject a legacy schema label', () => {
+  const s = colony(); order(s, 'surface', 11, 14, 'build', 'solar'); order(s, 'surface', 12, 14, 'build', 'solar'); step(s, 2);
+  const before = structuredClone(s), supplies = totalResources(s), copy = deserialize(serialize(s));
+  assert.deepEqual(copy, before); assert.deepEqual(totalResources(copy), supplies);
+  const forged = JSON.parse(serialize(s)); forged.version = 3; const original = JSON.stringify(forged);
+  assert.throws(() => deserialize(original), /Legacy square-grid saves/);
+  assert.equal(JSON.stringify(forged), original); assert.deepEqual(s, before);
 });
 
 test('save validation rejects duplicated reservations, missing deliveries and phantom building progress', () => {

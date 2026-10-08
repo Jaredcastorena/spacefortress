@@ -1,7 +1,8 @@
 import { emitEvent } from './telemetry.js';
 import { refreshAtmosphere } from './atmosphere.js';
 import { refreshPower } from './power.js';
-import { airlockTile as at, airlockId as id, airlockKey as key, airlockRoom, airlockNode as node, airlockGas as gas, airlockPayload as payload, airlockCapacity as capacity, airlockOpen as open, airlockLayout, airlockRouteInfo, airlockPhysicalPath, airlockSideBlock, airlockPermittedSide, airlockRoomReading, AIRLOCK_DIRECTIONS } from './airlock-access.js';
+import { opposite as oppositeDirection } from './geometry.js';
+import { airlockTile as at, airlockId as id, airlockKey as key, airlockRoom, airlockNode as node, airlockGas as gas, airlockPayload as payload, airlockCapacity as capacity, airlockOpen as open, airlockLayout, airlockRouteInfo, airlockPhysicalPath, airlockSideBlock, airlockPermittedSide, airlockRoomReading } from './airlock-access.js';
 
 const opposite=side=>side==='inner'?'outer':'inner';
 const members=entry=>entry?[entry.crew,...(entry.patient?[entry.patient]:[])]:[];
@@ -94,7 +95,7 @@ function command(site,t,layout,mode) {
  for(const n of layout.phaseNodes[mode])node(n).open=true;
  ex.gasStore.open=mode==='recover';vent.gasStore.open=mode==='refill';
  ex.gasDevice={enabled:mode==='recover',mode:'exhaust',target:0};vent.gasDevice={enabled:mode==='refill',target:Math.max(0,Math.min(150,Math.round(layout.habitat.pressure)))};
- const d=AIRLOCK_DIRECTIONS[layout.recoveryDirection];pump.gasDevice={enabled:true,direction:mode==='recover'?layout.recoveryDirection:Object.keys(AIRLOCK_DIRECTIONS).find(k=>AIRLOCK_DIRECTIONS[k][0]===-d[0]&&AIRLOCK_DIRECTIONS[k][1]===-d[1])};
+ pump.gasDevice={enabled:true,direction:mode==='recover'?layout.recoveryDirection:oppositeDirection(layout.recoveryDirection)};
 }
 function clearClaim(s,site,t,entry,reason) {
  for(const member of members(entry)){const c=s.crew.find(c=>c.id===member);if(c?.airlockTraversal?.controller===id(site,t)&&c.airlockTraversal.binding===t.airlock.binding)c.airlockTraversal=null;}

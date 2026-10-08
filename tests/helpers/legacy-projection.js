@@ -1,6 +1,7 @@
-// Project synthetic current games to the fields that actually existed before
-// schema39. Never relax the loader's rejection of forged older-save fields.
+// Historical square helpers remain for inspecting genuine old states. Never
+// strip the topology marker or relabel a hex state as a legacy fixture.
 export function projectPreAirlock(state, version = state.version) {
+  if (state.grid === 'hex-odd-q-v1' && version < 40) throw new Error('Cannot project a hex colony into a legacy square save.');
   const projected = structuredClone(state);
   projected.version = version;
   if(version>=39)return projected;

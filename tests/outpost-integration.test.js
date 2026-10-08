@@ -1,3 +1,4 @@
+import { currentOutpost as field } from './helpers/current-outpost.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -13,7 +14,6 @@ import { VERSION } from '../src/data.js';
 // Foundation integration fixtures deliberately establish synthetic residence.
 // There is no player settlement/freight action or playable outpost claim here.
 const person = (s, id) => s.crew.find(c => c.id === id);
-const field = (phase = 'working-pile') => deserialize(gunzipSync(readFileSync(new URL(`./fixtures/outpost-pre36-${phase}.json.gz`, import.meta.url))).toString('utf8'));
 const act = (s, id, args = {}) => { const result = executeAction(s, id, args); assert.equal(result.ok, true, `${id}: ${result.message}`); return result; };
 const order = (s, args) => { const { job } = act(s, 'job.order', args); return s.jobs.find(j => j.id === job); };
 const tick = s => act(s, 'simulation.step', { ticks: 1 });
@@ -53,7 +53,7 @@ test('fresh shared departure supplies and physically boards the chosen crew with
   reload(prepared);
 });
 
-test('genuine schema36 carried salvage reloads through the full loader and returns identically after a second save', () => {
+test('synthetic current hex carried salvage reloads through the full loader and returns identically after a second save', () => {
   const s = field('working-carried'), carrier = person(s, 'crew-4');
   assert.equal(s.version, VERSION);
   assert.deepEqual(carrier.carry, { components: 3 });
@@ -75,10 +75,10 @@ function localRepairShipment() {
   residents(s, [resident.id]); assert.equal(setReturnCrew(s, ['crew-4']).ok, true);
   // Move already-mined fixture alloy between physical owners, without a grant.
   const shipment = extract(at(site, 8, 10).drop, { alloy: 2 }); assert.ok(shipment); add(dock.imports, shipment);
-  damage(s, site, at(site, 14, 10), 'structure', 10, 'debris');
+  damage(s, site, at(site, 15, 10), 'structure', 10, 'debris');
   act(s, 'crew.labor', { crew: 'crew-4', labor: 'engineering', enabled: false });
   act(s, 'crew.labor', { crew: resident.id, labor: 'engineering', enabled: true });
-  const job = order(s, { site: 'wreck', x: 14, y: 10, kind: 'repair' }), id = job.id;
+  const job = order(s, { site: 'wreck', x: 15, y: 10, kind: 'repair' }), id = job.id;
   assert.deepEqual(job.sources, [{ x: dock.x, y: dock.y, kind: 'imports', items: { alloy: 1 } }]);
   assert.deepEqual(dock.imports, { alloy: 1 });
   until(s, () => resident.carry?.alloy === 1 && resident.delivery?.job === id, 30, 'resident collects a local repair shipment');
@@ -98,7 +98,7 @@ test('remote job reservation survives save and ordinary act delivers its carry l
   assert.equal(s.mission.cargo.alloy || 0, 0, 'local repair alloy is not delivered into the shuttle hold');
   assert.equal(totalResources(s).alloy, beforeAlloy);
   until(s, () => !s.jobs.some(j => j.id === id), 50, 'supplied local repair finishes');
-  assert.equal(at(site, 14, 10).hp, 100);
+  assert.equal(at(site, 15, 10).hp, 100);
   assert.equal(totalResources(s).alloy, beforeAlloy - 1, 'only the completed repair consumes its alloy');
   reload(s);
 });

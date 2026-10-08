@@ -1,3 +1,4 @@
+import { distance, neighbors } from './geometry.js';
 import { pastureRegions, moveAnimal } from './pastures.js';
 import { animalPath } from './navigation.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
@@ -6,8 +7,7 @@ export const adult=a=>!a.lifecycle||a.lifecycle.growth>=BREEDING.maturity;
 export const newLifecycle=(born=null,parents=[])=>({born,parents,growth:born===null?BREEDING.maturity:0,enabled:false,cooldown:0,brood:null});
 export function initializeBreeding(s){for(const a of s.creatures)if(a.species==='bristleback')a.lifecycle??=newLifecycle();}
 const herd=s=>s.creatures.filter(a=>a.species==='bristleback');
-const adjacent=(a,b)=>Math.abs(a.x-b.x)+Math.abs(a.y-b.y)<=1;
-const neighbors=a=>[[a.x+1,a.y],[a.x-1,a.y],[a.x,a.y+1],[a.x,a.y-1]];
+const adjacent=(a,b)=>distance([a.x,a.y],[b.x,b.y])<=1;
 const regionFor=(s,a,regions)=>regions.byCell.get(a.y*s.sites.surface.size+a.x);
 const busy=(s,a)=>s.jobs.some(j=>j.animal===a.id);
 function related(a,b){return a.lifecycle.parents.includes(b.id)||b.lifecycle.parents.includes(a.id)||a.lifecycle.parents.some(id=>b.lifecycle.parents.includes(id));}
@@ -28,7 +28,7 @@ function broodBlock(s,a,r,regions){
 }
 function birthTile(s,a,r,regions){
  const site=s.sites.surface;
- return neighbors(a).find(([x,y])=>{
+ return neighbors(a.x,a.y).find(([x,y])=>{
   const t=x>=0&&y>=0&&x<site.size&&y<site.size?site.tiles[y*site.size+x]:null;
   return t&&t.terrain==='ground'&&!t.building&&regions.byCell.get(y*site.size+x)===r&&!s.creatures.some(o=>o.health>0&&o.x===x&&o.y===y)&&!s.crew.some(c=>c.health>0&&c.site==='surface'&&c.x===x&&c.y===y)&&!s.jobs.some(j=>j.site==='surface'&&j.x===x&&j.y===y);
  });
@@ -68,7 +68,7 @@ export function updateBreeding(s,positions=new Map()){
   const b=animals.find(b=>b!==a&&!paired.has(b.id)&&!related(a,b)&&regionFor(s,b,regions)===r&&!ready(s,b,r,regions));if(!b)continue;
   paired.add(a.id);paired.add(b.id);
   if(!adjacent(a,b)){
-   const before=positions.get(a.id);if(s.tick%3===0&&(!before||before[0]===a.x&&before[1]===a.y)){const route=animalPath(s.sites.surface,a,neighbors(b));if(route?.length)moveAnimal(s,a,route[0],'courtship');}
+   const before=positions.get(a.id);if(s.tick%3===0&&(!before||before[0]===a.x&&before[1]===a.y)){const route=animalPath(s.sites.surface,a,neighbors(b.x,b.y));if(route?.length)moveAnimal(s,a,route[0],'courtship');}
    continue;
   }
   a.fed-=10;b.fed-=10;a.lifecycle.brood={id:`brood-${s.nextId++}`,mate:b.id,started:s.tick,progress:0};a.lifecycle.cooldown=b.lifecycle.cooldown=BREEDING.cooldown;

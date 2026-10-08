@@ -6,9 +6,9 @@ SPACEFORTRESS is an early playable colony simulator. Release entries describe co
 
 - Experimental pressure-cycling airlocks recover and refill actual gas through controlled equipment, with two-door interlocks, power and atmosphere guards, queued travelers and safe manual release.
 - Crew preserve work, parcels, meals and carried patients while waiting. Manual release permits chamber maintenance through the selected side.
-- Save schema39, six shared actions, named events and compact inspector controls expose the new system to players and local agents.
-- Regression coverage: 1,001 Node checks passed with one intentional skip, combining the full run with focused legacy-fixture retests; 26 Python checks passed. Paid construction acceptance and browser layout/click checks remain incomplete. This build is not published.
-- The next design direction is a real hexagonal building grid, retaining the isometric view. Conversion is being audited; the current simulation still uses square tiles.
+- True hex terrain and construction retain the isometric view. Movement, work range, room seals, livestock boundaries, gas, water, heat and electricity use six neighbors; device orientations, overlays and pointer picking share the same geometry.
+- Save schema 40 identifies the hex grid. Square schemas 1–39 are rejected before topology changes, with original save bytes protected for export. Existing action IDs, named events and entity IDs are retained. The separate elements laboratory remains square.
+- Regression coverage: 1,041 Node checks passed with one intentional skip, combining the full run with four named fixture retests; 26 Python checks passed. Local Chrome verification covers rendering, picking, a build preview, gas overlays and narrow-screen inspector focus. Paid airlock construction/parcel acceptance and held-pointer form submission remain incomplete. This build is not published.
 
 ## v0.1.2 — 2026-09-30
 

@@ -1,4 +1,4 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
+import { assertSquareProtected } from './helpers/legacy-square.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -20,42 +20,24 @@ const legacy = phase => JSON.parse(fixture(`outpost-pre36-${phase}.json.gz`));
 const dock = (s, site = 'wreck') => s.sites[site].tiles.find(tile => tile.building === 'dock');
 const allDocks = s => Object.values(s.sites).flatMap(site => site.tiles.filter(tile => tile.building === 'dock'));
 const validate = s => { validateOutpostState(s); validateShuttle(s); };
+// Synthetic current hex mission: finite launch fuel moves from the home depot.
 function migrated(phase = 'working-cargo') {
-  const s = legacy(phase); assert.equal(migrateOutpostState(s), true); return s;
-}
-function legacyProjection(s) {
-  const projected = projectPreAirlock(s,36);
-  projected.version = 36; delete projected.outposts; delete projected.shuttle.freight;
-  if (projected.mission) delete projected.mission.returnCrew;
-  for (const site of Object.values(projected.sites)) for (const tile of site.tiles) delete tile.imports;
-  return projected;
+  const s=createGame(37042),roster=['crew-4','crew-2'];
+  const missionPhase=phase==='outbound'?'outbound':phase==='returning'?'returning':'working';
+  s.shuttle.supplies=extract(s.sites.surface.tiles.find(t=>t.stock).stock,{fuel:1});
+  s.mission={site:'wreck',phase:missionPhase,remaining:missionPhase==='working'?0:10,fit:'standard',capacity:18,legacyCapacity:false,crew:roster,returnCrew:[...roster],cargo:{},collector:false,heat:0,returnFuel:missionPhase==='returning'?0:1,kitReserved:false};
+  for(const id of roster)Object.assign(s.crew.find(c=>c.id===id),{site:missionPhase==='working'?'wreck':'transit',x:4,y:11});
+  syncResources(s);return s;
 }
 
-test('genuine schema36 snapshots migrate with exact old ownership, mission, RNG and fixture hashes', () => {
-  const provenance = JSON.parse(readFileSync(new URL('./fixtures/outpost-pre36-provenance.json', import.meta.url), 'utf8'));
-  for (const row of provenance.snapshots) {
-    const compressed = readFileSync(new URL(`./fixtures/outpost-pre36-${row.phase}.json.gz`, import.meta.url));
-    assert.equal(createHash('sha256').update(compressed).digest('hex'), row.sha256Compressed);
-    assert.equal(createHash('sha256').update(gunzipSync(compressed)).digest('hex'), row.sha256Uncompressed);
+test('genuine schema36 snapshot hashes and protected rejection retain all original ownership', () => {
+  const provenance=JSON.parse(readFileSync(new URL('./fixtures/outpost-pre36-provenance.json',import.meta.url),'utf8'));
+  for(const row of provenance.snapshots) {
+    const bytes=readFileSync(new URL(`./fixtures/outpost-pre36-${row.phase}.json.gz`,import.meta.url));
+    assert.equal(createHash('sha256').update(bytes).digest('hex'),row.sha256Compressed);
+    assert.equal(createHash('sha256').update(gunzipSync(bytes)).digest('hex'),row.sha256Uncompressed);
   }
-  for (const file of files) {
-    const text = fixture(file), before = JSON.parse(text), s = JSON.parse(text);
-    assert.equal(before.version, 36);
-    assert.equal(migrateOutpostState(s), true); assert.equal(s.version, 37);
-    assert.deepEqual(legacyProjection(s), before, file);
-    assert.equal(JSON.stringify(legacyProjection(s)), text, `${file}: original serialized field order`);
-    assert.deepEqual(totalResources(s), totalResources(before));
-    assert.equal(s.rng, before.rng); assert.equal(s.nextId, before.nextId);
-    assert.deepEqual(s.outposts, { wreck: { established: false, residents: [] } });
-    assert.deepEqual(s.shuttle.freight, {});
-    assert.equal(allDocks(s).length, 3);
-    for (const tile of allDocks(s)) assert.deepEqual(tile.imports, {});
-    if (s.mission) {
-      assert.deepEqual(s.mission.returnCrew, before.mission.crew);
-      assert.notEqual(s.mission.returnCrew, s.mission.crew);
-    }
-    validate(s);
-  }
+  for(const file of files)assertSquareProtected(fixture(file));
 });
 
 test('fresh initialization creates independent empty owners without spending or granting stock', () => {
@@ -95,17 +77,10 @@ test('legacy migration rejects smuggled state atomically before replacing any ow
   }
 });
 
-test('canonical predeclared empty legacy owners normalize without sharing inventory or roster references', () => {
-  const s = legacy('working-carried'), before = structuredClone(s), shared = {};
-  s.outposts = { wreck: { established: false, residents: [] } };
-  s.shuttle.freight = shared;
-  for (const tile of allDocks(s)) tile.imports = shared;
-  s.mission.returnCrew = [];
-  assert.equal(migrateOutpostState(s), true);
-  assert.deepEqual(legacyProjection(s), before);
-  assert.equal(new Set([s.shuttle.freight, ...allDocks(s).map(tile => tile.imports)]).size, 4);
-  assert.notEqual(s.mission.returnCrew, s.mission.crew);
-  validate(s);
+test('predeclared legacy ownership remains rejected before normalization', () => {
+  const s=legacy('working-carried'),shared={};s.outposts={wreck:{established:false,residents:[]}};s.shuttle.freight=shared;
+  for(const tile of allDocks(s))tile.imports=shared;s.mission.returnCrew=[];
+  const before=serialize(s);assert.throws(()=>deserialize(before),/Legacy square-grid saves/);assert.equal(serialize(s),before);
 });
 
 test('early legacy guards reject new ownership before old initializers can erase it', () => {
@@ -119,7 +94,7 @@ test('early legacy guards reject new ownership before old initializers can erase
       const s = legacy('outbound'); s.version = version; change(s);
       const before = structuredClone(s);
       assert.throws(() => assertLegacyOutpostState(s), /older save/);
-      assert.throws(() => deserialize(serialize(s)), /older save/);
+      assert.throws(() => deserialize(serialize(s)), /Legacy square-grid saves/);
       assert.deepEqual(s, before);
     }
   }
@@ -218,15 +193,9 @@ test('freight and imports cannot alias opened medical or self-served meal invent
   }
 });
 
-test('integrated loader migrates genuine schema36 states exactly and roundtrips current schema', () => {
-  for (const file of files) {
-    const text = fixture(file), old = JSON.parse(text), loaded = deserialize(text);
-    assert.equal(loaded.version, VERSION);
-    assert.deepEqual(legacyProjection(loaded), old, file);
-    assert.deepEqual(totalResources(loaded), totalResources(old));
-    assert.equal(loaded.rng, old.rng);
-    assert.deepEqual(deserialize(serialize(loaded)), loaded);
-  }
+test('integrated loader roundtrips current hex outpost state exactly', () => {
+  const s=migrated(),before=serialize(s),resources=totalResources(s),copy=deserialize(before);
+  assert.equal(serialize(copy),before);assert.deepEqual(totalResources(copy),resources);
 });
 
 test('integrated loader rejects missing current outpost fields rather than silently granting defaults', () => {
@@ -238,7 +207,7 @@ test('integrated loader rejects missing current outpost fields rather than silen
 });
 
 test('integrated finite freight and imports preserve supplied food ages through save and tick continuation', () => {
-  const s = deserialize(fixture('outpost-pre36-working-cargo.json.gz'));
+  const s = migrated();
   assert.equal(s.version, VERSION);
   const stock = s.sites.surface.tiles.find(t => t.stock?.food >= 2 && t.stock?.alloy >= 2).stock;
   const before = totalResources(s);

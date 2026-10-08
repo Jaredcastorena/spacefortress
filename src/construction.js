@@ -1,3 +1,4 @@
+import { neighbors } from './geometry.js';
 import { fitAmount } from './item-lots.js';
 import { crewPathTo } from './navigation.js';
 import { advanceCrewRoute } from './crew-traversal.js';
@@ -8,7 +9,7 @@ import { shuttleLocation } from './outposts.js';
 import { emitEvent, emitItemMovement } from './telemetry.js';
 
 const at = (site, x, y) => x >= 0 && y >= 0 && x < site.size && y < site.size ? site.tiles[y * site.size + x] : undefined;
-const workPositions = j => [[j.x + 1, j.y], [j.x - 1, j.y], [j.x, j.y + 1], [j.x, j.y - 1]];
+const workPositions = j => neighbors(j.x, j.y);
 export const materialsReady = j => contains(j.materials, j.cost);
 const sourceInventory = (t, kind) => kind === 'stock' ? t.building === 'stockpile' ? t.stock : null : kind === 'imports' ? t.building === 'dock' ? t.imports : null : kind === 'drop' ? t.drop : null;
 // Work authority follows living people at the site, independently of which map

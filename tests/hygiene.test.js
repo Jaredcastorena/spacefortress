@@ -1,7 +1,6 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
+import { distance } from '../src/geometry.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, cancelJob, setLabor, serialize, deserialize } from '../src/simulation.js';
 import { setMachineEnabled } from '../src/industry.js';
 import { totalResources, syncResources } from '../src/inventory.js';
@@ -25,7 +24,7 @@ function clinic() {
 test('hygiene waits for Medicine permission, an adjacent helper and completed work',()=>{
   const {s,p,helper,depot}=clinic();const before=totalResources(s);step(s,5);const j=hygiene(s,p);assert.ok(j);assert.equal(j.remaining,8);assert.equal(p.sanitation.waste,.5);assert.equal(j.worker,null);
   helper.x=8;helper.y=8;setLabor(s,helper.id,'medicine',true);step(s);assert.equal(j.worker,helper.id);assert.equal(j.remaining,8);
-  until(s,()=>j.remaining<8);assert.equal(Math.abs(helper.x-p.x)+Math.abs(helper.y-p.y),1);assert.equal(p.sanitation.waste,.5);assert.equal(helper.carry,undefined);
+  until(s,()=>j.remaining<8);assert.equal(distance([helper.x,helper.y],[p.x,p.y]),1);assert.equal(p.sanitation.waste,.5);assert.equal(helper.carry,undefined);
   until(s,()=>!s.jobs.includes(j));assert.equal(p.sanitation.waste,0);assert.equal(p.sanitation.wait,0);assert.deepEqual(helper.carry,{waste:.5});assert.equal(depot.stock.waste||0,0);assert.equal(totalResources(s).waste,before.waste);
   assert.ok(helper.skills.medicine.xp>0);assert.ok(p.memories.some(m=>m.kind==='assisted-hygiene'));check(s);
   until(s,()=>!helper.carry);assert.equal(depot.stock.waste,.5);assert.equal(helper.labors.hauling,false);
@@ -106,9 +105,13 @@ test('active hygiene and collected cargo continue deterministically across reloa
   const copy=check(s);step(s,40);step(copy,40);assert.deepEqual(copy,s);
 });
 
-test('schema-eighteen migration preserves needs, tanks, inventories and pending care',()=>{
-  const {s,p}=clinic();step(s);cancelJob(s,hygiene(s,p).id);s.version=18;for(const c of s.crew)delete c.sanitation.retryAt;
-  const before=totalResources(s),wait=p.sanitation.wait,copy=check(projectPreAirlock(s));assert.equal(copy.version, VERSION);assert.deepEqual(totalResources(copy),before);assert.equal(copy.crew[0].sanitation.wait,wait);assert.equal(copy.crew[0].sanitation.retryAt,0);
+test('needs, tanks, inventories and pending care reload exactly and reject a legacy schema label', () => {
+  const { s, p } = clinic(); step(s); cancelJob(s, hygiene(s, p).id);
+  const before = structuredClone(s), supplies = totalResources(s), copy = deserialize(serialize(s));
+  assert.deepEqual(copy, before); assert.deepEqual(totalResources(copy), supplies);
+  const forged = JSON.parse(serialize(s)); forged.version = 18; const original = JSON.stringify(forged);
+  assert.throws(() => deserialize(original), /Legacy square-grid saves/);
+  assert.equal(JSON.stringify(forged), original); assert.deepEqual(s, before);
 });
 
 test('invalid retry times, patient references, work, inventory and duplicate hygiene orders are rejected',()=>{

@@ -1,3 +1,4 @@
+import { distance as hexDistance } from './geometry.js';
 import { crewPathTo } from './navigation.js';
 import { advanceCrewRoute, cancelCrewTraversal } from './crew-traversal.js';
 import { releaseTransport } from './animal-transport.js';
@@ -12,7 +13,7 @@ import { isResident } from './outposts.js';
 export const PASTIMES = { quiet: 'Quiet reflection', games: 'Pattern games', stories: 'Trading stories' };
 export const LIFE_POLICIES = { balanced: 'Balanced', work: 'Focus on work', rest: 'Off duty' };
 const clamp = (n, low = 0, high = 100) => Math.max(low, Math.min(high, n));
-const distance = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+const distance = (a, b) => hexDistance([a.x, a.y], [b.x, b.y]);
 export function initializeCrewLife(s) {
   for (const c of s.crew) {
     c.life = { leisure: 80, company: 80, stress: 0, nextBreak: 0, policy: 'balanced', pastime: c.temperament === 'social' ? 'stories' : c.temperament === 'cautious' ? 'quiet' : 'games', losses: [] };

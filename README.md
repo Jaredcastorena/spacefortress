@@ -4,11 +4,19 @@ An early playable space colony simulator inspired by Dwarf Fortress. Keep seven 
 
 **[Play online](https://jaredcastorena.github.io/spacefortress/)** · [Online elements lab](https://jaredcastorena.github.io/spacefortress/elements.html) · [Release v0.1.2](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.2) · [Roadmap](ROADMAP.md)
 
-![SPACEFORTRESS colony with original alien crew, an isometric habitat and closed detail drawers](docs/images/spacefortress-colony.png)
+![Local SPACEFORTRESS hex colony with original alien crew, an isometric habitat and closed detail drawers](docs/images/spacefortress-hex.png)
 
 **The game is still in development.** The current build has one colony floor and fixed orbital destinations. Long-lived staffed outposts, connected vertical decks, a generated universe/history and much of the wider simulation remain unfinished. The [implementation status](docs/implementation-status.md) separates working systems from plans.
 
-## What's new in v0.1.2
+## Current development: hex colonies
+
+The local development build uses **six-sided hex tiles** for terrain, construction, movement, sealed rooms and utility connections, with the isometric view retained. Directional devices face one of six neighbors. Experimental [pressure-cycling airlocks](docs/airlock-cycling-design.md) recover and refill actual gas while crew retain their work and cargo.
+
+This work is **not published yet**; the online game remains v0.1.2. Combined regression coverage is **1,041 Node checks passed, one intentional skip, and 26 Python checks passed**. Local Chrome checks cover the hex view, picking, build preview, overlays and a narrow inspector. Ordinary paid airlock construction and a parcel roundtrip remain pending. See the [verification record](docs/verification-status.md) for limits.
+
+Hex colonies use save schema 40. Square saves from schemas 1–39 cannot be loaded into this version; their original contents remain protected and exportable. Continue those colonies with the matching square version. The separate gravity-based elements lab keeps its square grid.
+
+## What's new in the published v0.1.2
 
 - Physical freight manifests: workers load and unload existing goods, with cancellation, capacity and flight reserves preserved.
 - Experimental wreck settlement: delivered local construction, measured habitat readiness, named residence and return-passenger controls.
@@ -16,9 +24,9 @@ An early playable space colony simulator inspired by Dwarf Fortress. Keep seven 
 - An explicit one-person service visit to an established wreck leaves a seat for a resident pickup.
 - More reliable departure loading, blocked-carrier parcel recovery and physical shuttle checks; save schema38 preserves older owned supplies and crew.
 
-**Outpost endurance is still experimental.** Bounded real freight and residence controls passed player checks, but a complete fresh-colony settlement, delayed resupply, ordinary remote care and final pickup walkthrough remains unfinished. Plan actual gas, heating and night battery reserves; a room being ready now does not prove it can survive the night. Automatic pressure-cycling airlocks are [being implemented](docs/airlock-cycling-design.md) and remain unverified.
+**Outpost endurance is still experimental.** Bounded real freight and residence controls passed player checks, but a complete fresh-colony settlement, delayed resupply, ordinary remote care and final pickup walkthrough remains unfinished. Plan actual gas, heating and night battery reserves; a room being ready now does not prove it can survive the night.
 
-The last published build passed **958 tests with one intentional historical skip**, plus15 Python checks. Local work on automatic airlocks is in progress and has not passed its release checks. See the [verification record](docs/verification-status.md), [changelog](CHANGELOG.md) and [roadmap](ROADMAP.md) for scope and next work.
+The last published build passed **958 tests with one intentional historical skip**, plus 15 Python checks. See the [verification record](docs/verification-status.md), [changelog](CHANGELOG.md) and [roadmap](ROADMAP.md) for scope and next work.
 
 ## Play online
 
@@ -26,7 +34,7 @@ The hosted game and separate elements lab use the links above. The first online 
 
 ## Play locally
 
-You need **Python 3** and a recent desktop browser with JavaScript and Canvas support. **Node.js 20 or newer** is needed only to run the tests. Linux development currently uses Python 3.12 and Node 20, with Firefox browser checks; wider platform/browser coverage is limited.
+You need **Python 3** and a recent desktop browser with JavaScript and Canvas support. **Node.js 20 or newer** is needed only to run the tests. Linux development currently uses Python 3.12 and Node 20, with scoped Firefox and Chrome browser checks; wider platform/browser coverage is limited.
 
 Clone the public GitHub repository with:
 

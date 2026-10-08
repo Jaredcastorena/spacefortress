@@ -1,3 +1,4 @@
+import { DIRECTIONS, neighbors, forwardNeighbors, step, opposite } from './geometry.js';
 import { RECIPES, BUILDINGS } from './data.js';
 import { add, extract } from './inventory.js';
 import { incomingInventory, outgoingInventory } from './inventory-reservations.js';
@@ -7,7 +8,7 @@ import { refreshPower } from './power.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
 
 export const PLUMBING = { pipeCapacity:2, reservoirCapacity:32, flow:.5, pump:.5, leak:.5 };
-export const WATER_DIRECTIONS = { east:[1,0], south:[0,1], west:[-1,0], north:[0,-1] };
+export const WATER_DIRECTIONS = Object.freeze(Object.fromEntries(DIRECTIONS.map(direction => [direction, true])));
 const DEVICES = ['waterPump','waterIntake','waterOutlet'];
 const EQUIPMENT = ['waterReservoir',...DEVICES];
 const EPS = 1e-9;
@@ -26,7 +27,7 @@ export const waterCapacity = t => t?.waterPipe ? PLUMBING.pipeCapacity : t?.wate
 export const newWaterPipe = () => ({...blank(),hp:100});
 export function initializePlumbingTile(t) {
   if(t.building==='waterReservoir') t.waterStore ??= blank();
-  if(DEVICES.includes(t.building)) t.waterDevice ??= {enabled:true,direction:'east',...(t.building==='waterPump'?{}:{mode:'inventory'})};
+  if(DEVICES.includes(t.building)) t.waterDevice ??= {enabled:true,direction:'ne',...(t.building==='waterPump'?{}:{mode:'inventory'})};
 }
 export function initializePlumbing(s) {
   for(const site of Object.values(s.sites)) {
@@ -35,10 +36,9 @@ export function initializePlumbing(s) {
   }
 }
 export function waterPorts(site,t) {
-  const direction=WATER_DIRECTIONS[t.waterDevice?.direction];
-  if(!direction)return {input:null,output:null};
-  const [dx,dy]=direction;
-  return {input:at(site,t.x-dx,t.y-dy),output:at(site,t.x+dx,t.y+dy)};
+  const direction=t.waterDevice?.direction;
+  if(!Object.hasOwn(WATER_DIRECTIONS,direction))return {input:null,output:null};
+  return {input:at(site,...step(t.x,t.y,opposite(direction))),output:at(site,...step(t.x,t.y,direction))};
 }
 
 const BLOCKED = {
@@ -120,7 +120,7 @@ function leak(s,site,t) {
   if(remaining<=EPS)return;
   // A full open tile retains overflow; a boundary fitting can leak into its
   // adjacent open cells. No full or isolated destination is an implicit sink.
-  let targets=liquidOpen(site,t,s.tick)?[t]:Object.values(WATER_DIRECTIONS).map(([dx,dy])=>at(site,t.x+dx,t.y+dy)).filter(n=>n&&liquidOpen(site,n,s.tick));
+  let targets=liquidOpen(site,t,s.tick)?[t]:neighbors(t.x,t.y).map(([x,y])=>at(site,x,y)).filter(n=>n&&liquidOpen(site,n,s.tick));
   targets=targets.filter(n=>n.liquid<LIQUID.capacity-EPS);
   while(remaining>EPS&&targets.length) {
     const share=remaining/targets.length;let moved=0;
@@ -132,8 +132,9 @@ function leak(s,site,t) {
 export function flowPlumbing(s) {
   for(const site of Object.values(s.sites)) {
     const nodes=ordered(s,site.tiles.filter(t=>waterNode(t)));
-    for(const t of nodes)for(const [dx,dy] of [[1,0],[0,1]]) {
-      const neighbor=at(site,t.x+dx,t.y+dy);if(!port(t)||!port(neighbor))continue;
+    // The flow cap is per edge; six connected sides can carry more total water.
+    for(const t of nodes)for(const [x,y] of forwardNeighbors(t.x,t.y)) {
+      const neighbor=at(site,x,y);if(!port(t)||!port(neighbor))continue;
       let a=t,b=neighbor,delta=waterNode(a).water/waterCapacity(a)-waterNode(b).water/waterCapacity(b);
       if(delta<0){[a,b]=[b,a];delta=-delta;}
       moveNodes(s,site,a,b,Math.min(PLUMBING.flow,delta/(1/waterCapacity(a)+1/waterCapacity(b))),'level');

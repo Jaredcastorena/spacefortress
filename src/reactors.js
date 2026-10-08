@@ -1,3 +1,4 @@
+import { DIRECTIONS, step } from './geometry.js';
 import { REACTOR_RULES } from './reactor-rules.js';
 import { roomAt } from './atmosphere.js';
 import { temperatureAt } from './thermal.js';
@@ -39,11 +40,12 @@ export function generateReactor(s,site,t,output){
  emitEvent(s,'reactor.generated',{entity:tileEntityId(site.id,t.x,t.y),fuel,power:output,heat});
 }
 // A radiator includes a short sealed thermal feedthrough: adjacent, or two tiles
-// away in a straight line through an intact hull wall. No diagonal/long-range links.
+// away in the same hex direction through an intact hull wall.
 export function radiatorTargets(site,t){
  const targets=[];
- for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
-  const near=at(site,t.x+dx,t.y+dy),far=near?.building==='wall'&&near.hp>0?at(site,t.x+2*dx,t.y+2*dy):null;
+ for(const direction of DIRECTIONS){
+  const point=step(t.x,t.y,direction),near=at(site,...point);
+  const far=near?.building==='wall'&&near.hp>0?at(site,...step(...point,direction)):null;
   const reactor=near?.building==='reactor'?near:far?.building==='reactor'?far:null;
   if(reactor)targets.push(reactor);
  }

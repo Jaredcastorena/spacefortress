@@ -70,12 +70,13 @@ function conserved(s, before) {
 }
 function loop(withVent=true) {
   const f = base(), { s, site } = f;
-  const extractor = install(s, 'gasExtractor', 8, 8), inlet = pipe(site, 9, 8);
+  const extractor = install(s, 'gasExtractor', 8, 8), inlet = pipe(site, 9, 7);
   const pump = install(s, 'gasPump', 10, 8), reservoir = install(s, 'gasReservoir', 11, 8);
   const vent = withVent ? install(s, 'gasVent', 12, 8) : null;
   for (let x=8; x<=12; x++) at(site, x, 8).cable = { enabled:true, hp:100 };
   for (let y=8; y<=10; y++) at(site, 12, y).cable = { enabled:true, hp:100 };
-  if (vent) assert.ok(setGasDevice(s, site.id, vent.x, vent.y, false, 'east', 150).ok);
+  inlet.cable={enabled:true,hp:100};pump.gasDevice.direction='se';
+  if (vent) assert.ok(setGasDevice(s, site.id, vent.x, vent.y, false, 'ne', 150).ok);
   refreshPower(s, site); updatePower(s, site);
   assert.equal(extractor.powered, true); assert.equal(pump.powered, true);
   return { ...f, extractor, inlet, pump, reservoir, vent };
@@ -95,7 +96,7 @@ test('captured contaminants survive a pipe and pump into storage, then return th
 
   const clean = { co2:room.gas.co2, smoke:room.smoke };
   assert.ok(setGasExtractor(s, site.id, extractor.x, extractor.y, false, 'filter', 100).ok);
-  assert.ok(setGasDevice(s, site.id, vent.x, vent.y, true, 'east', 150).ok);
+  assert.ok(setGasDevice(s, site.id, vent.x, vent.y, true, 'ne', 150).ok);
   updatePower(s, site);
   for (let i=0; i<100; i++) { s.tick++; updateGasNetworks(s); conserved(s, before); }
   assert.ok(room.gas.co2 > clean.co2, 'dirty supply raises room CO2 again');
@@ -215,8 +216,8 @@ test('repeated extraction, supply, valve changes and damage conserve every speci
   const before = totals(site);
   for (let i=0; i<360; i++) {
     if (i%31===0) assert.ok(setGasValve(s, site.id, inlet.x, inlet.y, i%62===0).ok);
-    if (i%47===0) assert.ok(setGasDevice(s, site.id, pump.x, pump.y, true, i%94===0?'east':'west', 100).ok);
-    if (i%53===0) assert.ok(setGasDevice(s, site.id, vent.x, vent.y, i%106===0, 'east', 140).ok);
+    if (i%47===0) assert.ok(setGasDevice(s, site.id, pump.x, pump.y, true, i%94===0?'se':'nw', 100).ok);
+    if (i%53===0) assert.ok(setGasDevice(s, site.id, vent.x, vent.y, i%106===0, 'ne', 140).ok);
     if (i%71===0) assert.ok(setGasExtractor(s, site.id, extractor.x, extractor.y, true, i%142===0?'filter':'exhaust', 98).ok);
     inlet.pipe.hp = i>=120&&i<180 ? 0 : 100;
     reservoir.hp = i>=240&&i<300 ? 25 : 100;

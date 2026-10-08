@@ -1,3 +1,4 @@
+import { assertSquareProtected, legacyText as squareText } from './helpers/legacy-square.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -8,7 +9,6 @@ import { initializeStorage, syncResources, totalResources } from '../src/invento
 import { initializeElectrical, refreshPower } from '../src/power.js';
 import { GASES, emptyGas, gasAmount, mix, roomAt, refreshAtmosphere } from '../src/atmosphere.js';
 import { newPipe, gasNode } from '../src/gas-networks.js';
-import { projectPreOutpost } from './helpers/legacy-projection.js';
 
 const reload = s => deserialize(serialize(s));
 const addGas = (a, b) => { for (const species of GASES) a[species] += b[species]; };
@@ -44,40 +44,6 @@ function finishFixture(s) {
   return s;
 }
 
-function asSchema33(s) {
-  const legacy = projectPreOutpost(s, 33);
-  for (const site of Object.values(legacy.sites)) {
-    delete site.plumbing;
-    for (const tile of site.tiles) delete tile.waterPipe;
-    delete site.gasNetwork.extracted;
-    delete site.gasNetwork.smoke;
-    for (const tile of site.tiles) if (gasNode(tile)) delete gasNode(tile).smoke;
-  }
-  return legacy;
-}
-
-function populatedLegacy() {
-  const s = createGame(7319), site = s.sites.surface;
-  const tank = install(s, 'gasTank', 11, 9);
-  const pipe = placePipe(site, 12, 9);
-  const pump = install(s, 'gasPump', 13, 9);
-  const vent = install(s, 'gasVent', 13, 8);
-  seedPackagedGas(s, tank, { oxygen: 3, inert: 8, co2: 2 });
-  seedPackagedGas(s, pipe, { oxygen: 1, inert: 2, co2: 3 });
-  seedPackagedGas(s, vent, mix(2));
-  tank.gasStore.open = false;
-  tank.machine.enabled = false;
-  tank.machine.input.air = 5;
-  at(site, 8, 10).stock.air -= 5;
-  pipe.pipe.open = false;
-  pipe.pipe.hp = 25;
-  pump.gasDevice = { enabled: false, direction: 'north' };
-  vent.gasDevice = { enabled: false, target: 117 };
-  roomAt(site, 11, 9).smoke = 3;
-  site.fireSafety.smokeProduced = 3;
-  return asSchema33(finishFixture(s));
-}
-
 function currentFixture() {
   const s = createGame(7321), site = s.sites.surface;
   const extractor = install(s, 'gasExtractor', 11, 9);
@@ -104,45 +70,13 @@ function currentFixture() {
   return { s, site, extractor, reservoir, pipe, tank, vent, pump, room };
 }
 
-test('a genuine save produced and validated by schema 33 upgrades without rewriting existing state', () => {
-  const legacyText = gunzipSync(readFileSync(new URL('./fixtures/gas-schema33-retained.json.gz', import.meta.url))).toString('utf8');
-  const legacy = JSON.parse(legacyText);
-  assert.equal(legacy.version, 33);
-  const migrated = deserialize(legacyText);
-  assert.equal(migrated.version, VERSION);
-  assert.deepEqual(asSchema33(migrated), legacy);
-  assert.deepEqual(totalResources(migrated), totalResources(legacy));
-  assert.deepEqual(reload(migrated), migrated);
+test('genuine schema33 gas ownership remains exportable after protected square rejection', () => {
+  assertSquareProtected(squareText('gas-schema33-retained'));
 });
 
-test('schema 33 migration preserves held mixtures, valves, damaged pipes, controls, room smoke and RNG', () => {
-  const old = populatedLegacy(), before = structuredClone(old);
-  const resources = totalResources(old), migrated = reload(old);
-  assert.equal(migrated.version, VERSION);
-  assert.deepEqual(old, before, 'deserialization must not mutate its input snapshot');
-  assert.deepEqual(asSchema33(migrated), before, 'only the new empty exhaust state is added');
-  assert.deepEqual(totalResources(migrated), resources);
-  assert.equal(migrated.rng, old.rng);
-  for (const site of Object.values(migrated.sites)) {
-    assert.deepEqual(site.gasNetwork.extracted, emptyGas());
-    assert.deepEqual(site.gasNetwork.smoke, { captured: 0, released: 0, vented: 0 });
-    for (const tile of site.tiles) if (gasNode(tile)) assert.equal(gasNode(tile).smoke, 0);
-    assert.ok(site.tiles.every(tile => !['gasExtractor', 'gasReservoir'].includes(tile.building)));
-  }
-  assert.deepEqual(reload(migrated), migrated, 'reloading a migrated save is idempotent');
-});
 
-test('schema 33 migration of an unmodified colony grants no gas, smoke, equipment or resources', () => {
-  const old = asSchema33(createGame(7331)), migrated = reload(old);
-  assert.equal(migrated.version, VERSION);
-  assert.deepEqual(asSchema33(migrated), old);
-  assert.deepEqual(totalResources(migrated), totalResources(old));
-  for (const site of Object.values(migrated.sites)) {
-    assert.ok(site.tiles.every(tile => !gasNode(tile) && !tile.gasDevice));
-    assert.deepEqual(site.gasNetwork.extracted, emptyGas());
-    assert.deepEqual(site.gasNetwork.smoke, { captured: 0, released: 0, vented: 0 });
-  }
-});
+
+
 
 test('current saves preserve distinct held smoke and species without regenerating migration defaults', () => {
   const { s } = currentFixture();

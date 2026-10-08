@@ -1,3 +1,4 @@
+import { neighbors } from './geometry.js';
 import { refreshPower } from './power.js';
 import { BUILDINGS } from './data.js';
 
@@ -38,16 +39,15 @@ export function remapThermal(site, old, rooms) {
 function links(site) {
   const owners = new Map(); site.rooms.forEach((r, i) => r.cells.forEach(k => owners.set(k, i)));
   const at = (x, y) => x >= 0 && y >= 0 && x < site.size && y < site.size ? site.tiles[y * site.size + x] : null;
-  const neighbors = t => [[t.x + 1, t.y], [t.x - 1, t.y], [t.x, t.y + 1], [t.x, t.y - 1]];
   const external = t => !t || (t.terrain !== 'floor' && !['wall', 'door'].includes(t.building));
   const result = [];
   for (const [cell, a] of owners) {
     const [x, y] = cell.split(',').map(Number);
-    for (const [nx, ny] of neighbors({ x, y })) if (external(at(nx, ny))) result.push({ a, b: null, rate: .6 });
+    for (const [nx, ny] of neighbors(x, y)) if (external(at(nx, ny))) result.push({ a, b: null, rate: .6 });
   }
   for (const t of site.tiles) if (['wall', 'door'].includes(t.building)) {
     const sides = new Set();
-    for (const [x, y] of neighbors(t)) { const owner = owners.get(`${x},${y}`); if (owner !== undefined) sides.add(owner); else if (external(at(x, y))) sides.add(null); }
+    for (const [x, y] of neighbors(t.x, t.y)) { const owner = owners.get(`${x},${y}`); if (owner !== undefined) sides.add(owner); else if (external(at(x, y))) sides.add(null); }
     const open = t.hp <= 0 || (t.building === 'door' && (t.doorMode === 'open' || (t.doorMode !== 'closed' && t.doorUntil > site.atmosphere.tick)));
     const rate = open ? .8 : .015 + .4 * (1 - t.hp / 100) ** 2, ids = [...sides];
     for (let a = 0; a < ids.length; a++) for (let b = a + 1; b < ids.length; b++) {

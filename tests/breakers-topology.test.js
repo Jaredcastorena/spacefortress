@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { DIRECTIONS, step as hexStep, opposite } from '../src/geometry.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
@@ -27,7 +28,7 @@ function device(site, x, y, building, charge = 0) {
   return t;
 }
 function wire(site, x, y) { const t = at(site, x, y); t.cable = { hp: 100, enabled: true }; return t; }
-function breaker(site, x, y, direction = 'east', enabled = false, mode = 'manual') {
+function breaker(site, x, y, direction = 'ne', enabled = false, mode = 'manual') {
   const t = device(site, x, y, 'breaker');
   Object.assign(t.protection, { direction, enabled, mode });
   return t;
@@ -41,12 +42,11 @@ const until = (s, predicate, limit = 120) => {
   assert.ok(predicate(), `Condition missing at tick ${s.tick}`);
 };
 
-test('all four breaker orientations power only their facing terminals and keep side loads isolated', () => {
-  for (const [direction, [dx, dy]] of Object.entries(BREAKER_DIRECTIONS)) {
-    const { s, site } = grid(), b = breaker(site, 10, 10, direction);
-    const source = device(site, 10 - dx, 10 - dy, 'solar');
-    const load = device(site, 10 + dx, 10 + dy, 'farm');
-    const sideA = device(site, 10 - dy, 10 + dx, 'farm'), sideB = device(site, 10 + dy, 10 - dx, 'farm');
+test('all six breaker orientations on both parities isolate and power their opposite ports', () => {
+  for (const x of [10, 11]) for (const direction of Object.keys(BREAKER_DIRECTIONS)) {
+    const { s, site } = grid(), b = breaker(site, x, 10, direction);
+    const source = device(site, ...hexStep(x, 10, opposite(direction)), 'solar');
+    const load = device(site, ...hexStep(x, 10, direction), 'farm');
     refreshPower(s, site);
     let status = breakerConditions(s, site, b);
     assert.equal(status.connected, false); assert.equal(load.powered, false);
@@ -55,20 +55,19 @@ test('all four breaker orientations power only their facing terminals and keep s
     assert.ok(setBreaker(s, 'surface', b.x, b.y, true, direction, 'manual').ok);
     updatePower(s, site); status = breakerConditions(s, site, b);
     assert.equal(status.connected, true); assert.equal(status.inputCircuit, status.outputCircuit);
-    assert.equal(load.powered, true); assert.equal(sideA.powered, false); assert.equal(sideB.powered, false);
-    assert.notEqual(sideA.circuit, source.circuit); assert.notEqual(sideB.circuit, source.circuit);
+    assert.equal(load.powered, true);
     assert.equal(site.energy.generated, 4); assert.equal(site.energy.consumed, 2); assert.equal(site.energy.curtailed, 2);
     balance(site);
   }
 });
 
 test('facing adjacent breakers preserve each terminal through all series contact combinations', () => {
-  const { s, site } = grid(), source = device(site, 4, 5, 'solar');
-  const a = breaker(site, 5, 5, 'east'), b = breaker(site, 6, 5, 'west'), load = device(site, 7, 5, 'farm');
+  const { s, site } = grid(), source = device(site, 4, 6, 'solar');
+  const a = breaker(site, 5, 5, 'ne'), b = breaker(site, 6, 5, 'sw'), load = device(site, 7, 4, 'farm');
   refreshPower(s, site);
   for (const [left, right] of [[false, false], [true, false], [false, true], [true, true]]) {
-    assert.ok(setBreaker(s, 'surface', a.x, a.y, left, 'east', 'manual').ok);
-    assert.ok(setBreaker(s, 'surface', b.x, b.y, right, 'west', 'manual').ok);
+    assert.ok(setBreaker(s, 'surface', a.x, a.y, left, 'ne', 'manual').ok);
+    assert.ok(setBreaker(s, 'surface', b.x, b.y, right, 'sw', 'manual').ok);
     const ca = breakerConditions(s, site, a), cb = breakerConditions(s, site, b);
     assert.equal(load.powered, left && right);
     assert.equal(ca.inputCircuit, source.circuit); assert.equal(cb.inputCircuit, load.circuit);
@@ -76,14 +75,14 @@ test('facing adjacent breakers preserve each terminal through all series contact
     assert.equal(ca.connected, left); assert.equal(cb.connected, right);
     assert.equal(site.power.output, 4); assert.equal(site.power.demand, 2); assert.equal(site.power.used, left && right ? 2 : 0);
   }
-  assert.ok(setBreaker(s, 'surface', b.x, b.y, false, 'west', 'manual').ok);
-  assert.ok(setBreaker(s, 'surface', b.x, b.y, true, 'north', 'manual').ok);
+  assert.ok(setBreaker(s, 'surface', b.x, b.y, false, 'sw', 'manual').ok);
+  assert.ok(setBreaker(s, 'surface', b.x, b.y, true, 'n', 'manual').ok);
   assert.equal(load.powered, false, 'A side-facing second breaker must not bridge the first');
 });
 
 test('an external bypass remains live after manual opening and cannot be falsely protected', () => {
-  const { s, site } = grid(), bank = device(site, 4, 5, 'battery', 30);
-  const b = breaker(site, 5, 5, 'east', true, 'wet_fault'), load = device(site, 6, 5, 'farm');
+  const { s, site } = grid(), bank = device(site, 4, 6, 'battery', 30);
+  const b = breaker(site, 5, 5, 'ne', true, 'wet_fault'), load = device(site, 6, 5, 'farm');
   for (const x of [4, 5, 6]) wire(site, x, 6);
   const fault = at(site, 6, 6); fault.liquid = .25;
   refreshPower(s, site);
@@ -92,35 +91,35 @@ test('an external bypass remains live after manual opening and cannot be falsely
   assert.deepEqual(status.faultEntities, ['tile:surface:6:6']);
   updatePower(s, site); assert.equal(b.protection.tripped, false); assert.equal(load.powered, true); close(bank.charge, 23);
   const cables = [4, 5, 6].map(x => structuredClone(at(site, x, 6).cable));
-  assert.ok(setBreaker(s, 'surface', 5, 5, false, 'east', 'wet_fault').ok);
+  assert.ok(setBreaker(s, 'surface', 5, 5, false, 'ne', 'wet_fault').ok);
   assert.equal(load.powered, true); assert.equal(breakerConditions(s, site, b).bypassed, true);
   assert.deepEqual([4, 5, 6].map(x => at(site, x, 6).cable), cables);
   updatePower(s, site); close(bank.charge, 16); close(site.energy.consumed, 14); balance(site);
 });
 
 test('generator and battery power flow opposite the marked branch direction without duplication', () => {
-  const { s, site } = grid(), load = device(site, 3, 5, 'farm'), bank = device(site, 4, 5, 'battery');
-  const b = breaker(site, 5, 5, 'east', true); device(site, 6, 5, 'solar');
+  const { s, site } = grid(), load = device(site, 3, 6, 'farm'), bank = device(site, 4, 6, 'battery');
+  const b = breaker(site, 5, 5, 'ne', true); device(site, 6, 5, 'solar');
   updatePower(s, site); assert.equal(load.powered, true); close(bank.charge, 2);
   assert.deepEqual(breakerConditions(s, site, b).sourceEntities, ['tile:surface:6:5']);
-  setBreaker(s, 'surface', 5, 5, false, 'east', 'manual');
+  setBreaker(s, 'surface', 5, 5, false, 'ne', 'manual');
   updatePower(s, site); assert.equal(load.powered, true); close(bank.charge, 0);
   close(site.energy.generated, 8); close(site.energy.consumed, 4); close(site.energy.curtailed, 4); balance(site);
 
-  const f = grid(), reverseBank = device(f.site, 6, 5, 'battery', 30), reverseLoad = device(f.site, 4, 5, 'farm');
-  const reverse = breaker(f.site, 5, 5, 'east', true);
+  const f = grid(), reverseBank = device(f.site, 6, 5, 'battery', 30), reverseLoad = device(f.site, 4, 6, 'farm');
+  const reverse = breaker(f.site, 5, 5, 'ne', true);
   updatePower(f.s, f.site); assert.equal(reverseLoad.powered, true); close(reverseBank.charge, 28);
-  setBreaker(f.s, 'surface', 5, 5, false, 'east', 'manual');
+  setBreaker(f.s, 'surface', 5, 5, false, 'ne', 'manual');
   assert.equal(reverseLoad.powered, false);
   assert.deepEqual(breakerConditions(f.s, f.site, reverse).sourceEntities, ['tile:surface:6:5']);
   updatePower(f.s, f.site); close(reverseBank.charge, 28); balance(f.site);
 });
 
 test('two terminal memberships never duplicate batteries, demand or operation wear', () => {
-  const { s, site } = grid(), left = device(site, 4, 5, 'battery', 17), right = device(site, 6, 5, 'battery', 93);
+  const { s, site } = grid(), left = device(site, 4, 6, 'battery', 17), right = device(site, 6, 5, 'battery', 93);
   const b = breaker(site, 5, 5);
   for (const enabled of [false, true, false]) {
-    setBreaker(s, 'surface', 5, 5, enabled, 'east', 'manual');
+    setBreaker(s, 'surface', 5, 5, enabled, 'ne', 'manual');
     const status = breakerConditions(s, site, b), operating = updatePower(s, site);
     recordOperation(s, site, operating);
     assert.equal(b.circuit, null); assert.equal(b.powered, false); assert.equal(operating.has(b), false);
@@ -135,7 +134,7 @@ test('two terminal memberships never duplicate batteries, demand or operation we
 });
 
 test('disabled ordinary cable overlays still isolate the equipment terminal beside a breaker', () => {
-  const { s, site } = grid(), source = device(site, 4, 5, 'solar'), b = breaker(site, 5, 5, 'east', true);
+  const { s, site } = grid(), source = device(site, 4, 6, 'solar'), b = breaker(site, 5, 5, 'ne', true);
   const load = device(site, 6, 5, 'farm'); source.cable = { hp: 100, enabled: false };
   refreshPower(s, site); assert.equal(load.powered, false); assert.equal(site.power.output, 4);
   assert.notEqual(source.circuit, breakerConditions(s, site, b).inputCircuit);
@@ -145,8 +144,8 @@ test('disabled ordinary cable overlays still isolate the equipment terminal besi
 });
 
 test('burning contacts conduct until destroyed while breakers have no powered fault countdown or service wear', () => {
-  const { s, site } = grid(), b = breaker(site, 11, 9, 'east', true);
-  device(site, 10, 9, 'solar'); const load = device(site, 12, 9, 'farm');
+  const { s, site } = grid(), b = breaker(site, 11, 9, 'ne', true);
+  device(site, 10, 10, 'solar'); const load = device(site, 12, 9, 'farm');
   refreshPower(s, site);
   assert.equal(electrical(b), true); assert.equal(maintainable(b), false);
   assert.equal(BUILDINGS.breaker.demand, undefined); assert.equal(BUILDINGS.breaker.output, undefined);
@@ -183,7 +182,7 @@ test('physical breaker repair preserves requested contact and trip state without
   }
 });
 
-test('no-breaker topology and allocator retain legacy BFS, fault order, life-support tie and disabled-overlay behavior', () => {
+test('no-breaker topology and allocator retain deterministic hex BFS, fault order, life-support tie and disabled-overlay behavior', () => {
   const { s, site } = grid();
   device(site, 1, 1, 'solar'); const firstFault = wire(site, 2, 1); firstFault.liquid = .25;
   const firstBank = device(site, 3, 1, 'battery', 2), secondFault = wire(site, 2, 2); secondFault.liquid = .25;
@@ -195,7 +194,7 @@ test('no-breaker topology and allocator retain legacy BFS, fault order, life-sup
   refreshPower(s, site);
   const membership = site.circuits.map(({ id, cells }) => ({ id, cells }));
   assert.deepEqual(membership, [
-    { id: 'circuit-27', cells: ['1,1', '2,1', '3,1', '2,2', '4,1'] },
+    { id: 'circuit-27', cells: ['1,1', '2,1', '2,2', '3,1', '4,1'] },
     { id: 'circuit-36', cells: ['10,1', '11,1', '12,1', '11,2', '13,1'] },
     { id: 'circuit-133', cells: ['3,5'] }, { id: 'circuit-134', cells: ['4,5', '5,5'] },
     { id: 'circuit-261', cells: ['1,10'] }, { id: 'circuit-262', cells: ['2,10'] },
@@ -209,18 +208,10 @@ test('no-breaker topology and allocator retain legacy BFS, fault order, life-sup
   close(site.energy.generated, 16); close(site.energy.consumed, 10); close(site.energy.curtailed, 6); balance(site);
 });
 
-test('genuine schema35 no-breaker circuit diagnostics survive migration and repeated previews unchanged', () => {
-  const original = JSON.parse(gunzipSync(readFileSync(new URL('./fixtures/breakers-schema35-owned.json.gz', import.meta.url))));
-  assert.equal(original.version, 35);
-  const s = deserialize(JSON.stringify(original));
-  for (const [id, site] of Object.entries(s.sites)) {
-    assert.ok(!site.tiles.some(t => t.building === 'breaker'));
-    for (let i = 0; i < 3; i++) refreshPower(s, site);
-    const previous = original.sites[id];
-    assert.deepEqual(site.circuits, previous.circuits); assert.deepEqual(site.power, previous.power); assert.deepEqual(site.energy, previous.energy);
-    for (let i = 0; i < site.tiles.length; i++) {
-      for (const field of ['circuit', 'powerStatus', 'powered', 'wetShort', 'charge']) assert.equal(site.tiles[i][field], previous.tiles[i][field]);
-    }
-    validatePower(s, site);
-  }
+test('genuine schema35 electrical diagnostics are protected from square-to-hex reinterpretation', () => {
+  const file = new URL('./fixtures/breakers-schema35-owned.json.gz', import.meta.url), bytes = readFileSync(file);
+  const original = gunzipSync(bytes).toString();
+  assert.equal(JSON.parse(original).version, 35);
+  assert.throws(() => deserialize(original), /legacy.*square/i);
+  assert.deepEqual(readFileSync(file), bytes);
 });

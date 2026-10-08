@@ -1,9 +1,9 @@
+import { neighbors, tileAt } from './geometry.js';
 import { airlockDoorPermit, airlockRouteInfo } from './airlock-access.js';
 
-// Orthogonal routes share one BFS; barriers differ for crew and wildlife.
+// Hex routes share one BFS; barriers differ for crew and wildlife.
 const key=(x,y)=>`${x},${y}`;
-const neighbors=(x,y)=>[[x+1,y],[x-1,y],[x,y+1],[x,y-1]];
-const tile=(site,x,y)=>x>=0&&y>=0&&x<site.size&&y<site.size?site.tiles[y*site.size+x]:null;
+const tile=tileAt;
 export function passable(site,x,y) {
   const t=tile(site,x,y);
   return !!t&&!t.fire&&!['void','rock'].includes(t.terrain)&&t.building!=='wall'&&!(t.building==='fence'&&t.hp>0)&&!(t.building==='door'&&t.doorMode==='closed'&&t.hp>0);

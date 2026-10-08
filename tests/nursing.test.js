@@ -1,7 +1,6 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
+import { distance } from '../src/geometry.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, cancelJob, setLabor, serialize, deserialize, recall, pathTo } from '../src/simulation.js';
 import { injure } from '../src/medicine.js';
 import { moveCrew, setDoorMode } from '../src/atmosphere.js';
@@ -24,8 +23,8 @@ test('moderate injuries slow every walking path while critical injury prevents w
 
 test('a rescuer physically reaches, lifts and carries a patient through the habitat door to a cot', () => {
   const { s, p } = fallenOutside(); until(s, () => carriedBy(s, p)); const rescuer = carriedBy(s, p);
-  assert.equal(Math.abs(p.x - 10) + Math.abs(p.y - 15), 1); assert.equal(rescuer.carry, undefined); assert.equal(p.x, rescuer.x); assert.equal(p.y, rescuer.y);
-  const oxygen = p.oxygen, previous = [p.x, p.y]; step(s); assert.ok(Math.abs(p.x - previous[0]) + Math.abs(p.y - previous[1]) <= 1);
+  assert.equal(distance([p.x, p.y], [10, 15]), 1); assert.equal(rescuer.carry, undefined); assert.equal(p.x, rescuer.x); assert.equal(p.y, rescuer.y);
+  const oxygen = p.oxygen, previous = [p.x, p.y]; step(s); assert.ok(distance([p.x, p.y], previous) <= 1);
   until(s, () => atCot(s, p) && !carriedBy(s, p)); assert.ok(p.oxygen >= oxygen); assert.ok(p.memories.some(m => m.kind === 'rescued')); assert.ok(at(s.sites.surface, 10, 12).doorUntil > 0);
   until(s, () => p.medical.treated > 0); assert.ok(p.health > 35 || p.medical.treated > 0);
 });
@@ -50,7 +49,7 @@ test('rescuers divert to breathable shelter when a reserved cot breaks', () => {
 
 test('rescuer exhaustion leaves the patient at the actual position and another helper can take over', () => {
   const { s, p } = fallenOutside(); until(s, () => carriedBy(s, p)); const helper = carriedBy(s, p), location = [p.x, p.y]; helper.energy = 1;
-  step(s); assert.equal(helper.rescue, null); assert.ok(Math.abs(p.x - location[0]) + Math.abs(p.y - location[1]) <= 1);
+  step(s); assert.equal(helper.rescue, null); assert.ok(distance([p.x, p.y], location) <= 1);
   until(s, () => atCot(s, p) && !carriedBy(s, p)); assert.ok(p.health > 0);
 });
 
@@ -104,10 +103,13 @@ test('transport and bedside meal portions resume deterministically across save/l
   p.hunger = 20; until(s, () => p.medical.servings > 0); const nursing = deserialize(serialize(s)); step(s, 20); step(nursing, 20); assert.deepEqual(nursing, s);
 });
 
-test('schema-eleven migration adds nursing state without altering injury, inventories or jobs', () => {
-  const { s, p } = clinic(); injure(s, p, 20, 'debris impact'); step(s, 4); s.version = 11;
-  for (const c of s.crew) { delete c.rescue; delete c.medical.servings; delete c.medical.feedRetryAt; }
-  const supplies = totalResources(s), jobs = structuredClone(s.jobs), copy = deserialize(serialize(projectPreAirlock(s))); assert.equal(copy.version, VERSION); assert.equal(copy.crew[0].medical.injury, p.medical.injury); assert.deepEqual(totalResources(copy), supplies); assert.deepEqual(copy.jobs, jobs);
+test('injury, nursing state, inventories and jobs reload exactly and reject a legacy schema label', () => {
+  const { s, p } = clinic(); injure(s, p, 20, 'debris impact'); step(s, 4);
+  const before = structuredClone(s), supplies = totalResources(s), copy = deserialize(serialize(s));
+  assert.deepEqual(copy, before); assert.deepEqual(totalResources(copy), supplies);
+  const forged = JSON.parse(serialize(s)); forged.version = 11; const original = JSON.stringify(forged);
+  assert.throws(() => deserialize(original), /Legacy square-grid saves/);
+  assert.equal(JSON.stringify(forged), original); assert.deepEqual(s, before);
 });
 
 test('malformed nursing portions, duplicate helpers and remote transport coordinates are rejected', () => {

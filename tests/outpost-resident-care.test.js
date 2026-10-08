@@ -1,3 +1,5 @@
+import { distance } from '../src/geometry.js';
+import { currentOutpost as field } from './helpers/current-outpost.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -66,7 +68,6 @@ test('isolated residents eat local food and reserve local bunks without a missio
   assert.deepEqual(checkpoint(s), s);
 });
 
-const field = () => deserialize(gunzipSync(readFileSync(new URL('./fixtures/outpost-pre36-working-pile.json.gz', import.meta.url))).toString('utf8'));
 
 test('physical visitor departure preserves an unrelated resident treatment job and patient residence', () => {
   const { s, p, helper } = clinic({ state: field() });
@@ -137,7 +138,7 @@ test('resident rescuer carries a stranded patient to local shelter without an ab
   startRecording(s); assert.equal(s.mission, null);
   until(s, () => carriedBy(s, p));
   assert.equal(carriedBy(s, p), helper); const before = [p.x, p.y]; step(s);
-  assert.ok(Math.abs(p.x - before[0]) + Math.abs(p.y - before[1]) <= 1);
+  assert.ok(distance([p.x,p.y],before) <= 1);
   assert.equal(p.x, helper.x); assert.equal(p.y, helper.y);
   const copy = checkpoint(s); step(s, 12); step(copy, 12); assert.deepEqual(copy, s);
   until(s, () => atCot(s, p) && !carriedBy(s, p));

@@ -1,4 +1,3 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -167,11 +166,9 @@ test('saved heat, climate settings, stress and recovery continue deterministical
   const copy = check(s); step(s, 130); step(copy, 130); assert.deepEqual(copy, s); check(s);
 });
 
-test('schema-fourteen migration commissions neutral temperatures without altering supplies or injuries', () => {
-  const { s } = fixture(); injure(s, s.crew[0], 10, 'old injury'); const before = totalResources(s);
-  s.version = 14; for (const site of Object.values(s.sites)) { delete site.thermal; site.rooms.forEach(r => delete r.heat); } s.crew.forEach(c => delete c.thermalStress);
-  const copy = check(projectPreAirlock(s)); assert.equal(copy.version, VERSION); assert.deepEqual(totalResources(copy), before); assert.equal(copy.crew[0].medical.injury, 10);
-  close(temperature(copy.sites.surface.rooms[0]), 20); assert.equal(copy.crew[0].thermalStress, 0); assert.deepEqual(check(copy), copy);
+test('legacy square schema 14 is rejected before physical state migration',()=>{
+ const legacy=createGame();legacy.version=14;delete legacy.grid;
+ const bytes=JSON.stringify(legacy);assert.throws(()=>deserialize(bytes),/Legacy square-grid saves/);assert.equal(JSON.stringify(legacy),bytes);
 });
 
 test('invalid thermal ledgers, crew strain and climate controls are rejected', () => {

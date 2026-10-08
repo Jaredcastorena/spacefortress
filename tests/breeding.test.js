@@ -1,7 +1,6 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
+import { distance, neighbors } from '../src/geometry.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { VERSION } from '../src/data.js';
 import { createGame,at,step,serialize,deserialize,setAnimalPost } from '../src/simulation.js';
 import { BREEDING,newLifecycle,breedingStatus,updateBreeding } from '../src/breeding.js';
 import { executeAction } from '../src/controls.js';
@@ -32,12 +31,12 @@ test('two nearby tame adults conceive one carried brood and spend nutrition',()=
 
 test('courtship walks through the pasture without teleporting or moving twice in a tick',()=>{
  const {s,a,b}=pen();a.x=4;a.y=16;b.x=8;b.y=22;startRecording(s);
- for(let i=0;i<80&&!a.lifecycle.brood;i++){const old=[a.x,a.y];step(s);assert.ok(Math.abs(a.x-old[0])+Math.abs(a.y-old[1])<=1);}
+ for(let i=0;i<80&&!a.lifecycle.brood;i++){const old=[a.x,a.y];step(s);assert.ok(distance([a.x,a.y],old)<=1);}
  assert.ok(a.lifecycle.brood);assert.ok(events(s).some(e=>e.id==='animal.moved'&&e.reason==='courtship'));check(s);
 });
 
 test('healthy broods take 300 development ticks and create a physical child with parentage',()=>{
- const {s,a,b}=pen();step(s);step(s,299);assert.equal(children(s).length,0);assert.equal(a.lifecycle.brood.progress,299);step(s);const child=children(s)[0];assert.ok(child);assert.deepEqual(child.lifecycle.parents,[a.id,b.id]);assert.equal(child.age,0);assert.equal(child.lifecycle.growth,0);assert.equal(child.husbandry.post,null);assert.equal(child.husbandry.trust,40);assert.equal(child.fed,40);assert.equal(a.lifecycle.brood,null);assert.equal(a.lifecycle.cooldown,600);assert.equal(Math.abs(child.x-a.x)+Math.abs(child.y-a.y),1);check(s);
+ const {s,a,b}=pen();step(s);step(s,299);assert.equal(children(s).length,0);assert.equal(a.lifecycle.brood.progress,299);step(s);const child=children(s)[0];assert.ok(child);assert.deepEqual(child.lifecycle.parents,[a.id,b.id]);assert.equal(child.age,0);assert.equal(child.lifecycle.growth,0);assert.equal(child.husbandry.post,null);assert.equal(child.husbandry.trust,40);assert.equal(child.fed,40);assert.equal(a.lifecycle.brood,null);assert.equal(a.lifecycle.cooldown,600);assert.equal(distance([child.x,child.y],[a.x,a.y]),1);check(s);
 });
 
 test('wild, disabled, unwell and open-range pairs cannot start broods',()=>{
@@ -57,7 +56,7 @@ test('crowded pasture refuses a new brood and pending young consume breeding cap
 });
 
 test('ready brood waits for a vacant adjacent ground tile and births only after clearance',()=>{
- const {s,site,a}=pen();step(s,300);const positions=[[a.x+1,a.y],[a.x-1,a.y],[a.x,a.y+1],[a.x,a.y-1]];for(const [x,y]of positions)at(site,x,y).building='husbandryPost';step(s);assert.equal(children(s).length,0);assert.equal(a.lifecycle.brood.progress,300);assert.equal(breedingStatus(s,a).reason,'birth_tile_blocked');at(site,...positions[0]).building=null;step(s);assert.equal(children(s).length,1);check(s);
+ const {s,site,a}=pen();step(s,300);const positions=neighbors(a.x,a.y).filter(([x,y])=>at(site,x,y).terrain==='ground'&&!at(site,x,y).building);for(const [x,y]of positions)at(site,x,y).building='husbandryPost';step(s);assert.equal(children(s).length,0);assert.equal(a.lifecycle.brood.progress,300);assert.equal(breedingStatus(s,a).reason,'birth_tile_blocked');at(site,...positions[0]).building=null;step(s);assert.equal(children(s).length,1);check(s);
 });
 
 test('carrier death loses its brood once while death of the mate preserves it',()=>{
@@ -84,8 +83,13 @@ test('herd and total creature limits prevent uncontrolled growth',()=>{
  const {s,a}=pen();for(let i=0;i<21;i++)s.creatures.push({...structuredClone(a),id:`extra-${i}`,lifecycle:newLifecycle()});assert.equal(breedingStatus(s,a).reason,'herd_limit');step(s);assert.equal(a.lifecycle.brood,null);check(s);
 });
 
-test('schema 27 migration preserves animals, supplies, jobs and RNG while adding adult lifecycle state',()=>{
- const {s}=pen();s.version=27;for(const a of s.creatures)delete a.lifecycle;const before=structuredClone(s),copy=check(projectPreAirlock(s));assert.equal(copy.version, VERSION);assert.deepEqual(totalResources(copy),totalResources(s));assert.equal(copy.rng,s.rng);assert.deepEqual(copy.jobs,s.jobs);for(let i=0;i<copy.creatures.length;i++){const {lifecycle,...animal}=copy.creatures[i];assert.deepEqual(animal,before.creatures[i]);assert.deepEqual(lifecycle,newLifecycle());}
+test('animals, supplies, jobs and RNG reload exactly and reject a legacy schema label', () => {
+  const { s } = pen(); step(s);
+  const before = structuredClone(s), supplies = totalResources(s), copy = deserialize(serialize(s));
+  assert.deepEqual(copy, before); assert.deepEqual(totalResources(copy), supplies);
+  const forged = JSON.parse(serialize(s)); forged.version = 27; const original = JSON.stringify(forged);
+  assert.throws(() => deserialize(original), /Legacy square-grid saves/);
+  assert.equal(JSON.stringify(forged), original); assert.deepEqual(s, before);
 });
 
 test('partial broods and growing offspring reload deterministically and recording is observational',()=>{

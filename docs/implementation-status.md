@@ -22,6 +22,8 @@ The user requested a quick elements simulation, then explicitly added electricit
 
 ## Current implementation
 
+- Local hex development (schema 40): actual six-neighbor terrain, building, movement, rooms and utilities; matching isometric rendering and picking; protected rejection/export of square saves. Experimental cycling airlocks pass scoped physical tests. Combined regression and local Chrome view checks pass; ordinary paid airlock construction and parcel travel remain pending. See [verification status](verification-status.md). The published build remains v0.1.2/schema 38.
+
 - Wreck outpost gameplay: schema 38 freight/settlement/return actions, local building and care, measured readiness and conditional single-pilot pickup are implemented. Current scoped regression checks pass; complete ordinary journey and browser acceptance remain pending.
 
 - Expedition UI QA: hidden explicit crew roster, retained draft/readiness, ordered player action, fixed preparation team, actionable route diagnostics, cargo wrapping, held clicks and normal physical colony-to-shield-upgrade journey passed. Preparation/return reloads matched; temporary QA processes stopped.

@@ -26,20 +26,22 @@ function fixture(){
  const s=createGame(),site=s.sites.surface;
  for(const t of site.tiles){t.cable=null;if(t.machine)t.machine.enabled=false;}
  for(const c of s.crew){c.labors.hauling=false;c.labors.production=false;}
- const source=install(s,'advanced',8,8),breaker=install(s,'breaker',10,8),intake=install(s,'waterIntake',10,10),outlet=install(s,'waterOutlet',11,9),tank=install(s,'waterTank',10,11);
- const node=at(site,10,9);node.waterPipe=newWaterPipe();
- // Two walls make the discharged puddle remain deep enough for the next real floor-flow tick.
- at(site,12,10).building='wall';at(site,13,9).building='wall';updateRooms(site);
- for(const [x,y] of [[7,8],[9,8],[8,9],[8,10],[9,10],[11,8],[12,8],[12,9],[13,9]])wire(site,x,y);
+ const source=install(s,'advanced',8,8),breaker=install(s,'breaker',10,8),intake=install(s,'waterIntake',10,10),outlet=install(s,'waterOutlet',11,8),tank=install(s,'waterTank',10,11);
+ const node=at(site,10,9);node.waterPipe=newWaterPipe();breaker.waterPipe=newWaterPipe();
+ // The retained startup bank stays physically disconnected from this branch.
+ at(site,13,7).cable={enabled:false,hp:100};
+ // Four blocked hex sides retain a finite puddle through the next flow tick.
+ for(const [x,y] of [[12,10],[13,9],[13,8],[11,9]])at(site,x,y).building='wall';updateRooms(site);
+ for(const [x,y] of [[7,8],[9,8],[8,9],[8,10],[9,10],[11,7],[12,8],[12,9],[13,9]])wire(site,x,y);
  const life=at(site,7,7),factory=at(site,13,10),wet=at(site,12,9);life.machine.enabled=true;factory.machine.enabled=true;
  const depot=at(site,8,10),hauler=s.crew[0];depot.stock.water=6;depot.stock.ore=1;
  // Tank refilling is an actual reserved pickup and walk, not a transfer into its buffer.
  hauler.labors.hauling=true;hauler.intent={type:'haul',source:'stock',target:[8,10],items:{water:6},destination:{kind:'input',target:[10,11]}};
  delivered(s,hauler);close(tank.machine.input.water,6);close(depot.stock.water||0,0);hauler.labors.hauling=false;
  setMachineEnabled(s,'surface',10,11,false);
- assert.ok(setWaterIntake(s,'surface',10,10,true,'north','inventory').ok);
- assert.ok(setWaterOutlet(s,'surface',11,9,true,'east','floor').ok);
- assert.ok(setBreaker(s,'surface',10,8,true,'east','wet_fault').ok);
+ assert.ok(setWaterIntake(s,'surface',10,10,true,'n','inventory').ok);
+ assert.ok(setWaterOutlet(s,'surface',11,8,true,'se','floor').ok);
+ assert.ok(setBreaker(s,'surface',10,8,true,'ne','wet_fault').ok);
  setProductionOrder(s,'surface',13,10,'batches',1);
  const room=roomAt(site,life.x,life.y);room.smoke+=1;site.fireSafety.smokeProduced+=1;
  syncResources(s);refreshPower(s,site);
@@ -47,7 +49,9 @@ function fixture(){
  return {s,site,source,breaker,intake,outlet,tank,node,life,factory,wet,hauler};
 }
 function discharge(f){
- until(f.s,()=>f.wet.liquid>=.25,12);
+ // Each of the two open hex edges can move at most one quarter of the puddle.
+ // A .45-unit release stays above the .25 wet threshold after both transfers.
+ until(f.s,()=>f.wet.liquid>=.45,12);
  assert.equal(f.breaker.protection.tripped,false);assert.ok(f.site.plumbing.released>0);
  assert.ok(previewPower(f.s,f.site).suppliedFaults.has(f.wet));
 }
@@ -61,11 +65,11 @@ test('a real water discharge trips its branch, preserves life support, and permi
  assert.ok(site.fireSafety.smokeCleared>cleared,'Powered life support must still perform filtration');
  close(site.liquids.faultEnergy,energy);close(wet.cable.hp,hp);close(totalResources(s).water+site.liquids.lost+site.liquids.quenched,water);
  assert.equal(factory.machine.completed,0);assert.deepEqual(factory.machine.batch,{});
- assert.ok(setWaterIntake(s,'surface',10,10,false,'north','inventory').ok);
- assert.ok(setWaterOutlet(s,'surface',11,9,false,'east','floor').ok);
+ assert.ok(setWaterIntake(s,'surface',10,10,false,'n','inventory').ok);
+ assert.ok(setWaterOutlet(s,'surface',11,8,false,'se','floor').ok);
  until(s,()=>!site.tiles.some(wetCable),60);
  assert.ok(resetBreaker(s,'surface',10,8).ok);assert.equal(breaker.protection.enabled,false);assert.equal(factory.powered,false);
- assert.ok(setBreaker(s,'surface',10,8,true,'east','wet_fault').ok);assert.equal(factory.powered,true);
+ assert.ok(setBreaker(s,'surface',10,8,true,'ne','wet_fault').ok);assert.equal(factory.powered,true);
  const c=f.hauler,alloy=totalResources(s).alloy;c.labors.hauling=true;
  c.intent={type:'haul',source:'stock',target:[8,10],items:{ore:1},destination:{kind:'input',target:[13,10]}};
  delivered(s,c);c.labors.hauling=false;close(factory.machine.input.ore,1);
@@ -82,7 +86,7 @@ test('a physical bypass keeps a flooded branch powered and manual opening never 
  const conditions=breakerConditions(s,site,breaker);assert.equal(conditions.bypassed,true);assert.equal(conditions.wouldTrip,false);
  step(s);assert.equal(breaker.protection.tripped,false);close(site.liquids.faultEnergy-before,5);close(wet.cable.hp,hp-.25);assert.equal(life.powered,true);
  const cables=site.tiles.filter(t=>t.cable).map(t=>[t,t.cable.enabled]);
- assert.ok(setBreaker(s,'surface',10,8,false,'east','wet_fault').ok);
+ assert.ok(setBreaker(s,'surface',10,8,false,'ne','wet_fault').ok);
  assert.ok(previewPower(s,site).suppliedFaults.has(wet));for(const [tile,enabled] of cables)assert.equal(tile.cable.enabled,enabled);
  assert.ok(setCableEnabled(s,'surface',10,7,false).ok);
  assert.equal(previewPower(s,site).suppliedFaults.has(wet),false);assert.equal(life.powered,true);assert.equal(wet.cable.enabled,true);

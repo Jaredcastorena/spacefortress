@@ -1,3 +1,4 @@
+import { currentOutpost as field } from './helpers/current-outpost.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -11,7 +12,6 @@ import { outpostReadiness } from '../src/outpost-readiness.js';
 import { freightStatus } from '../src/freight.js';
 
 const records = s => exportRecording(s).trim().split('\n').map(JSON.parse);
-const field = () => deserialize(gunzipSync(readFileSync(new URL('./fixtures/outpost-pre36-working-pile.json.gz', import.meta.url))).toString('utf8'));
 const act = (s, id, args = {}, source = 'test') => {
   const result = executeAction(s, id, args, source);
   assert.equal(result.ok, true, `${id}: ${result.message}`);
@@ -373,13 +373,15 @@ test('ordinary finite freight delivery records worker ownership, remote readines
   assert.equal(loadCarry, true, 'a real worker must carry the reserved shipment');
   for (const [resource, amount] of Object.entries(requested)) assert.equal(a.shuttle.freight[resource], amount);
   const stores = structuredClone(a.shuttle.freight);
-  run('expedition.launch', { site: 'wreck', crewIds: ['crew-2', 'crew-4'] });
+  const crewIds=observe(a).entities.colony.derived.expedition.candidates.filter(c=>c.eligible).slice(0,2).map(c=>c.id);
+  assert.equal(crewIds.length,2,'two crew are free after the completed freight shipment');
+  run('expedition.launch', { site: 'wreck', crewIds });
   until(() => a.mission?.phase === 'working', 200, 'arrive at the wreck');
   const dock = a.sites.wreck.tiles.find(tile => tile.building === 'dock');
   const dockId = `tile:wreck:${dock.x}:${dock.y}`;
   assert.deepEqual(dock.imports, {}, 'arrival alone cannot credit local supplies');
   assert.deepEqual(Object.fromEntries(Object.keys(requested).map(resource => [resource, a.shuttle.freight[resource]])), requested);
-  const readinessBefore = outpostReadiness(a, 'wreck', ['crew-2']);
+  const readinessBefore = outpostReadiness(a, 'wreck', [crewIds[0]]);
   assert.equal(readinessBefore.provisions.available.food, 0, 'aboard freight is unavailable to the local habitat');
   const unload = run('freight.unload', { site: 'wreck' });
   assert.deepEqual(dock.imports, {}, 'an unload order is not a delivered import');
@@ -392,7 +394,7 @@ test('ordinary finite freight delivery records worker ownership, remote readines
   for (const [resource, amount] of Object.entries(requested)) assert.equal(dock.imports[resource], amount);
   assert.deepEqual(dock.imports._food.map(lot => lot.amount), stores._food.map(lot => lot.amount));
   assert.ok(dock.imports._food.every(lot => lot.age > stores._food[0].age), 'food ages while physically transported');
-  const readinessAfter = outpostReadiness(a, 'wreck', ['crew-2']);
+  const readinessAfter = outpostReadiness(a, 'wreck', [crewIds[0]]);
   assert.equal(readinessAfter.provisions.available.food, 2);
   assert.equal(readinessAfter.provisions.available.air, 5);
   assert.equal(readinessAfter.ready, false, 'delivered reserves do not invent a safe room');

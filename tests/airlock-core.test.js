@@ -1,20 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fixture, command, request, cycle, until, physicalTick, ledger, assertLedger, snapshot, close } from './helpers/airlock-fixture.js';
+import { fixture, command, request, cycle, until, physicalTick, ledger, assertLedger, snapshot, close, CONFIG, STAGING } from './helpers/airlock-fixture.js';
 import { airlockStatus, airlockDoorPermit, airlockOpen, airlockLayout } from '../src/airlock-access.js';
-import { gasNode, gasCapacity } from '../src/gas-networks.js';
+import { gasNode, gasCapacity, newPipe } from '../src/gas-networks.js';
 import { mix, moveCrew, refreshRoom, updateRooms } from '../src/atmosphere.js';
 import { continueCrewTraversal, advanceCrewRoute } from '../src/crew-traversal.js';
+import { neighbors } from '../src/geometry.js';
 
 // Every installation here is a labeled synthetic fixture; paid acceptance is separate.
 test('synthetic real-physics outward and inward cycles conserve species, smoke and allocated energy',()=>{
  const f=fixture(),before=ledger(f),phases=new Set();
  const capture=()=>phases.add(f.controller.airlock.phase);
- const out=cycle(f,'outward',{onTick:capture});assert.deepEqual([f.crew.x,f.crew.y],[10,7]);
+ const out=cycle(f,'outward',{onTick:capture});assert.deepEqual([f.crew.x,f.crew.y],STAGING.outer);
  assert.ok(f.site.gasNetwork.extracted.oxygen>0,'recovery must use extractor');
  assert.ok(f.site.atmosphere.vented.oxygen>0,'actual outer opening records finite residual loss');
  assert.ok(f.site.atmosphere.vented.oxygen<.1,'outward residual must be bounded');
- const inward=cycle(f,'inward',{onTick:capture});assert.deepEqual([f.crew.x,f.crew.y],[5,7]);
+ const inward=cycle(f,'inward',{onTick:capture});assert.deepEqual([f.crew.x,f.crew.y],STAGING.inner);
  assert.ok(f.site.gasNetwork.delivered.oxygen>0,'refill must use vent');
  assert.ok(phases.has('recover')&&phases.has('refill'),'both physical transfer phases observed');
  assert.ok(f.site.energy.consumed>=out+inward,'real controller energy paid');
@@ -25,12 +26,12 @@ test('synthetic real-physics outward and inward cycles conserve species, smoke a
 
 test('same-tick stale paths, unrelated crew and animals cannot tailgate either door',()=>{
  const f=fixture();request(f);until(f,()=>f.controller.airlock.phase==='admit');
- const stranger=f.s.crew[1];stranger.x=5;stranger.y=7;
- assert.equal(airlockDoorPermit(f.site,stranger,[5,7],[6,7]),false);
- assert.equal(moveCrew(stranger,f.site,[6,7]),false);assert.deepEqual([stranger.x,stranger.y],[5,7]);
- assert.equal(airlockDoorPermit(f.site,{id:'animal',species:'bristleback'},[5,7],[6,7]),false);
- assert.equal(airlockDoorPermit(f.site,f.crew,[8,7],[9,7]),false);
- assert.equal(moveCrew(f.crew,f.site,[9,7]),false);
+ const stranger=f.s.crew[1];[stranger.x,stranger.y]=STAGING.inner;
+ assert.equal(airlockDoorPermit(f.site,stranger,STAGING.inner,CONFIG.inner),false);
+ assert.equal(moveCrew(stranger,f.site,CONFIG.inner),false);assert.deepEqual([stranger.x,stranger.y],STAGING.inner);
+ assert.equal(airlockDoorPermit(f.site,{id:'animal',species:'bristleback'},STAGING.inner,CONFIG.inner),false);
+ assert.equal(airlockDoorPermit(f.site,f.crew,[8,7],CONFIG.outer),false);
+ assert.equal(moveCrew(f.crew,f.site,CONFIG.outer),false);
  assert.ok(!(airlockStatus(f.s,f.site,f.controller).permissions.inner&&airlockStatus(f.s,f.site,f.controller).permissions.outer));
 });
 
@@ -44,7 +45,7 @@ test('power loss stops actual transfers, retains cargo and closes clear doors be
  assert.equal(f.extractor.gasDevice.enabled,false);assert.equal(f.pump.gasDevice.enabled,false);
  assert.equal(JSON.stringify(f.crew.carry),carry);assert.equal(JSON.stringify(f.crew.delivery),delivery);assertLedger(f,gas);close(f.site.energy.consumed,before);
  for(const t of f.site.tiles)if(t.cable)t.cable.enabled=true;
- until(f,()=>!f.crew.airlockTraversal);assert.deepEqual([f.crew.x,f.crew.y],[10,7]);
+ until(f,()=>!f.crew.airlockTraversal);assert.deepEqual([f.crew.x,f.crew.y],STAGING.outer);
 });
 
 for(const [label,modify,reason] of [
@@ -73,10 +74,10 @@ for(const [label,change,reason] of [
 });
 
 test('occupied entry stays physically open on outage, with the opposite side locked',()=>{
- const f=fixture();request(f);until(f,()=>f.crew.x===6&&f.crew.y===7);
+ const f=fixture();request(f);until(f,()=>f.crew.x===CONFIG.inner[0]&&f.crew.y===CONFIG.inner[1]);
  for(const t of f.site.tiles)if(t.cable)t.cable.enabled=false;physicalTick(f);
  assert.equal(f.controller.airlock.reason,'no_power');assert.equal(airlockOpen(f.site,f.inner),true);assert.equal(airlockOpen(f.site,f.outer),false);
- assert.deepEqual([f.crew.x,f.crew.y],[6,7]);assert.ok(f.crew.airlockTraversal);
+ assert.deepEqual([f.crew.x,f.crew.y],CONFIG.inner);assert.ok(f.crew.airlockTraversal);
 });
 
 test('explicit one-sided release rejects an open or broken opposite door atomically',()=>{
@@ -92,7 +93,7 @@ test('explicit one-sided release rejects an open or broken opposite door atomica
 test('queue cancellation and lost approach release claims without moving a live parcel',()=>{
  const f=fixture();f.crew.carry={alloy:2};f.crew.x=18;f.crew.y=13;
  request(f,'inward');assert.equal(command(f,'cancel',{crew:f.crew.id}).ok,true);assert.equal(f.crew.airlockTraversal,null);assert.deepEqual(f.crew.carry,{alloy:2});
- request(f,'inward');for(const [x,y] of [[17,13],[19,13],[18,12],[18,14]])f.tile(x,y).building='wall';
+ request(f,'inward');for(const [x,y] of neighbors(18,13))f.tile(x,y).building='wall';
  const result=continueCrewTraversal(f.s,f.crew,f.site);assert.equal(result.status,'blocked');assert.equal(result.reason,'route_unavailable');
  assert.equal(f.crew.airlockTraversal,null);assert.equal(f.controller.airlock.queue.length,0);assert.deepEqual(f.crew.carry,{alloy:2});
 });
@@ -100,34 +101,34 @@ test('queue cancellation and lost approach release claims without moving a live 
 test('cancellation after real admission returns the intact party through the entry side',()=>{
  const f=fixture();request(f);until(f,()=>f.controller.airlock.phase==='recover');
  const position=[f.crew.x,f.crew.y];assert.equal(command(f,'cancel',{crew:f.crew.id}).recovering,true);assert.deepEqual([f.crew.x,f.crew.y],position);
- until(f,()=>!f.crew.airlockTraversal);assert.deepEqual([f.crew.x,f.crew.y],[5,7]);assert.equal(f.controller.airlock.phase,'idle');
+ until(f,()=>!f.crew.airlockTraversal);assert.deepEqual([f.crew.x,f.crew.y],STAGING.inner);assert.equal(f.controller.airlock.phase,'idle');
 });
 
 test('an attached immobile patient walks only with the rescuer while cargo and original intent survive waiting',()=>{
- const f=fixture(),patient=f.s.crew[1];Object.assign(patient,{x:5,y:7});patient.medical.injury=90;
- f.crew.rescue={patient:patient.id,carrying:true};f.crew.carry={food:1,_food:[{amount:1,age:12}]};f.crew.intent={type:'synthetic-recovery',source:[5,7]};f.crew.job='synthetic-job';
+ const f=fixture(),patient=f.s.crew[1];Object.assign(patient,{x:STAGING.inner[0],y:STAGING.inner[1]});patient.medical.injury=90;
+ f.crew.rescue={patient:patient.id,carrying:true};f.crew.carry={food:1,_food:[{amount:1,age:12}]};f.crew.intent={type:'synthetic-recovery',source:STAGING.inner};f.crew.job='synthetic-job';
  const retained=JSON.stringify({carry:f.crew.carry,intent:f.crew.intent,rescue:f.crew.rescue,job:f.crew.job});
  request(f);until(f,()=>!f.crew.airlockTraversal,{onTick:()=>{
  assert.deepEqual([patient.x,patient.y],[f.crew.x,f.crew.y]);
  assert.equal(JSON.stringify({carry:f.crew.carry,intent:f.crew.intent,rescue:f.crew.rescue,job:f.crew.job}),retained);
- }});assert.deepEqual([patient.x,patient.y],[10,7]);assert.equal(patient.airlockTraversal,null);
+ }});assert.deepEqual([patient.x,patient.y],STAGING.outer);assert.equal(patient.airlockTraversal,null);
 });
 
 test('manual release lets unclaimed crew enter and leave the selected side for repair without a cycle request',()=>{
  const f=fixture();assert.equal(command(f,'release',{side:'inner',acceptAtmosphereLoss:true}).ok,true);
- for(const destination of [[7,7],[5,7]]) {
+ for(const destination of [[7,7],STAGING.inner]) {
  for(let i=0;i<4&&(f.crew.x!==destination[0]||f.crew.y!==destination[1]);i++){
  const result=advanceCrewRoute(f.s,f.crew,f.site,[destination]);assert.notEqual(result.status,'blocked',result.reason||'manual access blocked');
  physicalTick(f);assert.equal(f.crew.airlockTraversal,null);assert.equal(f.controller.airlock.queue.length,0);
  }
  assert.deepEqual([f.crew.x,f.crew.y],destination);
  }
- assert.equal(airlockDoorPermit(f.site,f.crew,[8,7],[9,7]),false);
- const result=advanceCrewRoute(f.s,f.crew,f.site,[[10,7]]);assert.equal(result.status,'blocked');assert.equal(f.crew.airlockTraversal,null);
+ assert.equal(airlockDoorPermit(f.site,f.crew,[8,7],CONFIG.outer),false);
+ const result=advanceCrewRoute(f.s,f.crew,f.site,[STAGING.outer]);assert.equal(result.status,'blocked');assert.equal(f.crew.airlockTraversal,null);
 });
 
 test('queue ordering is stable by urgency, request tick and crew ID without duplicate claims',()=>{
- const f=fixture(),second=f.s.crew[1],urgent=f.s.crew[2];Object.assign(second,{x:5,y:7});Object.assign(urgent,{x:5,y:7,oxygen:1});
+ const f=fixture(),second=f.s.crew[1],urgent=f.s.crew[2];Object.assign(second,{x:STAGING.inner[0],y:STAGING.inner[1]});Object.assign(urgent,{x:STAGING.inner[0],y:STAGING.inner[1],oxygen:1});
  request(f,'outward',second);request(f,'outward',f.crew);request(f,'outward',urgent);request(f,'outward',f.crew);
  assert.deepEqual(f.controller.airlock.queue.map(q=>q.crew),[urgent.id,f.crew.id,second.id]);assert.equal(f.controller.airlock.queue.length,3);
  assert.equal(command(f,'request',{crew:f.crew.id,direction:'inward'}).ok,false);
@@ -141,7 +142,19 @@ test('night and exhausted finite batteries produce a power pause without any gas
 });
 
 test('setup rejects a vent whose only pump route passes through the closed extractor valve',()=>{
- const f=fixture({configure:false});f.tile(8,6).pipe=null;const before=snapshot(f.s);
- const result=command(f,'configure',{chamber:[7,7],inner:[6,7],outer:[9,7],extractor:[7,7],pump:[7,5],reservoir:[7,3],vent:[8,7]});
+ const f=fixture({configure:false});
+ // The lower pump branch reaches the extractor directly; the vent is reachable
+ // only through that extractor until its valve closes. This is a real hex
+ // failure topology, distinct from the valid upper independent vent feed.
+ for(const [x,y] of [[7,6],[8,6],[7,4]])f.tile(x,y).pipe=null;
+ for(const [from,to] of [[f.pump,f.tile(7,9)],[f.reservoir,f.tile(7,11)]]) {
+  to.terrain='floor';to.building=from.building;to.hp=100;
+  for(const field of ['gasDevice','gasStore','powerPriority'])if(Object.hasOwn(from,field)){to[field]=from[field];delete from[field];}
+  from.building=null;
+ }
+ f.tile(7,9).gasDevice.direction='s';
+ for(const [x,y] of [[7,8],[7,10]])f.tile(x,y).pipe=newPipe();
+ updateRooms(f.site);const before=snapshot(f.s);
+ const result=command(f,'configure',{...CONFIG,pump:[7,9],reservoir:[7,11]});
  assert.equal(result.ok,false);assert.equal(result.reason,'layout_changed');assert.equal(snapshot(f.s),before);
 });

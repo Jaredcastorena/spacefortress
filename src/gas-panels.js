@@ -5,7 +5,7 @@ import { airlockControlOwner } from './airlock-access.js';
 import { airlockOwnershipDetails } from './airlock-panels.js';
 
 const gasNames = { oxygen:'Oxygen', inert:'Inert gas', carbonDioxide:'Carbon dioxide', co2:'Carbon dioxide' };
-const directions = { east:'East ↘', south:'South ↙', west:'West ↖', north:'North ↗' };
+const directions={n:'N ↗',ne:'NE →',se:'SE ↘',s:'S ↙',sw:'SW ←',nw:'NW ↖'};
 
 export function gasDetails(site,t) {
   const node=gasNode(t),device=t.gasDevice;

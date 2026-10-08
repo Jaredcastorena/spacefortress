@@ -1,4 +1,3 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
 import { depart as launch } from './helpers/depart.js';
 import { releaseBatteryEnergy } from '../src/power.js';
 import test from 'node:test';
@@ -174,18 +173,9 @@ test('a breach, partially supplied life support and open doors continue determin
   const b = deserialize(serialize(a)); step(a, 80); step(b, 80); assert.deepEqual(a, b);
 });
 
-test('schema-four air percentages migrate into gas quantities with one commissioning supply', () => {
-  const s = createGame(); s.version = 4; delete s.resources.air; delete at(s.sites.surface, 8, 10).stock.air;
-  delete at(s.sites.surface, 7, 7).machine;
-  for (const site of Object.values(s.sites)) {
-    delete site.atmosphere;
-    for (const r of site.rooms) { for (const k of ['gas', 'volume', 'pressure', 'oxygenFraction', 'co2Fraction', 'leakArea']) delete r[k]; r.air = 65; }
-    site.air = site.rooms.length ? 65 : 0;
-    for (const t of site.tiles) { delete t.doorMode; delete t.doorUntil; }
-  }
-  const imported = deserialize(serialize(projectPreAirlock(s))), r = imported.sites.surface.rooms[0];
-  assert.equal(imported.version, VERSION); close(r.pressure, 65); close(r.oxygenFraction, .21);
-  assert.equal(imported.resources.air, 160); assert.deepEqual(deserialize(serialize(imported)), imported);
+test('legacy square schema 4 is rejected before physical state migration',()=>{
+ const legacy=createGame();legacy.version=4;delete legacy.grid;
+ const bytes=JSON.stringify(legacy);assert.throws(()=>deserialize(bytes),/Legacy square-grid saves/);assert.equal(JSON.stringify(legacy),bytes);
 });
 
 test('invalid gases, volumes, cached readings, compartment topology and door states are rejected', () => {
@@ -202,12 +192,7 @@ test('invalid gases, volumes, cached readings, compartment topology and door sta
   reject(s => at(s.sites.surface, 7, 7).machine.batch = { air: 5 });
 });
 
-test('atmosphere migration without a depot leaves the commissioning supply as recoverable cargo', () => {
-  const s = createGame(), depot = at(s.sites.surface, 8, 10); s.version = 4;
-  delete s.resources.air; depot.building = null; delete depot.stock;
-  for (const r of Object.keys(s.resources)) s.resources[r] = 0;
-  const imported = deserialize(serialize(projectPreAirlock(s)));
-  assert.equal(imported.resources.air, 0); assert.equal(totalResources(imported).air, 160);
-  assert.equal(at(imported.sites.surface, 10, 11).drop.air, 160);
-  assert.equal(totalResources(deserialize(serialize(imported))).air, 160);
+test('legacy square schema 4 is rejected before physical state migration',()=>{
+ const legacy=createGame();legacy.version=4;delete legacy.grid;
+ const bytes=JSON.stringify(legacy);assert.throws(()=>deserialize(bytes),/Legacy square-grid saves/);assert.equal(JSON.stringify(legacy),bytes);
 });

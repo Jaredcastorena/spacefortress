@@ -1,3 +1,4 @@
+import { assertSquareProtected } from './helpers/legacy-square.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -7,23 +8,9 @@ import { createGame, at, order, step, serialize, deserialize } from '../src/simu
 import { initializeStorage, totalResources, syncResources, extract, add } from '../src/inventory.js';
 import { initializeElectrical, refreshPower } from '../src/power.js';
 import { newWaterPipe, waterNode } from '../src/plumbing.js';
-import { projectPreOutpost } from './helpers/legacy-projection.js';
 
 const reload = s => deserialize(serialize(s));
 const legacyText = () => gunzipSync(readFileSync(new URL('./fixtures/plumbing-schema34-owned.json.gz', import.meta.url))).toString('utf8');
-
-function asSchema34(s) {
-  const old = projectPreOutpost(s, 34);
-  for (const site of Object.values(old.sites)) {
-    delete site.plumbing;
-    for (const tile of site.tiles) {
-      delete tile.waterPipe;
-      delete tile.waterStore;
-      delete tile.waterDevice;
-    }
-  }
-  return old;
-}
 
 function install(s, kind, x, y) {
   const tile = at(s.sites.surface, x, y);
@@ -38,13 +25,14 @@ function fixture() {
   const s = createGame(35119), site = s.sites.surface;
   for (const tile of site.tiles) if (tile.machine) tile.machine.enabled = false;
   for (const c of s.crew) { c.labors.hauling = false; c.labors.production = false; }
-  const tank = install(s, 'waterTank', 9, 9);
+  const tank = install(s, 'waterTank', 9, 8);
   const intake = install(s, 'waterIntake', 10, 9);
   const pipe = at(site, 11, 9); pipe.waterPipe = newWaterPipe();
   const pump = install(s, 'waterPump', 12, 9);
-  const reservoir = install(s, 'waterReservoir', 13, 9);
-  const outlet = install(s, 'waterOutlet', 13, 8);
-  outlet.waterDevice.direction = 'north'; outlet.waterDevice.mode = 'floor';
+  const reservoir = install(s, 'waterReservoir', 13, 8);
+  const outlet = install(s, 'waterOutlet', 12, 8);
+  intake.waterDevice.direction = 'se'; pump.waterDevice.direction = 'ne';
+  outlet.waterDevice.direction = 'nw'; outlet.waterDevice.mode = 'floor';
   tank.machine.enabled = false;
   add(tank.machine.input, extract(at(site, 8, 10).stock, { water: 6 }));
   for (let x = 9; x <= 13; x++) at(site, x, 9).cable = { enabled: true, hp: 100 };
@@ -81,29 +69,13 @@ test('genuine schema 34 capture includes existing wet ownership, gas, claims and
   }
 });
 
-test('schema 34 migration preserves all existing ownership, reservations, RNG and state without grants', () => {
-  const text = legacyText(), old = JSON.parse(text), migrated = deserialize(text);
-  assert.equal(migrated.version, VERSION);
-  assert.deepEqual(asSchema34(migrated), old);
-  assert.deepEqual(totalResources(migrated), totalResources(old));
-  assert.equal(migrated.rng, old.rng);
-  for (const site of Object.values(migrated.sites)) {
-    assert.deepEqual(site.plumbing, { loaded: 0, recovered: 0, delivered: 0, released: 0 });
-    assert.ok(site.tiles.every(tile => tile.waterPipe === null && tile.waterStore === undefined && tile.waterDevice === undefined));
-  }
-  assert.deepEqual(reload(migrated), migrated);
+test('genuine schema34 plumbing save rejects with all original ownership bytes protected', () => {
+  assertSquareProtected(legacyText());
 });
 
-test('migrated wet floors, damaged tank and partially shipped water continue deterministically', () => {
-  const first = deserialize(legacyText()), second = reload(first);
-  step(first, 18); step(second, 18);
-  assert.deepEqual(first, second);
-  reload(first);
-  assert.ok(first.tick > 0);
-  assert.ok(first.sites.surface.liquids.released > 2, 'the existing damaged tank continues leaking');
-});
 
-test('schema 35 active plumbing reload preserves partial network transfers and cascading floor water', () => {
+
+test('current hex plumbing reload preserves partial network transfers and cascading floor water', () => {
   const f = fixture();
   step(f.s, 5);
   assert.ok(f.site.plumbing.loaded > 0);

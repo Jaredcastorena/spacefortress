@@ -1,9 +1,8 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
+import { distance } from '../src/geometry.js';
 import { resourceEntries } from '../src/inventory.js';
 import { foodAge } from '../src/food-lots.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, cancelJob, setLabor, serialize, deserialize, updateRooms, launch } from '../src/simulation.js';
 import { injure } from '../src/medicine.js';
 import { initializeStorage, syncResources, totalResources } from '../src/inventory.js';
@@ -28,7 +27,7 @@ test('cot construction uses real delivered supplies; a medic carries medicine be
   injure(s, c, 8, 'debris impact'); step(s); const j = s.jobs.find(j => j.kind === 'treat'); assert.ok(j); assert.equal(j.remaining, 20); assert.deepEqual(j.materials, {});
   until(s, () => s.crew.some(worker => worker.delivery?.job === j.id)); assert.equal(totalResources(s).medicine, medicine); assert.equal(c.health, 92);
   until(s, () => j.remaining < j.work); assert.equal(j.materials.medicine, 1); assert.notEqual(j.worker, c.id);
-  const medic = s.crew.find(worker => worker.id === j.worker); assert.ok(Math.abs(medic.x - 10) + Math.abs(medic.y - 9) === 1); assert.equal(c.x, 10); assert.equal(c.y, 9);
+  const medic = s.crew.find(worker => worker.id === j.worker); assert.ok(distance([medic.x, medic.y], [10, 9]) === 1); assert.equal(c.x, 10); assert.equal(c.y, 9);
   until(s, () => !s.jobs.includes(j)); assert.equal(totalResources(s).medicine, medicine - 1); assert.ok(c.health < 100); assert.ok(c.medical.treated > 0);
   until(s, () => c.medical.injury === 0); assert.ok(Math.abs(c.health - 100) < 1e-7); assert.equal(c.medical.bed, null); assert.ok(medic.skills.medicine.xp > 0 || medic.skills.medicine.level > 3);
 });
@@ -98,10 +97,13 @@ test('treatment and convalescence resume deterministically across saves', () => 
   const recovering = deserialize(serialize(s)); step(s, 70); step(recovering, 70); assert.deepEqual(recovering, s);
 });
 
-test('schema-ten migration adds medical state and duties without restoring health or granting supplies', () => {
-  const s = createGame(); s.version = 10; s.crew[0].health = 65; delete s.resources.medicine; delete depot(s).stock.medicine;
-  for (const c of s.crew) { delete c.medical; delete c.skills.medicine; delete c.labors.medicine; if (c.favoriteLabor === 'medicine') c.favoriteLabor = 'engineering'; }
-  const before = totalResources(s), copy = deserialize(serialize(projectPreAirlock(s))); assert.equal(copy.version, VERSION); assert.equal(copy.crew[0].health, 65); assert.deepEqual(totalResources(copy), before); assert.equal(copy.crew[5].skills.medicine.level, 3);
+test('medical health, duties and supplies reload exactly and reject a legacy schema label', () => {
+  const s = createGame(); injure(s, s.crew[0], 35, 'debris impact');
+  const before = structuredClone(s), supplies = totalResources(s), copy = deserialize(serialize(s));
+  assert.deepEqual(copy, before); assert.deepEqual(totalResources(copy), supplies);
+  const forged = JSON.parse(serialize(s)); forged.version = 10; const original = JSON.stringify(forged);
+  assert.throws(() => deserialize(original), /Legacy square-grid saves/);
+  assert.equal(JSON.stringify(forged), original); assert.deepEqual(s, before);
 });
 
 test('invalid medical state, duplicate cot claims and invalid treatment doses are rejected', () => {

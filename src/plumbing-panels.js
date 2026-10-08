@@ -1,7 +1,7 @@
 import { BUILDINGS } from './data.js';
 import { WATER_DIRECTIONS, waterNode, waterCapacity, plumbingStatus } from './plumbing.js';
 
-const directions={east:'East ↘',south:'South ↙',west:'West ↖',north:'North ↗'};
+const directions={n:'N ↗',ne:'NE →',se:'SE ↘',s:'S ↙',sw:'SW ←',nw:'NW ↖'};
 const slots={'machine.input':'delivered supply','machine.output':'finished output',waterPipe:'water pipe',waterStore:'reservoir',liquid:'floor water'};
 const amount=n=>Number.isFinite(n)?n.toFixed(3):'—';
 function endpoint(site,id,slot){

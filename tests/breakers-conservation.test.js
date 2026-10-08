@@ -30,7 +30,7 @@ function device(site,x,y,kind,charge=0) {
   if(kind==='reactor') t.machine.input.fuel=1;
   return t;
 }
-function breaker(site,x,y,mode='wet_fault',direction='east') {
+function breaker(site,x,y,mode='wet_fault',direction='ne') {
   const t=device(site,x,y,'breaker');
   t.protection={kind:'breaker',direction,enabled:true,mode,tripped:false,cause:null};
   return t;
@@ -54,9 +54,9 @@ function overheatHabitat(site,t) {
 }
 function branch({source='reactor',bank=0,load=null}={}) {
   const f=grid(),{s,site}=f;
-  const generator=device(site,7,8,source), relay=breaker(site,8,8), fault=wire(site,9,8,true);
-  const battery=bank?device(site,10,8,'battery',bank):null;
-  const consumer=load?device(site,9,9,load):null;
+  const generator=device(site,7,8,source), relay=breaker(site,8,8), fault=wire(site,9,7,true);
+  const battery=bank?device(site,10,7,'battery',bank):null;
+  const consumer=load?device(site,9,6,load):null;
   refreshPower(s,site);
   return {...f,generator,relay,fault,battery,consumer};
 }
@@ -76,7 +76,7 @@ test('power previews, breaker inspection and power validation leave physical sta
 });
 
 test('a discarded supplied-fault preview produces no phantom battery discharge, fault heat or cable damage',()=>{
-  const {s,site}=grid(),bank=device(site,7,8,'battery',8),relay=breaker(site,8,8),fault=wire(site,9,8,true);
+  const {s,site}=grid(),bank=device(site,7,8,'battery',8),relay=breaker(site,8,8),fault=wire(site,9,7,true);
   refreshPower(s,site);const initialHeat=heat(site),hp=fault.cable.hp;
   assert.ok(previewPower(s,site).suppliedFaults.has(fault));
   updatePower(s,site);
@@ -98,7 +98,7 @@ test('output-side battery backfeed commits one real wet fault after upstream pro
 
 test('an alternate generator on the isolated output still feeds real faults, loads and battery charging',()=>{
   const {s,site,generator,relay,fault,consumer}=branch({source:'solar',load:'scrubber'});
-  const downstream=device(site,10,8,'advanced'),bank=device(site,11,8,'battery',0),initialHeat=heat(site);
+  const downstream=device(site,10,7,'advanced'),bank=device(site,11,7,'battery',0),initialHeat=heat(site);
   refreshPower(s,site);updatePower(s,site);
   assert.equal(relay.protection.tripped,true);assert.equal(consumer.powered,true);
   close(site.energy.generated,16);close(site.energy.consumed,8);close(bank.charge,4);close(site.energy.curtailed,4);
@@ -130,8 +130,8 @@ for(const spec of [
 });
 
 test('series relays batch-trip deterministically and the discarded plan cannot duplicate reactor fuel or heat',()=>{
-  const {s:a,site}=grid(),reactor=device(site,7,8,'reactor'),first=breaker(site,8,8),second=breaker(site,10,8);
-  wire(site,9,8);const fault=wire(site,11,8,true);refreshPower(a,site);
+  const {s:a,site}=grid(),reactor=device(site,7,8,'reactor'),first=breaker(site,8,8),second=breaker(site,10,7);
+  wire(site,9,7);const fault=wire(site,11,6,true);refreshPower(a,site);
   const b=structuredClone(a),initialHeat=heat(site);
   for(const s of [a,b]) {startRecording(s,{maxRecords:1000,maxBytes:32000000});updatePower(s,s.sites.surface);}
   assert.deepEqual(a,b);assert.equal(first.protection.tripped,true);assert.equal(second.protection.tripped,true);
@@ -145,7 +145,7 @@ test('series relays batch-trip deterministically and the discarded plan cannot d
 
 test('a second fault revealed by the first trip causes another plan but only one finite reactor commit',()=>{
   const {s,site}=grid(),reactor=device(site,7,9,'reactor');reactor.reactor.output=15;
-  wire(site,8,9);wire(site,8,8);wire(site,8,10);
+  wire(site,8,9);wire(site,8,8);wire(site,8,10);wire(site,8,11);
   const first=breaker(site,9,8),second=breaker(site,9,10),a=wire(site,10,8,true),b=wire(site,10,10,true);
   refreshPower(s,site);assert.equal(previewPower(s,site).suppliedFaults.size,1,'six units supply can serve only one five-unit fault');
   startRecording(s,{maxRecords:1000,maxBytes:32000000});updatePower(s,site);

@@ -1,3 +1,4 @@
+import { distance, neighbors } from '../src/geometry.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, launch, cancelDeparture, recall, step, at, order, setLabor, serialize, deserialize, updateRooms } from '../src/simulation.js';
@@ -47,7 +48,7 @@ test('a selected member going off duty after loading stays home until their rout
   for (let i = 0; i < 12; i++) {
     const before = [c.x, c.y]; step(s);
     assert.equal(s.mission, null); assert.equal(c.site, 'surface'); assert.deepEqual(s.departure.crew, TEAM);
-    assert.ok(Math.abs(c.x - before[0]) + Math.abs(c.y - before[1]) <= 1);
+    assert.ok(distance([c.x, c.y], before) <= 1);
   }
   assert.equal(c.intent?.type, 'leisure'); close(totalResources(s).fuel, fuel);
   assert.ok(setLifePolicy(s, c.id, 'work').ok); launchPhysically(s);
@@ -95,8 +96,8 @@ test('selected construction carriers finish their real shipment without losing t
   const s = colony(), site = s.sites.surface, [builder] = members(s);
   for (const c of s.crew) { c.labors.construction = c.id === builder.id; c.labors.hauling = c.id === 'crew-4'; }
   const target = at(site, 20, 18); target.terrain = 'ground'; target.building = null;
-  for (const [x, y] of [[19, 18], [21, 18], [20, 17], [20, 19]]) {
-    const t = at(site, x, y); t.terrain = 'floor'; t.building = x === 19 ? 'door' : 'wall';
+  for (const [x, y] of neighbors(20, 18)) {
+    const t = at(site, x, y); t.terrain = 'floor'; t.building = x === 19 && y === 18 ? 'door' : 'wall';
   }
   updateRooms(site); setDoorMode(s, 'surface', 19, 18, 'auto');
   const j = order(s, 'surface', 20, 18, 'build', 'solar').job; assert.ok(j);
@@ -122,7 +123,7 @@ test('a selected rescuer keeps their patient claim and carries them to shelter b
   assert.equal(carriedBy(s, patient).id, rescuer.id); assert.equal(s.mission, null); assert.deepEqual(s.departure.crew, ids);
   for (let i = 0; i < 3 && carriedBy(s, patient); i++) {
     const before = [patient.x, patient.y]; step(s); assert.equal(s.mission, null);
-    assert.ok(Math.abs(patient.x - before[0]) + Math.abs(patient.y - before[1]) <= 1);
+    assert.ok(distance([patient.x, patient.y], before) <= 1);
     if (rescuer.rescue) assert.equal(rescuer.rescue.patient, patient.id);
   }
   until(s, () => atCot(s, patient) && !carriedBy(s, patient));

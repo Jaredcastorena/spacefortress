@@ -1,4 +1,4 @@
-export const VERSION = 39;
+export const VERSION = 40;
 export const RESOURCES = ['alloy', 'ore', 'components', 'food', 'water', 'fuel', 'cells', 'air', 'medicine', 'waste', 'fertilizer', 'keepsakes', 'ice'];
 export const BUILDINGS = {
   airlockController:{name:'Airlock controller',cost:{alloy:4,components:1},work:8,demand:1,description:'Controls two pressure doors and an isolated gas recovery network. Uses 1 kW while enabled. Requires a habitat floor, wired power, a sealed chamber and separately built gas equipment. Retains real gas between measured pressure cycles.'},

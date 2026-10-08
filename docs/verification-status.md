@@ -2,13 +2,24 @@
 
 Updated October 8, 2026. This is the compact evidence index for implemented and proposed systems. **Verified** means the named scope passed its stated check. **Pending** means evidence is not yet complete. **Failed** means a known check contradicts the requirement. None of these rows declares the whole game finished.
 
-## Unreleased airlock checkpoint — schema39
+## Unreleased hex colony and cycling airlocks — schema 40
 
-- **Verified, synthetic boundaries:** both pressure-cycle directions, finite gas/smoke/energy accounting, valve-specific routing, interruption/reload, strict controls, detached observations, manual chamber access and retained work/parcels/meals/patients. See `tests/airlock-core.test.js`, `tests/airlock-integration.test.js` and `tests/airlock-ui.test.js`.
-- **Verified, regression:** the full Node run produced 968 passes, 33 failures in legacy fixtures and one intentional skip. Explicit fixture/projection corrections then passed all 33 named retests. Combined coverage is **1,001 passes and one intentional skip**; all 86 runtime source files were unchanged throughout the gate. Python coverage is **26 passes** after adding five runtime modules to the build manifest and rechecking manifest completeness.
-- **Pending:** ordinary paid construction and parcel roundtrip. The planned new-colony run was stopped before any actions when the user selected a hexagonal grid.
-- **Pending:** browser layout, held-focus and action-click checks. Panel tests pass; browser acceptance stopped because no browser was connected. No publication occurred.
-- **Planned:** true six-neighbor hex geometry with the isometric view retained. Current gameplay still uses square geometry; prior tests do not establish hex behavior.
+| Check | Status | Evidence and scope |
+| --- | --- | --- |
+| Shared hex geometry | Verified — scoped tests | `tests/hex-geometry.test.js`: odd/even columns, six reciprocal edges, axial distance, negative coordinates, deterministic inverse and bounded tile lookup. `tests/hex-movement.test.js` checks six-sided work access and boundaries. Stable row-major tile IDs remain. |
+| Finite physical systems | Verified — scoped tests | Hex physical, electrical, movement and existing domain suites cover sealed rooms, gas/water/heat exchange, six device orientations, power and livestock. Per-edge rates are retained; aggregate exchange can increase with six edges. This is not a full balance or performance study. |
+| Physical airlock cycles | Verified — synthetic boundaries | `tests/hex-airlock.test.js`, `tests/airlock-core.test.js` and integration tests cover both column parities, all orientations, four side walls per door, finite gas/smoke/energy, mode-specific routing, interruption/reload, strict shared controls, manual chamber access and retained work/parcels/meals/patients. |
+| New game and saves | Verified — scoped tests | `tests/hex-integration.test.js` and persistence tests cover a sealed 35-tile starting room, reachable original shuttle anchor, schema/grid identity and exact reload. Square schemas 1–39 reject before topology recomputation; storage protects and exports original bytes. Historical compressed fixtures remain unchanged. No square-to-hex migration is provided. |
+| Combined regression gate | Verified | One full Node run produced 1,037 passes, four fixture-layout failures and one intentional skip. Correcting those four layouts passed all four named retests; combined coverage is **1,041 passes and one intentional skip**. All 87 runtime source hashes remained unchanged throughout. Python **26/26** passed, including runtime asset-manifest completeness. Local immutable receipt: `hex-combined-gate-sha256-697c74585f3f34040dee1289ecbdeb8f7455b4659bab78db933560013b1fcb09.json`. |
+| Real browser view and input | Verified — scoped Chrome check | Isolated local Chrome: hex ground/prisms and alien sprites; pointer hover/selection on both column parities; wall preview; imported airlock gas overlay; 390 CSS-pixel/DPR2 inspector without horizontal overflow; focused chamber input survives an 800 ms refresh. Root inspected startup and narrow screenshots. No scoped runtime errors. The fixture stayed at tick 0; no construction was submitted. Receipt: `hex-view-verification-sha256-811682cf8587cd7c2b018eabb50dd1f90aa6fd7488de5a8174464113923b25e9.md`. |
+| Ordinary airlock construction and parcel journey | Pending | The square plan stopped at zero actions/ticks when hexes were chosen. The hex construction plan needs acceptance using actual manufacturing, labor, supplies and both travel directions. Synthetic fixtures do not establish this. |
+| Held-pointer form submission | Pending | Panel tests and live focus retention passed; actual form submission across a refresh has not been checked in the hex browser. |
+
+This development build has not been published. The independent gravity-based elements laboratory retains its square grid. Detailed saves, traces, screenshots and receipts stay in private local `.runtime-qa/`; the public tests provide reproducible scoped coverage.
+
+### Preserved square airlock checkpoint — schema 39
+
+Local commit `418d0c0` preserves the preceding square version. Its combined gate had 1,001 Node passes, one intentional skip and 26 Python passes. It did not complete ordinary paid construction or real-browser acceptance. Those historical results do not establish hex behavior.
 
 ## v0.1.2 wreck settlement preview — schema 38
 

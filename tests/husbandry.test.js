@@ -1,7 +1,6 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
+import { neighbors } from '../src/geometry.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, cancelJob, serialize, deserialize, setLabor, setAnimalPost, setAnimalPolicy, pathTo } from '../src/simulation.js';
 import { totalResources, syncResources } from '../src/inventory.js';
 import { setMachineEnabled } from '../src/industry.js';
@@ -43,7 +42,7 @@ test('cancelled feeding returns supplies and waits before automatic retry',()=>{
 });
 
 test('an animal must walk to the post before any handler can finish the visit',()=>{
- const {s,site,a,h}=colony();setAnimalPost(s,a.id,10,15);for(const [x,y] of [[9,15],[11,15],[10,14],[10,16]])at(site,x,y).building='wall';step(s,15);assert.equal(h.trust,0);assert.match(husbandryStatus(s,a,pathTo),/route blocked/);
+ const {s,site,a,h}=colony();setAnimalPost(s,a.id,10,15);for(const [x,y] of neighbors(10,15))at(site,x,y).building='wall';step(s,15);assert.equal(h.trust,0);assert.match(husbandryStatus(s,a,pathTo),/route blocked/);
  at(site,9,15).building=null;until(s,()=>h.trust>=40);check(s);
 });
 
@@ -73,8 +72,13 @@ test('starvation kills once and cancels care without consuming its undelivered f
  const {s,a,h}=colony();setAnimalPost(s,a.id,10,15);a.health=.1;a.fed=0;const before=totalResources(s);startRecording(s);step(s);assert.equal(a.health,0);assert.equal(care(s),undefined);assert.equal(totalResources(s).food,before.food);step(s,3);const events=exportRecording(s).trim().split('\n').map(JSON.parse);assert.equal(events.filter(r=>r.event?.id==='animal.died').length,1);check(s);
 });
 
-test('schema twenty-five migration adds wild state and duties without changing animal locations or supplies',()=>{
- const {s}=colony({post:false});s.version=25;for(const a of s.creatures)delete a.husbandry;for(const c of s.crew){delete c.skills.husbandry;delete c.labors.husbandry;}const before=totalResources(s),positions=s.creatures.map(a=>[a.x,a.y]);const copy=check(projectPreAirlock(s));assert.equal(copy.version, VERSION);assert.deepEqual(totalResources(copy),before);assert.deepEqual(copy.creatures.map(a=>[a.x,a.y]),positions);assert.ok(copy.creatures.every(a=>a.husbandry.trust===0&&a.husbandry.post===null));assert.equal(copy.crew[3].skills.husbandry.level,2);
+test('animal locations, supplies and duties reload exactly and reject a legacy schema label', () => {
+  const { s } = colony({ post: false });
+  const before = structuredClone(s), supplies = totalResources(s), copy = deserialize(serialize(s));
+  assert.deepEqual(copy, before); assert.deepEqual(totalResources(copy), supplies);
+  const forged = JSON.parse(serialize(s)); forged.version = 25; const original = JSON.stringify(forged);
+  assert.throws(() => deserialize(original), /Legacy square-grid saves/);
+  assert.equal(JSON.stringify(forged), original); assert.deepEqual(s, before);
 });
 
 test('pending deliveries and partially handled animals continue deterministically after reload',()=>{

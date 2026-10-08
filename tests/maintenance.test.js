@@ -1,4 +1,3 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -105,12 +104,9 @@ test('pending service deliveries and forecast impacts continue identically after
   const copy = deserialize(serialize(s)); step(s, 100); step(copy, 100); assert.deepEqual(copy, s);
 });
 
-test('schema-six migration adds fresh service records and a future forecast without changing inventories or energy', () => {
-  const { s } = fixture(); step(s, 10); s.version = 6; delete s.debris;
-  for (const site of Object.values(s.sites)) { delete site.incidents; for (const t of site.tiles) delete t.maintenance; }
-  const before = totalResources(s), energy = s.sites.surface.energy, copy = deserialize(serialize(projectPreAirlock(s)));
-  assert.equal(copy.version, VERSION); assert.deepEqual(totalResources(copy), before); assert.deepEqual(copy.sites.surface.energy, energy);
-  assert.equal(at(copy.sites.surface, 7, 7).maintenance.usage, 0); assert.equal(copy.debris.next, 1210); assert.deepEqual(deserialize(serialize(copy)), copy);
+test('legacy square schema 6 is rejected before physical state migration',()=>{
+ const legacy=createGame();legacy.version=6;delete legacy.grid;
+ const bytes=JSON.stringify(legacy);assert.throws(()=>deserialize(bytes),/Legacy square-grid saves/);assert.equal(JSON.stringify(legacy),bytes);
 });
 
 test('invalid usage, service dates, incident records and forecasts are rejected', () => {

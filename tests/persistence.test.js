@@ -1,4 +1,4 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
+import { legacyText, assertSquareProtected } from './helpers/legacy-square.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -25,12 +25,10 @@ test('an explicit replacement clears load protection only after storage succeeds
   storeColony(() => storage, session, session.state, true);
   assert.equal(session.error, null); assert.equal(session.original, null); assert.equal(storage.getItem(SAVE_KEY), serialize(session.state));
 });
-test('new storage, supported legacy saves and denied storage access have distinct outcomes', () => {
+test('new storage, protected square saves and denied storage access have distinct outcomes', () => {
   const empty = memoryStorage(), fresh = loadColony(() => empty); assert.equal(fresh.fresh, true); assert.equal(fresh.error, null);
   storeColony(() => empty, fresh, fresh.state); assert.equal(empty.getItem(SAVE_KEY), serialize(fresh.state));
-  const legacy = createGame(); legacy.version = 3;
-  const storage = memoryStorage(serialize(projectPreAirlock(legacy))), session = loadColony(() => storage);
-  assert.equal(session.error, null); assert.equal(session.state.version, VERSION); assert.equal(session.fresh, false);
+  assertSquareProtected(legacyText('outpost-pre36-outbound'));
   const denied = loadColony(() => { throw new Error('Storage access denied'); });
   assert.equal(denied.error, 'Storage access denied'); assert.equal(denied.original, null);
 });

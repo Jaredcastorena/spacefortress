@@ -1,8 +1,9 @@
+import { GRID, neighbors, distance, tileAt } from './geometry.js';
 import { prepareAirlocks, gateAirlocks, reconcileAirlocks, cancelAirlock, invalidateAirlockPart } from './airlocks.js';
-import { initializeAirlocks, assertLegacyAirlocks, validateAirlocks } from './airlock-persistence.js';
+import { initializeAirlocks, validateAirlocks } from './airlock-persistence.js';
 import { advanceCrewRoute, continueCrewTraversal } from './crew-traversal.js';
 import { airlockControlOwner } from './airlock-access.js';
-import { assertLegacyFreightState, migrateFreightState, validateFreightState } from './freight-persistence.js';
+import { validateFreightState } from './freight-persistence.js';
 import { isFreightJob, freightRequest, reserveFreight, freightOrdered, completeFreight, freightCancellation, freightWorkValid } from './freight.js';
 import { expeditionLaunchBlock, selectExpeditionCrew, expeditionCrewCountAllowed } from './expedition-readiness.js';
 import { validateBreakers } from './breakers.js';
@@ -48,16 +49,16 @@ export { updateRooms, roomAt } from './atmosphere.js';
 import { isDay, updatePower, refreshPower, initializePower, initializeElectrical, releaseBatteryEnergy, BATTERY_CAPACITY, validatePower } from './power.js';
 import { initializeReliability, maintainable, completeService, recordOperation, updateDebris, scheduleMaintenance, validateReliability } from './maintenance.js';
 import { initializeShuttle, routeTime, routeFuel, haulSalvage, boardShuttle, returnWalk, dockAt, validateShuttle, returnCrewIds, returnCrewMembers, allReturnTravelersDead } from './expedition.js';
-import { initializeOutpostState, assertLegacyOutpostState, migrateOutpostState, validateOutpostState } from './outpost-persistence.js';
+import { initializeOutpostState, validateOutpostState } from './outpost-persistence.js';
 import { isResident, shuttlePresence } from './outposts.js';
 import { initializePreflight, planDeparture, loadingCost, updateDeparture, walkToDeparture, boardingDeparture, tryDeparture, spendReturnFuel, deployKit, validatePreflight } from './preflight.js';
 import { initializeCrewLife, prepareDowntime, leisure, updateCrewLife, validateCrewLife } from './crew-life.js';
 export { isDay, updatePower } from './power.js';
 
 export const key = (x, y) => `${x},${y}`;
-export const at = (site, x, y) => site.tiles[y * site.size + x];
-export const inside = (site, x, y) => x >= 0 && y >= 0 && x < site.size && y < site.size;
-export const neighbors = (x, y) => [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]];
+export const at = tileAt;
+export const inside = (site, x, y) => !!tileAt(site, x, y);
+export { neighbors } from './geometry.js';
 
 export function random(s) {
   let x = s.rng | 0; x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
@@ -67,7 +68,7 @@ function createSite(id, size) {
   return { id, size, air: 0, power: { output: 0, demand: 0, battery: 0, capacity: 0 }, rooms: [], explored: id === 'surface' || id === 'wreck', tiles: Array.from({ length: size * size }, (_, i) => ({ x: i % size, y: Math.floor(i / size), terrain: id === 'surface' ? 'ground' : 'void', building: null, hp: 100, drop: null, variant: i % 4, powered: false, cable: null })) };
 }
 export function createGame(seed = 74219) {
-  const s = { version: VERSION, seed, rng: seed || 1, tick: 0, nextId: 1, resources: { alloy: 36, ore: 0, components: 3, food: 24, water: 40, fuel: 14, cells: 0, air: 160, medicine: 4, waste: 0, fertilizer: 8, keepsakes: 0, ice: 0 }, sites: {}, crew: [], creatures: [], anomaly: null, jobs: [], log: [], mission: null, stats: { built: 0, mined: 0, returned: 0, solarCells: 0, trapped: 0 }, comet: { arrives: 180, leaves: 480 }, flags: {}, objectives: {} };
+  const s = { version: VERSION, grid: GRID, seed, rng: seed || 1, tick: 0, nextId: 1, resources: { alloy: 36, ore: 0, components: 3, food: 24, water: 40, fuel: 14, cells: 0, air: 160, medicine: 4, waste: 0, fertilizer: 8, keepsakes: 0, ice: 0 }, sites: {}, crew: [], creatures: [], anomaly: null, jobs: [], log: [], mission: null, stats: { built: 0, mined: 0, returned: 0, solarCells: 0, trapped: 0 }, comet: { arrives: 180, leaves: 480 }, flags: {}, objectives: {} };
   const ground = s.sites.surface = createSite('surface', 26);
   for (const t of ground.tiles) {
     const edge = t.x < 4 || t.y < 3 || t.x > 20 || t.y > 20;
@@ -75,9 +76,14 @@ export function createGame(seed = 74219) {
     if (random(s) < (edge ? .36 : .08)) t.terrain = random(s) < .35 ? 'ore' : 'rock';
   }
   for (let y = 5; y <= 16; y++) for (let x = 5; x <= 18; x++) { const t = at(ground, x, y); t.terrain = 'ground'; }
-  for (let y = 6; y <= 12; y++) for (let x = 6; x <= 14; x++) {
-    const t = at(ground, x, y); t.terrain = 'floor';
-    if (x === 6 || x === 14 || y === 6 || y === 12) t.building = 'wall';
+  // Derive the hull from every edge of the usable floor cells. This also
+  // encloses the staggered edges at odd and even columns without corner gaps.
+  const habitat = ground.tiles.filter(t => t.x >= 7 && t.x <= 13 && t.y >= 7 && t.y <= 11);
+  const interior = new Set(habitat.map(t => key(t.x, t.y)));
+  for (const t of habitat) t.terrain = 'floor';
+  for (const t of habitat) for (const [x, y] of neighbors(t.x, t.y)) {
+    if (interior.has(key(x, y))) continue;
+    const hull = at(ground, x, y); hull.terrain = 'floor'; hull.building = 'wall';
   }
   at(ground, 10, 12).building = 'door';
   const initial = [[7, 7, 'scrubber'], [9, 7, 'bunk'], [10, 7, 'bunk'], [11, 7, 'bunk'], [12, 7, 'bunk'], [13, 7, 'battery'], [7, 9, 'farm'], [8, 10, 'stockpile'], [13, 10, 'refinery'], [7, 14, 'solar'], [8, 14, 'solar'], [9, 14, 'solar'], [16, 11, 'shuttle']];
@@ -88,15 +94,20 @@ export function createGame(seed = 74219) {
   s.crew = CREW_NAMES.map((name, i) => ({ id: `crew-${i}`, name, role: ROLES[i], color: ['#dfb06d', '#8dccc3', '#e89577', '#9cb778', '#a6a6de', '#df99ad', '#b4c0c8'][i], site: 'surface', x: 8 + i % 5, y: 9 + Math.floor(i / 5), health: 100, hunger: 90, energy: 90, oxygen: 100, job: null, activity: 'Settling in', skill: 1 + (i % 3) * .25 }));
   s.crew.forEach(initializeCrew); initializeCrewLife(s); initializeMedicine(s); initializeNursing(s);
   const wreck = s.sites.wreck = createSite('wreck', 18);
-  for (let y = 5; y <= 12; y++) for (let x = 3; x <= 14; x++) { const t = at(wreck, x, y); t.terrain = 'deck'; if ((y === 5 || x === 14) && x !== 8) t.building = 'wall'; }
+  // The exposed wreck and collector platform use joined hex disks; their
+  // decks remain decompressed, with continuous routes from the fixed docks.
+  for (const t of wreck.tiles) if (Math.min(distance([t.x,t.y],[6,8]), distance([t.x,t.y],[11,8])) <= 4) {
+    t.terrain = 'deck';
+    if ((t.y === 4 || t.x === 15) && t.x !== 8) t.building = 'wall';
+  }
   for (const [x, y] of [[5, 6], [7, 7], [12, 6], [12, 10], [8, 10]]) at(wreck, x, y).building = 'salvage';
   at(wreck, 4, 11).building = 'dock';
   const comet = s.sites.comet = createSite('comet', 18);
-  for (const t of comet.tiles) if ((t.x - 8) ** 2 / 49 + (t.y - 9) ** 2 / 25 < 1) t.terrain = 'ice';
+  for (const t of comet.tiles) if (distance([t.x,t.y], [8,9]) <= 5) t.terrain = 'ice';
   at(comet, 5, 10).building = 'dock';
   for (const [x, y] of [[8, 7], [10, 8], [11, 10], [8, 11]]) at(comet, x, y).building = 'volatile';
   const solar = s.sites.solar = createSite('solar', 18);
-  for (let y = 7; y < 12; y++) for (let x = 4; x < 13; x++) at(solar, x, y).terrain = 'deck';
+  for (const t of solar.tiles) if (Math.min(distance([t.x,t.y],[6,9]), distance([t.x,t.y],[10,9])) <= 2) t.terrain = 'deck';
   at(solar, 5, 10).building = 'dock'; at(solar, 10, 8).building = 'collector';
   log(s, 'Kepler’s Rest established. Seven crew. One small foothold.', 'good');
   log(s, 'Relay K-07 detected in near orbit. Its components could transform this colony.', 'discovery');
@@ -653,7 +664,7 @@ function updateEcology(s) {
     if (creature.species === 'bristleback') {
       const tile = at(site, creature.x, creature.y);
       if (tile.lichen > 0) { const eaten=Math.min(adult(creature)?5:2.5,tile.lichen);tile.lichen -= eaten; creature.fed = Math.min(100, creature.fed + 4);emitEvent(s,'animal.grazed',{entity:creature.id,target:tileEntityId('surface',tile.x,tile.y),lichen:eaten}); }
-      else { const choices = neighbors(creature.x, creature.y).filter(([x, y]) => animalPassable(site, x, y) && at(site, x, y).terrain === 'ground' && (!at(site, x, y).building || ['fence','pastureGate','husbandryPost'].includes(at(site,x,y).building)) && (roamPasture || !creature.husbandry.post || Math.abs(x-creature.husbandry.post[0])+Math.abs(y-creature.husbandry.post[1])<=2)); if (choices.length) { choices.sort((a, b) => (at(site, ...b).lichen || 0) - (at(site, ...a).lichen || 0)); moveAnimal(s,creature,choices[Math.floor(random(s) * Math.min(2, choices.length))],'grazing'); } }
+      else { const choices = neighbors(creature.x, creature.y).filter(([x, y]) => animalPassable(site, x, y) && at(site, x, y).terrain === 'ground' && (!at(site, x, y).building || ['fence','pastureGate','husbandryPost'].includes(at(site,x,y).building)) && (roamPasture || !creature.husbandry.post || distance([x,y],creature.husbandry.post)<=2)); if (choices.length) { choices.sort((a, b) => (at(site, ...b).lichen || 0) - (at(site, ...a).lichen || 0)); moveAnimal(s,creature,choices[Math.floor(random(s) * Math.min(2, choices.length))],'grazing'); } }
     } else {
       const foodTiles = site.tiles.filter(t => (t.stock?.food || 0) >= 1 || (t.machine?.output.food || 0) >= 1 || (t.drop?.food || 0) >= 1);
       const p = animalPath(site, creature, foodTiles.map(t => [t.x, t.y]));
@@ -673,8 +684,8 @@ function updateEcology(s) {
   }
   updateBreeding(s,positions);
   if (s.tick % 10 === 0) for (const trap of site.tiles.filter(t => t.building === 'trap')) {
-    const pest = s.creatures.find(c => c.species === 'tibble' && c.health>0 && Math.abs(c.x - trap.x) + Math.abs(c.y - trap.y) <= 6);
-    if (pest && spend(s, { food: .25 }, t => Math.abs(t.x - trap.x) + Math.abs(t.y - trap.y) <= 6 && pathTo(site, t, [[trap.x, trap.y]]) !== null)) { s.creatures = s.creatures.filter(c => c.id !== pest.id); s.stats.trapped++;emitEvent(s,'pest.captured',{entity:pest.id,target:tileEntityId('surface',trap.x,trap.y)}); log(s, 'Biofilter trap secured a tibble. Cargo infestation reduced.', 'good'); }
+    const pest = s.creatures.find(c => c.species === 'tibble' && c.health>0 && distance([c.x,c.y],[trap.x,trap.y]) <= 6);
+    if (pest && spend(s, { food: .25 }, t => distance([t.x,t.y],[trap.x,trap.y]) <= 6 && pathTo(site, t, [[trap.x, trap.y]]) !== null)) { s.creatures = s.creatures.filter(c => c.id !== pest.id); s.stats.trapped++;emitEvent(s,'pest.captured',{entity:pest.id,target:tileEntityId('surface',trap.x,trap.y)}); log(s, 'Biofilter trap secured a tibble. Cargo infestation reduced.', 'good'); }
   }
   if (s.tick % 60 === 0) for (const t of site.tiles) if (t.lichen !== undefined) t.lichen = Math.min(100, t.lichen + 2);
 }
@@ -702,24 +713,14 @@ export function serialize(s) { return JSON.stringify(s); }
 export function deserialize(text) {
   if (text.length > 5_000_000) throw new Error('Save is too large.');
   const s = JSON.parse(text);
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, VERSION].includes(s?.version) || !Number.isSafeInteger(s.tick) || s.tick < 0 || !Number.isInteger(s.rng) || !Number.isSafeInteger(s.nextId)) throw new Error('Unsupported or invalid save.');
+  if (Number.isInteger(s?.version) && s.version >= 1 && s.version <= 39) throw new Error('Legacy square-grid saves (schemas 1–39) cannot be loaded into the hex colony. Export the original save and use the preserved square version to continue it.');
+  if (s?.version !== VERSION || s.grid !== GRID) throw new Error('Unsupported save topology: schema 40 requires grid hex-odd-q-v1.');
+  if ( !Number.isSafeInteger(s.tick) || s.tick < 0 || !Number.isInteger(s.rng) || !Number.isSafeInteger(s.nextId)) throw new Error('Unsupported or invalid save.');
   if (!s.sites || !Array.isArray(s.crew) || s.crew.length !== 7 || !Array.isArray(s.jobs) || !Array.isArray(s.log) || !s.stats || !s.comet || !s.flags || !s.objectives) throw new Error('Incomplete save.');
-  assertLegacyOutpostState(s); assertLegacyFreightState(s); if(s.version<39)assertLegacyAirlocks(s);
-  if(s.version<35&&s.jobs.some(j=>['repairWaterPipe','removeWaterPipe'].includes(j?.kind)||j?.kind==='build'&&(j.building==='waterPipe'||waterEquipment({building:j.building}))))throw new Error('Plumbing work is not valid in this older save.');
-  if(s.version<36&&s.jobs.some(j=>j?.building==='breaker'))throw new Error('Breaker work is not valid in this older save.');
-  if(s.version<24&&s.resources&&s.resources.ice===undefined)s.resources.ice=0;
-  if(s.version<23&&s.resources&&s.resources.keepsakes===undefined)s.resources.keepsakes=0;
-  if (s.version < 17 && s.resources && s.resources.fertilizer === undefined) s.resources.fertilizer = 0;
-  if (s.version < 16 && s.resources && s.resources.waste === undefined) s.resources.waste = 0;
-  if (s.version < 11 && s.resources && s.resources.medicine === undefined) s.resources.medicine = 0;
-  const retrofitAir = s.version < 5 && s.resources && s.resources.air === undefined;
-  if (retrofitAir) s.resources.air = 160;
   for (const r of RESOURCES) if (!Number.isFinite(s.resources?.[r]) || s.resources[r] < 0) throw new Error('Invalid resources.');
   for (const id of Object.keys(SITES)) {
     const site = s.sites[id], size = id === 'surface' ? 26 : 18;
     if (site?.id !== id || site.size !== size || site.tiles?.length !== size ** 2 || !Array.isArray(site.rooms) || !site.power) throw new Error('Invalid site.');
-    if(s.version<35&&site.tiles.some(t=>waterEquipment(t)||t.building==='waterPipe'))throw new Error('Plumbing equipment is not valid in this older save.');
-    if(s.version<36&&site.tiles.some(t=>t.building==='breaker'||t.protection!==undefined))throw new Error('Breaker protection is not valid in this older save.');
     site.tiles.forEach((t, i) => { if (t.x !== i % size || t.y !== Math.floor(i / size) || !['ground', 'rock', 'ore', 'floor', 'deck', 'ice', 'void'].includes(t.terrain) || (t.building && !BUILDINGS[t.building] && !['shuttle', 'dock', 'salvage', 'volatile', 'collector'].includes(t.building)) || !Number.isFinite(t.hp)) throw new Error('Invalid tile.'); });
   }
   const ids = new Set();
@@ -727,113 +728,10 @@ export function deserialize(text) {
     if (ids.has(c.id) || typeof c.name !== 'string' || c.name.length > 80 || !['surface', 'wreck', 'comet', 'solar', 'transit'].includes(c.site) || ![c.health, c.oxygen, c.energy, c.hunger, c.skill].every(Number.isFinite) || !Number.isInteger(c.x) || !Number.isInteger(c.y) || (c.site !== 'transit' && !inside(s.sites[c.site], c.x, c.y))) throw new Error('Invalid crew.');
     ids.add(c.id);
   }
-  if (s.version === 1) {
-    s.crew.forEach(c => initializeCrew(c, Number(c.id.split('-')[1])));
-    for (const j of s.jobs) { j.priority = 3; j.blockedReason = null; }
-    s.version = 2;
-  }
   if (s.mission && (!SITES[s.mission.site]?.fuel || !['outbound', 'working', 'boarding', 'returning'].includes(s.mission.phase) || !Array.isArray(s.mission.crew) || !expeditionCrewCountAllowed(s,s.mission.site,s.mission.crew.length) || new Set(s.mission.crew).size !== s.mission.crew.length || !s.mission.crew.every(id => ids.has(id)) || !Number.isFinite(s.mission.remaining) || !s.mission.cargo)) throw new Error('Invalid expedition.');
-  if (s.creatures === undefined) s.creatures = []; // Migrate first development saves.
-  if (s.anomaly === undefined) s.anomaly = null;
-  if (s.stats.trapped === undefined) s.stats.trapped = 0;
   const amount = v => Number.isFinite(v) && v >= 0;
   const percent = v => amount(v) && v <= 100;
   const inventory = v => v && typeof v === 'object' && !Array.isArray(v) && Object.entries(v).every(([r, n]) => r === '_food' || r === '_items' || (RESOURCES.includes(r) && amount(n))) && validFoodLots(v) && validItemLots(v);
-  if (s.version === 2) {
-    // Earlier saves owned one global pool. Move that pool once, without duplicating cargo or reserved costs.
-    const legacy = { ...s.resources };
-    for (const site of Object.values(s.sites)) for (const tile of site.tiles) { delete tile.stock; delete tile.machine; initializeStorage(tile); }
-    const depot = stores(s)[0], fallback = depot || at(s.sites.surface, 10, 11);
-    if (depot) add(depot.stock, legacy); else spill(fallback, legacy);
-    for (const j of s.jobs) j.sources = quantity(j.cost) ? [{ x: fallback.x, y: fallback.y, items: { ...j.cost } }] : [];
-    for (const c of s.crew) {
-      if (c.carry && (!inventory(c.carry) || c.site !== 'surface')) throw new Error('Invalid legacy cargo.');
-      if (c.intent?.type === 'haul') c.intent = null;
-      c.delivery = null;
-      if (c.carry && quantity(c.carry) > CARRY_CAPACITY) { spill(at(s.sites[c.site], c.x, c.y), c.carry); c.carry = null; }
-    }
-    syncResources(s); s.version = 3;
-  }
-  if (s.version === 3) {
-    for (const j of s.jobs) {
-      if (!inventory(j.cost) || !Array.isArray(j.sources) || !j.sources.every(source => Number.isInteger(source.x) && Number.isInteger(source.y) && inside(s.sites.surface, source.x, source.y) && inventory(source.items))) throw new Error('Invalid legacy material reservation.');
-      const reserved = {}; j.sources.forEach(source => add(reserved, source.items));
-      if (RESOURCES.some(r => (reserved[r] || 0) !== (j.cost[r] || 0))) throw new Error('Invalid legacy reserved cost.');
-      // Preserve work already performed in older saves by staging those materials at the site.
-      j.materials = j.remaining < j.work ? { ...j.cost } : {};
-      j.sources = j.remaining < j.work ? [] : j.sources.map(source => ({ ...source, kind: 'stock' }));
-    }
-    s.version = 4;
-  }
-  if (s.version === 4) {
-    for (const site of Object.values(s.sites)) {
-      delete site.atmosphere; initializeAtmosphere(site); site.atmosphere.tick = s.tick;
-      const legacyCells = new Set();
-      for (const r of site.rooms) {
-        if (!percent(r.air) || !Array.isArray(r.cells) || !r.cells.length) throw new Error('Invalid legacy atmosphere.');
-        for (const k of r.cells) {
-          if (typeof k !== 'string' || !/^\d+,\d+$/.test(k) || legacyCells.has(k)) throw new Error('Invalid legacy room cells.');
-          const [x, y] = k.split(',').map(Number), t = inside(site, x, y) && at(site, x, y);
-          if (!t || t.terrain !== 'floor' || ['wall', 'door'].includes(t.building)) throw new Error('Invalid legacy room volume.');
-          legacyCells.add(k);
-        }
-        r.volume = r.cells.length; fillRoom(r, r.air);
-      }
-      if (legacyCells.size !== site.tiles.filter(t => t.terrain === 'floor' && !['wall', 'door'].includes(t.building)).length) throw new Error('Missing legacy room volume.');
-      updateRooms(site); site.tiles.forEach(initializeStorage);
-    }
-    if (retrofitAir && !stores(s).some(t => t.stock.air !== undefined) && !s.sites.surface.tiles.some(t => t.drop?.air !== undefined)) {
-      const target = stores(s)[0]; if (target) target.stock.air = 160; else spill(at(s.sites.surface, 10, 11), { air: 160 });
-    }
-    syncResources(s); s.version = 5;
-  }
-  if (s.version === 5) {
-    for (const site of Object.values(s.sites)) {
-      if (!Number.isFinite(site.power.battery) || site.power.battery < 0) throw new Error('Invalid legacy stored energy.');
-      initializePower(s, site, site.power.battery);
-    }
-    s.version = 6;
-  }
-  if (s.version === 6) { initializeReliability(s); s.version = 7; }
-  if (s.version === 7) { initializeShuttle(s); s.version = 8; }
-  if (s.version === 8) { initializePreflight(s); s.version = 9; }
-  if (s.version === 9) { initializeCrewLife(s); s.version = 10; }
-  if (s.version === 10) { initializeMedicine(s); s.version = 11; }
-  if (s.version === 11) { initializeNursing(s); s.version = 12; }
-  if (s.version === 12) { initializeProduction(s); s.version = 13; }
-  if (s.version === 13) { for (const site of Object.values(s.sites)) site.tiles.forEach(t => { delete t.storage; initializeStorage(t); }); s.version = 14; }
-  if (s.version === 14) { initializeThermal(s); s.version = 15; }
-  if (s.version === 15) { initializeFood(s); s.version = 16; }
-  if (s.version === 16) {
-    // Existing crops finish with their paid ingredients; no nutrients are invented.
-    for (const site of Object.values(s.sites)) for (const t of site.tiles) {
-      if (t.building === 'farm' && t.machine?.batch?.water === 1 && !t.machine.batch.fertilizer) t.machine.legacyCrop = true;
-      // Extend formerly unrestricted depots; keep deliberate filters as chosen.
-      if (t.storage && RESOURCES.filter(r => !['fertilizer','keepsakes','ice'].includes(r)).every(r => t.storage.accepted.includes(r)) && !t.storage.accepted.includes('fertilizer')) t.storage.accepted.push('fertilizer');
-    }
-    s.version = 17;
-  }
-  if (s.version === 17) { initializeSanitation(s); s.version = 18; }
-  if (s.version === 18) { initializeHygiene(s); s.version = 19; }
-  if (s.version === 19) { initializeDesignations(s); s.version = 20; }
-  if (s.version === 20) { initializeHousing(s); s.version = 21; }
-  if (s.version === 21) { initializeComfort(s); s.version = 22; }
-  if(s.version===22){initializePossessions(s);for(const site of Object.values(s.sites))for(const t of site.tiles)if(t.storage&&RESOURCES.filter(r=>!['keepsakes','ice'].includes(r)).every(r=>t.storage.accepted.includes(r))&&!t.storage.accepted.includes('keepsakes'))t.storage.accepted.push('keepsakes');s.version=23;}
-  if(s.version===23){initializeWater(s);for(const site of Object.values(s.sites))for(const t of site.tiles)if(t.storage&&RESOURCES.filter(r=>r!=='ice').every(r=>t.storage.accepted.includes(r))&&!t.storage.accepted.includes('ice'))t.storage.accepted.push('ice');if(s.shuttle.accepted.includes('water')&&!s.shuttle.accepted.includes('ice'))s.shuttle.accepted.push('ice');s.version=24;}
-  if(s.version===24)s.version=25;
-  if(s.version===25){initializeHusbandry(s);s.version=26;}
-  if(s.version===26){s.version=27;}
-  if(s.version===27){initializeBreeding(s);s.version=28;}
-  if(s.version===28){s.version=29;}
-  if(s.version===29){initializeFire(s);s.version=30;}
-  if(s.version===30){initializeReactors(s);s.version=31;}
-  if(s.version===31){initializeLiquids(s);s.version=32;}
-  if(s.version===32){initializeGasNetworks(s);s.version=33;}
-  if(s.version===33){initializeGasExhaust(s);s.version=34;}
-  if(s.version===34){initializePlumbing(s);s.version=35;}
-  if(s.version===35)s.version=36; // No equipment, fields, resources or energy are granted.
-  if(s.version===36)migrateOutpostState(s); migrateFreightState(s);
-  if(s.version===38){initializeAirlocks(s);s.version=39;}
   validateOutpostState(s);
   if (!Number.isSafeInteger(s.comet.arrives) || !Number.isSafeInteger(s.comet.leaves) || s.comet.leaves <= s.comet.arrives || !Object.values(s.stats).every(amount)) throw new Error('Invalid simulation counters.');
   for (const site of Object.values(s.sites)) {

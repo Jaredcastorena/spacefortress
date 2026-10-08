@@ -1,4 +1,3 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -91,8 +90,9 @@ test('save continuation keeps batches and partly eaten food deterministic',()=>{
  const {s,depot,c}=colony({galley:false,hauling:false});depot.stock={};prepared(s,depot.stock);c.hunger=20;c.x=8;c.y=10;step(s,3);assert.ok(c.intent.openedFood);const copy=check(s);step(s,15);step(copy,15);assert.deepEqual(copy,s);
 });
 
-test('schema twenty-four migration preserves ordinary food and opened rations without granting cooked food',()=>{
- const {s,c}=colony({galley:false});s.version=24;c.intent={type:'meal',target:null,servings:5,foodAge:100};const before=totalResources(s),copy=check(projectPreAirlock(s));assert.equal(copy.version, VERSION);assert.deepEqual(totalResources(copy),before);assert.equal(copy.crew[0].intent.servings,5);assert.equal(copy.crew[0].intent.openedFood,undefined);step(copy,5);check(copy);
+test('legacy square schema 24 is rejected before physical state migration',()=>{
+ const legacy=createGame();legacy.version=24;delete legacy.grid;
+ const bytes=JSON.stringify(legacy);assert.throws(()=>deserialize(bytes),/Legacy square-grid saves/);assert.equal(JSON.stringify(legacy),bytes);
 });
 
 test('malformed prepared metadata, conflicting batch identities and impossible opened portions are rejected',()=>{

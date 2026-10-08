@@ -1,7 +1,7 @@
 import { BUILDINGS } from './data.js';
 import { BREAKER_DIRECTIONS, breakerClosed, breakerStatus } from './breakers.js';
 import { breakerTerminals } from './power-topology.js';
-const directions={east:'East ↘',south:'South ↙',west:'West ↖',north:'North ↗'};
+const directions={n:'N ↗',ne:'NE →',se:'SE ↘',s:'S ↙',sw:'SW ←',nw:'NW ↖'};
 const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function entityLabel(site,id){const [x,y]=id.split(':').slice(-2).map(Number),t=site.tiles[y*site.size+x];return `${BUILDINGS[t?.building]?.name||'Cable'} ${x}/${y}${t?.building==='battery'?` · ${t.charge.toFixed(1)} kJ`:''}`;}
 export function breakerDetails(s,site,t){

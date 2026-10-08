@@ -1,3 +1,5 @@
+import { currentOutpost } from './helpers/current-outpost.js';
+import { assertSquareProtected } from './helpers/legacy-square.js';
 import { VERSION } from '../src/data.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -5,7 +7,6 @@ import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { createGame, at, deserialize, launch, loadFreight, recall, serialize, setLabor, step, unloadFreight } from '../src/simulation.js';
 import { add, extract, totalResources } from '../src/inventory.js';
-import { projectPreAirlock, projectPreOutpost } from './helpers/legacy-projection.js';
 import {
   FREIGHT_WORK,
   assertLegacyFreightState,
@@ -37,16 +38,9 @@ function remoteUnload(s, sources) {
   });
 }
 
-test('schema 37 to 38 migration changes only the version', () => {
-  const s = createGame(3817);
-  s.version = 37;
-  const before = structuredClone(s);
-  assert.equal(migrateFreightState(s), true);
-  assert.equal(s.version, 38);
-  before.version = 38;
-  assert.deepEqual(s, before);
-  assert.equal(migrateFreightState(s), false);
-  assert.deepEqual(s, before);
+test('current hex freight migration is a no-op', () => {
+  const s=createGame(3817),before=serialize(s);
+  assert.equal(migrateFreightState(s),false);assert.equal(serialize(s),before);
 });
 
 test('older schemas reject freight job and owner vocabulary without mutation', () => {
@@ -105,22 +99,14 @@ test('automatic departures stay two-person and unsupported solo destinations rej
   }
 });
 
-test('schema 37 two-person departure migrates exactly and keeps the default roster', () => {
-  const old = createGame(3823);
-  assert.equal(launch(old, 'wreck').ok, true);
-  assert.equal(old.departure.crew.length, 2);
-  old.version = 37;
-  const expected = structuredClone(old);
-  expected.version = VERSION;
-  const loaded = deserialize(serialize(projectPreAirlock(old)));
-  assert.deepEqual(loaded, expected);
-  assert.equal(loaded.departure.crew.length, 2);
-  assert.equal(loaded.rng, old.rng);
-  assert.equal(loaded.nextId, old.nextId);
-  assert.deepEqual(totalResources(loaded), totalResources(old));
+test('current hex two-person departure reload keeps the default roster and all supplies', () => {
+  const s=createGame(3823);assert.equal(launch(s,'wreck').ok,true);
+  const before=serialize(s),resources=totalResources(s),loaded=deserialize(before);
+  assert.equal(serialize(loaded),before);assert.equal(loaded.departure.crew.length,2);
+  assert.deepEqual(totalResources(loaded),resources);
 });
 
-test('schema 38 established-wreck solo pickup survives every flight phase and reload', () => {
+test('current hex established-wreck solo pickup survives every flight phase and reload', () => {
   // Synthetic history boundary: the habitat was established earlier and its
   // final resident has already left, so no fields or supplies are fabricated.
   let s = createGame(3824);
@@ -135,7 +121,7 @@ test('schema 38 established-wreck solo pickup survives every flight phase and re
   const rejectDowngrade = label => {
     const current = serialize(s), old = JSON.parse(current);
     old.version = 37;
-    assert.throws(() => deserialize(JSON.stringify(old)), /one-person outbound roster/, label);
+    assert.throws(() => deserialize(JSON.stringify(old)), /Legacy square-grid saves/, label);
     assert.equal(serialize(s), current, `${label} source state`);
   };
   rejectDowngrade('departure');
@@ -272,30 +258,15 @@ test('manifest fixtures reference real same-site coordinates without creating ow
   }, before);
 });
 
-test('integrated loader migrates a real schema 37 state without changing any other value', () => {
-  const old = createGame(3837);
-  old.version = 37;
-  const before = structuredClone(old), resources = totalResources(old);
-  const loaded = deserialize(JSON.stringify(projectPreAirlock(old)));
-  before.version = VERSION;
-  assert.deepEqual(loaded, before);
-  assert.deepEqual(totalResources(loaded), resources);
-  assert.equal(loaded.rng, old.rng);
-  assert.equal(loaded.nextId, old.nextId);
-  assert.deepEqual(deserialize(serialize(loaded)), loaded);
+test('forged schema37 cannot relabel current hex freight', () => {
+  const s=createGame(3837),before=serialize(s),forged=structuredClone(s);forged.version=37;
+  assert.throws(()=>deserialize(serialize(forged)),/Legacy square-grid saves/);assert.equal(serialize(s),before);
 });
 
-test('all genuine schema 36 expedition phases migrate through 37 to 38 exactly', () => {
-  for (const phase of ['outbound', 'working-pile', 'working-carried', 'working-cargo', 'returning']) {
-    const compressed = readFileSync(new URL(`./fixtures/outpost-pre36-${phase}.json.gz`, import.meta.url));
-    const text = gunzipSync(compressed).toString('utf8'), old = JSON.parse(text);
-    const loaded = deserialize(text);
-    assert.equal(loaded.version, VERSION, phase);
-    assert.deepEqual(projectPreOutpost(loaded), old, phase);
-    assert.deepEqual(totalResources(loaded), totalResources(old), phase);
-    assert.equal(loaded.rng, old.rng, phase);
-    assert.equal(loaded.nextId, old.nextId, phase);
-    assert.deepEqual(deserialize(serialize(loaded)), loaded, phase);
+test('all genuine schema36 expedition ownership states are protected from hex import', () => {
+  for(const phase of ['outbound','working-pile','working-carried','working-cargo','returning']) {
+    const original=gunzipSync(readFileSync(new URL(`./fixtures/outpost-pre36-${phase}.json.gz`,import.meta.url))).toString('utf8');
+    assertSquareProtected(original);
   }
 });
 
@@ -321,8 +292,7 @@ test('reserved, carried, staged and loaded freight states survive the integrated
 });
 
 test('remote unload source, carry, staging and dock import survive integrated reloads', () => {
-  const compressed = readFileSync(new URL('./fixtures/outpost-pre36-working-pile.json.gz', import.meta.url));
-  const s = deserialize(gunzipSync(compressed).toString('utf8'));
+  const s = currentOutpost();
   const pile = at(s.sites.wreck, 8, 10).drop;
   add(s.shuttle.freight, extract(pile, { alloy: 2 }));
   for (const id of s.mission.crew) setLabor(s, id, 'hauling', true);

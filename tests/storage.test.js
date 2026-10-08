@@ -132,9 +132,9 @@ test('depot loss preserves supplies and redirects pending cargo', () => {
   deliver(s, () => second.stock.components === 6, [c]); assert.deepEqual(totalResources(s), before);
 });
 
-test('schema-thirteen migration preserves overfull depots and in-flight shipments without granting space', () => {
+test('hex reload preserves overfull depots and in-flight shipments without granting space', () => {
   const { s, d, c } = setup(); d.stock.ore = 400; c.carry = { components: 6 }; c.delivery = { kind: 'stock', target: [8, 10] };
-  s.version = 13; delete d.storage; syncResources(s); const before = totalResources(s), copy = deserialize(serialize(projectPreAirlock(s)));
+  syncResources(s); const before = totalResources(s), copy = deserialize(serialize(s));
   assert.equal(copy.version, VERSION); assert.deepEqual(totalResources(copy), before);
   assert.equal(depotUsage(copy, 'surface', at(copy.sites.surface, 8, 10)).free, 0);
   tickHaul(copy, [copy.crew[0]]); assert.equal(copy.crew[0].carry, null); assert.deepEqual(totalResources(copy), before);

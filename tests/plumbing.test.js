@@ -22,7 +22,7 @@ function install(s,kind,x=11,y=9){
 function pipe(site,x,y){const t=at(site,x,y);t.waterPipe=newWaterPipe();return t;}
 function wire(s){for(let x=8;x<=13;x++)at(s.sites.surface,x,9).cable={enabled:true,hp:100};refreshPower(s,s.sites.surface);}
 function network(){
- const f=base(),pump=install(f.s,'waterPump'),input=pipe(f.site,10,9),output=pipe(f.site,12,9);
+ const f=base(),pump=install(f.s,'waterPump'),input=pipe(f.site,10,10),output=pipe(f.site,12,9);
  wire(f.s);return {...f,pump,input,output};
 }
 function seed(s,t,n){
@@ -41,7 +41,7 @@ test('water devices require delivered materials and commission with empty storag
   close(totalResources(s).alloy,before.alloy);until(s,()=>at(site,11,9).building===kind);
   const t=at(site,11,9);assert.equal(t.machine,undefined);
   if(kind==='waterReservoir'){assert.deepEqual(t.waterStore,{water:0,open:true});assert.equal(t.waterDevice,undefined);}
-  else {assert.equal(t.waterStore,undefined);assert.deepEqual(t.waterDevice,{enabled:true,direction:'east',...(kind==='waterPump'?{}:{mode:'inventory'})});}
+  else {assert.equal(t.waterStore,undefined);assert.deepEqual(t.waterDevice,{enabled:true,direction:'ne',...(kind==='waterPump'?{}:{mode:'inventory'})});}
   close(totalResources(s).alloy,before.alloy-result.job.cost.alloy);close(totalResources(s).components,before.components-1);
   assert.equal(order(s,'surface',11,9,'build','waterPipe').ok,false);
   assert.equal(order(s,'surface',12,14,'build',kind).ok,false);check(s);
@@ -61,7 +61,7 @@ test('powered water pumps move against fill gradients only through their selecte
  seed(s,input,.5);seed(s,output,1.5);seed(s,north,.4);const total=totalResources(s).water;
  updatePower(s,site);assert.equal(pump.powered,true);operatePlumbing(s);
  close(input.waterPipe.water,0);close(output.waterPipe.water,2);close(north.waterPipe.water,.4);close(south.waterPipe.water,0);
- setWaterPump(s,'surface',11,9,true,'west');operatePlumbing(s);
+ setWaterPump(s,'surface',11,9,true,'sw');operatePlumbing(s);
  close(input.waterPipe.water,.5);close(output.waterPipe.water,1.5);
  pump.hp=50;operatePlumbing(s);close(input.waterPipe.water,.75);close(output.waterPipe.water,1.25);
  close(totalResources(s).water,total);check(s);
@@ -69,11 +69,11 @@ test('powered water pumps move against fill gradients only through their selecte
 
 test('stopped pumps provide no passive passage and closed port valves or power loss stop active flow',()=>{
  const {s,site,pump,input,output}=network();seed(s,input,1.5);
- setWaterPump(s,'surface',11,9,false,'east');flowPlumbing(s);operatePlumbing(s);
+ setWaterPump(s,'surface',11,9,false,'ne');flowPlumbing(s);operatePlumbing(s);
  close(output.waterPipe.water,0);assert.equal(plumbingStatus(s,site,pump).blockedCode,'disabled');
- setWaterPump(s,'surface',11,9,true,'east');setWaterValve(s,'surface',10,9,false);operatePlumbing(s);
+ setWaterPump(s,'surface',11,9,true,'ne');setWaterValve(s,'surface',10,10,false);operatePlumbing(s);
  close(output.waterPipe.water,0);assert.equal(plumbingStatus(s,site,pump).blockedCode,'valve_closed');
- setWaterValve(s,'surface',10,9,true);setWaterValve(s,'surface',12,9,false);operatePlumbing(s);
+ setWaterValve(s,'surface',10,10,true);setWaterValve(s,'surface',12,9,false);operatePlumbing(s);
  close(output.waterPipe.water,0);assert.equal(plumbingStatus(s,site,pump).blockedCode,'valve_closed');
  setWaterValve(s,'surface',12,9,true);pump.cable.enabled=false;refreshPower(s,site);operatePlumbing(s);
  close(output.waterPipe.water,0);assert.equal(plumbingStatus(s,site,pump).blockedCode,'no_power');
@@ -83,7 +83,7 @@ test('stopped pumps provide no passive passage and closed port valves or power l
 test('unconnected, empty and full pump ports expose distinct conditions without consuming water',()=>{
  const {s,site}=base(),pump=install(s,'waterPump');wire(s);
  assert.equal(plumbingStatus(s,site,pump).blockedCode,'wrong_source');operatePlumbing(s);
- const input=pipe(site,10,9);assert.equal(plumbingStatus(s,site,pump).blockedCode,'wrong_target');operatePlumbing(s);
+ const input=pipe(site,10,10);assert.equal(plumbingStatus(s,site,pump).blockedCode,'wrong_target');operatePlumbing(s);
  const output=pipe(site,12,9);assert.equal(plumbingStatus(s,site,pump).blockedCode,'source_empty');operatePlumbing(s);
  seed(s,input,1);seed(s,output,2);const before=totalResources(s).water;
  assert.equal(plumbingStatus(s,site,pump).blockedCode,'target_full');operatePlumbing(s);
@@ -94,7 +94,7 @@ test('plumbing devices pay actual circuit energy and disabled controls release t
  const {s,site}=base(),pump=install(s,'waterPump'),intake=install(s,'waterIntake',12,9),outlet=install(s,'waterOutlet',13,9);wire(s);
  const before=site.energy.consumed;updatePower(s,site);close(site.energy.consumed-before,7);
  assert.ok(pump.powered&&intake.powered&&outlet.powered);
- setWaterPump(s,'surface',11,9,false,'east');setWaterIntake(s,'surface',12,9,false,'east','inventory');setWaterOutlet(s,'surface',13,9,false,'east','floor');
+ setWaterPump(s,'surface',11,9,false,'ne');setWaterIntake(s,'surface',12,9,false,'ne','inventory');setWaterOutlet(s,'surface',13,9,false,'ne','floor');
  const used=site.energy.consumed;updatePower(s,site);close(site.energy.consumed,used);close(site.power.demand,0);
  assert.equal(pump.powered,false);assert.equal(intake.powered,false);assert.equal(outlet.powered,false);refreshPower(s,site);check(s);
 });

@@ -1,4 +1,4 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
+import { distance } from '../src/geometry.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -58,7 +58,7 @@ test('real extraction and hauling feed a processor before recovered water reache
 test('a processor waits for a full delivered batch and an adjacent operator',()=>{
   const {s,m,tile}=colony({hauling:false});m.input.ice=1;step(s,5);assert.match(m.status,/ice/);assert.equal(m.input.ice,1);assert.equal(m.progress,0);
   m.input.ice=2;for(const c of s.crew)setLabor(s,c.id,'production',false);step(s,5);assert.equal(m.progress,0);
-  const c=s.crew[6];setLabor(s,c.id,'production',true);until(s,()=>m.progress>0);assert.equal(Math.abs(c.x-tile.x)+Math.abs(c.y-tile.y),1);assert.deepEqual(m.batch,{ice:2});
+  const c=s.crew[6];setLabor(s,c.id,'production',true);until(s,()=>m.progress>0);assert.equal(distance([c.x,c.y],[tile.x,tile.y]),1);assert.deepEqual(m.batch,{ice:2});
   until(s,()=>m.completed===1);assert.equal(m.output.water,2);assert.equal(totalResources(s).ice,0);check(s);
 });
 
@@ -100,17 +100,14 @@ test('dismantling a processor releases unfinished ice and completed water once',
 
 test('comet ice is extracted, hauled into the hold, flown home and unloaded without becoming water',()=>{
   const s=createGame();step(s,180);assert.ok(depart(s,'comet').ok);until(s,()=>s.mission?.phase==='working');
-  const site=s.sites.comet,t=site.tiles.find(t=>t.deposit?.remaining>0&&Math.abs(t.x-5)+Math.abs(t.y-10)===1);assert.ok(t);
+  const site=s.sites.comet,t=site.tiles.find(t=>t.deposit?.remaining>0&&distance([t.x,t.y],[5,10])===1);assert.ok(t);
   const water=totalResources(s).water,j=order(s,'comet',t.x,t.y,'mine').job;assert.ok(j);until(s,()=>s.mission.cargo.ice===6);assert.equal(t.deposit.remaining,6);assert.equal(s.resources.ice,0);
   assert.ok(recall(s).ok);until(s,()=>!s.mission);assert.equal(at(s.sites.surface,16,11).drop.ice,6);assert.equal(totalResources(s).ice,6);assert.ok(totalResources(s).water<=water);until(s,()=>s.resources.ice===6);check(s);
 });
 
-test('schema twenty-three migration preserves supplies, occupied terrain, orders and selective filters',()=>{
-  const {s,site,depot}=colony({processor:false});s.version=23;delete s.resources.ice;
-  for(const current of Object.values(s.sites))for(const t of current.tiles){delete t.deposit;if(t.storage)t.storage.accepted=t.storage.accepted.filter(r=>r!=='ice');}
-  s.shuttle.accepted=s.shuttle.accepted.filter(r=>r!=='ice');const occupied=at(site,17,14);occupied.building='solar';refreshPower(s,site);
-  const before=totalResources(s),copy=check(projectPreAirlock(s));assert.equal(copy.version, VERSION);assert.deepEqual(totalResources(copy),before);assert.equal(at(copy.sites.surface,17,14).deposit,undefined);assert.equal(at(copy.sites.surface,17,14).building,'solar');assert.equal(waterSupply(copy).unminedIce,60);assert.ok(at(copy.sites.surface,8,10).storage.accepted.includes('ice'));assert.ok(copy.shuttle.accepted.includes('ice'));assert.deepEqual(check(copy),copy);
-  depot.storage.accepted=['water'];s.shuttle.accepted=['components'];const selective=check(projectPreAirlock(s));assert.deepEqual(at(selective.sites.surface,8,10).storage.accepted,['water']);assert.deepEqual(selective.shuttle.accepted,['components']);
+test('legacy square schema 23 is rejected before physical state migration',()=>{
+ const legacy=createGame();legacy.version=23;delete legacy.grid;
+ const bytes=JSON.stringify(legacy);assert.throws(()=>deserialize(bytes),/Legacy square-grid saves/);assert.equal(JSON.stringify(legacy),bytes);
 });
 
 test('partly depleted seams and partly processed batches continue deterministically after save',()=>{
@@ -131,11 +128,7 @@ test('agent extraction records action identity, output, reserve changes and depl
   const rows=exportRecording(s).trim().split('\n').map(JSON.parse);assert.equal(rows.filter(r=>r.event?.id==='resource.extracted').length,2);assert.equal(rows.filter(r=>r.event?.id==='deposit.depleted').length,1);assert.ok(rows.some(r=>r.changes?.some(c=>c.system==='geology')));assert.ok(rows.some(r=>r.action?.source==='agent'&&r.action.id==='job.order'));check(s);
 });
 
-test('an unfinished legacy comet volatile order retains work and now yields finite raw ice and fuel',()=>{
-  const s=createGame();step(s,180);assert.ok(depart(s,'comet').ok);until(s,()=>s.mission?.phase==='working');
-  const job=order(s,'comet',8,7,'mine').job;assert.ok(job);until(s,()=>job.remaining<job.work&&s.jobs.includes(job));
-  s.version=23;delete s.mission.returnCrew;delete s.resources.ice;for(const site of Object.values(s.sites))for(const t of site.tiles)delete t.deposit;
-  const before=totalResources(s),copy=check(projectPreAirlock(s)),savedJob=copy.jobs.find(j=>j.id===job.id);assert.equal(savedJob.remaining,job.remaining);assert.deepEqual(totalResources(copy),before);
-  until(copy,()=>!copy.jobs.some(j=>j.id===job.id));const source=at(copy.sites.comet,8,7);assert.equal(source.building,null);assert.equal(source.deposit,undefined);assert.equal(totalResources(copy).ice,12);assert.equal(totalResources(copy).fuel,before.fuel+3);assert.equal(order(copy,'comet',8,7,'mine').ok,false);
-  until(copy,()=>copy.mission.cargo.ice===12&&copy.mission.cargo.fuel===3);assert.equal(quantity(copy.mission.cargo),15);check(copy);
+test('legacy square schema 23 is rejected before physical state migration',()=>{
+ const legacy=createGame();legacy.version=23;delete legacy.grid;
+ const bytes=JSON.stringify(legacy);assert.throws(()=>deserialize(bytes),/Legacy square-grid saves/);assert.equal(JSON.stringify(legacy),bytes);
 });

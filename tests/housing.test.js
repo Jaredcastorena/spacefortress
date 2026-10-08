@@ -1,11 +1,9 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { VERSION } from '../src/data.js';
 import { createGame, step, at, order, setLabor, serialize, deserialize, updateRooms, pathTo } from '../src/simulation.js';
 import { setBunkOwner, bunkOwner, housingObstruction, reconcileHousing } from '../src/housing.js';
 import { setRoomDesignation, roomStatus } from '../src/rooms.js';
-import { roomAt, fillRoom } from '../src/atmosphere.js';
+import { roomAt, fillRoom, setDoorMode } from '../src/atmosphere.js';
 import { totalResources, syncResources } from '../src/inventory.js';
 import { spillStorage, setMachineEnabled } from '../src/industry.js';
 import { depart } from './helpers/depart.js';
@@ -58,7 +56,7 @@ test('a broken home keeps ownership, causes displacement and becomes usable afte
 
 test('unreachable homes and waste-room homes use communal fallback without losing ownership',()=>{
   const {s,site,c}=fixture();assign(s,c);for(let y=7;y<=11;y++){const t=at(site,10,y);spillStorage(t);t.building='wall';}updateRooms(site);
-  assert.match(housingObstruction(s,c,pathTo),/unreachable/);c.energy=10;step(s);assert.deepEqual(c.intent.target,[9,7]);
+  assert.ok(setDoorMode(s,'surface',10,12,'closed').ok);assert.match(housingObstruction(s,c,pathTo),/unreachable/);c.energy=10;step(s);assert.deepEqual(c.intent.target,[9,7]);
   setRoomDesignation(s,'surface',12,8,'waste');assert.match(housingObstruction(s,c,pathTo),/waste storage/);assert.deepEqual(c.housing.bunk,[12,7]);check(s);
 });
 
@@ -94,9 +92,13 @@ test('ownership, recovery and memories continue deterministically through saves'
   const {s,c}=fixture();assign(s,c);c.energy=10;step(s,5);const copy=check(s);step(s,50);step(copy,50);assert.deepEqual(copy,s);
 });
 
-test('schema twenty migration adds communal housing without changing sleep claims or inventories',()=>{
-  const {s,c}=fixture();c.energy=10;step(s);s.version=20;for(const person of s.crew)delete person.housing;
-  const before=totalResources(s),intent=structuredClone(c.intent),copy=check(projectPreAirlock(s));assert.equal(copy.version, VERSION);assert.deepEqual(copy.crew[0].intent,intent);assert.deepEqual(totalResources(copy),before);assert.ok(copy.crew.every(c=>c.housing.bunk===null));
+test('housing, sleep claims and inventories reload exactly and reject a legacy schema label', () => {
+  const { s, c } = fixture(); c.energy = 10; step(s);
+  const before = structuredClone(s), supplies = totalResources(s), copy = deserialize(serialize(s));
+  assert.deepEqual(copy, before); assert.deepEqual(totalResources(copy), supplies);
+  const forged = JSON.parse(serialize(s)); forged.version = 20; const original = JSON.stringify(forged);
+  assert.throws(() => deserialize(original), /Legacy square-grid saves/);
+  assert.equal(JSON.stringify(forged), original); assert.deepEqual(s, before);
 });
 
 test('invalid assignments and saves are rejected',()=>{

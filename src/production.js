@@ -1,3 +1,4 @@
+import { neighbors } from './geometry.js';
 import { crewPathTo } from './navigation.js';
 import { advanceCrewRoute } from './crew-traversal.js';
 import { rawFood, preparedFood } from './food-lots.js';
@@ -91,7 +92,7 @@ export function scheduleProduction(s, order) {
 export function operateMachine(s, c, j, site, pathTo) {
   const t = site.tiles[j.y * site.size + j.x], m = t.machine, blocked = productionBlock(s, site, t);
   if (blocked || t.building !== j.building) { if (m) m.status = blocked || 'Workstation replaced'; releaseOperation(s, j); return; }
-  const goals = [[t.x + 1, t.y], [t.x - 1, t.y], [t.x, t.y + 1], [t.x, t.y - 1]], route = crewPathTo(s, site, c, goals);
+  const goals = neighbors(t.x, t.y), route = crewPathTo(s, site, c, goals);
   if (route === null) { c.job = null; j.worker = null; j.blockedReason = m.status = c.activity = 'Workstation route blocked'; return; }
   if (route.length) { advanceCrewRoute(s, c, site, [route.at(-1)]); c.activity = `Going to ${BUILDINGS[t.building].name.toLowerCase()}`; return; }
   const recipe = RECIPES[t.building];

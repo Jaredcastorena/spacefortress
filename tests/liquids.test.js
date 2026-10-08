@@ -1,4 +1,3 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -113,10 +112,9 @@ test('water controls and transient transfers have stable IDs; recording does not
  assert.ok(rows.some(r=>r.action?.id==='water.tank'&&r.action.source==='player'));assert.ok(observe(a).entities['tile:surface:11:9'].liquid>=0);check(a);
 });
 
-test('liquid, tank and pump state survive deterministic reload and schema 31 gains no water or equipment',()=>{
+test('liquid, tank and pump state survive deterministic reload and legacy square schema 31 is rejected',()=>{
  const {s,tank}=fixture();fill(s,tank);setTank(s,'surface',11,9,false,true);step(s,8);const copy=check(s);step(s,10);step(copy,10);assert.deepEqual(s,copy);
- const old=createGame();old.version=31;for(const site of Object.values(old.sites)){delete site.liquids;for(const t of site.tiles){delete t.liquid;delete t.wetShort;}}
- const before=totalResources(old),migrated=check(projectPreAirlock(old));assert.equal(migrated.version, VERSION);assert.deepEqual(totalResources(migrated),before);assert.equal(wetTotal(migrated.sites.surface),0);assert.equal(migrated.rng,old.rng);assert.deepEqual(check(migrated),migrated);
+ const legacy=createGame();legacy.version=31;delete legacy.grid;assert.throws(()=>deserialize(JSON.stringify(legacy)),/Legacy square-grid saves/);
 });
 
 test('malformed floor water, ledgers and tank controls are rejected',()=>{

@@ -1,3 +1,4 @@
+import { neighbors } from './geometry.js';
 import { crewPathTo } from './navigation.js';
 import { advanceCrewRoute, cancelCrewTraversal } from './crew-traversal.js';
 import { openMeal, moveOpenedMeal } from './meals.js';
@@ -11,7 +12,7 @@ import { dropCarriedMaterials } from './construction.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
 
 const xy = c => [c.x, c.y];
-const adjacent = c => [[c.x + 1, c.y], [c.x - 1, c.y], [c.x, c.y + 1], [c.x, c.y - 1]];
+const adjacent = c => neighbors(c.x, c.y);
 export const carriedBy = (s, patient) => s.crew.find(c => c.rescue?.carrying && c.rescue.patient === patient.id);
 export const atCot = (s, c) => c.medical.bed?.[0] === c.x && c.medical.bed?.[1] === c.y && safeBed(s.sites[c.site], c.medical.bed);
 export const needsNursing = (s, c) => c.health > 0 && !!s.sites[c.site] && !boardingPatient(s, c) && (immobile(c) || atCot(s, c));

@@ -211,7 +211,7 @@ $('inspector').onsubmit = e => {
     document.activeElement.blur(); refresh(); return;
   }
   const gasForm=e.target.closest('[data-gas-form]');
-  if(gasForm&&selected){e.preventDefault();const target=Number(gasForm.elements['gas-target'].value),t=at(state.sites[siteId],selected.x,selected.y);document.activeElement.blur();result(t.building==='gasExtractor'?setGasExtractor(state,siteId,t.x,t.y,t.gasDevice.enabled,t.gasDevice.mode,target):setGasDevice(state,siteId,t.x,t.y,t.gasDevice.enabled,'east',target),'Pressure target updated.');return;}
+  if(gasForm&&selected){e.preventDefault();const target=Number(gasForm.elements['gas-target'].value),t=at(state.sites[siteId],selected.x,selected.y);document.activeElement.blur();result(t.building==='gasExtractor'?setGasExtractor(state,siteId,t.x,t.y,t.gasDevice.enabled,t.gasDevice.mode,target):setGasDevice(state,siteId,t.x,t.y,t.gasDevice.enabled,'ne',target),'Pressure target updated.');return;}
   const reactorForm=e.target.closest('[data-reactor-form]');
   if(reactorForm&&selected){e.preventDefault();const percent=Number(reactorForm.elements['reactor-output'].value),t=at(state.sites[siteId],selected.x,selected.y);document.activeElement.blur();result(setReactor(state,siteId,t.x,t.y,percent,t.machine.enabled),'Reactor output updated.');return;}
   const climateForm = e.target.closest('[data-climate-form]');
@@ -256,7 +256,7 @@ $('inspector').onclick = e => {
   if(['plumbing-toggle','plumbing-direction','plumbing-mode'].includes(action)&&selected){const t=at(state.sites[siteId],selected.x,selected.y),d=t.waterDevice,enabled=action==='plumbing-toggle'?!d.enabled:d.enabled,direction=action==='plumbing-direction'?button.dataset.direction:d.direction,mode=action==='plumbing-mode'?button.dataset.waterMode:d.mode;const configure=t.building==='waterPump'?setWaterPump:t.building==='waterIntake'?setWaterIntake:setWaterOutlet;result(configure(state,siteId,t.x,t.y,enabled,direction,mode));}
   if(['repairWaterPipe','removeWaterPipe'].includes(action)&&selected)result(order(state,siteId,selected.x,selected.y,action),'Water pipe work designated.');
   if(action==='gas-valve'&&selected){const t=at(state.sites[siteId],selected.x,selected.y);result(setGasValve(state,siteId,t.x,t.y,!gasNode(t).open));}
-  if(['gas-toggle','gas-direction'].includes(action)&&selected){const t=at(state.sites[siteId],selected.x,selected.y),d=t.gasDevice;result(setGasDevice(state,siteId,t.x,t.y,action==='gas-toggle'?!d.enabled:d.enabled,action==='gas-direction'?button.dataset.direction:(d.direction||'east'),d.target??100));}
+  if(['gas-toggle','gas-direction'].includes(action)&&selected){const t=at(state.sites[siteId],selected.x,selected.y),d=t.gasDevice;result(setGasDevice(state,siteId,t.x,t.y,action==='gas-toggle'?!d.enabled:d.enabled,action==='gas-direction'?button.dataset.direction:(d.direction||'ne'),d.target??100));}
   if(['gas-extractor-toggle','gas-extractor-mode'].includes(action)&&selected){const t=at(state.sites[siteId],selected.x,selected.y),d=t.gasDevice;result(setGasExtractor(state,siteId,t.x,t.y,action==='gas-extractor-toggle'?!d.enabled:d.enabled,action==='gas-extractor-mode'?button.dataset.mode:d.mode,d.target));}
   if(['repairPipe','removePipe'].includes(action)&&selected)result(order(state,siteId,selected.x,selected.y,action),'Pipe work designated.');
   if(action==='animal-assign')result(setAnimalPost(state,button.dataset.animal,Number(button.dataset.x),Number(button.dataset.y)));
@@ -315,7 +315,7 @@ $('world').addEventListener('pointerup', e => {
   if (!pointer) return; const click = !pointer.moved && pointer.button === 0; pointer = null;
   if (!click) return;
   if (siteId === 'universe') { const n = renderer.regionNodes().find(n => Math.hypot(n.x - e.offsetX, n.y - e.offsetY) < 65); if (n) setSite(n.id); return; }
-  const pos = renderer.screenToTile(e.offsetX, e.offsetY, state.sites[siteId]); if (!inside(state.sites[siteId], pos.x, pos.y)) return;
+  const pos = renderer.screenToTile(e.offsetX, e.offsetY, state.sites[siteId]); if (!pos) return;
   selected = { ...pos, site: siteId }; renderer.selection = selected;
   if (mode !== 'inspect') result(order(state, siteId, pos.x, pos.y, mode, building), 'Work designated.');
   else openDrawer('right', 'inspect');

@@ -1,3 +1,4 @@
+import { DIRECTIONS } from '../src/geometry.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, at, serialize, deserialize } from '../src/simulation.js';
@@ -10,7 +11,7 @@ import { observe, startRecording, exportRecording, recordingStatus } from '../sr
 
 const rows = s => exportRecording(s).trim().split('\n').map(JSON.parse);
 const xy = (x, y = 9) => ({site:'surface', x, y});
-const deviceArgs = (x, extra = {}) => ({...xy(x), enabled:true, direction:'east', ...extra});
+const deviceArgs = (x, extra = {}) => ({...xy(x), enabled:true, direction:'se', ...extra});
 const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} != ${expected}`);
 
 function base() {
@@ -39,11 +40,12 @@ function chain(mode = 'inventory') {
   const {s, site} = base();
   const intake = install(s, 'waterIntake', 10), outlet = install(s, 'waterOutlet', 12), node = at(site, 11, 9);
   node.waterPipe = newWaterPipe();
-  const source = mode === 'inventory' ? install(s, 'waterTank', 9) : at(site, 9, 9);
-  const target = mode === 'inventory' ? install(s, 'farm', 13) : at(site, 13, 9);
+  const source = mode === 'inventory' ? install(s, 'waterTank', 9, 8) : at(site, 9, 8);
+  const target = mode === 'inventory' ? install(s, 'farm', 13, 8) : at(site, 13, 8);
   at(site, 8, 10).stock.water -= 2;
   if (mode === 'inventory') { source.machine.input.water = 2; source.machine.enabled = false; }
   else { source.liquid = 2; site.liquids.released += 2; }
+  intake.waterDevice.direction='se';outlet.waterDevice.direction='ne';
   intake.waterDevice.mode = mode;
   outlet.waterDevice.mode = mode;
   syncResources(s);
@@ -76,7 +78,7 @@ test('plumbing catalog defines strict controls, physical work kinds and detached
     assert.ok(entry);
     assert.equal(entry.parameters.additionalProperties, false);
     assert.deepEqual(entry.parameters.required, ['site','x','y', ...(kind === 'valve' ? ['open'] : ['enabled','direction', ...(['intake','outlet'].includes(kind) ? ['mode'] : [])])]);
-    if (kind !== 'valve') assert.deepEqual(entry.parameters.properties.direction.enum, ['east','south','west','north']);
+    if (kind !== 'valve') assert.deepEqual(entry.parameters.properties.direction.enum, DIRECTIONS);
     if (['intake','outlet'].includes(kind)) assert.deepEqual(entry.parameters.properties.mode.enum, ['inventory','floor']);
   }
   const workKinds = catalog.find(action => action.id === 'job.order').parameters.properties.kind.enum;
@@ -84,11 +86,11 @@ test('plumbing catalog defines strict controls, physical work kinds and detached
   const {s} = base(), api = createAgentInterface(() => s), definitions = api.definitions();
   assert.equal(definitions.plumbing.pipeCapacity, 2);
   assert.equal(definitions.plumbing.reservoirCapacity, 32);
-  assert.deepEqual(definitions.waterDirections.east, [1,0]);
+  assert.deepEqual(definitions.waterDirections.ne, true);
   definitions.plumbing.pipeCapacity = 999;
-  definitions.waterDirections.east[0] = 999;
+  definitions.waterDirections.ne = false;
   assert.equal(api.definitions().plumbing.pipeCapacity, 2);
-  assert.deepEqual(api.definitions().waterDirections.east, [1,0]);
+  assert.deepEqual(api.definitions().waterDirections.ne, true);
 });
 
 test('every plumbing control uses identical player and agent rules with linked request, event and result records', () => {
@@ -96,14 +98,14 @@ test('every plumbing control uses identical player and agent rules with linked r
   startRecording(a); startRecording(b);
   const controls = controlBindings(() => a), api = createAgentInterface(() => b);
   assert.ok(controls.setWaterValve(a, 'surface', 11, 8, false).ok);
-  assert.ok(controls.setWaterPump(a, 'surface', 11, 9, false, 'north').ok);
-  assert.ok(controls.setWaterIntake(a, 'surface', 12, 9, true, 'south', 'floor').ok);
-  assert.ok(controls.setWaterOutlet(a, 'surface', 13, 9, false, 'west', 'floor').ok);
+  assert.ok(controls.setWaterPump(a, 'surface', 11, 9, false, 'n').ok);
+  assert.ok(controls.setWaterIntake(a, 'surface', 12, 9, true, 's', 'floor').ok);
+  assert.ok(controls.setWaterOutlet(a, 'surface', 13, 9, false, 'nw', 'floor').ok);
   for (const [id, args] of [
     ['plumbing.valve', {...xy(11, 8), open:false}],
-    ['plumbing.pump', deviceArgs(11, {enabled:false, direction:'north'})],
-    ['plumbing.intake', deviceArgs(12, {direction:'south', mode:'floor'})],
-    ['plumbing.outlet', deviceArgs(13, {enabled:false, direction:'west', mode:'floor'})],
+    ['plumbing.pump', deviceArgs(11, {enabled:false, direction:'n'})],
+    ['plumbing.intake', deviceArgs(12, {direction:'s', mode:'floor'})],
+    ['plumbing.outlet', deviceArgs(13, {enabled:false, direction:'nw', mode:'floor'})],
   ]) assert.ok(api.act(id, args).ok);
   assert.deepEqual(a, b);
   for (const [s, source] of [[a, 'player'], [b, 'agent']]) {
@@ -179,13 +181,13 @@ test('same-tick inventory transfers retain owner slots and semantic boundaries w
   const recording = rows(s), loaded = recording.filter(row => row.event?.id === 'plumbing.loaded'), delivered = recording.filter(row => row.event?.id === 'plumbing.delivered');
   assert.ok(loaded.length && delivered.length);
   for (const row of loaded) {
-    assert.deepEqual(row.event.from, {entity:'tile:surface:9:9', slot:'machine.input'});
+    assert.deepEqual(row.event.from, {entity:'tile:surface:9:8', slot:'machine.input'});
     assert.deepEqual(row.event.to, {entity:'tile:surface:11:9', slot:'waterPipe'});
     assert.equal(row.event.device, 'tile:surface:10:9');
   }
   for (const row of delivered) {
     assert.deepEqual(row.event.from, {entity:'tile:surface:11:9', slot:'waterPipe'});
-    assert.deepEqual(row.event.to, {entity:'tile:surface:13:9', slot:'machine.input'});
+    assert.deepEqual(row.event.to, {entity:'tile:surface:13:8', slot:'machine.input'});
     assert.equal(row.event.device, 'tile:surface:12:9');
     assert.equal(row.event.reason, 'supply');
   }
@@ -204,14 +206,14 @@ test('floor adapters name the liquid and node owners and expose actual blocked c
   near(source.liquid, 0); near(target.liquid, 2);
   const recording = rows(s), recovered = recording.find(row => row.event?.id === 'plumbing.recovered'), released = recording.find(row => row.event?.id === 'plumbing.released');
   assert.ok(recovered && released);
-  assert.deepEqual(recovered.event.from, {entity:'tile:surface:9:9', slot:'liquid'});
+  assert.deepEqual(recovered.event.from, {entity:'tile:surface:9:8', slot:'liquid'});
   assert.deepEqual(recovered.event.to, {entity:'tile:surface:11:9', slot:'waterPipe'});
   assert.deepEqual(released.event.from, {entity:'tile:surface:11:9', slot:'waterPipe'});
-  assert.deepEqual(released.event.to, {entity:'tile:surface:13:9', slot:'liquid'});
+  assert.deepEqual(released.event.to, {entity:'tile:surface:13:8', slot:'liquid'});
   assert.equal(released.event.reason, 'outlet');
   const state = observe(s).entities['tile:surface:10:9'].derived.plumbing;
   assert.equal(state.blockedCode, 'source_empty');
-  assert.equal(state.input, 'tile:surface:9:9');
+  assert.equal(state.input, 'tile:surface:9:8');
   assert.equal(state.output, 'tile:surface:11:9');
   assert.equal(state.inputSlot, 'liquid');
   assert.equal(state.outputSlot, 'waterPipe');
@@ -223,16 +225,16 @@ test('floor adapters name the liquid and node owners and expose actual blocked c
 });
 
 test('detached plumbing observations distinguish source output claims from incoming target reservations', () => {
-  const {s, site} = base(), source = install(s, 'bilgePump', 9), target = install(s, 'farm', 13);
-  install(s, 'waterIntake', 10); install(s, 'waterOutlet', 12);
+  const {s, site} = base(), source = install(s, 'bilgePump', 9, 8), target = install(s, 'farm', 13, 8);
+  install(s, 'waterIntake', 10).waterDevice.direction='se'; install(s, 'waterOutlet', 12).waterDevice.direction='ne';
   source.machine.enabled = false;
   source.machine.output.water = 2;
   at(site, 11, 9).waterPipe = {...newWaterPipe(), water:1};
   site.plumbing.loaded += 1;
-  s.crew[0].intent = {type:'haul', source:'output', target:[9,9], items:{water:1}, destination:{kind:'stock', target:[8,10]}};
+  s.crew[0].intent = {type:'haul', source:'output', target:[9,8], items:{water:1}, destination:{kind:'stock', target:[8,10]}};
   s.crew[1].carry = {water:.75};
-  s.crew[1].delivery = {kind:'input', target:[13,9]};
-  s.crew[2].intent = {type:'haul', source:'stock', target:[8,10], items:{water:.5}, destination:{kind:'input', target:[13,9]}};
+  s.crew[1].delivery = {kind:'input', target:[13,8]};
+  s.crew[2].intent = {type:'haul', source:'stock', target:[8,10], items:{water:.5}, destination:{kind:'input', target:[13,8]}};
   at(site, 8, 10).stock.water -= 3.75;
   syncResources(s);
   refreshPower(s, site); updatePower(s, site);

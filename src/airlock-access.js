@@ -1,11 +1,12 @@
 // Pure airlock observations and movement guards. This leaf deliberately imports
 // neither physics nor movement; observing or planning never changes a cycle.
+import { DIRECTIONS, neighbors as hexNeighbors, step, opposite, directionBetween, tileAt } from './geometry.js';
 export const AIRLOCK_PHASES = ['idle','prepare_entry','admit','seal_entry','recover','refill','release','paused'];
-export const AIRLOCK_DIRECTIONS = {east:[1,0],south:[0,1],west:[-1,0],north:[0,-1]};
-export const airlockTile = (site,x,y) => x>=0&&y>=0&&x<site.size&&y<site.size?site.tiles[y*site.size+x]:null;
+export const AIRLOCK_DIRECTIONS = Object.freeze(Object.fromEntries(DIRECTIONS.map(direction=>[direction,true])));
+export const airlockTile = tileAt;
 export const airlockId = (site,t) => `tile:${site.id}:${t.x}:${t.y}`;
 export const airlockKey = p => `${p[0]},${p[1]}`;
-const neighbors = p => [[p[0]+1,p[1]],[p[0]-1,p[1]],[p[0],p[1]+1],[p[0],p[1]-1]];
+const neighbors = p => hexNeighbors(...p);
 const same = (a,b) => !!a&&!!b&&a[0]===b[0]&&a[1]===b[1];
 export const airlockRoom = (site,p) => p&&site.rooms.find(r=>r.cells.includes(airlockKey(p)));
 export const airlockNode = t => t?.pipe||t?.gasStore||null;
@@ -24,7 +25,8 @@ export function airlockRouteInfo(site,t) {
  for(const side of ['inner','outer']) {
   const door=a.config[side],inside=neighbors(door).filter(p=>cells.has(airlockKey(p)));
   if(inside.length!==1)return null;
-  result[side]={door:[...door],inside:inside[0],outside:[2*door[0]-inside[0][0],2*door[1]-inside[0][1]]};
+  const inward=directionBetween(door,inside[0]);
+  result[side]={door:[...door],inside:inside[0],outside:step(...door,opposite(inward))};
  }
  return result;
 }
@@ -51,8 +53,9 @@ export function airlockLayout(site,t,checkOwnership=true) {
  for(const side of ['inner','outer']) {
   const r=route[side],door=airlockTile(site,...r.door);
   if(door?.building!=='door'||door.hp<100||door.fire)return fail('seal_broken');
-  const dx=r.inside[0]-r.door[0],dy=r.inside[1]-r.door[1];
-  for(const p of [[r.door[0]-dy,r.door[1]+dx],[r.door[0]+dy,r.door[1]-dx]]) {const wall=airlockTile(site,...p);if(wall?.building!=='wall')return fail('layout_changed');if(wall.hp<100||wall.fire)return fail('seal_broken');}
+  const sideWalls=neighbors(r.door).filter(p=>!same(p,r.inside)&&!same(p,r.outside));
+  if(sideWalls.length!==4)return fail('layout_changed');
+  for(const p of sideWalls) {const wall=airlockTile(site,...p);if(wall?.building!=='wall')return fail('layout_changed');if(wall.hp<100||wall.fire)return fail('seal_broken');}
   if(!airlockWalkable(site,r.inside)||!airlockWalkable(site,r.outside))return fail('route_unavailable');
  }
  const habitat=airlockRoom(site,route.inner.outside);
@@ -60,8 +63,8 @@ export function airlockLayout(site,t,checkOwnership=true) {
  const equipment={extractor:'gasExtractor',pump:'gasPump',reservoir:'gasReservoir',vent:'gasVent'};
  for(const [key,building] of Object.entries(equipment)){const n=airlockTile(site,...cfg[key]);if(n?.building!==building||n.pipe)return fail('layout_changed');if(n.hp<100||n.fire)return fail('equipment_damaged');}
  if(!cells.has(airlockKey(cfg.extractor))||!cells.has(airlockKey(cfg.vent)))return fail('layout_changed');
- const pump=airlockTile(site,...cfg.pump),axis=AIRLOCK_DIRECTIONS[pump.gasDevice?.direction];if(!axis)return fail('layout_changed');
- const ports=[[pump.x-axis[0],pump.y-axis[1]],[pump.x+axis[0],pump.y+axis[1]]];
+ const pump=airlockTile(site,...cfg.pump),direction=pump.gasDevice?.direction;if(!Object.hasOwn(AIRLOCK_DIRECTIONS,direction))return fail('layout_changed');
+ const ports=[step(pump.x,pump.y,opposite(direction)),step(pump.x,pump.y,direction)];
  const flood=(start,closed=null)=>{const found=[],seen=new Set(),todo=[start];for(let i=0;i<todo.length;i++){const p=todo[i],k=airlockKey(p),n=airlockTile(site,...p);if(seen.has(k)||!airlockNode(n)||n===closed)continue;seen.add(k);found.push(n);todo.push(...neighbors(p));}return found;};
  const first=flood(ports[0]),second=flood(ports[1]);
  if(!first.length||!second.length||first.some(n=>second.includes(n)))return fail('layout_changed');
@@ -71,7 +74,7 @@ export function airlockLayout(site,t,checkOwnership=true) {
  const nodes=[...recoveryNodes,...storageNodes];
  if(nodes.some(n=>!n.pipe&&![ex,vent,tank].includes(n)))return fail('layout_changed');
  if(nodes.some(n=>(n.pipe?n.pipe.hp:n.hp)<100||n.fire))return fail('equipment_damaged');
- for(const other of site.tiles)if(other!==pump&&other.building==='gasPump') {const d=AIRLOCK_DIRECTIONS[other.gasDevice?.direction];if(d&&[airlockTile(site,other.x-d[0],other.y-d[1]),airlockTile(site,other.x+d[0],other.y+d[1])].some(n=>nodes.includes(n)))return fail('layout_changed');}
+ for(const other of site.tiles)if(other!==pump&&other.building==='gasPump') {const d=other.gasDevice?.direction;if(Object.hasOwn(AIRLOCK_DIRECTIONS,d)&&[airlockTile(site,...step(other.x,other.y,opposite(d))),airlockTile(site,...step(other.x,other.y,d))].some(n=>nodes.includes(n)))return fail('layout_changed');}
  // The extractor and vent each close their physical port in the opposite
  // phase. A graph that works only through that closed device cannot cycle.
  // Buffers behind a closed valve are owned but unavailable to that phase.
@@ -84,7 +87,7 @@ export function airlockLayout(site,t,checkOwnership=true) {
   if(JSON.stringify(ownedNodes)!==JSON.stringify(a.ownedNodes))return fail('layout_changed');
   for(const ref of ownedNodes){const n=airlockTile(site,ref.x,ref.y),o=(ref.layer==='pipe'?n.pipe:n).airlockOwner;if(o?.controller!==airlockId(site,t)||o.binding!==a.binding)return fail('layout_changed');}
  }
- const dx=pump.x-recoveryPort[0],dy=pump.y-recoveryPort[1],recoveryDirection=Object.keys(AIRLOCK_DIRECTIONS).find(k=>same(AIRLOCK_DIRECTIONS[k],[dx,dy]));
+ const recoveryDirection=opposite(directionBetween([pump.x,pump.y],recoveryPort));
  return {ok:true,reason:null,route,room,habitat,recoveryNodes,storageNodes,phaseNodes,ownedNodes,recoveryDirection};
 }
 export function airlockRoomReading(room) {

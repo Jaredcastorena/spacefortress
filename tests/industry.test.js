@@ -1,9 +1,8 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
 import { releaseBatteryEnergy } from '../src/power.js';
 import { fillRoom, refreshAtmosphere } from '../src/atmosphere.js';
+import { neighbors } from '../src/geometry.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, cancelJob, setLabor, serialize, deserialize, updateRooms } from '../src/simulation.js';
 import { initializeStorage, syncResources, totalResources, quantity } from '../src/inventory.js';
 import { setMachineEnabled, spillStorage, OUTPUT_CAPACITY } from '../src/industry.js';
@@ -29,7 +28,7 @@ test('ore stays in its depot until a hauler delivers it; output needs a separate
 
 test('a closed route prevents deliveries, and opening it restarts the production chain', () => {
   const s = createGame(), site = s.sites.surface; depot(s).stock.ore = 1; syncResources(s);
-  for (const [x, y] of [[12, 10], [13, 9], [13, 11]]) at(site, x, y).building = 'wall';
+  for (const [x, y] of neighbors(13, 10)) at(site, x, y).building = 'wall';
   step(s, 50); assert.equal(s.resources.ore, 1); assert.equal(refinery(s).machine.progress, 0);
   at(site, 12, 10).building = null; until(s, () => s.resources.alloy === 38);
 });
@@ -129,16 +128,13 @@ test('ore becomes alloy, fabricated components, and finally a constructed advanc
   assert.equal(totalResources(s).ore * 2 + totalResources(s).alloy + totalResources(s).components * 3, 0);
 });
 
-test('version-two global supplies migrate once while cargo, reserved jobs and crew skills survive', () => {
-  const legacy = createGame(); const job = order(legacy, 'surface', 11, 14, 'build', 'solar').job;
-  const before = totalResources(legacy); legacy.version = 2;
-  for (const site of Object.values(legacy.sites)) for (const t of site.tiles) { delete t.stock; delete t.machine; }
-  delete job.sources; legacy.crew[0].carry = { ore: 8 }; legacy.crew[1].intent = { type: 'haul', target: [15, 14] };
-  const migrated = deserialize(serialize(projectPreAirlock(legacy))); assert.equal(migrated.version, VERSION);
-  assert.equal(migrated.resources.alloy, legacy.resources.alloy); assert.deepEqual(migrated.crew[0].skills, legacy.crew[0].skills);
-  assert.equal(totalResources(migrated).ore, before.ore + 8); cancelJob(migrated, job.id);
-  assert.equal(migrated.resources.alloy, before.alloy); assert.equal(migrated.crew[1].intent, null);
-  assert.deepEqual(deserialize(serialize(migrated)), migrated);
+test('physical inventories, reserved jobs and crew skills reload exactly and reject a legacy schema label', () => {
+  const s = createGame(); order(s, 'surface', 11, 14, 'build', 'solar');
+  const before = structuredClone(s), supplies = totalResources(s), copy = deserialize(serialize(s));
+  assert.deepEqual(copy, before); assert.deepEqual(totalResources(copy), supplies);
+  const forged = JSON.parse(serialize(s)); forged.version = 2; const original = JSON.stringify(forged);
+  assert.throws(() => deserialize(original), /Legacy square-grid saves/);
+  assert.equal(JSON.stringify(forged), original); assert.deepEqual(s, before);
 });
 
 test('malformed inventories, batches, deliveries and conflicting resource totals are rejected', () => {

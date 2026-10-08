@@ -1,7 +1,6 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
+import { distance } from '../src/geometry.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { VERSION } from '../src/data.js';
 import {createGame,at,step,serialize,deserialize,setLabor,setAnimalPost,transportAnimalToPost,cancelJob} from '../src/simulation.js';
 import {animalPath} from '../src/navigation.js';
 import {transportFor} from '../src/animal-transport.js';
@@ -34,7 +33,7 @@ test('handler must reach the animal, attach a lead and physically cross a latche
 
 test('escort movement stays with its handler and advances at most one tile each three ticks',()=>{
  const f=pen(),{s,a}=f,j=request(f);until(s,()=>j.phase==='escort');let count=0;
- while(s.jobs.includes(j)&&count++<160){const old=[a.x,a.y],worker=s.crew.find(c=>c.id===j.worker);step(s);if(s.jobs.includes(j)){const distance=Math.abs(a.x-old[0])+Math.abs(a.y-old[1]);assert.ok(distance<=1);if(distance)assert.equal(s.tick%3,0);assert.equal(a.x,worker.x);assert.equal(a.y,worker.y);}check(s);}
+ while(s.jobs.includes(j)&&count++<160){const old=[a.x,a.y],worker=s.crew.find(c=>c.id===j.worker);step(s);if(s.jobs.includes(j)){const moved=distance([a.x,a.y],old);assert.ok(moved<=1);if(moved)assert.equal(s.tick%3,0);assert.equal(a.x,worker.x);assert.equal(a.y,worker.y);}check(s);}
  assert.ok(!s.jobs.includes(j));
 });
 
@@ -47,7 +46,7 @@ test('disabling the handler duty interrupts at the current position and another 
 });
 
 test('crew recovery interrupts transport rather than taking the animal to a bunk',()=>{
- const f=pen(),{s,a}=f,j=request(f);until(s,()=>j.phase==='escort');const c=s.crew.find(c=>c.id===j.worker),position=[a.x,a.y];c.energy=0;step(s);assert.notEqual(j.worker,c.id);assert.equal(j.phase,'collect');assert.ok(Math.abs(a.x-position[0])+Math.abs(a.y-position[1])<=1);check(s);until(s,()=>!s.jobs.includes(j));
+ const f=pen(),{s,a}=f,j=request(f);until(s,()=>j.phase==='escort');const c=s.crew.find(c=>c.id===j.worker),position=[a.x,a.y];c.energy=0;step(s);assert.notEqual(j.worker,c.id);assert.equal(j.phase,'collect');assert.ok(distance([a.x,a.y],position)<=1);check(s);until(s,()=>!s.jobs.includes(j));
 });
 
 test('cancellation releases the post and animal without deleting supplies or its old home',()=>{
@@ -91,8 +90,10 @@ test('shared action and observation label the order and all physical stages',()=
  const {s,a}=pen();startRecording(s,{maxRecords:10000,maxBytes:32000000});const result=executeAction(s,'husbandry.transport',{creature:a.id,x:6,y:19},'agent');assert.ok(result.ok);assert.equal(observe(s).entities[a.id].derived.transport.job,result.job);until(s,()=>!transportFor(s,a));for(const id of ['animal.transport.ordered','animal.transport.attached','animal.transport.delivered'])assert.ok(events(s).some(e=>e.id===id),id);check(s);
 });
 
-test('schema 28 migration preserves the colony and malformed escort ownership is rejected',()=>{
- const s=createGame();s.version=28;const old=structuredClone(s),copy=check(projectPreAirlock(s));assert.equal(copy.version, VERSION);old.version=VERSION;assert.deepEqual(copy,old);
+test('hex saves preserve the colony and reject legacy labels and malformed escort ownership',()=>{
+ const s=createGame(),before=structuredClone(s),copy=deserialize(serialize(s));assert.deepEqual(copy,before);
+ const forged=JSON.parse(serialize(s));forged.version=28;const original=JSON.stringify(forged);
+ assert.throws(()=>deserialize(original),/Legacy square-grid saves/);assert.equal(JSON.stringify(forged),original);assert.deepEqual(s,before);
  for(const mutate of [j=>j.phase='fly',j=>j.work=1,j=>j.animal='missing',j=>j.cost={food:1},j=>j.phase='escort']){const f=pen(),j=request(f);mutate(j);assert.throws(()=>check(f.s));}
  const f=pen(),j=request(f);until(f.s,()=>j.phase==='escort');f.a.x++;assert.throws(()=>check(f.s),/escort/);
 });

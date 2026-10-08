@@ -1,7 +1,5 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, setLabor, serialize, deserialize, updateRooms, pathTo } from '../src/simulation.js';
 import { craftKeepsake, collectPossession, setPossessionCollection, releasePossession, usePossession } from '../src/possessions.js';
 import { add, extract, spill, totalResources, syncResources, quantity } from '../src/inventory.js';
@@ -89,9 +87,13 @@ test('identity, pending pickup, personal use and counts continue deterministical
   const {s,site,c,depot}=fixture();give(s,depot.stock);c.x=12;c.y=8;breaking(s,c);collectPossession(s,c,site,pathTo);const copy=check(s);step(s,20);step(copy,20);assert.deepEqual(copy,s);
 });
 
-test('version twenty-two migration grants no items and expands only unrestricted filters',()=>{
-  const {s,site,depot}=fixture();s.version=22;delete s.nextItemId;delete s.resources.keepsakes;for(const c of s.crew)delete c.possessions;depot.storage.accepted=depot.storage.accepted.filter(r=>r!=='keepsakes');const before=totalResources(s),copy=check(projectPreAirlock(s));assert.equal(copy.version, VERSION);assert.deepEqual(totalResources(copy),before);assert.ok(at(copy.sites.surface,8,10).storage.accepted.includes('keepsakes'));
-  depot.storage.accepted=['alloy'];const selective=check(projectPreAirlock(s));assert.deepEqual(at(selective.sites.surface,8,10).storage.accepted,['alloy']);
+test('physical possessions and selective filters reload exactly and reject a legacy schema label', () => {
+  const { s, depot } = fixture(); depot.storage.accepted = ['alloy'];
+  const before = structuredClone(s), supplies = totalResources(s), copy = deserialize(serialize(s));
+  assert.deepEqual(copy, before); assert.deepEqual(totalResources(copy), supplies);
+  const forged = JSON.parse(serialize(s)); forged.version = 22; const original = JSON.stringify(forged);
+  assert.throws(() => deserialize(original), /Legacy square-grid saves/);
+  assert.equal(JSON.stringify(forged), original); assert.deepEqual(s, before);
 });
 
 test('malformed, fractional, missing and duplicate physical items are rejected',()=>{

@@ -1,11 +1,11 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
 import { depart as launch } from './helpers/depart.js';
+import { neighbors } from '../src/geometry.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, step, at, order, cancelJob,  recall, serialize, deserialize } from '../src/simulation.js';
 import { quantity, spill, totalResources, syncResources } from '../src/inventory.js';
 import { cargoFree, reservedCargo, setCargoAccepted, routeTime, routeFuel, dockAt, resumeExpedition } from '../src/expedition.js';
-import { VERSION, SHUTTLE_FITS } from '../src/data.js';
+import { SHUTTLE_FITS } from '../src/data.js';
 const until = (s, predicate, limit = 160) => { for (let i = 0; i < limit && !predicate(); i++) step(s); assert.ok(predicate(), 'Expected state before tick limit'); };
 function expedition() { const s = createGame(); assert.equal(launch(s, 'wreck').ok, true); step(s, 22); return s; }
 const team = s => s.crew.filter(c => s.mission.crew.includes(c.id));
@@ -50,7 +50,7 @@ test('recall walks crew and held cargo back to the dock before transit begins', 
 
 test('a blocked return route strands the boarding team until the route is opened', () => {
   const s = expedition(), site = s.sites.wreck; team(s).forEach((c, i) => { c.x = 8; c.y = 8 + i; });
-  for (const [x, y] of [[3, 11], [5, 11], [4, 10], [4, 12]]) at(site, x, y).building = 'wall';
+  for (const [x, y] of neighbors(4, 11)) at(site, x, y).building = 'wall';
   recall(s); step(s, 5); assert.equal(s.mission.phase, 'boarding'); assert.ok(team(s).every(c => c.site === 'wreck' && c.activity.includes('blocked')));
   assert.equal(order(s, 'wreck', 5, 11, 'remove').ok, false);
   assert.equal(resumeExpedition(s).ok, true); const clear = order(s, 'wreck', 5, 11, 'remove'); assert.equal(clear.ok, true);
@@ -119,12 +119,13 @@ test('pickup, loaded carriers and boarding saves resume deterministically', () =
   recall(s); copy = deserialize(serialize(s)); step(s, 40); step(copy, 40); assert.deepEqual(copy, s);
 });
 
-test('old in-flight cargo migrates without loss even when it exceeds the new standard capacity', () => {
-  const s = expedition(); s.version = 7; s.mission.cargo = { alloy: 60 }; delete s.shuttle; delete s.mission.returnCrew;
-  for (const field of ['fit', 'capacity', 'legacyCapacity']) delete s.mission[field];
-  const migrated = deserialize(serialize(projectPreAirlock(s))); assert.equal(migrated.version, VERSION); assert.equal(migrated.mission.capacity, 60); assert.equal(cargoFree(migrated), 0);
-  assert.deepEqual(deserialize(serialize(migrated)), migrated); recall(migrated); until(migrated, () => !migrated.mission);
-  assert.equal(at(migrated.sites.surface, 16, 11).drop.alloy, 60); assert.equal(SHUTTLE_FITS[migrated.shuttle.fit].capacity, 18);
+test('current in-flight cargo reloads exactly and rejects a legacy schema label', () => {
+  const s = expedition();
+  const before = structuredClone(s), supplies = totalResources(s), copy = deserialize(serialize(s));
+  assert.deepEqual(copy, before); assert.deepEqual(totalResources(copy), supplies);
+  const forged = JSON.parse(serialize(s)); forged.version = 7; const original = JSON.stringify(forged);
+  assert.throws(() => deserialize(original), /Legacy square-grid saves/);
+  assert.equal(JSON.stringify(forged), original); assert.deepEqual(s, before);
 });
 
 test('save validation rejects overfilled holds, invalid fitting state and bad orbital pickup coordinates', () => {

@@ -72,7 +72,7 @@ export function observe(s) {
   const mealOwners=itemOwners(s);
   for(const c of crew){if(c.medical.openedFood)mealOwners.push({inventory:c.medical.openedFood,location:{entity:c.id,slot:'medical.openedFood'}});if(c.intent?.type==='meal'&&c.intent.openedFood)mealOwners.push({inventory:c.intent.openedFood,location:{entity:c.id,slot:'intent.openedFood'}});}
   for(const owner of mealOwners)for(const lot of foodLots(owner.inventory))if(lot.meal){const m=lot.meal;const entry=entities[m.id]??={type:'meal_batch',...m,locations:[],food:0};entry.locations.push({...owner.location,amount:lot.amount,age:lot.age});entry.food+=lot.amount;}
-  return clone({schemaVersion:TELEMETRY_VERSION,tick:s.tick,entities});
+  return clone({schemaVersion:TELEMETRY_VERSION,grid:s.grid,tick:s.tick,entities});
 }
 export function systemFor(type,path) {
   const root=path[0];
@@ -104,7 +104,7 @@ export function changesBetween(before,after) {
 }
 export function startRecording(s,{maxRecords=2000,maxBytes=16_000_000}={}) {
   if(!Number.isInteger(maxRecords)||maxRecords<2||maxRecords>100000||!Number.isInteger(maxBytes)||maxBytes<1_000_000||maxBytes>128_000_000)throw new Error('Invalid recording limits.');
-  const initial=observe(s),header={kind:'header',schemaVersion:TELEMETRY_VERSION,gameVersion:s.version,seed:s.seed,initialState:clone(s),observation:initial};
+  const initial=observe(s),header={kind:'header',schemaVersion:TELEMETRY_VERSION,gameVersion:s.version,grid:s.grid,seed:s.seed,initialState:clone(s),observation:initial};
   const bytes=new TextEncoder().encode(JSON.stringify(header)).length;
   const session={header,last:initial,records:[],bytes,maxBytes,maxRecords,active:bytes<maxBytes,reason:bytes>=maxBytes?'byte_limit':null,command:null};
   sessions.set(s,session);return recordingStatus(s);

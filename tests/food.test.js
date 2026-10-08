@@ -147,9 +147,10 @@ test('aging, pending replacements and waste continue deterministically after sav
   const copy = check(f.s); step(f.s, 30); step(copy, 30); assert.deepEqual(copy, f.s); check(f.s);
 });
 
-test('version-fifteen migration keeps quantities and paid portions without inventing food', () => {
-  const { s, c } = fixture(); const before = totalResources(s); s.version = 15; delete s.foodSpoiled; delete s.resources.waste; c.intent = { type: 'meal', target: null, servings: 4 };
-  const copy = deserialize(serialize(projectPreAirlock(s))); assert.equal(copy.version, VERSION); assert.deepEqual(totalResources(copy), before); assert.equal(copy.crew[0].intent.servings, 4); assert.equal(copy.crew[0].intent.foodAge, 0); check(copy);
+test('forged schema15 food state rejects without changing quantities or paid portions', () => {
+  const {s,c}=fixture();c.intent={type:'meal',target:null,servings:4};s.version=15;delete s.foodSpoiled;delete s.resources.waste;
+  const bytes=serialize(s),before=totalResources(s);assert.throws(()=>deserialize(bytes),/Legacy square-grid saves/);
+  assert.equal(serialize(s),bytes);assert.deepEqual(totalResources(s),before);assert.equal(c.intent.servings,4);
 });
 
 test('invalid lot quantities, ages and replacement records are rejected', () => {

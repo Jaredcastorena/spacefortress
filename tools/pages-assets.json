@@ -34,6 +34,7 @@
     "src/freight.js",
     "src/gas-networks.js",
     "src/gas-panels.js",
+    "src/geometry.js",
     "src/housing-panels.js",
     "src/housing.js",
     "src/husbandry-panels.js",

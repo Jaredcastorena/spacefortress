@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fixture, refs, command, request, physicalTick, until, snapshot, CONFIG, TARGET, digest, ledger, assertLedger } from './helpers/airlock-fixture.js';
+import { fixture, refs, command, request, physicalTick, until, snapshot, CONFIG, TARGET, STAGING, PUMP_DIRECTION, digest, ledger, assertLedger } from './helpers/airlock-fixture.js';
 import { createGame, serialize, deserialize, step } from '../src/simulation.js';
 import { executeAction, actionCatalog } from '../src/controls.js';
 import { observe, startRecording, exportRecording } from '../src/telemetry.js';
@@ -10,7 +10,6 @@ import { prepareAirlocks } from '../src/airlocks.js';
 import { refreshPower } from '../src/power.js';
 import { refreshAtmosphere } from '../src/atmosphere.js';
 import { extract, syncResources } from '../src/inventory.js';
-import { projectPreAirlock } from './helpers/legacy-projection.js';
 
 function roundtrip(s,label) {
  const bytes=serialize(s);let loaded;try{loaded=deserialize(bytes);}catch(error){throw new Error(`${label}: ${error.message}`);}
@@ -21,7 +20,7 @@ function continuation(s,label) {
  for(let i=0;i<4;i++){physicalTick(a);physicalTick(b);assert.equal(snapshot(s),snapshot(loaded),`${label}: continuation tick ${i+1}`);}
 }
 
-test('synthetic controller fixture is a strict schema39 save with detached pure reads and planning',()=>{
+test('synthetic controller fixture is a strict schema40 hex save with detached pure reads and planning',()=>{
  const f=fixture(),before=snapshot(f.s);
  roundtrip(f.s,'configured fixture');
  for(let i=0;i<3;i++){
@@ -47,25 +46,24 @@ test('all six airlock shared actions have strict schemas and reject unknown/malf
 
 test('bound manual door/device/extractor/valve controls reject without changing gas or settings',()=>{
  const f=fixture();for(const [id,args] of [
- ['door.mode',{site:'surface',x:6,y:7,mode:'open'}],
- ['gas.device',{site:'surface',x:7,y:5,enabled:true,direction:'south',target:100}],
+ ['door.mode',{site:'surface',x:CONFIG.inner[0],y:CONFIG.inner[1],mode:'open'}],
+ ['gas.device',{site:'surface',x:7,y:5,enabled:true,direction:PUMP_DIRECTION,target:100}],
  ['gas.extractor',{site:'surface',x:7,y:7,enabled:true,mode:'filter',target:100}],
  ['gas.valve',{site:'surface',x:7,y:4,open:true}],
  ]){const before=snapshot(f.s),result=executeAction(f.s,id,args,'test');assert.equal(result.ok,false,id);assert.equal(result.reason,'airlock_controlled',`${id}: ${result.message}`);assert.equal(snapshot(f.s),before,id);}
 });
 
-test('schema38 migration preserves existing gas, door modes and timers; forged airlock fields reject before migration',()=>{
- const s=createGame(),legacy=projectPreAirlock(s,38),before=structuredClone(legacy);
- const loaded=deserialize(JSON.stringify(legacy));assert.equal(loaded.version,39);
- assert.equal(digest(projectPreAirlock(loaded,38)),digest(before),'legacy facts remain exact');
- for(const place of ['crew','tile','pipe','controller']){
- const forged=structuredClone(legacy);
- if(place==='crew')forged.crew[0].airlockTraversal=null;
- if(place==='tile')forged.sites.surface.tiles[0].airlock=null;
- if(place==='pipe')forged.sites.surface.tiles[0].pipe={airlockOwner:null};
- if(place==='controller')forged.sites.surface.tiles[0].building='airlockController';
- assert.throws(()=>deserialize(JSON.stringify(forged)),/airlock/i,place);
+test('forged schema38 airlock claims reject before current topology or gas can change', () => {
+ const s=createGame(),before=serialize(s);
+ for(const place of ['crew','tile','pipe','controller']) {
+  const forged=structuredClone(s);forged.version=38;
+  if(place==='crew')forged.crew[0].airlockTraversal=null;
+  if(place==='tile')forged.sites.surface.tiles[0].airlock=null;
+  if(place==='pipe')forged.sites.surface.tiles[0].pipe={airlockOwner:null};
+  if(place==='controller')forged.sites.surface.tiles[0].building='airlockController';
+  assert.throws(()=>deserialize(JSON.stringify(forged)),/Legacy square-grid saves/,place);
  }
+ assert.equal(serialize(s),before);
 });
 
 test('interrupted queue, admission, actual transfers, release, pause and override reload exactly and continue deterministically',()=>{
@@ -134,7 +132,7 @@ test('each successful shared airlock control leaves an immediately reloadable st
 });
 
 test('full simulation airlock waits retain opened meal portions and the physically carried patient',()=>{
- const f=fixture(),patient=f.s.crew[1];Object.assign(patient,{x:5,y:7});patient.medical.injury=90;
+ const f=fixture(),patient=f.s.crew[1];Object.assign(patient,{x:STAGING.inner[0],y:STAGING.inner[1]});patient.medical.injury=90;
  f.crew.rescue={patient:patient.id,carrying:true};f.crew.intent={type:'meal',target:null,servings:4,foodAge:12,openedFood:{food:.5,_food:[{amount:.5,age:12}]},qualityTotal:0};
  request(f);until(f,()=>f.controller.airlock.phase==='recover');
  step(f.s,2);

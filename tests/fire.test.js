@@ -1,4 +1,3 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -87,8 +86,8 @@ test('fire state, partial suppression and smoke reload deterministically; record
  const {s,site,t}=fixture();ignite(s,site,t);order(s,'surface',t.x,t.y,'extinguish');step(s,3);const copy=check(s);startRecording(s,{maxRecords:10000,maxBytes:32000000});step(s,50);step(copy,50);assert.deepEqual(copy,s);assert.ok(events(s).some(e=>e.id==='fire.burned'));assert.ok(events(s).some(e=>e.id==='fire.extinguished'&&e.actor));check(s);
 });
 
-test('migration adds no smoke or heat and malformed fire ledgers and orders are rejected',()=>{
- const {s}=fixture();s.version=29;for(const site of Object.values(s.sites)){delete site.fireSafety;delete site.thermal.combustion;for(const r of site.rooms)delete r.smoke;}const resources=totalResources(s),copy=check(projectPreAirlock(s));assert.equal(copy.version, VERSION);assert.deepEqual(totalResources(copy),resources);assert.equal(copy.sites.surface.fireSafety.smokeProduced,0);
+test('legacy square fire state and malformed current fire ledgers and orders are rejected',()=>{
+ const legacy=createGame();legacy.version=29;delete legacy.grid;assert.throws(()=>deserialize(JSON.stringify(legacy)),/Legacy square-grid saves/);
  for(const mutate of [f=>f.site.fireSafety.smokeProduced=1,f=>f.r.smoke=-1,f=>f.t.fire.intensity=101,f=>f.t.fire.started=9999,f=>f.t.fire.id='fire-9999',f=>f.site.thermal.combustion=1]){const f=fixture();ignite(f.s,f.site,f.t);mutate(f);assert.throws(()=>check(f.s));}
 });
 

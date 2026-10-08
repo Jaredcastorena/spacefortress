@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, at } from '../src/simulation.js';
-import { Renderer } from '../src/render.js';
+import { Renderer, projectTile } from '../src/render.js';
 
 const terminals = { surface: [16, 11], wreck: [4, 11], comet: [5, 10], solar: [5, 10] };
-const project = ([x, y]) => [(x - y) * 32, (x + y) * 16];
+const project = ([x, y]) => projectTile(x,y);
 function fixture() {
   const s = createGame();
   // This graphics harness has no DOM sprite factory; crew behavior is not under test.
@@ -15,7 +15,7 @@ function graphics() {
   const commands = [], crafts = [], renderer = Object.create(Renderer.prototype);
   renderer.ctx = new Proxy({}, { get(target, key) { return target[key] ?? (key === 'createRadialGradient' ? () => ({ addColorStop() {} }) : () => {}); } });
   Object.assign(renderer, { w: 1440, h: 1000, dpr: 1, zoom: 1, pan: { x: 0, y: 0 }, stars: [], cutaway: true });
-  for (const name of ['box', 'diamond', 'polygon']) renderer[name] = (...args) => commands.push({ name, args });
+  for (const name of ['box', 'diamond', 'hex', 'polygon']) renderer[name] = (...args) => commands.push({ name, args });
   renderer.shuttleCraft = (x, y) => crafts.push([x, y]);
   return { renderer, commands, crafts };
 }
@@ -28,7 +28,7 @@ function assertBerth(commands, site) {
   const [x, y] = project(terminals[site]);
   assert.ok(commands.some(({ name, args }) => site === 'surface'
     ? name === 'box' && args[0] === x && args[1] === y + 3 && args[5] === '#536874'
-    : name === 'diamond' && args[0] === x && args[1] === y && args[2] === '#536772'), `${site} permanent berth remains visible`);
+    : name === 'hex' && args[0] === x && args[1] === y && args[2] === '#536772'), `${site} permanent berth remains visible`);
 }
 
 test('idle and departure preparation draw one surface craft and retain every empty remote berth', () => {

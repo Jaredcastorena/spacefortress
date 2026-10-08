@@ -1,3 +1,4 @@
+import { neighbors } from '../src/geometry.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, at } from '../src/simulation.js';
@@ -125,7 +126,7 @@ test('distinct beds, usable dock and physical reachability are required for each
   at(f.site, 8, 10).doorMode = 'auto'; f.dock.hp = 0;
   assert.ok(codes(inspect(f)).includes('dock_damaged'));
   f.dock.hp = 100; Object.assign(f.crew[0], { x: 1, y: 1 });
-  for (const [x, y] of [[0, 1], [2, 1], [1, 0], [1, 2]]) at(f.site, x, y).building = 'wall';
+  for (const [x, y] of neighbors(1, 1)) at(f.site, x, y).building = 'wall';
   assert.ok(codes(inspect(f)).includes('dock_unreachable'));
 });
 
@@ -133,7 +134,7 @@ test('provisions count only reachable local unpromised owners, never remote stor
   const f = habitat(); f.depot.stock = {};
   f.s.shuttle.freight = { food: 100, air: 100 }; f.s.shuttle.supplies = { food: 100, air: 100 };
   at(f.site, 1, 1).drop = { food: 100, air: 100 };
-  for (const [x, y] of [[0, 1], [2, 1], [1, 0], [1, 2]]) at(f.site, x, y).building = 'wall';
+  for (const [x, y] of neighbors(1, 1)) at(f.site, x, y).building = 'wall';
   assert.ok(codes(inspect(f)).includes('food_reserve_low')); assert.ok(codes(inspect(f)).includes('air_reserve_low'));
   f.dock.imports = { food: 4, air: 10 };
   assert.equal(inspect(f).ready, true);

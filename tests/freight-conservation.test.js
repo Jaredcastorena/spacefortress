@@ -133,12 +133,12 @@ test('completed imports pay only the local construction cost and leave surface s
   const id = unload(s, 'wreck'); finishJob(s, id);
   assert.deepEqual(s.shuttle.freight, {});
   assert.deepEqual(dock.imports, { alloy: 8 });
-  const build = act(s, 'job.order', { site: 'wreck', x: 3, y: 11, kind: 'build', building: 'floor' }).job;
+  const build = act(s, 'job.order', { site: 'wreck', x: 3, y: 10, kind: 'build', building: 'floor' }).job;
   assert.deepEqual(jobById(s, build).sources, [{ x: dock.x, y: dock.y, kind: 'imports', items: { alloy: 1 } }]);
   assert.equal(dock.imports.alloy, 7);
   close(totalResources(s).alloy, before, 'local reservation has not spent material');
   until(s, () => !jobById(s, build), 'real local construction consumes imported parcel');
-  assert.equal(at(s.sites.wreck, 3, 11).terrain, 'floor');
+  assert.equal(at(s.sites.wreck, 3, 10).terrain, 'floor');
   assert.equal(dock.imports.alloy, 7);
   assert.equal(at(s.sites.surface, 8, 10).stock.alloy, surfaceStock);
   close(totalResources(s).alloy, before - 1, 'one built floor has exactly one paid alloy');

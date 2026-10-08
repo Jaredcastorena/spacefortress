@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createGame, launch, cancelDeparture, step, at, order, serialize, deserialize} from '../src/simulation.js';
 import {extract, totalResources, syncResources} from '../src/inventory.js';
+import { expeditionCrewStatus } from '../src/expedition-readiness.js';
 import {refillMix} from '../src/preflight.js';
 
 const check=s=>deserialize(serialize(s));
@@ -74,13 +75,15 @@ test('a real current job does not exclude otherwise ready crew from the chosen d
 
 test('cancelling a supplied manifest permits a different exact team while retaining real reserved and carried materials',()=>{
  const s=createGame(),first=[s.crew[6].id,s.crew[4].id],second=[s.crew[5].id,s.crew[3].id];
+ for(const c of s.crew)if(second.includes(c.id))c.labors.hauling=false;
  assert.ok(launch(s,'wreck',first).ok);
  until(s,()=>s.crew.some(c=>c.delivery?.job===loading(s)?.id&&c.carry));
  const carrier=s.crew.find(c=>c.delivery?.job===loading(s)?.id&&c.carry),cargo=structuredClone(carrier.carry),before=totalResources(s);
  assert.ok(cancelDeparture(s).ok);assert.equal(s.departure,null);assert.equal(loading(s),undefined);
  assert.deepEqual(carrier.carry,cargo);assert.equal(carrier.delivery,null);assert.deepEqual(totalResources(s),before);
  // The new team is chosen from ready crew; the old load remains physically held.
- const replacement=second.includes(carrier.id)?s.crew.filter(c=>c!==carrier&&!first.includes(c.id)&&!c.intent&&!c.carry).slice(-2).map(c=>c.id):second;
+ const replacement=s.crew.filter(c=>c!==carrier&&!first.includes(c.id)&&expeditionCrewStatus(c).eligible).slice(-2).map(c=>c.id);
+ assert.equal(replacement.length,2);
  assert.ok(launch(s,'wreck',replacement).ok);assert.deepEqual(s.departure.crew,replacement);
  assert.notDeepEqual(s.departure.crew,first);assert.deepEqual(totalResources(s),before);assert.deepEqual(carrier.carry,cargo);check(s);
 });

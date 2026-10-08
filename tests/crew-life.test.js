@@ -1,7 +1,6 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
+import { distance } from '../src/geometry.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, updateRooms, serialize, deserialize, launch } from '../src/simulation.js';
 import { setLifePolicy, socialize, updateCrewLife } from '../src/crew-life.js';
 import { updateMorale, workRate } from '../src/crew.js';
@@ -53,7 +52,7 @@ test('common table construction creates faster restorative downtime with distinc
   const [a, b] = s.crew; setLifePolicy(s, a.id, 'rest'); setLifePolicy(s, b.id, 'rest'); a.life.leisure = b.life.leisure = 10;
   until(s, () => a.intent?.rested >= 1 && b.intent?.rested >= 1); assert.notDeepEqual(a.intent.target, b.intent.target);
   const before = a.life.leisure; step(s, 20); assert.ok(a.life.leisure - before > 12);
-  assert.ok(Math.abs(a.x - 10) + Math.abs(a.y - 9) <= 1); assert.ok(Math.abs(b.x - 10) + Math.abs(b.y - 9) <= 1);
+  assert.ok(distance([a.x, a.y], [10, 9]) <= 1); assert.ok(distance([b.x, b.y], [10, 9]) <= 1);
 });
 
 test('a balanced break ends and has a cooldown even when no companion is available', () => {
@@ -95,11 +94,13 @@ test('breaks, social bonds and grief continue deterministically through save/loa
   const copy = deserialize(serialize(s)); step(s, 80); step(copy, 80); assert.deepEqual(copy, s);
 });
 
-test('schema-nine migration adds personal needs without altering jobs or inventories', () => {
-  const s = createGame(); order(s, 'surface', 4, 10, 'mine'); step(s, 5); s.version = 9;
-  for (const c of s.crew) { delete c.life; delete c.relationships; }
-  const before = totalResources(s), jobs = structuredClone(s.jobs), copy = deserialize(serialize(projectPreAirlock(s)));
-  assert.equal(copy.version, VERSION); assert.deepEqual(totalResources(copy), before); assert.deepEqual(copy.jobs, jobs); assert.equal(copy.crew[0].life.leisure, 80);
+test('personal needs, jobs and inventories reload exactly and reject a legacy schema label', () => {
+  const s = createGame(); order(s, 'surface', 4, 10, 'mine'); step(s, 5);
+  const before = structuredClone(s), supplies = totalResources(s), copy = deserialize(serialize(s));
+  assert.deepEqual(copy, before); assert.deepEqual(totalResources(copy), supplies);
+  const forged = JSON.parse(serialize(s)); forged.version = 9; const original = JSON.stringify(forged);
+  assert.throws(() => deserialize(original), /Legacy square-grid saves/);
+  assert.equal(JSON.stringify(forged), original); assert.deepEqual(s, before);
 });
 
 test('invalid needs, relationship peers, loss history and duplicate downtime places are rejected', () => {

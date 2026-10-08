@@ -1,3 +1,4 @@
+import { DIRECTIONS } from '../src/geometry.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, at, serialize, deserialize } from '../src/simulation.js';
@@ -10,7 +11,7 @@ import { startRecording, exportRecording, observe, recordingStatus } from '../sr
 
 const rows = s => exportRecording(s).trim().split('\n').map(JSON.parse);
 const position = x => ({site:'surface', x, y:9});
-const settings = (x = 10, extra = {}) => ({...position(x), enabled:true, direction:'east', mode:'wet_fault', ...extra});
+const settings = (x = 10, extra = {}) => ({...position(x), enabled:true, direction:x===12?'ne':'se', mode:'wet_fault', ...extra});
 function install(s, building, x, y = 9) {
   const tile = at(s.sites.surface, x, y);
   assert.equal(tile.building, null);
@@ -23,9 +24,9 @@ function fixture({backfeed = false} = {}) {
   const s = createGame(), site = s.sites.surface;
   for (const t of site.tiles) { t.cable = null; if (t.machine) t.machine.enabled = false; }
   for (const crew of s.crew) { crew.labors.hauling = false; crew.labors.production = false; }
-  const bank = install(s, 'battery', 9), first = install(s, 'breaker', 10), second = install(s, 'breaker', 12);
+  const bank = install(s, 'battery', 9, 8), first = install(s, 'breaker', 10), second = install(s, 'breaker', 12);
   bank.charge = 30; site.energy.injected += 30;
-  const faults = [at(site, 11, 9), at(site, 13, 9)];
+  const faults = [at(site, 11, 9), at(site, 13, 8)];
   for (const t of faults) { t.cable = {enabled:true, hp:100}; t.liquid = 2; site.liquids.released += 2; }
   let localBank = null;
   if (backfeed) { localBank = install(s, 'battery', 11, 8); localBank.charge = 10; site.energy.injected += 10; }
@@ -58,13 +59,13 @@ test('breaker catalog describes configure/reset arguments and exposes detached m
   assert.equal(configure.parameters.additionalProperties, false);
   assert.equal(reset.parameters.additionalProperties, false);
   assert.deepEqual(configure.parameters.properties.mode.enum, ['manual','wet_fault']);
-  assert.deepEqual(configure.parameters.properties.direction.enum, ['east','south','west','north']);
+  assert.deepEqual(configure.parameters.properties.direction.enum, DIRECTIONS);
   const {s} = fixture(), api = createAgentInterface(() => s), definitions = api.definitions();
   assert.deepEqual(definitions.breakerModes, ['manual','wet_fault']);
-  assert.deepEqual(definitions.breakerDirections.east, [1,0]);
-  definitions.breakerModes.push('overload'); definitions.breakerDirections.east[0] = 999;
+  assert.deepEqual(definitions.breakerDirections.ne, true);
+  definitions.breakerModes.push('overload'); definitions.breakerDirections.ne = false;
   assert.deepEqual(api.definitions().breakerModes, ['manual','wet_fault']);
-  assert.deepEqual(api.definitions().breakerDirections.east, [1,0]);
+  assert.deepEqual(api.definitions().breakerDirections.ne, true);
 });
 
 test('player and agent breaker configuration/reset share rules and prior/next semantic state labels', () => {
@@ -74,7 +75,7 @@ test('player and agent breaker configuration/reset share rules and prior/next se
   const b = deserialize(serialize(a));
   startRecording(a); startRecording(b);
   const controls = controlBindings(() => a), api = createAgentInterface(() => b);
-  assert.ok(controls.setBreaker(a, 'surface', 10, 9, false, 'east', 'wet_fault').ok);
+  assert.ok(controls.setBreaker(a, 'surface', 10, 9, false, 'se', 'wet_fault').ok);
   assert.ok(controls.resetBreaker(a, 'surface', 10, 9).ok);
   assert.ok(api.act('power.breaker', settings(10, {enabled:false})).ok);
   assert.ok(api.act('power.breaker.reset', position(10)).ok);
@@ -102,6 +103,7 @@ test('player and agent breaker configuration/reset share rules and prior/next se
 
 test('rejected breaker requests and accepted no-ops produce results without fabricated state-change events', () => {
   const {s, first} = fixture();
+  first.protection.direction='se';refreshPower(s,s.sites.surface);
   startRecording(s);
   const before = serialize(s);
   const invalid = [
@@ -140,7 +142,7 @@ test('breaker previews expose detached terminal, fault and local source IDs with
   assert.equal(diagnostic.wouldTrip, true);
   assert.equal(typeof diagnostic.inputCircuit, 'string');
   assert.equal(diagnostic.inputCircuit, diagnostic.outputCircuit);
-  assert.ok(diagnostic.faultEntities.includes('tile:surface:13:9'));
+  assert.ok(diagnostic.faultEntities.includes('tile:surface:13:8'));
   assert.ok(diagnostic.sourceEntities.includes('tile:surface:11:8'));
   const {electrical, plumbing, ...gas} = initial.derived;
   assert.deepEqual(gas, gasStatus(site, first));

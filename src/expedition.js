@@ -1,3 +1,4 @@
+import { neighbors } from './geometry.js';
 import { crewPathTo, planCrewRoute } from './navigation.js';
 import { advanceCrewRoute } from './crew-traversal.js';
 import { freightReserved } from './freight.js';
@@ -141,7 +142,7 @@ export function returnWalk(s, pathTo) {
     if (!immobile(c)) return distance * (impaired(c) || c.rescue?.carrying ? 2 : 1);
     if (!distance) return 0;
     const helpers = team.filter(other => other.id !== c.id && !impaired(other) && other.labors.medicine);
-    const approach = Math.min(Infinity, ...helpers.map(other => planCrewRoute(s, site, other, [[c.x + 1, c.y], [c.x - 1, c.y], [c.x, c.y + 1], [c.x, c.y - 1]])?.cost ?? Infinity));
+    const approach = Math.min(Infinity, ...helpers.map(other => planCrewRoute(s, site, other, neighbors(c.x, c.y))?.cost ?? Infinity));
     return approach + distance * 2 + 3;
   }));
 }

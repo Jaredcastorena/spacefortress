@@ -1,7 +1,5 @@
-import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, serialize, deserialize, setAnimalPost, setLabor, updateRooms } from '../src/simulation.js';
 import { passable, pathTo, animalPassable, animalPath } from '../src/navigation.js';
 import { animalPasture, setPastureGate, pastureRegions } from '../src/pastures.js';
@@ -89,9 +87,11 @@ test('recording adds movement records without changing simulation outcomes or sa
  const {s,site,a}=pen();at(site,a.x,a.y).lichen=0;const copy=check(s);startRecording(s,{maxRecords:10000,maxBytes:16000000});step(s,160);step(copy,160);assert.deepEqual(s,copy);assert.ok(events(s).some(e=>e.id==='animal.moved'));check(s);
 });
 
-test('save migration preserves supplies and animals; gate validation rejects malformed state',()=>{
- const s=createGame();s.version=26;const resources=totalResources(s),animals=structuredClone(s.creatures),copy=check(projectPreAirlock(s));assert.equal(copy.version, VERSION);assert.deepEqual(totalResources(copy),resources);assert.deepEqual(copy.creatures,animals);
- for(const mode of [null,undefined,'closed',5]){const {s,gate}=pen();gate.gateMode=mode;assert.throws(()=>check(projectPreAirlock(s)),/pasture gate/);}
+test('hex saves preserve supplies and animals; legacy labels and malformed gates are rejected',()=>{
+ const s=createGame(),before=structuredClone(s),copy=deserialize(serialize(s));assert.deepEqual(copy,before);
+ const forged=JSON.parse(serialize(s));forged.version=26;const original=JSON.stringify(forged);
+ assert.throws(()=>deserialize(original),/Legacy square-grid saves/);assert.equal(JSON.stringify(forged),original);assert.deepEqual(s,before);
+ for(const mode of [null,undefined,'closed',5]){const {s,gate}=pen();gate.gateMode=mode;assert.throws(()=>check(s),/pasture gate/);}
  const f=pen();f.post.gateMode='open';assert.throws(()=>check(f.s),/pasture gate/);
 });
 

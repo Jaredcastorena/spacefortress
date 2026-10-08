@@ -1,14 +1,15 @@
 import * as power from './power.js';
 import { BUILDINGS } from './data.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
+import { DIRECTIONS, tileAt } from './geometry.js';
 
-export const BREAKER_DIRECTIONS = { east:[1,0], south:[0,1], west:[-1,0], north:[0,-1] };
+export const BREAKER_DIRECTIONS = Object.freeze(Object.fromEntries(DIRECTIONS.map(direction=>[direction,true])));
 export const BREAKER_MODES = ['manual','wet_fault'];
-const at=(site,x,y)=>site&&Number.isInteger(x)&&Number.isInteger(y)&&x>=0&&y>=0&&x<site.size&&y<site.size?site.tiles[y*site.size+x]:null;
+const at=tileAt;
 const state=t=>({...t.protection});
 const id=(site,t)=>tileEntityId(site.id,t.x,t.y);
 export function initializeBreakerTile(t) {
- if(t.building==='breaker')t.protection??={kind:'breaker',direction:'east',enabled:false,mode:'manual',tripped:false,cause:null};
+ if(t.building==='breaker')t.protection??={kind:'breaker',direction:'ne',enabled:false,mode:'manual',tripped:false,cause:null};
 }
 // Requested enabled state survives damage and a trip. Actual contact closure
 // additionally requires an intact mechanism and a cleared latch.

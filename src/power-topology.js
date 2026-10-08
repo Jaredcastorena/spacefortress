@@ -1,26 +1,24 @@
 import { BUILDINGS } from './data.js';
 import { breakerClosed, BREAKER_DIRECTIONS } from './breakers.js';
+import { DIRECTIONS, step, opposite, tileAt } from './geometry.js';
 
 export { breakerClosed as breakerContactClosed, BREAKER_DIRECTIONS as POWER_DIRECTIONS };
 export const powerTileKey = t => `${t.x},${t.y}`;
 export const breakerTerminals = t => ({input:`${powerTileKey(t)}:input`,output:`${powerTileKey(t)}:output`});
 const ordinaryElectrical = t => !!(BUILDINGS[t.building]?.output || BUILDINGS[t.building]?.demand || t.building==='battery');
 const conducting = t => t.cable ? t.cable.enabled && t.cable.hp>0 : ordinaryElectrical(t) && t.hp>0;
-const at = (site,x,y) => x>=0&&y>=0&&x<site.size&&y<site.size ? site.tiles[y*site.size+x] : null;
-// Preserve the original power allocator's neighbor order exactly.
-const STEPS = [[1,0],[-1,0],[0,1],[0,-1]];
+const at = tileAt;
 
 function facing(t,terminal) {
-  const direction=BREAKER_DIRECTIONS[t.protection?.direction];
-  if(!direction)return null;
-  const sign=terminal==='input'?-1:1;
-  return [direction[0]*sign,direction[1]*sign];
+  const direction=t.protection?.direction;
+  if(!Object.hasOwn(BREAKER_DIRECTIONS,direction))return null;
+  return step(t.x,t.y,terminal==='input'?opposite(direction):direction);
 }
 function matchingVertex(t,from) {
   if(t.building!=='breaker')return conducting(t)?powerTileKey(t):null;
   for(const terminal of ['input','output']) {
-    const direction=facing(t,terminal);
-    if(direction&&t.x+direction[0]===from.x&&t.y+direction[1]===from.y)return breakerTerminals(t)[terminal];
+    const position=facing(t,terminal);
+    if(position&&position[0]===from.x&&position[1]===from.y)return breakerTerminals(t)[terminal];
   }
   return null;
 }
@@ -41,16 +39,16 @@ export function buildPowerTopology(site,{openContacts=new Set()}={}) {
   for(const [id,vertex] of vertices) {
     const {tile:t,terminal}=vertex,edges=[];
     if(terminal) {
-      const direction=facing(t,terminal);
-      if(direction) {
-        const neighbor=at(site,t.x+direction[0],t.y+direction[1]);
+      const position=facing(t,terminal);
+      if(position) {
+        const neighbor=at(site,...position);
         const endpoint=neighbor&&matchingVertex(neighbor,t);
         if(endpoint&&vertices.has(endpoint))edges.push(endpoint);
       }
       if(breakerClosed(t)&&!openContacts.has(powerTileKey(t)))edges.push(breakerTerminals(t)[terminal==='input'?'output':'input']);
     }else if(conducting(t)) {
-      for(const [dx,dy] of STEPS) {
-        const neighbor=at(site,t.x+dx,t.y+dy),endpoint=neighbor&&matchingVertex(neighbor,t);
+      for(const direction of DIRECTIONS) {
+        const neighbor=at(site,...step(t.x,t.y,direction)),endpoint=neighbor&&matchingVertex(neighbor,t);
         if(endpoint&&vertices.has(endpoint))edges.push(endpoint);
       }
     }

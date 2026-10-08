@@ -1,3 +1,4 @@
+import { assertSquareProtected } from './helpers/legacy-square.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -8,7 +9,6 @@ import { initializeStorage, totalResources, syncResources, extract, spill } from
 import { initializeElectrical, refreshPower, updatePower, validatePower } from '../src/power.js';
 import { executeAction } from '../src/controls.js';
 import { observe } from '../src/telemetry.js';
-import { projectPreOutpost } from './helpers/legacy-projection.js';
 
 const reload = s => deserialize(serialize(s));
 const legacyText = () => gunzipSync(readFileSync(new URL('./fixtures/breakers-schema35-owned.json.gz', import.meta.url))).toString('utf8');
@@ -28,7 +28,7 @@ function fixture({ wet = true, closed = true } = {}) {
     if (tile.machine) tile.machine.enabled = false;
   }
   for (const c of s.crew) { c.labors.hauling = false; c.labors.production = false; }
-  const bank = install(s, 'battery', 9, 9);
+  const bank = install(s, 'battery', 9, 8);
   const originalBank = at(site, 13, 7);
   originalBank.charge -= 60; bank.charge = 60;
   const breaker = install(s, 'breaker', 10, 9);
@@ -41,7 +41,7 @@ function fixture({ wet = true, closed = true } = {}) {
   }
   refreshPower(s, site); syncResources(s);
   const configured = executeAction(s, 'power.breaker', {
-    site: 'surface', x: 10, y: 9, enabled: closed, direction: 'east', mode: 'wet_fault',
+    site: 'surface', x: 10, y: 9, enabled: closed, direction: 'se', mode: 'wet_fault',
   });
   assert.equal(configured.ok, true, configured.message);
   reload(s);
@@ -66,23 +66,11 @@ test('genuine schema 35 fixture retains water, charge, switches, priorities, exh
   assert.ok(Object.values(old.sites).every(st => st.tiles.every(t => t.protection === undefined)));
 });
 
-test('schema 35 migration preserves all existing state and grants no electrical state, topology or resources', () => {
-  const old = JSON.parse(legacyText()), migrated = deserialize(legacyText());
-  assert.equal(migrated.version, VERSION);
-  const projected = projectPreOutpost(migrated, 35);
-  assert.deepEqual(projected, old, 'ordinary circuits and all existing owned state must remain exact');
-  assert.deepEqual(totalResources(migrated), totalResources(old));
-  assert.equal(migrated.rng, old.rng);
-  for (const site of Object.values(migrated.sites)) assert.ok(site.tiles.every(t => t.building !== 'breaker' && t.protection === undefined));
-  assert.deepEqual(reload(migrated), migrated);
+test('genuine schema35 electrical state rejects with charge and shipment bytes protected', () => {
+  assertSquareProtected(legacyText());
 });
 
-test('migrated busy schema 35 water, exhaust, power and shipment state resumes deterministically', () => {
-  const s = deserialize(legacyText()), copy = reload(s);
-  step(s, 16); step(copy, 16);
-  assert.deepEqual(s, copy);
-  reload(s);
-});
+
 
 test('save immediately before a supplied wet trip resumes identically without a load-time trip', () => {
   const { s, site, breaker, fault } = fixture();
@@ -104,10 +92,10 @@ test('save immediately after a trip retains its latch and deterministic recovery
   assert.equal(breaker.protection.tripped, true);
   const copy = reload(s);
   for (const state of [s, copy]) {
-    const opened = executeAction(state, 'power.breaker', { site: 'surface', x: 10, y: 9, enabled: false, direction: 'east', mode: 'wet_fault' });
+    const opened = executeAction(state, 'power.breaker', { site: 'surface', x: 10, y: 9, enabled: false, direction: 'se', mode: 'wet_fault' });
     assert.equal(opened.ok, true);
     assert.equal(executeAction(state, 'power.breaker.reset', { site: 'surface', x: 10, y: 9 }).ok, true);
-    assert.equal(executeAction(state, 'power.breaker', { site: 'surface', x: 10, y: 9, enabled: true, direction: 'east', mode: 'wet_fault' }).ok, true);
+    assert.equal(executeAction(state, 'power.breaker', { site: 'surface', x: 10, y: 9, enabled: true, direction: 'se', mode: 'wet_fault' }).ok, true);
     updatePower(state, state.sites.surface);
   }
   assert.equal(breaker.protection.tripped, true, 'closing into the same supplied fault retrips');
@@ -123,7 +111,7 @@ test('inspection, validation, refresh, load and rejected controls cannot trip or
   for (let i = 0; i < 5; i++) {
     refreshPower(s, site); validatePower(s, site); observe(s);
     assert.deepEqual(reload(s), s);
-    assert.equal(executeAction(s, 'power.breaker', { site: 'surface', x: 10, y: 9, enabled: true, direction: 'north', mode: 'wet_fault' }).ok, false);
+    assert.equal(executeAction(s, 'power.breaker', { site: 'surface', x: 10, y: 9, enabled: true, direction: 'n', mode: 'wet_fault' }).ok, false);
     assert.equal(executeAction(s, 'power.breaker.reset', { site: 'surface', x: 10, y: 9 }).ok, false);
   }
   assert.equal(breaker.protection.tripped, false);
@@ -231,7 +219,7 @@ test('a finite pile arriving after breaker designation survives reload with cons
 test('schema 35 cannot contain breaker equipment, protection state or its construction jobs', () => {
   const equipment = JSON.parse(legacyText()); at(equipment.sites.surface, 8, 8).building = 'breaker';
   assert.throws(() => reload(equipment));
-  const hidden = JSON.parse(legacyText()); at(hidden.sites.surface, 8, 8).protection = { kind: 'breaker', direction: 'east', enabled: false, mode: 'manual', tripped: false, cause: null };
+  const hidden = JSON.parse(legacyText()); at(hidden.sites.surface, 8, 8).protection = { kind: 'breaker', direction: 'se', enabled: false, mode: 'manual', tripped: false, cause: null };
   assert.throws(() => reload(hidden));
   const construction = JSON.parse(legacyText()), job = construction.jobs[0];
   job.building = 'breaker'; job.work = 8; job.remaining = 8; job.cost = { alloy: 4, components: 1 };

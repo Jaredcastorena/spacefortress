@@ -1,3 +1,4 @@
+import { neighbors as hexNeighbors, forwardNeighbors } from './geometry.js';
 import { take, add, quantity, OUTPUT_CAPACITY } from './inventory.js';
 import { roomAt } from './atmosphere.js';
 import { refreshPower } from './power.js';
@@ -5,7 +6,7 @@ import { damage } from './maintenance.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
 export const LIQUID = { capacity:4, flow:.5, release:.5, pump:.5, wet:.25, quench:.25, faultPower:5, faultDamage:.25 };
 const at=(site,x,y)=>x>=0&&y>=0&&x<site.size&&y<site.size?site.tiles[y*site.size+x]:null;
-const neighbors=(site,t)=>[[t.x+1,t.y],[t.x-1,t.y],[t.x,t.y+1],[t.x,t.y-1]].map(([x,y])=>at(site,x,y)).filter(Boolean);
+const neighbors=(site,t)=>hexNeighbors(t.x,t.y).map(([x,y])=>at(site,x,y)).filter(Boolean);
 export function liquidOpen(site,t,tick=site.atmosphere.tick){
  if(!t||t.terrain==='rock'||t.building==='wall'&&t.hp>0)return false;
  if(t.building==='door'&&t.hp>0)return t.doorMode==='open'||t.doorMode==='auto'&&t.doorUntil>tick;
@@ -38,7 +39,8 @@ export function flowLiquids(s){
   if(!site.tiles.some(t=>t.liquid>0))continue;
   const cells=s.tick%2?site.tiles:[...site.tiles].reverse();
   for(const t of cells)if(t.liquid>0||neighbors(site,t).some(n=>n.liquid>0)){
-   const pair=[at(site,t.x+1,t.y),at(site,t.x,t.y+1)];for(const n of pair)if(n)transfer(s,site,t,n);
+   // Keep the existing per-edge flow cap and visit each undirected hex edge once.
+   for(const [x,y] of forwardNeighbors(t.x,t.y)){const n=at(site,x,y);if(n)transfer(s,site,t,n);}
   }
   for(const t of site.tiles)if(t.liquid>0&&liquidOpen(site,t,s.tick)){
    const space=t.terrain==='void',edge=t.x===0||t.y===0||t.x===site.size-1||t.y===site.size-1;

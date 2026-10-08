@@ -1,3 +1,4 @@
+import { assertSquareProtected } from './helpers/legacy-square.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -7,7 +8,6 @@ import { createGame, launch, recall, cancelDeparture, step, at, order, serialize
 import { totalResources, quantity } from '../src/inventory.js';
 import { departureCrew, updateDeparture, tryDeparture } from '../src/preflight.js';
 import { refreshPower } from '../src/power.js';
-import { projectPreOutpost } from './helpers/legacy-projection.js';
 
 const SELECTED = ['crew-5', 'crew-2'];
 const reload = s => deserialize(serialize(s));
@@ -37,36 +37,11 @@ function selectedStages() {
   return structuredClone(stages);
 }
 
-test('genuine pre-selection schema 36 departure and transit saves load exactly with no grants or RNG change', () => {
-  for (const phase of ['loading', 'boarding', 'outbound', 'returning']) {
-    const text = oldText(phase), old = JSON.parse(text), loaded = deserialize(text);
-    assert.equal(old.version, 36);
-    assert.equal(loaded.version, VERSION);
-    assert.deepEqual(projectPreOutpost(loaded), old, `${phase} retains all original state`);
-    assert.deepEqual(totalResources(loaded), totalResources(old));
-    assert.equal(loaded.rng, old.rng);
-    assert.deepEqual(loaded.departure?.crew || loaded.mission.crew, ['crew-0', 'crew-1']);
-    assert.equal(serialize(reload(loaded)), serialize(loaded));
-  }
-  const loadingSave = JSON.parse(oldText('loading'));
-  assert.ok(carrier(loadingSave));
-  assert.equal(quantity(loadingSave.shuttle.supplies), 0);
-  const boarded = JSON.parse(oldText('boarding'));
-  assert.equal(boarded.shuttle.supplies.fuel, 2);
-  assert.equal(boarded.shuttle.supplies.food, 2);
-  assert.equal(boarded.shuttle.supplies.air, 10);
-  assert.equal(JSON.parse(oldText('outbound')).mission.returnFuel, 1);
-  assert.equal(JSON.parse(oldText('returning')).mission.returnFuel, 0);
+test('genuine schema36 departure and transit snapshots reject with original bytes protected', () => {
+  for (const phase of ['loading', 'boarding', 'outbound', 'returning']) assertSquareProtected(oldText(phase));
 });
 
-test('genuine old schema 36 loading and both travel legs continue deterministically', () => {
-  for (const phase of ['loading', 'boarding', 'outbound', 'returning']) {
-    const s = deserialize(oldText(phase)), copy = reload(s);
-    step(s, 30); step(copy, 30);
-    assert.deepEqual(copy, s, phase);
-    reload(s);
-  }
-});
+
 
 test('a non-first ordered manifest survives physical loading, both boarding phases, travel and return', () => {
   const stages = selectedStages();
