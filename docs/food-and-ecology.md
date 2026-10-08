@@ -63,7 +63,7 @@ Schema 42 migrates existing schema-40/41 hex colonies by preserving their exact 
 | Glazefoot | Delivered raw fungal caps | Glaze eggs | Four-footed grazer with a translucent dorsal fan; depends on gathered or cultivated fungal feed |
 | Tibble | Existing food stocks and crop biomass | None | A pest that can raid supplies and damage hydroponics |
 
-Livestock require care and sufficient nutrition before producing. Young animals do not yield products. Breeding pairs must be unrelated adults of the same species; both livestock species share pasture space and enclosure limits. Fences, gates and physical handler transport remain part of the chain.
+Livestock require care and sufficient nutrition before producing. [Veterinary care](veterinary-care.md) adds species temperature limits, persistent fire/thermal injuries, delivered medicine and gradual recovery. Injury or substantial thermal strain pauses product and brood progress without discarding it. Young animals do not yield products. Breeding pairs must be unrelated adults of the same species; both livestock species share pasture space and enclosure limits. Fences, gates and physical handler transport remain part of the chain.
 
 New colonies gain two wild adult glazefoots. Loading an older colony does not create animals or grant food. Broods and edible harvested eggs are separate gameplay states.
 
@@ -88,9 +88,9 @@ The galley inspector shows the selected recipe, delivered and missing ingredient
 
 ## Saves, controls and scope
 
-The expansion uses schema 42 with migration from schema-40/41 hex saves. Existing food amounts, ages, prepared meals and committed batches are preserved by migration checks. Square saves retain their protected export behavior. Gathering and crop/recipe selection use shared player/agent actions. Plant stages, harvests, removals, ingredients, animal products and meals retain machine-readable labels. The interface stays in existing hidden inspectors.
+The current expansion uses schema 43 with migration from schema-40/41/42 hex saves. Existing food amounts, ages, prepared meals and committed batches are preserved by migration checks. Square saves retain their protected export behavior. Gathering and crop/recipe selection use shared player/agent actions. Plant stages, harvests, removals, ingredients, animal products and meals retain machine-readable labels. The interface stays in existing hidden inspectors.
 
-Further ecology work includes soil moisture, plant spreading, seeds, orchards, full biomes and seasonal or orbital growing conditions, more species, distinct animal physiology, veterinary care, inherited traits, meat and fibre production, and additional preservation methods. Physical habitat decks remain a separate roadmap item.
+Further ecology work includes soil moisture, plant spreading, seeds, orchards, full biomes and seasonal or orbital growing conditions, more species, diseases, inherited traits, meat and fibre production, and additional preservation methods. Physical habitat decks remain a separate roadmap item.
 
 ## Verified fresh-colony gathering trial
 

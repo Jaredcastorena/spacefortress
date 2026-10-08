@@ -4,7 +4,12 @@ SPACEFORTRESS is an early playable colony simulator. Release entries describe co
 
 ## Unreleased — 2026-10-08
 
-- Current verification: 1,120 Node checks passed, zero failed and one intentional skip. A fresh-colony gathering→hauling→stew trial passed after actual galley construction; all seven crew and five animals remained healthy, with four exact reloads. Plant controls and narrow layout passed browser review. This build is local and unpublished.
+- Livestock now have species temperature tolerances and persistent injuries from fire or severe heat/cold strain. Injuries pause production, collection, growth and brood development; ordinary hunger remains a separate food-responsive weakness.
+- Manual veterinary treatment uses one physically delivered medicine and 20 Medicine work, covering up to 20 injury. Recovery restores health gradually at an intact post with suitable temperature and nutrition. Feeding can proceed while paid treatment waits; interruption, reassignment, transport and death retain normal supply refunds.
+- Schema 43 adds neutral animal condition records to schema-40/41/42 hex saves, preserving prior health and physical state without granting medicine or inventing wounds. Health transitions, treatment and recovery emit named events.
+- Veterinary verification: 1,150 Node passes, zero failures, one intentional skip. A supplied injured-adult/post trial passed at tick 116 with real delivery/work, one medicine consumed, ten injury recovered and five exact reloads. Browser controls, save/reopen, narrow layout and a final display-only job-label correction passed review.
+
+- Prior flora verification: 1,120 Node checks passed, zero failed and one intentional skip. A fresh-colony gathering→hauling→stew trial passed after actual galley construction; all seven crew and five animals remained healthy, with four exact reloads. Plant controls and narrow layout passed browser review. This build is local and unpublished.
 
 - Native fungal caps and sunberries grow through visible stages, with species temperature and daylight limits. Crew gather mature plants through finite Production jobs; typed food drops on the ground and uses existing physical hauling and cooking.
 - Lichen shares the plant biomass system; grazing nutrition scales with the actual bite. Fire and ground-covering construction remove affected plants. Plant stages, removals and harvests emit structured events.

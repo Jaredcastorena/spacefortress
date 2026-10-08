@@ -112,7 +112,7 @@ export function deliverMaterials(s, c, site, pathTo) {
   if (!j) { c.delivery = null; return false; }
   if (!site || site.id !== c.site) return false;
   const path = crewPathTo(s, site, c, workPositions(j));
-  const purpose = ['treat', 'feed'].includes(j.kind) ? 'Medical' : ['loadShuttle', 'loadCargo', 'unloadCargo'].includes(j.kind) ? 'Shuttle' : 'Construction';
+  const purpose = ['treat', 'animalTreat', 'feed'].includes(j.kind) ? 'Medical' : ['loadShuttle', 'loadCargo', 'unloadCargo'].includes(j.kind) ? 'Shuttle' : 'Construction';
   c.activity = path === null ? `${purpose} delivery route blocked; holding supplies` : `Delivering ${purpose.toLowerCase()} supplies`;
   if (path === null) { j.blockedReason = `${purpose} delivery route blocked`; return true; }
   if (path.length) { advanceCrewRoute(s, c, site, [path.at(-1)]); return true; }

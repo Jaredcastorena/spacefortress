@@ -1,3 +1,4 @@
+import { animalActivityAllowed, initializeAnimalCondition } from './animal-health.js';
 import { isLivestock, livestockDef } from './livestock-data.js';
 import { distance, neighbors } from './geometry.js';
 import { pastureRegions, moveAnimal } from './pastures.js';
@@ -20,12 +21,12 @@ function capacity(s,r,regions,additional=1){
 }
 function ready(s,a,r,regions){
  const l=a.lifecycle;
- if(a.health<=0)return 'dead';if(!adult(a))return a.fed<40||a.health<40?'growth_condition_low':'juvenile';if(!l.enabled)return 'disabled';if(l.brood)return 'carrying_brood';if(l.cooldown)return 'cooldown';
+ if(a.health<=0)return 'dead';if(!animalActivityAllowed(a))return a.condition.injury>1e-8?'injured':'thermal_stress';if(!adult(a))return a.fed<40||a.health<40?'growth_condition_low':'juvenile';if(!l.enabled)return 'disabled';if(l.brood)return 'carrying_brood';if(l.cooldown)return 'cooldown';
  if(a.husbandry.trust<100)return 'untamed';if(a.fed<70||a.health<70)return 'condition_low';if(!r?.enclosed)return 'open_range';if(busy(s,a))return 'handler_work';
  return capacity(s,r,regions);
 }
 function broodBlock(s,a,r,regions){
- if(!r?.enclosed)return 'open_range';if(a.fed<50||a.health<50)return 'condition_low';return capacity(s,r,regions,0);
+ if(!r?.enclosed)return 'open_range';if(!animalActivityAllowed(a))return a.condition.injury>1e-8?'injured':'thermal_stress';if(a.fed<50||a.health<50)return 'condition_low';return capacity(s,r,regions,0);
 }
 function birthTile(s,a,r,regions){
  const site=s.sites.surface;
@@ -52,7 +53,7 @@ export function updateBreeding(s,positions=new Map()){
  for(const a of animals){const l=a.lifecycle,def=livestockDef(a);
   if(a.health<=0){if(l.brood){emitEvent(s,'animal.brood.lost',{entity:a.id,brood:l.brood.id,mate:l.brood.mate,reason:'parent_died'});l.brood=null;}continue;}
   if(l.cooldown>0)l.cooldown--;
-  if(!adult(a)&&a.fed>=40&&a.health>=40){l.growth++;if(adult(a))emitEvent(s,'animal.matured',{entity:a.id,parents:l.parents});}
+  if(!adult(a)&&animalActivityAllowed(a)&&a.fed>=40&&a.health>=40){l.growth++;if(adult(a))emitEvent(s,'animal.matured',{entity:a.id,parents:l.parents});}
   if(!l.brood)continue;
   const r=regionFor(s,a,regions);if(broodBlock(s,a,r,regions))continue;
   if(l.brood.progress<def.gestation){l.brood.progress++;a.fed=Math.max(0,a.fed-.02);}
@@ -60,7 +61,7 @@ export function updateBreeding(s,positions=new Map()){
   const tile=birthTile(s,a,r,regions);if(!tile)continue;
   let childId;do{childId=`${a.species}-${s.nextId++}`;}while(s.creatures.some(a=>a.id===childId));
   const mate=l.brood.mate,brood=l.brood.id,child={id:childId,species:a.species,site:'surface',x:tile[0],y:tile[1],health:100,fed:40,age:0,husbandry:{post:null,trust:40,product:0,care:true,harvest:true,retryAt:0,blocked:null},lifecycle:newLifecycle(s.tick,[a.id,mate],a.species)};
-  s.creatures.push(child);a.fed=Math.max(0,a.fed-20);l.brood=null;l.cooldown=def.cooldown;
+  initializeAnimalCondition(child);s.creatures.push(child);a.fed=Math.max(0,a.fed-20);l.brood=null;l.cooldown=def.cooldown;
   emitEvent(s,'animal.born',{entity:child.id,species:child.species,brood,parents:child.lifecycle.parents,target:tileEntityId('surface',...tile),carrier:a.id});
   s.log.unshift({tick:s.tick,message:`A ${def.name.toLowerCase()} hatchling emerged beside ${a.id}. It needs ${def.grazesLichen?'grazing':'delivered fungal caps'} and handling before adulthood.`,type:'good'});s.log=s.log.slice(0,60);
  }

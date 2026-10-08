@@ -1,24 +1,24 @@
-# Bristleback husbandry
+# Livestock husbandry
 
 Implemented September 16, 2026. Original bristlebacks now connect native grazing to physical crew care, trust, nutrient-curd collection and colony food/waste logistics.
 
 ## Posts, assignment and handling
 
-A **Husbandry post** costs 4 alloy and 8 construction work, with no power requirement. Builders deliver its materials through ordinary construction. One living bristleback can be assigned per post. Assignment checks animal reachability and does not teleport or instantly tame it. Assignments and policies are available in the hidden post inspector; the animal inspector also shows its care state.
+A **Husbandry post** costs 4 alloy and 8 construction work, with no power requirement. Builders deliver its materials through ordinary construction. One living livestock animal can be assigned per post. Assignment checks animal reachability and does not teleport or instantly tame it. Assignments and policies are available in the hidden post inspector; the animal inspector also shows its care state.
 
 Assigned animals walk toward the post one tile every three ticks when handler work awaits them. On open range, they also return when outside its two-tile radius. Inside an enclosure containing their post, they can graze throughout the pasture. A handler waits for the animal to arrive at the post before making work progress. Closed paths, damaged posts and unavailable resources can block work.
 
 The **Husbandry** duty and skill use the existing crew scheduling, priorities, recovery and skill-growth rules. New crew have the duty enabled; the Botanist starts at level 2, others at 0.
 
-Automatic care is requested while trust is below 100 or nutrition is below 40. Each completed visit requires **1 physically delivered food and 12 Husbandry work**, restores 30 nutrition (capped at 100), and adds 40 trust. Three visits tame a wild bristleback. Each visit leaves 0.125 waste at the post. Feeding supplies can age, spoil and require replacement through existing job logistics. Handling does not cure an injury directly.
+Automatic care is requested while trust is below 100 or nutrition is below 40. Each completed visit requires **1 physically delivered food and 12 Husbandry work**, restores 30 nutrition (capped at 100), and adds 40 trust. Three visits tame a wild bristleback. Each visit leaves 0.125 waste at the post. Feeding supplies can age, spoil and require replacement through existing job logistics. Handling does not cure an injury directly. While wounded or recovering, the feeding threshold rises to 60 nutrition. [Veterinary treatment](veterinary-care.md) is requested manually and uses Medicine labor and delivered medicine; feeding takes priority when both jobs wait at the same post.
 
 ## Nutrition and products
 
-Bristlebacks retain their native nutrition loss of 0.015 per tick and lichen grazing every nine ticks. Fed animals at 60 nutrition or more recover 0.01 health per tick. At zero nutrition they lose 0.2 health per tick, eventually dying. Dead animals stop moving, grazing and producing; pending care is cancelled and located supplies are preserved.
+Bristlebacks retain their native nutrition loss of 0.015 per tick and lichen grazing every nine ticks. Fed animals at 60 nutrition or more recover 0.01 non-injured health per tick. Persistent fire/thermal injuries require medicine coverage and gradual post recovery. At zero nutrition they lose 0.2 health per tick, eventually dying. Dead animals stop moving, grazing and producing; pending care is cancelled and located supplies are preserved.
 
-A tame animal with at least 60 nutrition and 60 health gains **0.25 curd readiness per tick**, capped at 100. Thus uninterrupted healthy production takes 400 ticks. Readiness can accumulate while the tame animal is unassigned, but collection requires a working assigned post. Collection is automatic when enabled and readiness is full, with at least 40 nutrition and health remaining.
+An uninjured tame animal without substantial thermal strain and with at least 60 nutrition and 60 health gains **0.25 curd readiness per tick**, capped at 100. Thus uninterrupted healthy production takes 400 ticks. Readiness can accumulate while the tame animal is unassigned, but collection requires a working assigned post. Collection is automatic when enabled and readiness is full, with at least 40 nutrition and health remaining.
 
-Collection needs **10 Husbandry work**. It resets readiness to zero, costs 20 nutrition, and leaves **2 food plus 0.25 waste** at the post. Nutrient curd is currently represented as ordinary unprepared food. It must be hauled, can spoil, can supply a galley or medicine, and can feed crew or other animals through existing rules. Manure uses the waste resource and can feed recycling; in an indoor compartment it contributes to existing exposed-waste effects until hauled away.
+Collection needs **10 Husbandry work**. It resets readiness to zero, costs 20 nutrition, and leaves **2 food plus 0.25 waste** at the post. Nutrient curd keeps its named food identity. Glazefoots instead eat delivered raw fungal caps and yield glaze eggs; see [food and ecology](food-and-ecology.md). It must be hauled, can spoil, can supply a galley or medicine, and can feed crew or other animals through existing rules. Manure uses the waste resource and can feed recycling; in an indoor compartment it contributes to existing exposed-waste effects until hauled away.
 
 This is an abstract biological production model, not a food-mass or energy simulation. Grazing helps support production; repeated care can also consume colony food.
 

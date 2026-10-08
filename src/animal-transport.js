@@ -20,7 +20,7 @@ export function requestTransport(s,id,x,y,cancelJob){
  if(t.building!=='husbandryPost'||t.hp<=0)return {ok:false,message:'Choose a working husbandry post.'};
  if(transportFor(s,a))return {ok:false,message:'This animal already has a transport order.'};
  if(s.creatures.some(o=>o!==a&&o.health>0&&o.husbandry?.post?.[0]===x&&o.husbandry.post[1]===y)||postReserved(s,x,y,id))return {ok:false,message:'This post is assigned or reserved.'};
- if(s.jobs.some(j=>j.site==='surface'&&j.x===x&&j.y===y&&!(j.animal===id&&['animalCare','animalHarvest'].includes(j.kind))))return {ok:false,message:'Finish or cancel the work at this post first.'};
+ if(s.jobs.some(j=>j.site==='surface'&&j.x===x&&j.y===y&&!(j.animal===id&&['animalCare','animalHarvest','animalTreat'].includes(j.kind))))return {ok:false,message:'Finish or cancel the work at this post first.'};
  if(pathTo(site,a,[[x,y]])===null||!s.crew.some(c=>c.site==='surface'&&c.health>0&&pathTo(site,c,[[a.x,a.y]])!==null))return {ok:false,message:'A handler needs a route to the animal and its destination.'};
  for(const j of [...s.jobs])if(j.animal===id)cancelJob(s,j.id,true);
  const j={id:`job-${s.nextId++}`,site:'surface',x,y,kind:'animalLead',animal:id,building:null,cost:{},sources:[],materials:{},work:TRANSPORT_WORK,remaining:TRANSPORT_WORK,phase:'collect',worker:null,priority:3,blockedReason:null,missingFood:0,foodSpoiled:0};

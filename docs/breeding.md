@@ -2,6 +2,8 @@
 
 Implemented September 16, 2026. Bristleback breeding connects [physical pastures](pastures.md), [husbandry](husbandry.md), nutrition, growth and local simulation records. These are original, abstract alien biology rules.
 
+Persistent injury or substantial temperature strain pauses juvenile growth, conception and brood development without discarding stored progress. Feeding and [veterinary recovery](veterinary-care.md) restore the animal’s ability to continue.
+
 ## Player controls
 
 Open an animal or assigned post inspector, expand **Growth and breeding**, and enable breeding for each intended parent. It is off by default, including in migrated colonies. Disabling it prevents new pairings; an existing carried brood continues when conditions permit.

@@ -2,7 +2,18 @@
 
 Updated October 8, 2026. This is the compact evidence index for implemented and proposed systems. **Verified** means the named scope passed its stated check. **Pending** means evidence is not yet complete. **Failed** means a known check contradicts the requirement. None of these rows declares the whole game finished.
 
-## Current wild flora and gathering — schema 42
+## Current livestock health and veterinary care — schema 43
+
+| Check | Status | Evidence and scope |
+| --- | --- | --- |
+| Animal physiology and recovery | Verified — focused checks | 65 passes on the first run (12 new, 53 existing): fire/thermal injury, starvation as separate weakness, species tolerance, bounded treatment credit, gradual recovery, condition gates, preserved products/broods and transport. Frozen domain manifest `feee343d`. |
+| Physical jobs and migration | Verified — focused checks | 47 distinct checks passed across two runs; the sole initial failure was a test assertion using a private action-binding field. Final affected run 13/13 (`625be380`). Includes actual medicine delivery/work, one-worker feeding→treatment, blocked-condition XP, refunds, interrupted saves, fire-suppression coexistence and malformed state. Historical tick 3173 migrates from schema 40 to 43 without stepping and preserves physical state, seven crew and three animals; only neutral health metadata is added (`60f9d7f0`). |
+| Full Node gate | Verified | **1,150 passed, zero failed, one intentional skip**, 93.31 seconds, 226 inputs unchanged during the run. Report `.runtime-qa/animal-health/node-gate-report-sha256-4bc091e93e052d871627272f5056c48ad111ce2a4e5f6509b7c1e05dc535201d.json`. Afterward, one display-only label map was corrected and verified in the refreshed browser; no domain code changed or broad gate was repeated. Earlier 26 Python checks apply to unchanged tooling. |
+| Connected veterinary care | Verified — supplied patient/post | One attempt, 116 ticks and two commands. Declared intact post/tame adult with 90 health, 10 injury, no coverage and 75 nutrition; ordinary depot medicine. Reserved at tick 0, carried at 1, staged at 5, worked at 6, treated at 17, partly recovered at 67 and fully recovered at 116. Medicine fell from 4 to 3; ten injury healed at no more than 0.1 per tick, earning 20 Medicine experience. Original food, water, alloy and components were unchanged; all seven crew/five animals healthy. Five byte-exact reloads and 94 frozen runtime files. Summary `.runtime-qa/animal-health-trial/summary-sha256-5d9527d006b6f6042b868082ac9a444d176dc6d9eaa22647a725c7fb9b249acd.json`, index `4b3fa37e`. |
+| Independent review and UI | Verified — scoped review | Root verified 28 artifact hashes, 94 frozen sources and five exact reloads with current code, the exact declared fixture changes, actual medicine/food/resource totals and 20 XP. Only current-source difference is the reviewed three-label map in crew-panels.js. Receipts `animal-health-review/bebc718f` and `0bc01585`. Five focused UI checks; actual browser covers wild/eligible/covered states, Treat/cancel, pending-order save/reopen, recovery with 95.1 health/4.9 covered injury and a 390-pixel layout. No console warnings/errors observed. |
+| Broader veterinary scope | Pending | Ordinary injury/rescue/taming/post construction journey, long-term livestock balance, diseases, inherited traits, distinct body-part wounds, surgery and meat/fibre production remain unverified or unimplemented. |
+
+## Earlier wild flora and gathering — schema 42
 
 | Check | Status | Evidence and scope |
 | --- | --- | --- |
@@ -11,7 +22,7 @@ Updated October 8, 2026. This is the compact evidence index for implemented and 
 | Full regression gate | Verified | **1,120 passed, zero failed, one intentional skip** in 68.45 seconds. All 222 source/test inputs unchanged. Report `.runtime-qa/flora/node-gate-report-sha256-fd8bcbdda441adaf8dc676d3c31d421f82c68e17275b58d1b461d7fb41489bff.json`. The earlier 26 Python checks apply to unchanged tooling. |
 | Ordinary gathering and cooking | Verified — bounded fresh-colony trial | Seed 74219, 66 ticks and five commands. Actual galley construction cost 6 alloy/1 component; two native caps became ground goods, carried goods, galley input and two quality-two fungal-stew portions using 0.5 water. Original 24 rations remain. Seven crew/five animals healthy, four exact reloads, 93 runtime inputs unchanged. Summary `.runtime-qa/flora-gathering/summary-sha256-24791d067ec26a79cd1fbf29084e1823dddb4a9e7836db4f280bef581bb7e7f8.json`; receipt index `98da9560`. Root independently verified 21 artifact hashes, runtime fingerprints and all four reloads (`9825020e`). |
 | Plant interface | Verified — scoped browser review | Seven markup checks plus actual mature/growing plant selection, Gather/cancel, disabled maturity explanation, sunberry details, 390-pixel layout and save/reopen. No browser warnings/errors observed. Original stage-scaled sprites remain in the isometric hex view. UI receipt `2ef6a0c6`; browser receipt `c25b48d3`. |
-| Broader ecology | Pending | Soil moisture, spreading, orchards, full biomes, animal physiology/veterinary care, traits, meat/fibre and preservation remain future work. A complete ordinary colony-built farming/livestock chain is not yet accepted. |
+| Broader ecology | Pending | Soil moisture, spreading, orchards, full biomes, diseases, traits, meat/fibre and preservation remain future work. A complete ordinary colony-built farming/livestock chain is not yet accepted. |
 
 ## Earlier food and ecology increment — schema 41
 
