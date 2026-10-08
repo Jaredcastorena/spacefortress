@@ -54,7 +54,7 @@ test('oxygen rounding allowance leaves every other breathing limit exact', () =>
   }
 });
 
-test('actual recycling and breathing produce the adjacent floor, then consume finite gas without free suit refill', () => {
+test('actual recycling reaches the adjacent floor, then real suits supply breaths without free refill', () => {
   // Small sealed synthetic chamber isolates the actual recycled-oxygen
   // arithmetic observed in the ordinary journey. No gameplay acceptance claim.
   const r = room(6.3925); r.gas.co2 = .015; refreshRoom(r);
@@ -77,13 +77,14 @@ test('actual recycling and breathing produce the adjacent floor, then consume fi
   close(total(), before);
   const oxygen = r.gas.oxygen, exhaled = r.gas.co2;
   breathe(site, c);
-  assert.equal(r.gas.oxygen, oxygen - .0075);
-  assert.equal(r.gas.co2, exhaled + .0075);
-  assert.equal(breathable(r), false, 'a real breath deficit is far outside one ULP');
-  assert.equal(c.oxygen, 40);
+  assert.equal(r.gas.oxygen, oxygen);
+  assert.equal(r.gas.co2, exhaled);
+  assert.equal(breathable(r), true, 'real suit oxygen preserves the existing adjacent floor');
+  close(c.oxygen, 40 - .075);
+  close(site.atmosphere.vented.co2, .0075);
   assert.equal(site.atmosphere.refilled, 0);
   breathe(site, c);
-  assert.ok(c.oxygen < 40, 'a genuinely depleted room makes the suit supply the next breath');
+  assert.ok(c.oxygen < 40, 'a room at its oxygen floor continues to use finite suit oxygen');
   close(total(), before);
   assert.deepEqual(site.atmosphere.injected, emptyGas());
   assert.deepEqual(scrubber.machine.input, {});

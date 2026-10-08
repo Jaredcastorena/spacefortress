@@ -69,9 +69,26 @@ Room IDs use the lowest floor cell in row-major order, not a volatile room-array
 
 Coordinates are local tile integers. A simulation tick is the game's abstract one-second step; wall-clock playback speed is separate. Needs/condition generally use 0–100; skill XP, resource units, recipe work, energy in kJ, power in kW, and room temperature in °C retain their simulation definitions. Gas and thermal mass are game abstractions. Human text (`activity`, `status`, `blockedReason`, memory text) supplements structured IDs, values and paths.
 
+The colony grid is `hex-odd-q-v1`: flat-top hexes with integer column X and row Y. The six directions are `n`, `ne`, `se`, `s`, `sw`, `nw`; use the shared [geometry helpers](../src/geometry.js) for neighbors, steps and tile distance.
+
 The current interface exposes the full prototype state, including remote sites and RNG. It is not a fog-of-war observation boundary. Before training a player-equivalent agent in a future game with hidden information, introduce a versioned visibility filter. Derived room comfort alone is not a reward function.
 
 Visible crew buttons and the selected inspector have `data-entity` labels. Gameplay inspector buttons/forms have `data-simulation-action` labels matching catalog IDs. Agents do not need screen coordinates to use the structured interface.
+
+### Crew breathing and suit transfers
+
+Crew breathing is allocated once per site before crew actions or movement. Occupants share safe room oxygen for their bodily demand before optional suit charging; real suit stores cover shortages. Oxygen, pressure, smoke and exhaled-gas limits remain enforced. An empty suit alone does not cause injury when the current breath was fully supplied.
+
+When suit oxygen is used, a suit receives oxygen, or demand goes unmet, recording emits `crew.air.allocated` with stable `entity`/`actor` crew IDs, a site ID, and these game-scale oxygen amounts:
+
+| Field | Meaning |
+| --- | --- |
+| `roomOxygen` | Oxygen consumed from the compartment for breathing |
+| `suitOxygen` | Oxygen consumed from the crew member's suit for breathing |
+| `refillOxygen` | Oxygen transferred from the compartment into the suit |
+| `unmetOxygen` | Remaining bodily demand after available room and suit supply |
+
+These are measured allocations, not rewards. Normal room-only breathing remains visible through existing room and atmosphere counters. Allocation records are transient and do not add saved resources or alter simulation results when recording is enabled.
 
 ### Outpost and transport readings
 

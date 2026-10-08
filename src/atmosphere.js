@@ -180,17 +180,75 @@ export function updateAtmosphere(s) {
     flow(site, connections(site)); lifeSupport(site); refreshAtmosphere(site);
   }
 }
-export function breathe(site, c) {
-  const r = roomAt(site, c.x, c.y), demand = c.site === 'solar' ? .018 : c.job ? .01 : .0075;
-  if (breathable(r)) {
-    const consumed = Math.min(demand, r.gas.oxygen);
-    r.gas.oxygen -= consumed; r.gas.co2 += consumed; site.atmosphere.breathed += consumed;
-    const refill = Math.min(2, 100 - c.oxygen, Math.max(0, r.gas.oxygen - r.volume * GAS_PER_TILE * .16) / SUIT_PER_POINT);
-    c.oxygen += refill; r.gas.oxygen -= refill * SUIT_PER_POINT; site.atmosphere.refilled += refill * SUIT_PER_POINT;
-    refreshRoom(r);
-  } else {
-    const consumed = Math.min(c.oxygen * SUIT_PER_POINT, demand);
-    c.oxygen = Math.max(0, c.oxygen - consumed / SUIT_PER_POINT);
-    site.atmosphere.vented.co2 += consumed; site.atmosphere.breathed += consumed;
+// Plan transfers against the existing safety predicate. If boundary arithmetic
+// rounds outward, reduce the transfer rather than repairing stored gas afterward.
+function safeOxygenBudget(r, requested, breathing) {
+  if (!breathable(r)) return 0;
+  const nominal = r.volume * GAS_PER_TILE, amount = gasAmount(r.gas);
+  const maximum = Math.max(0, Math.min(requested, r.gas.oxygen - nominal * .16,
+    breathing ? amount * .02 - r.gas.co2 : amount - r.gas.co2 / .02,
+    breathing ? Infinity : amount - nominal * .55));
+  const safe = transfer => {
+    const probe = { ...r, gas: { ...r.gas, oxygen: r.gas.oxygen - transfer,
+      co2: r.gas.co2 + (breathing ? transfer : 0) } };
+    refreshRoom(probe); return breathable(probe);
+  };
+  // Preserve the existing one-ULP oxygen allowance when a complete breath is
+  // safe; subtracting the nominal floor first can manufacture a tiny shortage.
+  if (safe(requested)) return requested;
+  if (safe(maximum)) return maximum;
+  let low = 0, high = maximum;
+  for (let i = 0; i < 53; i++) {
+    const middle = low + (high - low) / 2;
+    if (middle === low || middle === high) break;
+    if (safe(middle)) low = middle; else high = middle;
   }
+  return low;
 }
+function shareOxygen(entries, field, budget, request) {
+  const requests = entries.map(request), total = requests.reduce((sum, n) => sum + n, 0);
+  let used = 0;
+  entries.forEach((entry, i) => {
+    const amount = budget >= total ? requests[i]
+      : Math.min(requests[i], Math.max(0, budget - used), total ? budget * requests[i] / total : 0);
+    entry.result[field] = amount; used += amount;
+  });
+  return used;
+}
+export function breatheBatch(site, crew) {
+  const entries = crew.filter(c => c.site === site.id && c.site !== 'transit' && (c.health === undefined || c.health > 0))
+    .map(c => ({ c, room: roomAt(site, c.x, c.y), demand: c.site === 'solar' ? .018 : c.job ? .01 : .0075,
+      result: { roomOxygen: 0, suitOxygen: 0, refillOxygen: 0, unmetOxygen: 0 } }))
+    .sort((a, b) => a.c.id < b.c.id ? -1 : a.c.id > b.c.id ? 1 : 0);
+  const groups = new Map();
+  for (const entry of entries) if (breathable(entry.room)) {
+    if (!groups.has(entry.room)) groups.set(entry.room, []);
+    groups.get(entry.room).push(entry);
+  }
+  // All bodily demand is allocated before any optional charging. Positions and
+  // demands are a snapshot; crew movement cannot change this tick's allocation.
+  for (const [r, occupants] of groups) {
+    const demand = occupants.reduce((sum, entry) => sum + entry.demand, 0);
+    const consumed = shareOxygen(occupants, 'roomOxygen', safeOxygenBudget(r, demand, true), entry => entry.demand);
+    r.gas.oxygen -= consumed; r.gas.co2 += consumed;
+    refreshRoom(r);
+  }
+  for (const { c, demand, result } of entries) {
+    const remaining = demand - result.roomOxygen;
+    result.suitOxygen = Math.min(c.oxygen * SUIT_PER_POINT, remaining);
+    result.unmetOxygen = remaining - result.suitOxygen;
+    c.oxygen = Math.max(0, c.oxygen - result.suitOxygen / SUIT_PER_POINT);
+    site.atmosphere.vented.co2 += result.suitOxygen;
+    site.atmosphere.breathed += result.roomOxygen + result.suitOxygen;
+  }
+  for (const [r, occupants] of groups) {
+    const request = entry => Math.min(2, 100 - entry.c.oxygen) * SUIT_PER_POINT;
+    const requested = occupants.reduce((sum, entry) => sum + request(entry), 0);
+    const refilled = shareOxygen(occupants, 'refillOxygen', safeOxygenBudget(r, requested, false), request);
+    for (const { c, result } of occupants) c.oxygen = Math.min(100, c.oxygen + result.refillOxygen / SUIT_PER_POINT);
+    r.gas.oxygen -= refilled; site.atmosphere.refilled += refilled;
+    refreshRoom(r);
+  }
+  return new Map(entries.map(({ c, result }) => [c.id, result]));
+}
+export function breathe(site, c) { return breatheBatch(site, [c]).get(c.id); }

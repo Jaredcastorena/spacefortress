@@ -85,10 +85,13 @@ test('forecast identifies a tile in advance and impact damage is recorded there'
 test('damage to the outdoor cable interrupts life support; crew repair restores the atmosphere', () => {
   const { s, site, life } = fixture(), cable = at(site, 7, 13);
   assert.ok(cable.cable); cable.cable.hp = 40; s.debris = { next: 1, target: { x: 7, y: 13 }, count: 0 };
-  step(s, 175); assert.equal(cable.cable.hp, 0); assert.equal(life.powered, false); assert.equal(breathable(site.rooms[0]), false);
+  step(s, 175); assert.equal(cable.cable.hp, 0); assert.equal(life.powered, false);
+  assert.equal(breathable(site.rooms[0]), true); assert.ok(site.rooms[0].co2Fraction <= .02);
+  assert.ok(s.crew.some(c => c.oxygen < 100)); assert.equal(s.flags.airWarning, true);
   const j = order(s, 'surface', 7, 13, 'repairCable').job; assert.ok(j);
-  until(s, () => cable.cable.hp === 100 && breathable(site.rooms[0]), 220);
-  assert.equal(life.powered, true); assert.ok(site.incidents.some(i => i.target === 'cable' && i.cause === 'debris'));
+  until(s, () => cable.cable.hp === 100 && breathable(site.rooms[0]) && !s.flags.airWarning, 220);
+  assert.equal(life.powered, true); assert.equal(s.flags.airWarning, false);
+  assert.ok(site.incidents.some(i => i.target === 'cable' && i.cause === 'debris'));
 });
 
 test('hull impact leaks atmosphere and delivered repair supplies restore the seal', () => {

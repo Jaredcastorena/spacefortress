@@ -90,16 +90,16 @@ test('powered recycling reduces exhaled gas without increasing total gas or cons
   assert.ok(r.gas.co2 < 7); assert.equal(breathable(r), true); close(gasAmount(r.gas), before); close(gasAmount(site.atmosphere.injected), 0);
 });
 
-test('power loss causes stale atmosphere and stopped crops; restored power recovers both', () => {
+test('power loss reaches the CO2 breathing limit and stops crops; restored power recovers both', () => {
   const s = createGame(), site = s.sites.surface, r = site.rooms[0], farm = at(site, 7, 9);
   farm.machine.input.water = 1;
   for (const t of site.tiles) if (t.building === 'solar') t.hp = 0;
   releaseBatteryEnergy(site, at(site, 13, 7)); step(s, 160);
-  close(r.pressure, 100); assert.ok(r.co2Fraction > .02); assert.equal(breathable(r), false);
-  assert.equal(farm.machine.progress, 0); assert.ok(s.crew.some(c => c.oxygen < 100)); assert.ok(s.flags.airWarning);
+  close(r.pressure, 100); close(r.co2Fraction, .02); assert.equal(breathable(r), true);
+  assert.equal(farm.machine.progress, 0); assert.ok(s.crew.some(c => c.oxygen < 100)); assert.equal(s.flags.airWarning, true);
   for (const t of site.tiles) if (t.building === 'solar') t.hp = 100;
   until(s, () => breathable(r) && s.resources.food > 24, 180);
-  assert.equal(s.flags.airWarning, false); assert.ok(r.co2Fraction < .02);
+  assert.equal(!!s.flags.airWarning, false); assert.ok(r.co2Fraction < .02);
 });
 
 test('opening a second breach increases loss, and escaped gas remains accounted for', () => {

@@ -6,10 +6,11 @@ SPACEFORTRESS is an early playable colony simulator. Release entries describe co
 
 - Experimental pressure-cycling airlocks recover and refill actual gas through controlled equipment, with two-door interlocks, power and atmosphere guards, queued travelers and safe manual release.
 - Crew preserve work, parcels, meals and carried patients while waiting. Manual release permits chamber maintenance through the selected side.
+- Crew share finite room oxygen for breathing before optional suit charging. Actual suit reserves cover shortages; injury follows unmet demand. Home warnings identify dependence on suit air, and structured `crew.air.allocated` events record the transfers for players and local agents.
 - True hex terrain and construction retain the isometric view. Movement, work range, room seals, livestock boundaries, gas, water, heat and electricity use six neighbors; device orientations, overlays and pointer picking share the same geometry.
 - Save schema 40 identifies the hex grid. Square schemas 1–39 are rejected before topology changes, with original save bytes protected for export. Existing action IDs, named events and entity IDs are retained. The separate elements laboratory remains square.
-- Regression coverage: 1,041 Node checks passed with one intentional skip, combining the full run with four named fixture retests; 26 Python checks passed. Local Chrome verification covers rendering, picking, a build preview, gas overlays and narrow-screen inspector focus. Paid airlock construction/parcel acceptance and held-pointer form submission remain incomplete. This build is not published.
-- The first ordinary hex construction trial completed seven mines and two paid machines, then stopped on low habitat oxygen during door traffic. All crew remained healthy; the saved checkpoint preserves the next air-management investigation.
+- Final full regression coverage: 1,055 Node checks passed, zero failed, one intentional skip. The prior 26 Python passes remain applicable to unchanged tooling. Local Chrome verification covers rendering, picking, a build preview, gas overlays and narrow-screen inspector focus. A held-pointer form submission across a real refresh dispatched exactly once. Paid airlock construction/parcel acceptance remains incomplete. This build is not published.
+- The first ordinary hex construction trial completed seven mines and two paid machines, then stopped on low habitat oxygen during door traffic. Its bounded continuation delivered all ore, sealed the home and completed two batches at each manufacturer; all crew stayed healthy. A six-tick continuation met the recovery reserve target; the complete construction journey remains unfinished.
 
 ## v0.1.2 — 2026-09-30
 

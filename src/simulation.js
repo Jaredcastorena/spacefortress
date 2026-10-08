@@ -43,7 +43,7 @@ import { updateIndustry, haul, spillStorage, CARRY_CAPACITY, OUTPUT_CAPACITY } f
 
 import { siteWorkAllowed, reserveConstruction, materialsReady, materialRoute, materialObstruction, fetchMaterials, cancelMaterials, dropCarriedMaterials, reservedAt } from './construction.js';
 
-import { updateRooms, roomAt, initializeAtmosphere, fillRoom, refreshAtmosphere, updateAtmosphere, breathable, breathe, GASES, gasAmount, refreshRoom, SUIT_PER_POINT } from './atmosphere.js';
+import { updateRooms, roomAt, initializeAtmosphere, fillRoom, refreshAtmosphere, updateAtmosphere, breathable, breatheBatch, GASES, gasAmount, refreshRoom, SUIT_PER_POINT } from './atmosphere.js';
 export { updateRooms, roomAt } from './atmosphere.js';
 
 import { isDay, updatePower, refreshPower, initializePower, initializeElectrical, releaseBatteryEnergy, BATTERY_CAPACITY, validatePower } from './power.js';
@@ -409,19 +409,18 @@ function recover(s, c, site) {
   }
   return false;
 }
-function act(s, c) {
+function act(s, c, air) {
   if (c.health <= 0) { if (c.site !== 'transit' && c.activity !== 'Deceased') { dropPossession(s,c); dropOpenedMeals(s, c); dropSanitation(s, c); release(s, c); c.intent = null; dropCarriedMaterials(s, c); c.activity = 'Deceased'; log(s, `${c.name} has died.`, 'danger'); } return; }
   if (c.site === 'transit') return;
   const plannedPath=(current,from,goals)=>crewPathTo(s,current,from,goals);
   const site = s.sites[c.site], room = roomAt(site, c.x, c.y);
   updateMorale(s, c);
   c.hunger = Math.max(0, c.hunger - .05); c.energy = Math.max(0, c.energy - (c.job ? .065 : .03));
-  breathe(site, c);
   const thermalDamage = thermalExposure(c, site, !breathable(room));
   if (thermalDamage) injure(s, c, thermalDamage, c.thermalStress < 0 ? 'cold exposure' : 'heat exposure');
   if (c.medical.servings > 0) { c.hunger = Math.min(100, c.hunger + 10); c.medical.servings--; digestPortion(c); eatPortion(s,c,c.medical); }
   const flame=at(site,c.x,c.y).fire;if(flame){injure(s,c,.2+flame.intensity*.01,'fire exposure');emitEvent(s,'fire.exposure',{entity:flame.id,actor:c.id});}
-  if (c.oxygen <= 0 || c.hunger <= 0) injure(s, c, .5, c.oxygen <= 0 ? 'oxygen deprivation' : 'starvation');
+  if (air.unmetOxygen > 0 || c.hunger <= 0) injure(s, c, .5, air.unmetOxygen > 0 ? 'oxygen deprivation' : 'starvation');
   else if (breathable(room) && thermalSafe(room) && room.air > 60 && c.hunger > 40) c.health = Math.min(100 - c.medical.injury, c.health + .03);
   if (c.health <= 0) { dropPossession(s,c); dropOpenedMeals(s, c); dropSanitation(s, c); release(s, c); c.intent = null; dropCarriedMaterials(s, c); c.activity = 'Deceased'; log(s, `${c.name} has died.`, 'danger'); return; }
   const traversal=continueCrewTraversal(s,c,site);
@@ -602,6 +601,16 @@ function updateMission(s) {
   if (crew.some(c => c.health < 40 || (c.oxygen < airThreshold(c) || c.energy < 25 || c.hunger < 25) && !localRecoveryAvailable(s,c)) || (m.site === 'comet' && s.tick + routeTime(s, 'comet') + returnWalk(s, (current,from,goals)=>crewPathTo(s,current,from,goals)) + 5 >= s.comet.leaves)) { log(s, 'Automatic recall: expedition safety margin reached.', 'danger'); recall(s,'safety_margin'); return; }
 
 }
+function homeHabitatRoom(site, room) {
+  if (!room || !room.cells.some(cell => {
+    const [x, y] = cell.split(',').map(Number);
+    return ['scrubber', 'farm', 'bunk'].includes(at(site, x, y).building);
+  })) return false;
+  // Bound cycling chambers deliberately use suits. Require the complete room
+  // match so a damaged chamber that merges into a habitat cannot hide a warning.
+  return !site.tiles.some(t => t.building === 'airlockController' && t.airlock?.binding
+    && t.airlock.chamberCells.length === room.cells.length && room.cells.every(cell => t.airlock.chamberCells.includes(cell)));
+}
 export function step(s, ticks = 1) {
   for (let n = 0; n < ticks; n++) {
     capture(s, 'external');
@@ -623,7 +632,18 @@ export function step(s, ticks = 1) {
     prepareHusbandry(s,order,cancelJob);
     prepareDowntime(s, release);
     assignJobs(s);
-    for (const c of s.crew) act(s, c);
+    const breathing = new Map();
+    let habitatSuitAssistance = false;
+    for (const current of Object.values(s.sites)) for (const [id, allocation] of breatheBatch(current, s.crew)) {
+      breathing.set(id, allocation);
+      if (current === site && (allocation.suitOxygen > 0 || allocation.unmetOxygen > 0)) {
+        const c = s.crew.find(member => member.id === id);
+        if (homeHabitatRoom(site, roomAt(site, c.x, c.y))) habitatSuitAssistance = true;
+      }
+      if (allocation.suitOxygen > 0 || allocation.refillOxygen > 0 || allocation.unmetOxygen > 0)
+        emitEvent(s, 'crew.air.allocated', { entity: id, actor: id, site: `site:${current.id}`, ...allocation });
+    }
+    for (const c of s.crew) act(s, c, breathing.get(c.id));
     reconcileAirlocks(s);
     updateWreckHazards(s); updateMission(s);
     reconcileNursing(s, cancelJob); reconcileHygiene(s, cancelJob);
@@ -635,8 +655,14 @@ export function step(s, ticks = 1) {
     prepareFire(s,order,cancelJob);
     updateCrewLife(s); reconcileHousing(s); reconcileAirlocks(s);
     for (const current of Object.values(s.sites)) { refreshAtmosphere(current); refreshPower(s, current); }
-    const unsafe = site.rooms.some(r => !breathable(r) && r.cells.some(k => { const [x, y] = k.split(',').map(Number); return ['scrubber', 'farm', 'bunk'].includes(at(site, x, y).building); }));
-    if (unsafe !== !!s.flags.airWarning) { s.flags.airWarning = unsafe; log(s, unsafe ? 'Habitat air is unsafe. Crew are using suits; check pressure, exhaled gas, seals, and life support.' : 'Habitat atmosphere is breathable again.', unsafe ? 'danger' : 'good'); }
+    const unsafe = site.rooms.some(r => homeHabitatRoom(site, r) && !breathable(r));
+    const airWarning = unsafe || habitatSuitAssistance;
+    if (airWarning !== !!s.flags.airWarning) {
+      s.flags.airWarning = airWarning;
+      log(s, unsafe ? 'Habitat air is unsafe. Crew are using suits; check pressure, exhaled gas, seals, and life support.'
+        : habitatSuitAssistance ? 'Habitat air reserves are low. Crew need suit oxygen to breathe; check breathing mix and life support.'
+        : 'Habitat air supply supports breathing again.', airWarning ? 'danger' : 'good');
+    }
     const thermalDanger = site.rooms.some(r => !thermalSafe(r) && r.cells.some(k => { const [x, y] = k.split(',').map(Number); return ['bunk', 'farm', 'medicalCot'].includes(at(site, x, y).building); }));
     if (thermalDanger !== !!s.flags.thermalWarning) { s.flags.thermalWarning = thermalDanger; log(s, thermalDanger ? 'Habitat temperature is unsafe. Check climate units, power and hull seals.' : 'Habitat temperature is safe again.', thermalDanger ? 'danger' : 'good'); }
     syncResources(s);
