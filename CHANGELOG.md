@@ -9,6 +9,7 @@ SPACEFORTRESS is an early playable colony simulator. Release entries describe co
 - True hex terrain and construction retain the isometric view. Movement, work range, room seals, livestock boundaries, gas, water, heat and electricity use six neighbors; device orientations, overlays and pointer picking share the same geometry.
 - Save schema 40 identifies the hex grid. Square schemas 1–39 are rejected before topology changes, with original save bytes protected for export. Existing action IDs, named events and entity IDs are retained. The separate elements laboratory remains square.
 - Regression coverage: 1,041 Node checks passed with one intentional skip, combining the full run with four named fixture retests; 26 Python checks passed. Local Chrome verification covers rendering, picking, a build preview, gas overlays and narrow-screen inspector focus. Paid airlock construction/parcel acceptance and held-pointer form submission remain incomplete. This build is not published.
+- The first ordinary hex construction trial completed seven mines and two paid machines, then stopped on low habitat oxygen during door traffic. All crew remained healthy; the saved checkpoint preserves the next air-management investigation.
 
 ## v0.1.2 — 2026-09-30
 

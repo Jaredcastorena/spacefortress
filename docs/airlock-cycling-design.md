@@ -4,7 +4,7 @@
 
 ## Existing parts and constraints
 
-| Existing system | Reusable behavior | Integration still needed |
+| Existing system | Reusable behavior | Required integration behavior |
 | --- | --- | --- |
 | [Atmosphere](../src/atmosphere.js) | Rooms own oxygen, inert gas and CO2; ten gas units per floor tile is nominal pressure. Doors connect rooms without merging them. `moveCrew` opens automatic doors for three ticks. | Controlled doors must check the controller on **every** physical step; a path alone cannot authorize opening. |
 | [Gas networks](../src/gas-networks.js) | Bulk extractor retains the chamber mixture and smoke; pumps transfer against pressure; reservoir stores it; vent returns it. Nodes, capacities and species/smoke ledgers already exist. | Select and isolate the recovery/return branches. A vent cannot extract; a tank cannot purify its contents. |
@@ -14,11 +14,11 @@
 | [Simulation](../src/simulation.js) | Crew needs, cargo, work, meals, rescue, tick ordering and strict save validation. | Cycle traversal and interrupted-cycle persistence. A normal wait must not trigger blocked-recovery cargo set-down. |
 | [Controls](../src/controls.js), [telemetry](../src/telemetry.js) | One dispatcher for player/agent actions, rejection records, stable entity IDs and named events. | Bounded setup/cycle/release controls, detached observations and cycle events. |
 
-Gas pressure is a game percentage, not kPa. Gas heat/compression work, decompression injuries and external non-vacuum atmospheres are not modeled. This proposal must not imply they are.
+Gas pressure is a game percentage, not kPa. Gas heat/compression work, decompression injuries and external non-vacuum atmospheres are not modeled. This system does not simulate those effects.
 
 ## First implementation boundary
 
-Use one dedicated chamber, two pressure doors, one controller, one extractor, one reversible pump, one reservoir and one regulated vent. The controller is proposed as a separate, wired floor building; existing gas devices keep their existing physical gas stores. Start with one traveler at a time, allowing an existing rescuer and carried patient as one inseparable party. No automatic animal transport or arbitrary multi-door/general-purpose logic in the first slice.
+Use one dedicated chamber, two pressure doors, one controller, one extractor, one reversible pump, one reservoir and one regulated vent. The controller is a separate, wired floor building; existing gas devices keep their existing physical gas stores. Start with one traveler at a time, allowing an existing rescuer and carried patient as one inseparable party. No automatic animal transport or arbitrary multi-door/general-purpose logic in the first slice.
 
 Binding must validate the physical layout:
 

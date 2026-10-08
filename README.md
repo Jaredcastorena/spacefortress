@@ -14,6 +14,8 @@ The local development build uses **six-sided hex tiles** for terrain, constructi
 
 This work is **not published yet**; the online game remains v0.1.2. Combined regression coverage is **1,041 Node checks passed, one intentional skip, and 26 Python checks passed**. Local Chrome checks cover the hex view, picking, build preview, overlays and a narrow inspector. Ordinary paid airlock construction and a parcel roundtrip remain pending. See the [verification record](docs/verification-status.md) for limits.
 
+An early construction trial stopped when hauling through the starter door lowered habitat oxygen below the breathable threshold; all seven crew remained healthy. Air management during construction needs further play testing.
+
 Hex colonies use save schema 40. Square saves from schemas 1–39 cannot be loaded into this version; their original contents remain protected and exportable. Continue those colonies with the matching square version. The separate gravity-based elements lab keeps its square grid.
 
 ## What's new in the published v0.1.2
@@ -144,7 +146,7 @@ The [verification record](docs/verification-status.md) describes historical chec
 | Supplies and construction | [Construction logistics](docs/construction-logistics.md), [production](docs/production-and-logistics.md), [storage](docs/depot-storage.md) |
 | Crew and care | [Crew life](docs/crew-life.md), [medicine](docs/medicine.md), [rescue and nursing](docs/rescue-and-nursing.md) |
 | Environment and utilities | [Atmosphere](docs/atmosphere.md), [gas networks](docs/gas-networks.md), [plumbing](docs/plumbing.md), [power](docs/power-networks.md), [fire](docs/fire-and-smoke.md) |
-| Travel | [Departure preparation](docs/departure-preparation.md), [expedition logistics](docs/expedition-logistics.md), [orbital loop](docs/orbital-colony-loop.md), [proposed cycling airlocks](docs/airlock-cycling-design.md) |
+| Travel | [Departure preparation](docs/departure-preparation.md), [expedition logistics](docs/expedition-logistics.md), [orbital loop](docs/orbital-colony-loop.md), [cycling airlocks](docs/airlock-cycling-design.md) |
 | Developer interface | [Simulation actions and recording](docs/simulation-interface.md), [elements lab](docs/elements-lab.md) |
 
 ## Contributing and license

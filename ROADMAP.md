@@ -12,6 +12,8 @@ Actual hexagonal terrain and building tiles are implemented locally, retaining t
 
 **Next acceptance:** build and commission a cycling airlock using ordinary finite supplies from a fresh hex colony; move a named parcel through it and return it. Complete actual form-submission checks and the wider outpost endurance/resupply/care journey. Neither the new hex build nor its airlocks are published yet.
 
+The first ordinary construction stage reached all seven mines and installed its fabricator/climate unit, then stopped at tick 40 when the open starter door let habitat oxygen fall below the breathable threshold. All crew were healthy. Resume from the preserved state to address entry/exit air loss before extending the construction journey; this trial did not complete manufacturing.
+
 ## Completed within the current scope
 
 ### Playable colony and expedition baseline — complete
