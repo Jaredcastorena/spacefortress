@@ -1,6 +1,7 @@
-export const VERSION = 38;
+export const VERSION = 39;
 export const RESOURCES = ['alloy', 'ore', 'components', 'food', 'water', 'fuel', 'cells', 'air', 'medicine', 'waste', 'fertilizer', 'keepsakes', 'ice'];
 export const BUILDINGS = {
+  airlockController:{name:'Airlock controller',cost:{alloy:4,components:1},work:8,demand:1,description:'Controls two pressure doors and an isolated gas recovery network. Uses 1 kW while enabled. Requires a habitat floor, wired power, a sealed chamber and separately built gas equipment. Retains real gas between measured pressure cycles.'},
   breaker:{name:'Branch breaker',cost:{alloy:4,components:1},work:8,description:'A two-terminal electrical contact with no side connection. Starts open in manual mode. Optional wet-fault protection latches open when its output branch has a supplied wet cable fault. External bypasses and local batteries can keep a branch powered. Requires habitat floor without cable; open before rotating or changing mode.'},
   waterPipe:{name:'Water pipe / valve',cost:{alloy:1},work:2,overlay:true,description:'A sealed two-unit water pipe with a manual isolation valve. Levels water with adjacent open pipes and reservoirs; stores its own finite contents. Can share tiles with gas pipes and cables. Damage below 50% leaks onto open floor.'},
   waterReservoir:{name:'Water reservoir',cost:{alloy:6,components:1},work:10,description:'Empty passive 32-unit water storage. Connect pipes or a pump; close its valve to retain water. Has no automatic hauler deliveries. Requires a habitat floor.'},

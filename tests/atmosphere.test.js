@@ -1,3 +1,4 @@
+import { projectPreAirlock } from './helpers/legacy-projection.js';
 import { depart as launch } from './helpers/depart.js';
 import { releaseBatteryEnergy } from '../src/power.js';
 import test from 'node:test';
@@ -182,7 +183,7 @@ test('schema-four air percentages migrate into gas quantities with one commissio
     site.air = site.rooms.length ? 65 : 0;
     for (const t of site.tiles) { delete t.doorMode; delete t.doorUntil; }
   }
-  const imported = deserialize(serialize(s)), r = imported.sites.surface.rooms[0];
+  const imported = deserialize(serialize(projectPreAirlock(s))), r = imported.sites.surface.rooms[0];
   assert.equal(imported.version, VERSION); close(r.pressure, 65); close(r.oxygenFraction, .21);
   assert.equal(imported.resources.air, 160); assert.deepEqual(deserialize(serialize(imported)), imported);
 });
@@ -205,7 +206,7 @@ test('atmosphere migration without a depot leaves the commissioning supply as re
   const s = createGame(), depot = at(s.sites.surface, 8, 10); s.version = 4;
   delete s.resources.air; depot.building = null; delete depot.stock;
   for (const r of Object.keys(s.resources)) s.resources[r] = 0;
-  const imported = deserialize(serialize(s));
+  const imported = deserialize(serialize(projectPreAirlock(s)));
   assert.equal(imported.resources.air, 0); assert.equal(totalResources(imported).air, 160);
   assert.equal(at(imported.sites.surface, 10, 11).drop.air, 160);
   assert.equal(totalResources(deserialize(serialize(imported))).air, 160);

@@ -2,6 +2,14 @@
 
 SPACEFORTRESS is an early playable colony simulator. Release entries describe completed changes within their stated scope.
 
+## Unreleased — 2026-10-08
+
+- Experimental pressure-cycling airlocks recover and refill actual gas through controlled equipment, with two-door interlocks, power and atmosphere guards, queued travelers and safe manual release.
+- Crew preserve work, parcels, meals and carried patients while waiting. Manual release permits chamber maintenance through the selected side.
+- Save schema39, six shared actions, named events and compact inspector controls expose the new system to players and local agents.
+- Regression coverage: 1,001 Node checks passed with one intentional skip, combining the full run with focused legacy-fixture retests; 26 Python checks passed. Paid construction acceptance and browser layout/click checks remain incomplete. This build is not published.
+- The next design direction is a real hexagonal building grid, retaining the isometric view. Conversion is being audited; the current simulation still uses square tiles.
+
 ## v0.1.2 — 2026-09-30
 
 ### Freight and wreck settlement preview

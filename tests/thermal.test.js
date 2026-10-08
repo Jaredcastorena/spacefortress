@@ -1,3 +1,4 @@
+import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -169,7 +170,7 @@ test('saved heat, climate settings, stress and recovery continue deterministical
 test('schema-fourteen migration commissions neutral temperatures without altering supplies or injuries', () => {
   const { s } = fixture(); injure(s, s.crew[0], 10, 'old injury'); const before = totalResources(s);
   s.version = 14; for (const site of Object.values(s.sites)) { delete site.thermal; site.rooms.forEach(r => delete r.heat); } s.crew.forEach(c => delete c.thermalStress);
-  const copy = check(s); assert.equal(copy.version, VERSION); assert.deepEqual(totalResources(copy), before); assert.equal(copy.crew[0].medical.injury, 10);
+  const copy = check(projectPreAirlock(s)); assert.equal(copy.version, VERSION); assert.deepEqual(totalResources(copy), before); assert.equal(copy.crew[0].medical.injury, 10);
   close(temperature(copy.sites.surface.rooms[0]), 20); assert.equal(copy.crew[0].thermalStress, 0); assert.deepEqual(check(copy), copy);
 });
 

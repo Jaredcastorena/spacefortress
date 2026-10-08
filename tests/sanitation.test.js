@@ -1,3 +1,4 @@
+import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -114,7 +115,7 @@ test('active visits, retained cargo, tanks and exposure continue deterministical
 
 test('schema-seventeen migration adds empty needs without changing existing waste or food', () => {
   const { s,depot }=fixture(false);depot.stock.waste=3;syncResources(s);s.version=17;for(const c of s.crew)delete c.sanitation;
-  const before=totalResources(s),copy=check(s);assert.equal(copy.version, VERSION);assert.deepEqual(totalResources(copy),before);assert.ok(copy.crew.every(c=>c.sanitation.waste===0&&c.sanitation.exposure===0));
+  const before=totalResources(s),copy=check(projectPreAirlock(s));assert.equal(copy.version, VERSION);assert.deepEqual(totalResources(copy),before);assert.ok(copy.crew.every(c=>c.sanitation.waste===0&&c.sanitation.exposure===0));
 });
 
 test('invalid needs, tank owners, overfilled tanks and duplicate visits are rejected', () => {

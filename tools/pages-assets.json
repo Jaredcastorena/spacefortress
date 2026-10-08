@@ -1,5 +1,9 @@
 {
   "sourceAssets": [
+    "src/airlock-access.js",
+    "src/airlock-panels.js",
+    "src/airlock-persistence.js",
+    "src/airlocks.js",
     "src/animal-transport.js",
     "src/app.js",
     "src/atmosphere-panels.js",
@@ -14,6 +18,7 @@
     "src/crew-life-panels.js",
     "src/crew-life.js",
     "src/crew-panels.js",
+    "src/crew-traversal.js",
     "src/crew.js",
     "src/data.js",
     "src/elements-app.js",
@@ -25,8 +30,8 @@
     "src/fire.js",
     "src/food-lots.js",
     "src/food-panels.js",
-    "src/freight.js",
     "src/freight-persistence.js",
+    "src/freight.js",
     "src/gas-networks.js",
     "src/gas-panels.js",
     "src/housing-panels.js",

@@ -1,3 +1,4 @@
+import { crewPathTo } from './navigation.js';
 import { roomAt, breathable } from './atmosphere.js';
 import { thermalSafe } from './thermal.js';
 import { livingAllowed, roomBenefit } from './rooms.js';
@@ -23,7 +24,7 @@ export function housingObstruction(s, c, pathTo = null) {
   const room = roomAt(site, ...home);
   if (!breathable(room) || !thermalSafe(room)) return 'Assigned bunk needs safe air and temperature';
   if (c.site !== 'surface') return 'Home reserved while away';
-  if (pathTo && pathTo(site, c, [home]) === null) return 'Assigned bunk is unreachable';
+  if (pathTo && crewPathTo(s, site, c, [home]) === null) return 'Assigned bunk is unreachable';
   return null;
 }
 function releaseUnauthorizedSleep(s) {

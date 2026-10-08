@@ -1,3 +1,4 @@
+import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -177,7 +178,7 @@ test('gas mixture, controls and partial transfers resume deterministically after
 
 test('schema 32 migration adds empty gas state without grants, equipment or RNG changes',()=>{
  const old=createGame();old.version=32;for(const site of Object.values(old.sites)){delete site.gasNetwork;for(const t of site.tiles)delete t.pipe;}
- const before=totalResources(old),migrated=check(old);assert.equal(migrated.version, VERSION);assert.deepEqual(totalResources(migrated),before);assert.equal(migrated.rng,old.rng);
+ const before=totalResources(old),migrated=check(projectPreAirlock(old));assert.equal(migrated.version, VERSION);assert.deepEqual(totalResources(migrated),before);assert.equal(migrated.rng,old.rng);
  for(const site of Object.values(migrated.sites)){assert.equal(gasAmount(stored(site)),0);assert.ok(site.tiles.every(t=>t.pipe===null&&!t.gasStore&&!t.gasDevice));}
  assert.deepEqual(check(migrated),migrated);
 });

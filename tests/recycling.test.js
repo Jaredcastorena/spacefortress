@@ -1,3 +1,4 @@
+import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, at, step, order, serialize, deserialize, setLabor } from '../src/simulation.js';
@@ -94,7 +95,7 @@ test('legacy growing crops retain their inputs and progress, then require nutrie
   const { s, farm, depot } = colony(); setMachineEnabled(s, 'surface', 7, 9, true); farm.machine.batch = { water: 1 }; farm.machine.progress = 11;
   // Model an actual schema-16 save: no fertilizer inventories or new resource filters.
   s.version = 16; delete depot.stock.fertilizer; delete s.resources.fertilizer; depot.storage.accepted = depot.storage.accepted.filter(r => r !== 'fertilizer');
-  const copy = check(s), crop = at(copy.sites.surface, 7, 9); assert.equal(crop.machine.progress, 11); assert.equal(crop.machine.legacyCrop, true); assert.equal(totalResources(copy).fertilizer, 0); assert.ok(at(copy.sites.surface, 8, 10).storage.accepted.includes('fertilizer'));
+  const copy = check(projectPreAirlock(s)), crop = at(copy.sites.surface, 7, 9); assert.equal(crop.machine.progress, 11); assert.equal(crop.machine.legacyCrop, true); assert.equal(totalResources(copy).fertilizer, 0); assert.ok(at(copy.sites.surface, 8, 10).storage.accepted.includes('fertilizer'));
   until(copy, () => crop.machine.completed === 1); assert.equal(crop.machine.output.food, 2); assert.equal(crop.machine.legacyCrop, undefined); crop.machine.input.water = 1; step(copy, 5); assert.match(crop.machine.status, /fertilizer/); assert.equal(crop.machine.completed, 1);
 });
 

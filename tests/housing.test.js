@@ -1,3 +1,4 @@
+import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -95,7 +96,7 @@ test('ownership, recovery and memories continue deterministically through saves'
 
 test('schema twenty migration adds communal housing without changing sleep claims or inventories',()=>{
   const {s,c}=fixture();c.energy=10;step(s);s.version=20;for(const person of s.crew)delete person.housing;
-  const before=totalResources(s),intent=structuredClone(c.intent),copy=check(s);assert.equal(copy.version, VERSION);assert.deepEqual(copy.crew[0].intent,intent);assert.deepEqual(totalResources(copy),before);assert.ok(copy.crew.every(c=>c.housing.bunk===null));
+  const before=totalResources(s),intent=structuredClone(c.intent),copy=check(projectPreAirlock(s));assert.equal(copy.version, VERSION);assert.deepEqual(copy.crew[0].intent,intent);assert.deepEqual(totalResources(copy),before);assert.ok(copy.crew.every(c=>c.housing.bunk===null));
 });
 
 test('invalid assignments and saves are rejected',()=>{

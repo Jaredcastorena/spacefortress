@@ -1,3 +1,4 @@
+import { projectPreAirlock } from './helpers/legacy-projection.js';
 import { releaseBatteryEnergy } from '../src/power.js';
 import { fillRoom, refreshAtmosphere } from '../src/atmosphere.js';
 import test from 'node:test';
@@ -133,7 +134,7 @@ test('version-two global supplies migrate once while cargo, reserved jobs and cr
   const before = totalResources(legacy); legacy.version = 2;
   for (const site of Object.values(legacy.sites)) for (const t of site.tiles) { delete t.stock; delete t.machine; }
   delete job.sources; legacy.crew[0].carry = { ore: 8 }; legacy.crew[1].intent = { type: 'haul', target: [15, 14] };
-  const migrated = deserialize(serialize(legacy)); assert.equal(migrated.version, VERSION);
+  const migrated = deserialize(serialize(projectPreAirlock(legacy))); assert.equal(migrated.version, VERSION);
   assert.equal(migrated.resources.alloy, legacy.resources.alloy); assert.deepEqual(migrated.crew[0].skills, legacy.crew[0].skills);
   assert.equal(totalResources(migrated).ore, before.ore + 8); cancelJob(migrated, job.id);
   assert.equal(migrated.resources.alloy, before.alloy); assert.equal(migrated.crew[1].intent, null);

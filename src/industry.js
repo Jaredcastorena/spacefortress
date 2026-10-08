@@ -1,9 +1,11 @@
+import { crewPathTo } from './navigation.js';
+import { advanceCrewRoute } from './crew-traversal.js';
+import { airlockControlOwner } from './airlock-access.js';
 import { rawFood, preparedFood } from './food-lots.js';
 import { emitItemMovement, tileEntityId } from './telemetry.js';
 import { fitAmount } from './item-lots.js';
 import { depotUsage, acceptsResource, acceptsShipment } from './storage.js';
 import { scheduleProduction, inputBatchesWanted, releaseOperationsAt } from './production.js';
-import { moveCrew } from './atmosphere.js';
 import { refreshPower } from './power.js';
 import { RECIPES } from './data.js';
 import { add, extract, resourceEntries, contains, quantity, spill, CARRY_CAPACITY } from './inventory.js';
@@ -28,6 +30,7 @@ export function updateIndustry(s, roomAt, order) { scheduleProduction(s, order);
 export function setMachineEnabled(s, siteId, x, y, enabled) {
   const site = s.sites[siteId], t = site?.tiles.find(t => t.x === x && t.y === y);
   if (!t?.machine || !RECIPES[t.building] || typeof enabled !== 'boolean') return { ok: false, message: 'Select a production machine.' };
+  if (airlockControlOwner(site, t)) return { ok: false, code: 'airlock_controlled', message: 'This equipment is controlled by its airlock.' };
   t.machine.enabled = enabled; if (!enabled) releaseOperationsAt(s, siteId, x, y); t.machine.status = enabled ? 'Waiting to resume' : 'Paused by player'; refreshPower(s, site); return { ok: true };
 }
 
@@ -37,7 +40,7 @@ function pickHaul(s, c, site, pathTo) {
   const candidates = [];
   const offer = (t, kind, items, destination, priority, purpose) => {
     if (!quantity(items)) return;
-    const pickup = pathTo(site, c, [xy(t)]), delivery = pathTo(site, t, [destination.target]);
+    const pickup = crewPathTo(s, site, c, [xy(t)]), delivery = crewPathTo(s, site, t, [destination.target]);
     if (pickup === null || delivery === null) return;
     candidates.push({ priority, purpose, distance: pickup.length + delivery.length, intent: { type: 'haul', target: xy(t), source: kind, items, destination } });
   };
@@ -70,12 +73,7 @@ function pickHaul(s, c, site, pathTo) {
   candidates.sort((a, b) => b.priority - a.priority || a.purpose - b.purpose || a.distance - b.distance);
   return candidates[0]?.intent || null;
 }
-function move(c, site, target, pathTo) {
-  const path = pathTo(site, c, [target]);
-  if (path === null) return 'blocked';
-  if (!path.length) return 'arrived';
-  moveCrew(c, site, path[0]); return 'moving';
-}
+function move(s, c, site, target) { return advanceCrewRoute(s, c, site, [target]).status; }
 export function haul(s, c, site, pathTo) {
   if (c.carry) {
     if (c.delivery?.kind === 'job' && deliverMaterials(s, c, site, pathTo)) return true;
@@ -88,8 +86,8 @@ export function haul(s, c, site, pathTo) {
       return (d.kind === 'stock' ? acceptsShipment(s, c.site, tile, c.carry, c) : resourceEntries(c.carry).every(([r, n]) => RECIPES[tile.building]?.input[r] && (store[r] || 0) + n <= RECIPES[tile.building].input[r] * 2));
     };
     // A dismantled machine/depot releases the delivery; keep the cargo and find storage.
-    if (!destinationAccepts(d) || pathTo(site, c, [d.target]) === null) {
-      const depot = site.tiles.filter(t => acceptsShipment(s, c.site, t, c.carry, c) && pathTo(site, c, [xy(t)]) !== null).sort((a, b) => b.storage.priority - a.storage.priority)[0];
+    if (!destinationAccepts(d) || crewPathTo(s, site, c, [d.target]) === null) {
+      const depot = site.tiles.filter(t => acceptsShipment(s, c.site, t, c.carry, c) && crewPathTo(s, site, c, [xy(t)]) !== null).sort((a, b) => b.storage.priority - a.storage.priority)[0];
       c.delivery = d = depot ? { kind: 'stock', target: xy(depot) } : null;
     }
     if (!d) {
@@ -97,7 +95,7 @@ export function haul(s, c, site, pathTo) {
       spill(tileAt(site, xy(c)), c.carry); c.carry = null; c.delivery = null; c.intent = null; c.activity = 'Set cargo down; no accepting depot with space';
       return true;
     }
-    const result = move(c, site, d.target, pathTo);
+    const result = move(s, c, site, d.target, pathTo);
     c.activity = result === 'blocked' ? 'Delivery route blocked; holding cargo' : d.kind === 'input' ? 'Delivering machine inputs' : 'Hauling to cargo depot';
     if (result === 'arrived') {
       emitItemMovement(s,c.carry,c.id,{entity:c.id,slot:'carry'},{entity:tileEntityId(site.id,...d.target),slot:d.kind==='input'?'machine.input':d.kind});
@@ -113,7 +111,7 @@ export function haul(s, c, site, pathTo) {
   if (!items || !contains(items, intent.items) || !buffer(tileAt(site, intent.destination.target), intent.destination.kind) || (intent.destination.kind === 'stock' && !acceptsShipment(s, c.site, tileAt(site, intent.destination.target), intent.items, c))) { c.intent = null; return true; }
   const rawOnly=intent.destination.kind==='input'&&tileAt(site,intent.destination.target).building==='galley';
   if(rawOnly&&(intent.items.food||0)>rawFood(items)){c.intent=null;return true;}
-  const result = move(c, site, intent.target, pathTo); c.activity = 'Collecting reserved shipment';
+  const result = move(s, c, site, intent.target, pathTo); c.activity = 'Collecting reserved shipment';
   if (result === 'arrived') {
     c.carry = extract(items, intent.items, rawOnly); emitItemMovement(s,c.carry,c.id,{entity:tileEntityId(site.id,...intent.target),slot:intent.source==='output'?'machine.output':intent.source},{entity:c.id,slot:'carry'}); c.delivery = intent.destination; c.intent = null;
     if (intent.source === 'drop' && !quantity(source.drop)) source.drop = null;

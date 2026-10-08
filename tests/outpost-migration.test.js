@@ -1,3 +1,4 @@
+import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -23,7 +24,7 @@ function migrated(phase = 'working-cargo') {
   const s = legacy(phase); assert.equal(migrateOutpostState(s), true); return s;
 }
 function legacyProjection(s) {
-  const projected = structuredClone(s);
+  const projected = projectPreAirlock(s,36);
   projected.version = 36; delete projected.outposts; delete projected.shuttle.freight;
   if (projected.mission) delete projected.mission.returnCrew;
   for (const site of Object.values(projected.sites)) for (const tile of site.tiles) delete tile.imports;

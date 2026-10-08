@@ -1,10 +1,11 @@
+import { VERSION } from '../src/data.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { createGame, at, deserialize, launch, loadFreight, recall, serialize, setLabor, step, unloadFreight } from '../src/simulation.js';
 import { add, extract, totalResources } from '../src/inventory.js';
-import { projectPreOutpost } from './helpers/legacy-projection.js';
+import { projectPreAirlock, projectPreOutpost } from './helpers/legacy-projection.js';
 import {
   FREIGHT_WORK,
   assertLegacyFreightState,
@@ -110,8 +111,8 @@ test('schema 37 two-person departure migrates exactly and keeps the default rost
   assert.equal(old.departure.crew.length, 2);
   old.version = 37;
   const expected = structuredClone(old);
-  expected.version = 38;
-  const loaded = deserialize(serialize(old));
+  expected.version = VERSION;
+  const loaded = deserialize(serialize(projectPreAirlock(old)));
   assert.deepEqual(loaded, expected);
   assert.equal(loaded.departure.crew.length, 2);
   assert.equal(loaded.rng, old.rng);
@@ -275,8 +276,8 @@ test('integrated loader migrates a real schema 37 state without changing any oth
   const old = createGame(3837);
   old.version = 37;
   const before = structuredClone(old), resources = totalResources(old);
-  const loaded = deserialize(JSON.stringify(old));
-  before.version = 38;
+  const loaded = deserialize(JSON.stringify(projectPreAirlock(old)));
+  before.version = VERSION;
   assert.deepEqual(loaded, before);
   assert.deepEqual(totalResources(loaded), resources);
   assert.equal(loaded.rng, old.rng);
@@ -289,7 +290,7 @@ test('all genuine schema 36 expedition phases migrate through 37 to 38 exactly',
     const compressed = readFileSync(new URL(`./fixtures/outpost-pre36-${phase}.json.gz`, import.meta.url));
     const text = gunzipSync(compressed).toString('utf8'), old = JSON.parse(text);
     const loaded = deserialize(text);
-    assert.equal(loaded.version, 38, phase);
+    assert.equal(loaded.version, VERSION, phase);
     assert.deepEqual(projectPreOutpost(loaded), old, phase);
     assert.deepEqual(totalResources(loaded), totalResources(old), phase);
     assert.equal(loaded.rng, old.rng, phase);

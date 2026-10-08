@@ -1,3 +1,4 @@
+import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -97,7 +98,7 @@ test('breaks, social bonds and grief continue deterministically through save/loa
 test('schema-nine migration adds personal needs without altering jobs or inventories', () => {
   const s = createGame(); order(s, 'surface', 4, 10, 'mine'); step(s, 5); s.version = 9;
   for (const c of s.crew) { delete c.life; delete c.relationships; }
-  const before = totalResources(s), jobs = structuredClone(s.jobs), copy = deserialize(serialize(s));
+  const before = totalResources(s), jobs = structuredClone(s.jobs), copy = deserialize(serialize(projectPreAirlock(s)));
   assert.equal(copy.version, VERSION); assert.deepEqual(totalResources(copy), before); assert.deepEqual(copy.jobs, jobs); assert.equal(copy.crew[0].life.leisure, 80);
 });
 

@@ -1,7 +1,7 @@
 import { GAS_PER_TILE, breathable, refreshAtmosphere } from './atmosphere.js';
 import { temperature, thermalSafe } from './thermal.js';
 import { previewPower, breakerConditions } from './power.js';
-import { pathTo, passable } from './navigation.js';
+import { crewPathTo, passable } from './navigation.js';
 import { livingAllowed } from './rooms.js';
 import { availableInventory } from './inventory-reservations.js';
 import { impaired, immobile } from './mobility.js';
@@ -14,7 +14,7 @@ const position = t => `${t.x},${t.y}`;
 const byPosition = (a, b) => a.y - b.y || a.x - b.x;
 const entity = (site, t) => `tile:${site.id}:${t.x}:${t.y}`;
 const working = t => t.hp > 0 && !t.fire;
-const reachable = (site, from, to) => passable(site, from.x, from.y) && pathTo(site, from, [xy(to)]) !== null;
+const reachable = (s, site, from, to) => passable(site, from.x, from.y) && crewPathTo(s, site, from, [xy(to)]) !== null;
 const amount = n => Number.isFinite(n) && n > 0 ? n : 0;
 const note = (code, message, details = {}) => ({ code, message, ...details });
 const roomId = (site, room) => `room:${site.id}:${[...room.cells].sort((a, b) => {
@@ -23,12 +23,12 @@ const roomId = (site, room) => `room:${site.id}:${[...room.cells].sort((a, b) =>
 })[0]}`;
 
 // Match distinct beds, rather than assuming a count proves each person has one.
-function assignBeds(site, crew, beds) {
+function assignBeds(s, site, crew, beds) {
   const owner = new Map();
   function place(c, seen) {
     for (const bed of beds) {
       const key = position(bed);
-      if (seen.has(key) || !reachable(site, c, bed)) continue;
+      if (seen.has(key) || !reachable(s, site, c, bed)) continue;
       seen.add(key);
       if (!owner.has(key) || place(owner.get(key), seen)) { owner.set(key, c); return true; }
     }
@@ -68,11 +68,11 @@ export function outpostReadiness(s, siteId = 'wreck', crewIds = []) {
   else result.dock = { entity: entity(site, dock), x: dock.x, y: dock.y, condition: dock.hp };
   const dockRoutes = new Map(), localRoutes = new Map();
   const fromDock = t => {
-    if (!dockRoutes.has(t)) dockRoutes.set(t, !!dock && reachable(site, dock, t));
+    if (!dockRoutes.has(t)) dockRoutes.set(t, !!dock && reachable(s, site, dock, t));
     return dockRoutes.get(t);
   };
   const accessible = t => {
-    if (!localRoutes.has(t)) localRoutes.set(t, fromDock(t) && local.every(c => reachable(site, c, t)));
+    if (!localRoutes.has(t)) localRoutes.set(t, fromDock(t) && local.every(c => reachable(s, site, c, t)));
     return localRoutes.get(t);
   };
   const depots = site.tiles.filter(t => t.building === 'stockpile' && working(t) && t.stock && accessible(t));
@@ -126,9 +126,9 @@ export function outpostReadiness(s, siteId = 'wreck', crewIds = []) {
   }
   const beds = site.tiles.filter(t => t.building === 'bunk' && working(t) && eligibleRooms.has(byCell.get(position(t))?.entity) && fromDock(t)).sort(byPosition);
   result.bunks.available = beds.length;
-  const bedsByCrew = assignBeds(site, local, beds);
+  const bedsByCrew = assignBeds(s, site, local, beds);
   for (const c of local) {
-    const bed = bedsByCrew.get(c.id), dockReachable = !!dock && reachable(site, c, dock);
+    const bed = bedsByCrew.get(c.id), dockReachable = !!dock && reachable(s, site, c, dock);
     const careNeeded = impaired(c) || c.health < 40;
     const details = { id: c.id, dockReachable, bunk: bed ? entity(site, bed) : null, injury: c.medical?.injury || 0, careNeeded, medicalCot: null, caregiver: null };
     result.crew.push(details);
@@ -179,14 +179,14 @@ export function outpostReadiness(s, siteId = 'wreck', crewIds = []) {
 
   const patients = local.filter(c => impaired(c) || c.health < 40);
   const cots = site.tiles.filter(t => t.building === 'medicalCot' && working(t) && eligibleRooms.has(byCell.get(position(t))?.entity) && fromDock(t));
-  const cotByCrew = assignBeds(site, patients, cots);
+  const cotByCrew = assignBeds(s, site, patients, cots);
   for (const c of patients) {
     const detail = result.crew.find(entry => entry.id === c.id), cot = cotByCrew.get(c.id);
     detail.medicalCot = cot ? entity(site, cot) : null;
     if (!cot) block('medical_cot_unavailable', 'An impaired or critically hurt resident needs a reachable safe medical cot.', { crew: c.id });
     const untreated = Math.max(0, (c.medical?.injury || 0) - (c.medical?.treated || 0));
     if (untreated > 1e-8 || immobile(c)) {
-      const helper = local.find(other => other !== c && !impaired(other) && other.health >= 40 && other.labors?.medicine && reachable(site, other, c));
+      const helper = local.find(other => other !== c && !impaired(other) && other.health >= 40 && other.labors?.medicine && reachable(s, site, other, c));
       detail.caregiver = helper?.id || null;
       if (!helper) block('caregiver_unavailable', 'The proposed roster needs a mobile crewmate assigned to medicine for this resident.', { crew: c.id });
     }

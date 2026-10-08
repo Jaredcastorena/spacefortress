@@ -1,7 +1,8 @@
 import { gasNode } from './gas-networks.js';
 import { LIQUID, quenchWater } from './liquids.js';
 import { BUILDINGS } from './data.js';
-import { roomAt, refreshRoom, moveCrew } from './atmosphere.js';
+import { roomAt, refreshRoom } from './atmosphere.js';
+import { advanceCrewRoute } from './crew-traversal.js';
 import { temperature } from './thermal.js';
 import { damage } from './maintenance.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
@@ -55,9 +56,9 @@ export function prepareFire(s,order,cancelJob){
 export function setFireResponse(s,siteId,enabled){const site=s.sites[siteId];if(!site||typeof enabled!=='boolean')return {ok:false,message:'Choose a site and response policy.'};site.fireSafety.automatic=enabled;return {ok:true};}
 export function evadeFire(s,c,site,pathTo,release){
  if(!at(site,c.x,c.y)?.fire)return false;
- release(s,c);const path=pathTo(site,c,site.tiles.filter(t=>!t.fire).map(t=>[t.x,t.y]));
- c.activity=path?.length?'Escaping a fire':'Trapped by fire';
- if(path?.length&&moveCrew(c,site,path[0])){const patient=c.rescue?.carrying&&s.crew.find(p=>p.id===c.rescue.patient);if(patient){patient.x=c.x;patient.y=c.y;}emitEvent(s,'fire.evacuated',{actor:c.id,target:tileEntityId(site.id,c.x,c.y)});}
+ release(s,c);const before=[c.x,c.y],movement=advanceCrewRoute(s,c,site,site.tiles.filter(t=>!t.fire).map(t=>[t.x,t.y]));
+ if(movement.status!=='waiting_airlock')c.activity=movement.status==='blocked'?'Trapped by fire':'Escaping a fire';
+ if(c.x!==before[0]||c.y!==before[1])emitEvent(s,'fire.evacuated',{actor:c.id,target:tileEntityId(site.id,c.x,c.y)});
  return true;
 }
 export function validateFire(s){

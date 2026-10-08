@@ -16,9 +16,9 @@ An early playable space colony simulator inspired by Dwarf Fortress. Keep seven 
 - An explicit one-person service visit to an established wreck leaves a seat for a resident pickup.
 - More reliable departure loading, blocked-carrier parcel recovery and physical shuttle checks; save schema38 preserves older owned supplies and crew.
 
-**Outpost endurance is still experimental.** Bounded real freight and residence controls passed player checks, but a complete fresh-colony settlement, delayed resupply, ordinary remote care and final pickup walkthrough remains unfinished. Plan actual gas, heating and night battery reserves; a room being ready now does not prove it can survive the night. Automatic pressure-cycling airlocks are [proposed](docs/airlock-cycling-design.md).
+**Outpost endurance is still experimental.** Bounded real freight and residence controls passed player checks, but a complete fresh-colony settlement, delayed resupply, ordinary remote care and final pickup walkthrough remains unfinished. Plan actual gas, heating and night battery reserves; a room being ready now does not prove it can survive the night. Automatic pressure-cycling airlocks are [being implemented](docs/airlock-cycling-design.md) and remain unverified.
 
-The current source passes **958 tests with one intentional historical skip**, plus15 Python checks. See the [verification record](docs/verification-status.md), [changelog](CHANGELOG.md) and [roadmap](ROADMAP.md) for scope and next work.
+The last published build passed **958 tests with one intentional historical skip**, plus15 Python checks. Local work on automatic airlocks is in progress and has not passed its release checks. See the [verification record](docs/verification-status.md), [changelog](CHANGELOG.md) and [roadmap](ROADMAP.md) for scope and next work.
 
 ## Play online
 

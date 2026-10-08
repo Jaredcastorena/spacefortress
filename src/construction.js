@@ -1,5 +1,6 @@
 import { fitAmount } from './item-lots.js';
-import { moveCrew } from './atmosphere.js';
+import { crewPathTo } from './navigation.js';
+import { advanceCrewRoute } from './crew-traversal.js';
 import { RESOURCES } from './data.js';
 import { CARRY_CAPACITY, add, addCounts, extract, resourceEntries, contains, quantity, spill, syncResources } from './inventory.js';
 import { availableInventory } from './inventory-reservations.js';
@@ -37,7 +38,7 @@ export function reserveConstruction(s, siteId, x, y, cost, pathTo) {
   const site = s.sites[siteId];
   if (!site || !Number.isInteger(x) || !Number.isInteger(y) || !at(site, x, y)) return null;
   const goals = workPositions({ x, y });
-  const sources = constructionSupplyLocations(s, siteId).filter(({ t }) => pathTo(site, t, [[t.x, t.y]]) !== null && pathTo(site, t, goals) !== null);
+  const sources = constructionSupplyLocations(s, siteId).filter(({ t }) => crewPathTo(s, site, t, [[t.x, t.y]]) !== null && crewPathTo(s, site, t, goals) !== null);
   const available = {};
   for (const { t, kind } of sources) for (const r of RESOURCES) available[r] = (available[r] || 0) + availableInventory(s, siteId, [t.x, t.y], kind, r);
   if (!contains(available, cost)) return null;
@@ -68,11 +69,11 @@ export function materialObstruction(j) {
 }
 // Material collection is part of a builder's/repairer's duty, even with general hauling disabled.
 export function fetchMaterials(s, c, j, site, pathTo) {
-  const source = materialSource(j, c, site, pathTo);
+  const source = materialSource(j, c, site, (current, from, goals) => crewPathTo(s, current, from, goals));
   if (!source) { j.blockedReason = materialObstruction(j); c.activity = j.blockedReason; j.worker = null; c.job = null; return; }
   j.blockedReason = null; c.activity = j.kind === 'feed' ? 'Collecting a patient ration' : j.kind === 'treat' ? 'Collecting medicine' : j.kind === 'loadShuttle' ? 'Collecting shuttle supplies' : ['loadCargo', 'unloadCargo'].includes(j.kind) ? 'Collecting freight shipment' : 'Collecting construction supplies';
-  const path = pathTo(site, c, [[source.x, source.y]]);
-  if (path.length) { moveCrew(c, site, path[0]); return; }
+  const path = crewPathTo(s, site, c, [[source.x, source.y]]);
+  if (path.length) { advanceCrewRoute(s, c, site, [path.at(-1)]); return; }
   const items = {}; let room = CARRY_CAPACITY;
   for (const [r, n] of resourceEntries(source.items)) { const amount = fitAmount(r,n,room); if (amount) items[r] = amount; room -= amount; }
   const sourceIndex = j.sources.indexOf(source);
@@ -88,11 +89,11 @@ export function deliverMaterials(s, c, site, pathTo) {
   const j = s.jobs.find(j => j.id === c.delivery?.job && j.site === c.site);
   if (!j) { c.delivery = null; return false; }
   if (!site || site.id !== c.site) return false;
-  const path = pathTo(site, c, workPositions(j));
+  const path = crewPathTo(s, site, c, workPositions(j));
   const purpose = ['treat', 'feed'].includes(j.kind) ? 'Medical' : ['loadShuttle', 'loadCargo', 'unloadCargo'].includes(j.kind) ? 'Shuttle' : 'Construction';
   c.activity = path === null ? `${purpose} delivery route blocked; holding supplies` : `Delivering ${purpose.toLowerCase()} supplies`;
   if (path === null) { j.blockedReason = `${purpose} delivery route blocked`; return true; }
-  if (path.length) { moveCrew(c, site, path[0]); return true; }
+  if (path.length) { advanceCrewRoute(s, c, site, [path.at(-1)]); return true; }
   const cargo = c.carry;
   add(j.materials, cargo); c.carry = null; c.delivery = null; j.blockedReason = null;
   if (['loadCargo', 'unloadCargo'].includes(j.kind) && quantity(cargo)) {

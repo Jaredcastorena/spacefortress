@@ -20,6 +20,7 @@ import { setDepotAccepted, setDepotPriority } from './storage.js';
 import { setProductionOrder, setProductionPriority } from './production.js';
 import { setMachineEnabled } from './industry.js';
 import { setDoorMode } from './atmosphere.js';
+import { configureAirlock, enableAirlock, requestAirlock, cancelAirlock, releaseAirlock, unbindAirlock } from './airlocks.js';
 import { setCargoAccepted, resumeExpedition, setReturnCrew } from './expedition.js';
 import { OUTPOST_SITES, setOutpostResidents } from './outposts.js';
 import { OUTPOST_RESERVES } from './outpost-readiness.js';
@@ -35,6 +36,18 @@ const inventoryRequest={type:'object',properties:Object.fromEntries(RESOURCES.ma
 const optional=schema=>({...schema,optional:true});
 const entries=[];
 function register(id,binding,description,parameters,run) {entries.push({id,binding,description,parameters,run});}
+// Domain airlock commands take named arguments; player bindings retain the
+// existing positional adapter and share the same strict public schema.
+function registerAirlock(id,binding,description,parameters,run) {
+  register(id,binding,description,parameters,(s,...values)=>run(s,Object.fromEntries(Object.keys(parameters).map((key,i)=>[key,values[i]]))));
+}
+const airlockPoint={type:'array',items:integer(0,1000),minItems:2,maxItems:2};
+registerAirlock('airlock.configure','configureAirlock','Bind an existing chamber, pressure doors and isolated gas network.',{...xy,chamber:airlockPoint,inner:airlockPoint,outer:airlockPoint,extractor:airlockPoint,pump:airlockPoint,reservoir:airlockPoint,vent:airlockPoint},configureAirlock);
+registerAirlock('airlock.enable','enableAirlock','Pause or resume a configured pressure cycle.',{...xy,enabled},enableAirlock);
+registerAirlock('airlock.request','requestAirlock','Queue one local traveler or attached rescue party.',{...xy,crew,direction:enumeration(['outward','inward'])},requestAirlock);
+registerAirlock('airlock.cancel','cancelAirlock','Cancel a waiting request or safely return an admitted party.',{...xy,crew},cancelAirlock);
+registerAirlock('airlock.release','releaseAirlock','Manually release one side with the opposite door physically sealed.',{...xy,side:enumeration(['inner','outer']),acceptAtmosphereLoss:{type:'boolean',enum:[true]}},releaseAirlock);
+registerAirlock('airlock.unbind','unbindAirlock','Restore manual control of an idle, empty, closed airlock.',{...xy},unbindAirlock);
 register('job.order','order','Designate physical work. Materials and workers must still reach the target.',{...xy,kind:enumeration(['extinguish','build','mine','remove','repair','service','refit','unloadShuttle','repairPipe','removePipe','repairWaterPipe','removeWaterPipe','repairCable','removeCable','treat','feed','hygiene']),building:optional({type:['string','null'],description:'Building ID, shuttle fit ID, or patient crew ID, depending on kind.'})},sim.order);
 register('job.cancel','cancelJob','Cancel an existing order; preserve its located materials.',{job},(s,id)=>{if(!s.jobs.some(j=>j.id===id))return {ok:false,message:'Unknown job.'};sim.cancelJob(s,id);return {ok:true};});
 register('crew.labor','setLabor','Enable or disable one work duty.',{crew,labor:enumeration(Object.keys(LABORS)),enabled},sim.setLabor);

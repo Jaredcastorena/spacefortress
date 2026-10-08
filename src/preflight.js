@@ -1,11 +1,12 @@
+import { crewPathTo } from './navigation.js';
+import { advanceCrewRoute } from './crew-traversal.js';
 import { validFoodLots } from './food-lots.js';
 import { RESOURCES, SITES, SHUTTLE_FITS } from './data.js';
 import { contains, quantity, take } from './inventory.js';
 import { constructionResources } from './construction.js';
-import { moveCrew, SUIT_PER_POINT } from './atmosphere.js';
+import { SUIT_PER_POINT } from './atmosphere.js';
 import { routeFuel, routeTime, initializeReturnCrew } from './expedition.js';
 import { expeditionCrewStatus, expeditionCrewCountAllowed } from './expedition-readiness.js';
-import { pathTo } from './navigation.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
 export const DEPARTURE_AIR_RESERVE = 10;
 export const SHIP_SUPPLIES = ['fuel', 'food', 'air', 'alloy', 'components'];
@@ -26,7 +27,7 @@ export function departureReadiness(s) {
   const crew=d.crew.map(id=>{
     const c=s.crew.find(c=>c.id===id);
     if(!c)return {id,eligible:false,blocked:'missing',reason:'Assigned crew unavailable',atShuttle:false,routeSteps:null,routeBlocked:false,ready:false};
-    const status=expeditionCrewStatus(c,{boarding:true}),route=c.site==='surface'&&c.health>0?pathTo(site,c,[[16,11]]):null;
+    const status=expeditionCrewStatus(c,{boarding:true}),route=c.site==='surface'&&c.health>0?crewPathTo(s, site,c,[[16,11]]):null;
     const atShuttle=c.site==='surface'&&c.x===16&&c.y===11,routeBlocked=c.site==='surface'&&c.health>0&&route===null;
     return {...status,atShuttle,routeSteps:route?.length??null,routeBlocked,ready:status.eligible&&atShuttle};
   });
@@ -85,10 +86,10 @@ export function updateDeparture(s, order, release) {
   d.status = work ? 'Waiting for shuttle work to finish' : 'Supplied; waiting for crew at shuttle';
 }
 export function walkToDeparture(s, c, pathTo) {
-  const site = s.sites.surface, path = pathTo(site, c, [[16, 11]]);
+  const site = s.sites.surface, path = crewPathTo(s, site, c, [[16, 11]]);
   const aboard=c.x===16&&c.y===11,origin=tileEntityId('surface',c.x,c.y);
   c.activity = path === null ? 'Departure route blocked' : path.length ? 'Walking to shuttle for departure' : 'Aboard; awaiting departure checks';
-  if (path?.length) moveCrew(c, site, path[0]);
+  if (path?.length) advanceCrewRoute(s, c, site, [path.at(-1)]);
   if(!aboard&&c.x===16&&c.y===11)emitEvent(s,'expedition.crew.boarded',{...context(s),actor:c.id,from:{entity:origin,slot:'location'},to:{entity:tileEntityId('surface',16,11),slot:'boarding'},reason:'outbound'});
 }
 export function tryDeparture(s, log) {
@@ -100,7 +101,7 @@ export function tryDeparture(s, log) {
   if (d.site === 'comet' && (s.tick < s.comet.arrives || s.tick + routeTime(s, d.site) * 2 + 20 >= s.comet.leaves)) { d.status = 'Comet approach window closed; cancel or wait for another pass'; return; }
   const readiness=crew.map(c=>expeditionCrewStatus(c,{boarding:true}));
   if(readiness.some(r=>!r.eligible)){d.status=`Waiting for assigned crew: ${readiness.find(r=>!r.eligible).reason}`;return;}
-  if (crew.some(c => c.x !== 16 || c.y !== 11)) return;
+  if (crew.some(c => c.airlockTraversal || c.x !== 16 || c.y !== 11)) return;
   const air = refillMix(crew), fuel = routeFuel(s, d.site), cost = { fuel: fuel / 2, food: crew.length, air };
   if (!contains(s.shuttle.supplies, { ...cost, fuel })) { d.status = 'More loaded supplies required'; return; }
   take(s.shuttle.supplies, cost); s.sites.surface.atmosphere.vented.inert += air * .79;

@@ -1,6 +1,8 @@
+import { crewPathTo } from './navigation.js';
+import { advanceCrewRoute } from './crew-traversal.js';
 import { livingAllowed, roomBenefit } from './rooms.js';
 import { thermalSafe } from './thermal.js';
-import { breathable, roomAt, moveCrew } from './atmosphere.js';
+import { breathable, roomAt } from './atmosphere.js';
 import { remember } from './crew.js';
 import { shuttlePresence } from './outposts.js';
 
@@ -40,7 +42,7 @@ export function completeTreatment(s, j) {
 export function prepareMedicine(s, order, cancelJob, release, pathTo) {
   for (const c of s.crew) {
     const m = c.medical, site = s.sites[c.site];
-    if (m.bed && (c.health <= 0 || !site || boardingPatient(s, c) || !m.injury || !safeBed(site, m.bed) || pathTo(site, c, [m.bed]) === null)) {
+    if (m.bed && (c.health <= 0 || !site || boardingPatient(s, c) || !m.injury || !safeBed(site, m.bed) || crewPathTo(s, site, c, [m.bed]) === null)) {
       m.bed = null;
       if (c.intent?.type === 'medical') c.intent = null;
     }
@@ -48,10 +50,10 @@ export function prepareMedicine(s, order, cancelJob, release, pathTo) {
   for (const j of [...s.jobs]) if (j.kind === 'treat' && !treatmentPatient(s, j)) cancelJob(s, j.id, true);
   for (const c of [...s.crew].sort((a, b) => a.health - b.health || a.id.localeCompare(b.id))) {
     const m = c.medical, site = s.sites[c.site];
-    if (c.rescue || c.health <= 0 || !site || boardingPatient(s, c) || !m.injury) continue;
+    if (c.rescue || c.airlockTraversal || c.health <= 0 || !site || boardingPatient(s, c) || !m.injury) continue;
     if (!m.bed && s.tick >= m.retryAt) {
       const options = site.tiles.filter(t => safeBed(site, [t.x, t.y]) && !s.crew.some(other => other.site === c.site && same(other.medical.bed, [t.x, t.y])) && !s.jobs.some(j => j.site === c.site && j.x === t.x && j.y === t.y))
-        .map(t => ({ t, path: pathTo(site, c, [[t.x, t.y]]) })).filter(o => o.path !== null).sort((a, b) => Number(roomBenefit(s, site, b.t, 'infirmary')) - Number(roomBenefit(s, site, a.t, 'infirmary')) || a.path.length - b.path.length);
+        .map(t => ({ t, path: crewPathTo(s, site, c, [[t.x, t.y]]) })).filter(o => o.path !== null).sort((a, b) => Number(roomBenefit(s, site, b.t, 'infirmary')) - Number(roomBenefit(s, site, a.t, 'infirmary')) || a.path.length - b.path.length);
       if (options.length) m.bed = [options[0].t.x, options[0].t.y];
       else m.status = 'Needs an available, reachable cot in safe air and temperature';
     }
@@ -70,9 +72,9 @@ export function medicalRest(s, c, site, pathTo) {
   if (c.intent?.type !== 'medical') return false;
   const m = c.medical;
   if (!safeBed(site, m.bed)) { c.intent = null; return false; }
-  const path = pathTo(site, c, [m.bed]);
+  const path = crewPathTo(s, site, c, [m.bed]);
   if (path === null) { m.bed = null; c.intent = null; m.status = 'Cot route blocked'; return false; }
-  if (path.length) { moveCrew(c, site, path[0]); c.activity = 'Walking to medical cot'; return true; }
+  if (path.length) { advanceCrewRoute(s, c, site, [path.at(-1)]); c.activity = 'Walking to medical cot'; return true; }
   c.energy = Math.min(100, c.energy + .5);
   c.activity = m.treated > 0 ? 'Recovering from treated injuries' : 'Waiting for medical care';
   if (m.treated > 0 && c.hunger >= 35 && c.oxygen > 0) {

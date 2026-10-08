@@ -1,8 +1,12 @@
 # SPACEFORTRESS roadmap
 
-**Version: v0.1.2 · Save schema: 38.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
+**Published version: v0.1.2 · Published save schema: 38 · Local experimental schema: 39.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
 
 See the [README](README.md) to play, [verification status](docs/verification-status.md) for evidence and limits, and the [180-system conversion inventory](docs/conversion-inventory.md) for the wider backlog. Completing a milestone below does not complete an entire inventory family or establish full Dwarf Fortress parity.
+
+## Current direction: hexagonal construction grid
+
+Use actual hexagonal terrain and building tiles, retaining the isometric view. This requires one shared six-neighbor geometry model for movement, walls, rooms, utilities and airlocks, plus matching rendering and picking. Preserve legacy square saves without silently changing their connections. The conversion is being audited; the current game still uses square tiles. Further square-grid construction walkthroughs are paused while this conversion is designed.
 
 ## Completed within the current scope
 
@@ -63,7 +67,7 @@ Join freight, construction and care into the first complete staffed-outpost jour
 
 ### 5. Pressure-cycling airlocks
 
-Implement the user’s two-sided chamber: admit a crew member, close the entry door, recover air into finite storage before exterior release, and refill before opening toward the habitat. Reuse gas extractors, pumps, reservoirs, vents and actual electrical power. The [cycling-airlock design](docs/airlock-cycling-design.md) is a proposal; current doors and manually built vestibules do not perform this cycle automatically.
+Implementation is in progress for the user’s two-sided chamber: admit a crew member, close the entry door, recover air into finite storage before exterior release, and refill before opening toward the habitat. Reuse gas extractors, pumps, reservoirs, vents and actual electrical power. The [cycling-airlock design](docs/airlock-cycling-design.md) defines the acceptance checks; automatic cycling has not yet passed them. The published build has manual doors and vestibules.
 
 **Acceptance:** an ordinary supplied colony builds the assembly and physically carries goods out and back. Doors interlock; gas species, smoke and energy retain actual owners across repeated cycles. A normal cycle wait preserves the crew’s task and parcel. Full storage, empty reserves, power loss, damage and a carried patient produce measured safe pauses or explicit manual recovery. Save during partial transfer and traversal, replay named transitions, and verify compact player controls.
 

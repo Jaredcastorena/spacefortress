@@ -1,3 +1,4 @@
+import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -89,8 +90,8 @@ test('identity, pending pickup, personal use and counts continue deterministical
 });
 
 test('version twenty-two migration grants no items and expands only unrestricted filters',()=>{
-  const {s,site,depot}=fixture();s.version=22;delete s.nextItemId;delete s.resources.keepsakes;for(const c of s.crew)delete c.possessions;depot.storage.accepted=depot.storage.accepted.filter(r=>r!=='keepsakes');const before=totalResources(s),copy=check(s);assert.equal(copy.version, VERSION);assert.deepEqual(totalResources(copy),before);assert.ok(at(copy.sites.surface,8,10).storage.accepted.includes('keepsakes'));
-  depot.storage.accepted=['alloy'];const selective=check(s);assert.deepEqual(at(selective.sites.surface,8,10).storage.accepted,['alloy']);
+  const {s,site,depot}=fixture();s.version=22;delete s.nextItemId;delete s.resources.keepsakes;for(const c of s.crew)delete c.possessions;depot.storage.accepted=depot.storage.accepted.filter(r=>r!=='keepsakes');const before=totalResources(s),copy=check(projectPreAirlock(s));assert.equal(copy.version, VERSION);assert.deepEqual(totalResources(copy),before);assert.ok(at(copy.sites.surface,8,10).storage.accepted.includes('keepsakes'));
+  depot.storage.accepted=['alloy'];const selective=check(projectPreAirlock(s));assert.deepEqual(at(selective.sites.surface,8,10).storage.accepted,['alloy']);
 });
 
 test('malformed, fractional, missing and duplicate physical items are rejected',()=>{

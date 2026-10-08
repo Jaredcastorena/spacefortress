@@ -34,7 +34,7 @@ export function previewPower(s, site) {
     const banks = tiles.filter(t => t.building === 'battery' && t.hp > 0).sort((a, b) => a.y - b.y || a.x - b.x);
     const sources = new Map(tiles.map(t => [t, t.building === 'reactor' ? reactorOutput(site, t) : isDay(s) ? (BUILDINGS[t.building]?.output || 0) * t.hp / 100 : 0]));
     const output = [...sources.values()].reduce((a, b) => a + b, 0);
-    const consumers = tiles.filter(t => BUILDINGS[t.building]?.demand && t.hp > 0 && t.machine?.enabled !== false && t.climate?.enabled !== false && t.gasDevice?.enabled !== false && t.waterDevice?.enabled !== false);
+    const consumers = tiles.filter(t => BUILDINGS[t.building]?.demand && t.hp > 0 && t.machine?.enabled !== false && t.climate?.enabled !== false && t.gasDevice?.enabled !== false && t.waterDevice?.enabled !== false && (t.building !== 'airlockController' || t.airlock?.enabled === true));
     consumers.sort((a, b) => b.powerPriority - a.powerPriority || (b.building === 'scrubber' ? 1 : 0) - (a.building === 'scrubber' ? 1 : 0) || a.y - b.y || a.x - b.x);
     const faults = tiles.filter(wetCable), activeFaults = [];
     const demand = consumers.reduce((n, t) => n + BUILDINGS[t.building].demand, faults.length * LIQUID.faultPower);

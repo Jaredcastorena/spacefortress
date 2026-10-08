@@ -1,3 +1,4 @@
+import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -111,14 +112,14 @@ test('power shortages and pending cable repairs resume deterministically from a 
 
 test('legacy pooled charge migrates once into individual banks without creating energy', () => {
   const old = createGame(), site = old.sites.surface; device(site, 11, 9, 'battery'); old.version = 5; site.power.battery = 235;
-  const s = deserialize(serialize(old)), loaded = s.sites.surface;
+  const s = deserialize(serialize(projectPreAirlock(old))), loaded = s.sites.surface;
   assert.equal(s.version, VERSION); assert.equal(at(loaded, 13, 7).charge, 117.5); assert.equal(at(loaded, 11, 9).charge, 117.5);
   assert.equal(loaded.power.battery, 235); balance(loaded); assert.deepEqual(deserialize(serialize(s)), s);
 });
 
 test('legacy pooled charge without a bank is recorded as discarded', () => {
   const old = createGame(), site = old.sites.surface, bank = at(site, 13, 7); old.version = 5; site.power.battery = 80; bank.building = null; delete bank.charge;
-  const s = deserialize(serialize(old)); assert.equal(s.sites.surface.power.battery, 0); assert.equal(s.sites.surface.energy.discarded, 80); balance(s.sites.surface);
+  const s = deserialize(serialize(projectPreAirlock(old))); assert.equal(s.sites.surface.power.battery, 0); assert.equal(s.sites.surface.energy.discarded, 80); balance(s.sites.surface);
 });
 
 test('save validation rejects corrupt wiring, charge, priorities, circuit caches and energy creation', () => {

@@ -1,3 +1,4 @@
+import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -108,8 +109,8 @@ test('dismantling art removes its benefit and leaves ordinary salvage',()=>{
 });
 
 test('comfort preferences and effects persist deterministically; schema twenty-one migration preserves housing',()=>{
-  const {s,site,c}=fixture();place(site,12,9,'sculpture');setBunkOwner(s,'surface',12,7,c.id);c.energy=10;step(s,10);const copy=check(s);step(s,30);step(copy,30);assert.deepEqual(copy,s);
-  s.version=21;for(const p of s.crew)delete p.housing.preference;const supplies=totalResources(s),bunk=[...c.housing.bunk],intent=structuredClone(c.intent),migrated=check(s);
+  const {s,site,c}=fixture();place(site,12,9,'sculpture');setBunkOwner(s,'surface',12,7,c.id);c.energy=10;step(s,10);const copy=check(projectPreAirlock(s));step(s,30);step(copy,30);assert.deepEqual(copy,s);
+  s.version=21;for(const p of s.crew)delete p.housing.preference;const supplies=totalResources(s),bunk=[...c.housing.bunk],intent=structuredClone(c.intent),migrated=check(projectPreAirlock(s));
   assert.equal(migrated.version, VERSION);assert.deepEqual(totalResources(migrated),supplies);assert.deepEqual(migrated.crew[0].housing.bunk,bunk);assert.deepEqual(migrated.crew[0].intent,intent);assert.equal(migrated.crew[0].housing.preference,'art');
   for(const value of [null,'luxury',12]){migrated.crew[0].housing.preference=value;assert.throws(()=>check(migrated));}
 });

@@ -1,3 +1,4 @@
+import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -123,7 +124,7 @@ test('version-three orders preserve their costs and already completed work durin
   const started = order(s, 'surface', 12, 14, 'build', 'solar').job; started.remaining -= 2;
   const before = totalResources(s); s.version = 3;
   for (const j of s.jobs) { delete j.materials; for (const source of j.sources) delete source.kind; }
-  const migrated = deserialize(serialize(s));
+  const migrated = deserialize(serialize(projectPreAirlock(s)));
   assert.equal(migrated.version, VERSION); assert.deepEqual(totalResources(migrated), before);
   assert.deepEqual(migrated.jobs[0].materials, {}); assert.deepEqual(migrated.jobs[1].materials, { alloy: 5 });
   assert.equal(migrated.jobs[1].remaining, started.remaining);

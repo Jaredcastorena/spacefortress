@@ -1,3 +1,5 @@
+import { crewPathTo, planCrewRoute } from './navigation.js';
+import { advanceCrewRoute } from './crew-traversal.js';
 import { freightReserved } from './freight.js';
 import { emitEvent, emitItemMovement, tileEntityId } from './telemetry.js';
 import { fitAmount, validItemLots, itemOwners } from './item-lots.js';
@@ -7,7 +9,6 @@ import { shuttleCargoClaims, hasOutgoingInventory } from './inventory-reservatio
 import { immobile, impaired } from './mobility.js';
 import { RESOURCES, SITES, SHUTTLE_FITS } from './data.js';
 import { add, extract, resourceEntries, contains, quantity, spill, CARRY_CAPACITY } from './inventory.js';
-import { moveCrew } from './atmosphere.js';
 import { gainExperience } from './crew.js';
 
 export function initializeShuttle(s) {
@@ -79,12 +80,7 @@ export function setCargoAccepted(s, resource, enabled) {
   for (const c of s.crew) if (c.intent?.type === 'salvage') c.intent = null;
   return { ok: true };
 }
-function move(c, site, target, pathTo) {
-  const route = pathTo(site, c, [target]);
-  if (route === null) return 'blocked';
-  if (!route.length) return 'arrived';
-  moveCrew(c, site, route[0]); return 'moving';
-}
+function move(s, c, site, target) { return advanceCrewRoute(s, c, site, [target]).status; }
 export function haulSalvage(s, c, site, pathTo) {
   const m = s.mission; if (!isReturnTraveler(s, c) || m.site !== site.id) return false;
   // Local building, depot and machine shipments retain their actual owners.
@@ -92,7 +88,7 @@ export function haulSalvage(s, c, site, pathTo) {
   const dock = dockAt(site);
   if (c.carry) {
     if (!dock) { c.activity = 'No usable shuttle dock; holding cargo'; return true; }
-    const result = move(c, site, xy(dock), pathTo);
+    const result = move(s, c, site, xy(dock), pathTo);
     c.activity = result === 'blocked' ? 'Shuttle route blocked; holding cargo' : 'Carrying salvage to shuttle';
     if (result === 'arrived') {
       const room = Math.max(0, m.capacity - quantity(s.shuttle.freight) - quantity(m.cargo) - freightReserved(s)), shipment = {}; let left = room;
@@ -108,7 +104,7 @@ export function haulSalvage(s, c, site, pathTo) {
   if (!c.intent) {
     const free = Math.min(CARRY_CAPACITY, cargoFree(s));
     if (free <= 0) { c.activity = 'Shuttle hold reserved or full'; return true; }
-    const options = site.tiles.filter(t => quantity(t.drop) && !hasOutgoingInventory(s, site.id, xy(t), 'drop', c)).map(t => ({ t, path: pathTo(site, c, [xy(t)]) })).filter(o => o.path !== null && pathTo(site, o.t, [xy(dock)]) !== null).sort((a, b) => a.path.length - b.path.length || a.t.y - b.t.y || a.t.x - b.t.x);
+    const options = site.tiles.filter(t => quantity(t.drop) && !hasOutgoingInventory(s, site.id, xy(t), 'drop', c)).map(t => ({ t, path: crewPathTo(s, site, c, [xy(t)]) })).filter(o => o.path !== null && crewPathTo(s, site, o.t, [xy(dock)]) !== null).sort((a, b) => a.path.length - b.path.length || a.t.y - b.t.y || a.t.x - b.t.x);
     for (const { t } of options) {
       const items = {}; let room = free;
       for (const r of s.shuttle.accepted) { const n = fitAmount(r,t.drop[r]||0,room); if (n) items[r] = n; room -= n; }
@@ -118,7 +114,7 @@ export function haulSalvage(s, c, site, pathTo) {
   if (c.intent?.type !== 'salvage') return false;
   const intent = c.intent, tile = site.tiles[intent.target[1] * site.size + intent.target[0]];
   if (!tile.drop || !contains(tile.drop, intent.items)) { c.intent = null; return true; }
-  const result = move(c, site, intent.target, pathTo); c.activity = 'Collecting salvage for shuttle';
+  const result = move(s, c, site, intent.target, pathTo); c.activity = 'Collecting salvage for shuttle';
   if (result === 'arrived') { c.carry = extract(tile.drop, intent.items);emitItemMovement(s,c.carry,c.id,{entity:tileEntityId(site.id,...intent.target),slot:'drop'},{entity:c.id,slot:'carry'});emitEvent(s,'expedition.salvage.picked_up',{...context(s),actor:c.id,cargo:c.carry,from:{entity:tileEntityId(site.id,...intent.target),slot:'drop'},to:{entity:c.id,slot:'carry'},reason:'reserved_pickup'}); c.delivery = { kind: 'shuttle', target: xy(dock) }; c.intent = null; if (!quantity(tile.drop)) tile.drop = null; }
   else if (result === 'blocked') { c.intent = null; c.activity = 'Salvage route blocked'; }
   return true;
@@ -128,7 +124,7 @@ export function boardShuttle(s, c, site, pathTo) {
   if (c.carry && c.delivery?.kind !== 'shuttle') return false;
   const dock=dockAt(site),aboard=!!dock&&c.x===dock.x&&c.y===dock.y&&!c.carry,origin=tileEntityId(site.id,c.x,c.y);
   if (c.carry) { haulSalvage(s, c, site, pathTo);if(!aboard&&!c.carry&&dock&&c.x===dock.x&&c.y===dock.y)emitEvent(s,'expedition.crew.boarded',{...context(s),actor:c.id,from:{entity:origin,slot:'location'},to:{entity:tileEntityId(site.id,dock.x,dock.y),slot:'boarding'},reason:'return_after_delivery'});return true; }
-  const result = dock ? move(c, site, xy(dock), pathTo) : 'blocked';
+  const result = dock ? move(s, c, site, xy(dock), pathTo) : 'blocked';
   c.activity = result === 'blocked' ? 'Return route blocked; needs rescue' : result === 'arrived' ? 'At shuttle; waiting for team' : 'Returning to shuttle';
   if(!aboard&&dock&&c.x===dock.x&&c.y===dock.y)emitEvent(s,'expedition.crew.boarded',{...context(s),actor:c.id,from:{entity:origin,slot:'location'},to:{entity:tileEntityId(site.id,dock.x,dock.y),slot:'boarding'},reason:'return'});
   return true;
@@ -141,11 +137,11 @@ export function returnWalk(s, pathTo) {
   const team = members.filter(c => c.health > 0);
   if (team.some(c => c.site !== site.id)) return Infinity;
   return Math.max(0, ...team.map(c => {
-    const distance = pathTo(site, c, [xy(dock)])?.length ?? Infinity;
+    const distance = planCrewRoute(s, site, c, [xy(dock)])?.cost ?? Infinity;
     if (!immobile(c)) return distance * (impaired(c) || c.rescue?.carrying ? 2 : 1);
     if (!distance) return 0;
     const helpers = team.filter(other => other.id !== c.id && !impaired(other) && other.labors.medicine);
-    const approach = Math.min(Infinity, ...helpers.map(other => pathTo(site, other, [[c.x + 1, c.y], [c.x - 1, c.y], [c.x, c.y + 1], [c.x, c.y - 1]])?.length ?? Infinity));
+    const approach = Math.min(Infinity, ...helpers.map(other => planCrewRoute(s, site, other, [[c.x + 1, c.y], [c.x - 1, c.y], [c.x, c.y + 1], [c.x, c.y - 1]])?.cost ?? Infinity));
     return approach + distance * 2 + 3;
   }));
 }

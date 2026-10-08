@@ -1,3 +1,4 @@
+import { projectPreAirlock } from './helpers/legacy-projection.js';
 import { depart as launch } from './helpers/depart.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -121,7 +122,7 @@ test('pickup, loaded carriers and boarding saves resume deterministically', () =
 test('old in-flight cargo migrates without loss even when it exceeds the new standard capacity', () => {
   const s = expedition(); s.version = 7; s.mission.cargo = { alloy: 60 }; delete s.shuttle; delete s.mission.returnCrew;
   for (const field of ['fit', 'capacity', 'legacyCapacity']) delete s.mission[field];
-  const migrated = deserialize(serialize(s)); assert.equal(migrated.version, VERSION); assert.equal(migrated.mission.capacity, 60); assert.equal(cargoFree(migrated), 0);
+  const migrated = deserialize(serialize(projectPreAirlock(s))); assert.equal(migrated.version, VERSION); assert.equal(migrated.mission.capacity, 60); assert.equal(cargoFree(migrated), 0);
   assert.deepEqual(deserialize(serialize(migrated)), migrated); recall(migrated); until(migrated, () => !migrated.mission);
   assert.equal(at(migrated.sites.surface, 16, 11).drop.alloy, 60); assert.equal(SHUTTLE_FITS[migrated.shuttle.fit].capacity, 18);
 });

@@ -11,6 +11,7 @@ import { SITES } from './data.js';
 import { crewSprite, ANATOMIES } from './sprites.js';
 
 import { doorOpen } from './atmosphere.js';
+import { airlockStatus } from './airlock-access.js';
 import { quantity } from './inventory.js';
 
 const T = 32, H = 16;
@@ -55,6 +56,10 @@ export class Renderer {
     const c = this.ctx; c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); c.imageSmoothingEnabled = false; this.backdrop(siteId);
     if (siteId === 'universe') { this.universe(s); return; }
     const site = s.sites[siteId], origin = this.origin(site), shuttle = shuttlePresence(s, siteId); c.save(); c.translate(origin.x, origin.y); c.scale(this.zoom, this.zoom);
+    const airlocks=site.tiles.filter(t=>t.airlock).map(t=>airlockStatus(s,site,t));
+    const airlockCells=new Set(airlocks.flatMap(a=>a.chamberCells));
+    const airlockDoors=new Map(airlocks.flatMap(a=>['inner','outer'].map(side=>[a.doors[side].tile.join(','),{...a.doors[side],permitted:a.permissions[side]}])));
+    const airlockWaiting=new Set(airlocks.flatMap(a=>a.queue.flatMap(q=>[q.crew,q.patient]).filter(Boolean)));
     const selectedRoom = mode === 'inspect' && Number.isInteger(this.selection?.x) && Number.isInteger(this.selection?.y) ? roomAt(site, this.selection.x, this.selection.y) : null;
     const selectedCells = new Set(selectedRoom?.cells || []);
     const tileColors = { ground: ['#61564a', '#66594b', '#5b5147', '#6a5e4f'], floor: ['#6e8080', '#748585', '#718282', '#6b7c7e'], deck: ['#465b65', '#4d626d', '#516570', '#435964'], ice: ['#7d9fba', '#90aec6', '#779ab4', '#82a5be'], ore: ['#5c5346', '#665645', '#605246', '#68574a'], rock: ['#64594d', '#5a5147', '#685b4e', '#62574a'] };
@@ -63,6 +68,7 @@ export class Renderer {
       const [x, y] = this.project(t.x, t.y);
       this.box(x, y + 5, T, H, 5, tileColors[t.terrain][t.variant], t.terrain === 'ice' ? '#4c718e' : '#3e4140', '#343b3c');
       this.diamond(x, y, tileColors[t.terrain][t.variant], t.terrain === 'floor' ? '#8f9d923d' : '#a5aa9417');
+      if(airlockCells.has(key(t.x,t.y)))this.diamond(x,y,'#8ddce622','#82cbd580');
       if (selectedCells.has(key(t.x, t.y))) this.diamond(x, y, '#93d5c218');
       if (t.terrain === 'floor' || t.terrain === 'deck') { c.fillStyle = '#b2c0af42'; c.fillRect(x - 1, y - 12, 2, 1); c.fillRect(x - 24, y, 2, 1); }
       if (t.terrain === 'ground') { c.fillStyle = '#b59a702b'; c.fillRect(x - 15 + t.variant * 5, y - 3 + t.variant, 3, 1); }
@@ -86,7 +92,9 @@ export class Renderer {
       if (t.terrain === 'ore') { this.box(x, y, 22, 10, 11, '#897563', '#6d5744', '#4c473b'); for (let k = 0; k < 3; k++) { c.fillStyle = ['#ce9863', '#dfb777', '#b78052'][k]; c.fillRect(x - 14 + k * 10, y - 17 + (k % 2) * 5, 6, 4); } }
       if (t.deposit?.remaining > 0) { const h = 4 + t.deposit.remaining / 2; this.box(x,y,19,9,h,'#b9d8de','#7aaebf','#4c788c'); this.line(x-12,y-h-2,x+5,y-h+4,'#e0eff0',2); this.line(x+5,y-h+4,x+10,y-h-2,'#668fa5',2); }
       if(t.liquid>1e-8){c.save();c.globalAlpha=Math.min(.8,.2+t.liquid/4*.6);this.diamond(x,y,'#3b94ba','#8bcee0');this.line(x-12,y,x+2,y+7,'#b2deeb',1);c.restore();}
-      if (t.building) this.structure(t, x, y, s);
+      if (t.building) this.structure(t, x, y, s,airlocks.find(a=>a.entity===`tile:${site.id}:${t.x}:${t.y}`));
+      const controlledDoor=airlockDoors.get(key(t.x,t.y));
+      if(controlledDoor){const color=!controlledDoor.intact?'#ed937e':controlledDoor.permitted?'#9be1bf':'#ecc37c';c.fillStyle=color;c.fillRect(x-4,y-30,8,6);if(!controlledDoor.permitted){c.strokeStyle=color;c.lineWidth=2;c.strokeRect(x-2,y-34,4,5);}}
       // The berth remains on the map while the craft follows its physical location.
       if (shuttle.present && shuttle.terminal?.x === t.x && shuttle.terminal.y === t.y) this.shuttleCraft(x, y);
       if(waterNode(t)?.water>0&&(t.waterPipe?.hp??t.hp)<50){this.polygon([[x+17,y-19],[x+13,y-11],[x+17,y-8],[x+21,y-11]],'#89c7f1','#eeaa82');}
@@ -120,6 +128,7 @@ export class Renderer {
         if (person.health <= 0 || immobile(person)) { const transported = s.crew.some(helper => helper.rescue?.carrying && helper.rescue.patient === person.id); if (transported) this.box(x + 19, y + 8, 18, 8, 5, '#a7c0b4', '#6b8987', '#405e69'); c.save(); c.translate(x + (transported ? 19 : 0), y + (transported ? 5 : 0)); c.rotate(Math.PI / 2); c.globalAlpha = person.health <= 0 ? .65 : 1; c.drawImage(crewSprite(person.color, ANATOMIES[Number(person.id.split('-')[1]) % ANATOMIES.length]), -19, -26); c.restore(); }
         else c.drawImage(crewSprite(person.color, ANATOMIES[Number(person.id.split('-')[1]) % ANATOMIES.length], !!person.job), x - 19, y - 48);
         if (person.carry) this.box(x + 12, y - 10, 6, 3, 7, '#dcc290', '#8c8869', '#596865');
+        if(airlockWaiting.has(person.id)){c.fillStyle='#edc783';c.font='10px monospace';c.textAlign='center';c.fillText('WAIT',x,y-64);}
         if (person.oxygen < 30) { c.fillStyle = '#ee957b'; c.font = 'bold 12px monospace'; c.fillText('!', x, y - 52); }
         if (this.selection?.crew === person.id) { this.diamond(x, y, null, '#baf2da'); c.fillStyle = '#d8eee1'; c.font = '10px monospace'; c.textAlign = 'center'; c.fillText(person.name.split(' ')[0], x, y - 56); }
       }
@@ -199,9 +208,16 @@ export class Renderer {
     this.box(x - 22, y + 2, 9, 4, 16, '#a7b6a6', '#637e7e', '#405e67');
     this.ctx.fillStyle = '#e4b16b'; this.ctx.fillRect(x - 24, y - 5, 5, 5);
   }
-  structure(t, x, y, s) {
+  structure(t, x, y, s, airlock=null) {
     const c = this.ctx, b = t.building;
     if(b==='gasPipe'){this.line(x-24,y-12,x+24,y+12,'#35677a',7);this.line(x-24,y-12,x+24,y+12,'#93d0d4',3);this.line(x+24,y-12,x-24,y+12,'#35677a',7);this.line(x+24,y-12,x-24,y+12,'#93d0d4',3);this.box(x,y,6,3,5,'#e1be7f','#a18d60','#756e53');}
+    else if(b==='airlockController'){
+      this.box(x,y,17,9,13,'#9aaea9','#50747b','#365660');
+      this.box(x,y-13,13,7,8,'#506e79','#324e5b','#29434e');
+      const color=!airlock?'#91a5ad':airlock.blocker||!airlock.powered?'#edb477':'#a1e0c7';
+      this.line(x-8,y-25,x+8,y-17,color,2);this.line(x-8,y-21,x+8,y-13,color,2);
+      c.fillStyle=color;c.fillRect(x-2,y-29,4,3);
+    }
     else if(b==='breaker'){
       const [dx,dy]=POWER_DIRECTIONS[t.protection?.direction||'east'],vx=(dx-dy)*15,vy=(dx+dy)*7.5,closed=t.protection&&breakerContactClosed(t),tripped=t.protection?.tripped,col=tripped?'#e7a28b':closed?'#e2d091':'#b7c7c0';
       this.box(x,y,22,11,8,'#b4b5a0','#777f7c','#4d5d66');this.box(x,y-8,14,7,8,'#6f8589','#465f6c','#344c5d');

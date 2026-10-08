@@ -1,6 +1,14 @@
 # Verification status
 
-Updated September 30, 2026. This is the compact evidence index for implemented and proposed systems. **Verified** means the named scope passed its stated check. **Pending** means evidence is not yet complete. **Failed** means a known check contradicts the requirement. None of these rows declares the whole game finished.
+Updated October 8, 2026. This is the compact evidence index for implemented and proposed systems. **Verified** means the named scope passed its stated check. **Pending** means evidence is not yet complete. **Failed** means a known check contradicts the requirement. None of these rows declares the whole game finished.
+
+## Unreleased airlock checkpoint — schema39
+
+- **Verified, synthetic boundaries:** both pressure-cycle directions, finite gas/smoke/energy accounting, valve-specific routing, interruption/reload, strict controls, detached observations, manual chamber access and retained work/parcels/meals/patients. See `tests/airlock-core.test.js`, `tests/airlock-integration.test.js` and `tests/airlock-ui.test.js`.
+- **Verified, regression:** the full Node run produced 968 passes, 33 failures in legacy fixtures and one intentional skip. Explicit fixture/projection corrections then passed all 33 named retests. Combined coverage is **1,001 passes and one intentional skip**; all 86 runtime source files were unchanged throughout the gate. Python coverage is **26 passes** after adding five runtime modules to the build manifest and rechecking manifest completeness.
+- **Pending:** ordinary paid construction and parcel roundtrip. The planned new-colony run was stopped before any actions when the user selected a hexagonal grid.
+- **Pending:** browser layout, held-focus and action-click checks. Panel tests pass; browser acceptance stopped because no browser was connected. No publication occurred.
+- **Planned:** true six-neighbor hex geometry with the isometric view retained. Current gameplay still uses square geometry; prior tests do not establish hex behavior.
 
 ## v0.1.2 wreck settlement preview — schema 38
 

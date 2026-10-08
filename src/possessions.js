@@ -1,6 +1,8 @@
+import { crewPathTo } from './navigation.js';
+import { advanceCrewRoute } from './crew-traversal.js';
 import { add, extract, spill, quantity } from './inventory.js';
 import { ITEM_STYLES, validItemLots, itemOwners } from './item-lots.js';
-import { roomAt, breathable, moveCrew } from './atmosphere.js';
+import { roomAt, breathable } from './atmosphere.js';
 import { thermalSafe } from './thermal.js';
 import { livingAllowed } from './rooms.js';
 import { remember } from './crew.js';
@@ -22,16 +24,16 @@ export function collectPossession(s,c,site,pathTo) {
       const inventory=sourceInventory(t,source);
       if(!inventory?._items?.length||!livingAllowed(site,t.x,t.y)||!breathable(roomAt(site,t.x,t.y))||!thermalSafe(roomAt(site,t.x,t.y)))continue;
       if(s.crew.some(o=>o!==c&&o.site===site.id&&o.intent?.type==='haul'&&o.intent.source===source&&o.intent.target[0]===t.x&&o.intent.target[1]===t.y))continue;
-      const route=pathTo(site,c,[[t.x,t.y]]);if(route===null)continue;
+      const route=crewPathTo(s, site,c,[[t.x,t.y]]);if(route===null)continue;
       for(const item of inventory._items)if(!claimed.has(item.id))options.push({item,t,source,distance:route.length});
     }
     options.sort((a,b)=>Number(b.item.style===c.housing.preference)-Number(a.item.style===c.housing.preference)||b.item.quality-a.item.quality||a.distance-b.distance||a.item.id.localeCompare(b.item.id));
     if(options.length){const {item,t,source}=options[0];intent.keepsake={id:item.id,target:[t.x,t.y],source};intent.target=null;emitEvent(s,'item.pickup.planned',{entity:item.id,actor:c.id,source:tileEntityId(site.id,t.x,t.y)});}
   }
   const claim=intent.keepsake;if(!claim)return false;
-  const t=site.tiles[claim.target[1]*site.size+claim.target[0]],inventory=sourceInventory(t,claim.source),item=inventory?._items?.find(i=>i.id===claim.id),route=pathTo(site,c,[claim.target]);
+  const t=site.tiles[claim.target[1]*site.size+claim.target[0]],inventory=sourceInventory(t,claim.source),item=inventory?._items?.find(i=>i.id===claim.id),route=crewPathTo(s, site,c,[claim.target]);
   if(!item||route===null||!livingAllowed(site,t.x,t.y)||!breathable(roomAt(site,t.x,t.y))||!thermalSafe(roomAt(site,t.x,t.y))){delete intent.keepsake;emitEvent(s,'item.pickup.cancelled',{entity:claim.id,actor:c.id,reason:'unavailable'});return false;}
-  if(route.length){moveCrew(c,site,route[0]);c.activity='Collecting a personal keepsake';return true;}
+  if(route.length){advanceCrewRoute(s,c,site,[route.at(-1)]);c.activity='Collecting a personal keepsake';return true;}
   const shipment=extract(inventory,{keepsakes:1,_items:[item]});if(!shipment){delete intent.keepsake;return false;}
   add(p.inventory,shipment);if(claim.source==='drop'&&!quantity(t.drop))t.drop=null;delete intent.keepsake;
   c.activity='Picked up a personal keepsake';emitEvent(s,'item.owned',{entity:item.id,actor:c.id,source:tileEntityId(site.id,t.x,t.y)});return true;

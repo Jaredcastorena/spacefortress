@@ -1,6 +1,7 @@
 import { FIRE } from './fire.js';
 import { remapThermal } from './thermal.js';
 import { immobile, impaired } from './mobility.js';
+import { airlockDoorPermit, airlockControlOwner } from './airlock-access.js';
 // Game-scale gas units, not a chemistry or engineering model.
 export const GASES = ['oxygen', 'inert', 'co2'];
 export const GAS_PER_TILE = 10;
@@ -36,6 +37,7 @@ export function breathable(r) {
 export const roomAt = (site, x, y) => site.rooms.find(r => r.cells.includes(key(x, y)));
 export const doorOpen = (t, tick) => t.hp <= 0 || t.doorMode === 'open' || (t.doorMode !== 'closed' && t.doorUntil > tick);
 export function moveCrew(c, site, next) {
+  if (!airlockDoorPermit(site, c, [c.x,c.y], next)) return false;
   if (immobile(c) || ((impaired(c) || c.rescue?.carrying) && site.atmosphere.tick % 2 !== 0)) return false;
   for (const [x, y] of [[c.x, c.y], next]) {
     const t = at(site, x, y);
@@ -46,6 +48,7 @@ export function moveCrew(c, site, next) {
 export function setDoorMode(s, siteId, x, y, mode) {
   const site = s.sites[siteId], t = site && at(site, x, y);
   if (t?.building !== 'door' || !['auto', 'open', 'closed'].includes(mode)) return { ok: false, message: 'Select a pressure door.' };
+  if (airlockControlOwner(site,t,'building')) return {ok:false,code:'airlock_controlled',message:'This door is controlled by its airlock. Pause, release one side, or unbind at the controller.'};
   if (mode === 'closed' && s.crew.some(c => c.site === siteId && c.health > 0 && c.x === x && c.y === y)) return { ok: false, message: 'Wait for the crew member to clear the doorway.' };
   t.doorMode = mode; t.doorUntil = 0; refreshAtmosphere(site); return { ok: true };
 }

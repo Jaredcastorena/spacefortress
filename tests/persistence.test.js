@@ -1,3 +1,4 @@
+import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -28,7 +29,7 @@ test('new storage, supported legacy saves and denied storage access have distinc
   const empty = memoryStorage(), fresh = loadColony(() => empty); assert.equal(fresh.fresh, true); assert.equal(fresh.error, null);
   storeColony(() => empty, fresh, fresh.state); assert.equal(empty.getItem(SAVE_KEY), serialize(fresh.state));
   const legacy = createGame(); legacy.version = 3;
-  const storage = memoryStorage(serialize(legacy)), session = loadColony(() => storage);
+  const storage = memoryStorage(serialize(projectPreAirlock(legacy))), session = loadColony(() => storage);
   assert.equal(session.error, null); assert.equal(session.state.version, VERSION); assert.equal(session.fresh, false);
   const denied = loadColony(() => { throw new Error('Storage access denied'); });
   assert.equal(denied.error, 'Storage access denied'); assert.equal(denied.original, null);

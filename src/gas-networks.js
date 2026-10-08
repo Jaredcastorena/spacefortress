@@ -2,6 +2,7 @@ import { GASES, emptyGas, gasAmount, mix, roomAt, refreshAtmosphere, GAS_PER_TIL
 import { take } from './inventory.js';
 import { refreshPower } from './power.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
+import { airlockControlOwner } from './airlock-access.js';
 
 // Rates and capacities are total payload (gas + suspended smoke). Pressure uses
 // only gas density; smoke is a separate conserved tracer, not a fourth gas.
@@ -21,6 +22,20 @@ const free=t=>Math.max(0,gasCapacity(t)-gasPayload(t));
 // operate its port, but retained contents continue leaking independently.
 const port=t=>gasNode(t)?.open===true&&(!!t.pipe||t.hp>0);
 const id=(site,t)=>tileEntityId(site.id,t.x,t.y);
+// Link the existing physical transfer record to control ownership. This adds
+// context only; it never creates a second transfer or mutates controller state.
+function emitGas(s,site,event,details){
+ const owners=[];
+ for(const reference of [details.device,details.entity,details.from,details.to]){
+  if(typeof reference!=='string'||!reference.startsWith(`tile:${site.id}:`))continue;
+  const [x,y]=reference.split(':').slice(-2).map(Number),t=at(site,x,y);
+  const owner=t&&airlockControlOwner(site,t,t.pipe?'pipe':'building');
+  if(owner&&!owners.some(other=>other.controller===owner.controller&&other.binding===owner.binding))owners.push(owner);
+ }
+ emitEvent(s,event,{...details,...(owners.length===1?{controller:owners[0].controller,binding:owners[0].binding,cycle:owners[0].cycle}:owners.length?{airlocks:owners}:{}),tick:s.tick});
+}
+const controlRejection={ok:false,code:'airlock_controlled',message:'This gas equipment is controlled by its airlock. Use the controller or unbind it before changing these settings.'};
+
 const roomId=(site,r)=>`room:${site.id}:${[...r.cells].sort((a,b)=>{const [ax,ay]=a.split(',').map(Number),[bx,by]=b.split(',').map(Number);return ay-by||ax-bx;})[0]}`;
 const plus=(a,b,f=1)=>{for(const k of GASES)a[k]+=b[k]*f;};
 const blank=()=>({gas:emptyGas(),smoke:0,open:true});
@@ -54,7 +69,7 @@ function move(s,site,a,b,n,reason,device=null){
  const source=gasNode(a),destination=gasNode(b);
  n=Math.min(n,gasPayload(a),free(b));if(n<=1e-9)return 0;
  const {gas,smoke}=payloadPortion(source,n);plus(source.gas,gas,-1);plus(destination.gas,gas);source.smoke-=smoke;destination.smoke+=smoke;
- emitEvent(s,'gas.transferred',{from:id(site,a),to:id(site,b),amount:n,gas,smoke,reason,...(device?{device:id(site,device)}:{})});return n;
+ emitGas(s,site,'gas.transferred',{from:id(site,a),to:id(site,b),amount:n,gas,smoke,reason,...(device?{device:id(site,device)}:{})});return n;
 }
 function equalize(s,site,a,b){
  if(!port(a)||!port(b))return;
@@ -70,7 +85,7 @@ function equalize(s,site,a,b){
   const left=portion(ag,n),right=portion(bg,n);
   if(!GASES.every(k=>Math.abs(left[k]-right[k])<1e-10)){
    plus(ag,left,-1);plus(bg,right,-1);plus(ag,right);plus(bg,left);
-   emitEvent(s,'gas.mixed',{from:id(site,a),to:id(site,b),amount:n,forward:left,backward:right});
+   emitGas(s,site,'gas.mixed',{from:id(site,a),to:id(site,b),amount:n,forward:left,backward:right});
   }
  }
  // A conservative game-scale smoke diffusion permits smoke-only filter output
@@ -78,9 +93,9 @@ function equalize(s,site,a,b){
  let smokeDelta=gasNode(a).smoke/gasVolume(a)-gasNode(b).smoke/gasVolume(b);
  if(smokeDelta<0){[a,b]=[b,a];smokeDelta=-smokeDelta;}
  const smoke=Math.min(gasNode(a).smoke,free(b),smokeDelta/(1/gasVolume(a)+1/gasVolume(b))*GAS_NETWORK.diffusion);
- if(smoke>1e-9){gasNode(a).smoke-=smoke;gasNode(b).smoke+=smoke;emitEvent(s,'gas.transferred',{from:id(site,a),to:id(site,b),amount:smoke,gas:emptyGas(),smoke,reason:'smoke_diffusion'});}
+ if(smoke>1e-9){gasNode(a).smoke-=smoke;gasNode(b).smoke+=smoke;emitGas(s,site,'gas.transferred',{from:id(site,a),to:id(site,b),amount:smoke,gas:emptyGas(),smoke,reason:'smoke_diffusion'});}
 }
-export function releaseGas(s,site,t,n,reason){
+export function releaseGas(s,site,t,n,reason,airlockContext=null){
  const node=gasNode(t);if(!node)return 0;
  n=Math.min(n,gasPayload(t));if(n<=1e-9)return 0;
  const {gas,smoke}=payloadPortion(node,n),room=roomAt(site,t.x,t.y),destinations=[];
@@ -99,12 +114,12 @@ export function releaseGas(s,site,t,n,reason){
   const share=Object.fromEntries(GASES.map(k=>[k,gas[k]/destinations.length])),smokeShare=smoke/destinations.length;
   if(destination){plus(destination.gas,share);destination.smoke+=smokeShare;plus(site.atmosphere.injected,share);plus(site.gasNetwork.delivered,share);site.gasNetwork.smoke.released+=smokeShare;}
   else {plus(site.atmosphere.vented,share);plus(site.gasNetwork.vented,share);site.gasNetwork.smoke.vented+=smokeShare;site.fireSafety.smokeVented+=smokeShare;}
-  emitEvent(s,'gas.released',{from:id(site,t),to:destination?roomId(site,destination):`space:${site.id}`,amount:n/destinations.length,gas:share,smoke:smokeShare,reason});
+  emitGas(s,site,'gas.released',{from:id(site,t),to:destination?roomId(site,destination):`space:${site.id}`,amount:n/destinations.length,gas:share,smoke:smokeShare,reason,...(airlockContext||{})});
  }
  return n;
 }
-export function removeGas(s,site,t,overlay=false){
- releaseGas(s,site,t,Infinity,'dismantled');
+export function removeGas(s,site,t,overlay=false,airlockContext=null){
+ releaseGas(s,site,t,Infinity,'dismantled',airlockContext);
  if(overlay)t.pipe=null;else{delete t.gasStore;delete t.gasDevice;}
  refreshAtmosphere(site);
 }
@@ -146,7 +161,7 @@ function capture(s,site,t){
  if(n<=1e-9)return;
  plus(room.gas,gas,-1);room.smoke-=smoke;plus(node.gas,gas);node.smoke+=smoke;
  plus(site.gasNetwork.extracted,gas);site.gasNetwork.smoke.captured+=smoke;
- emitEvent(s,'gas.extracted',{from:roomId(site,room),to:id(site,t),device:id(site,t),amount:n,gas,smoke,mode:t.gasDevice.mode,target:t.gasDevice.target});
+ emitGas(s,site,'gas.extracted',{from:roomId(site,room),to:id(site,t),device:id(site,t),amount:n,gas,smoke,mode:t.gasDevice.mode,target:t.gasDevice.target});
 }
 export function updateGasNetworks(s){
  for(const site of Object.values(s.sites)){
@@ -154,7 +169,7 @@ export function updateGasNetworks(s){
   if(!nodes.length)continue;
   for(const t of nodes)if(t.building==='gasTank'){
    const n=t.machine.enabled&&t.hp>0&&!t.fire?Math.min(GAS_NETWORK.load,t.machine.input.air||0,free(t)):0;
-   if(n>1e-9){take(t.machine.input,{air:n});const gas=mix(n);plus(t.gasStore.gas,gas);plus(site.gasNetwork.loaded,gas);emitEvent(s,'gas.loaded',{entity:id(site,t),from:'machine.input',to:'gasStore',amount:n,gas,smoke:0});}
+   if(n>1e-9){take(t.machine.input,{air:n});const gas=mix(n);plus(t.gasStore.gas,gas);plus(site.gasNetwork.loaded,gas);emitGas(s,site,'gas.loaded',{entity:id(site,t),from:'machine.input',to:'gasStore',amount:n,gas,smoke:0});}
    t.machine.status=!t.machine.enabled?'Refill paused':t.hp<=0?'Needs repair':t.fire?'Fire at tank':free(t)<=1e-9?'Gas tank full':n?'Loading delivered breathing mix':'Awaiting breathing mix';
   }
   const ordered=s.tick%2?nodes:[...nodes].reverse();
@@ -174,18 +189,21 @@ export function updateGasNetworks(s){
 export function setGasValve(s,siteId,x,y,open){
  const site=s.sites[siteId],t=site&&at(site,x,y),node=gasNode(t);
  if(!node||typeof open!=='boolean')return {ok:false,message:'Select a gas pipe or equipment valve.'};
- node.open=open;emitEvent(s,'gas.valve.changed',{entity:id(site,t),open});return {ok:true};
+ if(airlockControlOwner(site,t,t.pipe?'pipe':'building'))return {...controlRejection};
+ node.open=open;emitGas(s,site,'gas.valve.changed',{entity:id(site,t),open});return {ok:true};
 }
 export function setGasDevice(s,siteId,x,y,enabled,direction,target){
  const site=s.sites[siteId],t=site&&at(site,x,y);
  if(!['gasPump','gasVent'].includes(t?.building)||!t.gasDevice||typeof enabled!=='boolean'||!Object.hasOwn(GAS_DIRECTIONS,direction)||!Number.isInteger(target)||target<0||target>150)return {ok:false,message:'Select a gas pump or vent with valid settings.'};
+ if(airlockControlOwner(site,t,'building'))return {...controlRejection};
  if(t.building==='gasPump')t.gasDevice={enabled,direction};else t.gasDevice={enabled,target};
- refreshPower(s,site);emitEvent(s,'gas.device.changed',{entity:id(site,t),...t.gasDevice});return {ok:true};
+ refreshPower(s,site);emitGas(s,site,'gas.device.changed',{entity:id(site,t),...t.gasDevice});return {ok:true};
 }
 export function setGasExtractor(s,siteId,x,y,enabled,mode,target){
  const site=s.sites[siteId],t=site&&at(site,x,y);
  if(t?.building!=='gasExtractor'||!t.gasDevice||typeof enabled!=='boolean'||!['filter','exhaust'].includes(mode)||!Number.isInteger(target)||target<0||target>150)return {ok:false,message:'Select a gas extractor with valid settings.'};
- t.gasDevice={enabled,mode,target};refreshPower(s,site);emitEvent(s,'gas.extractor.changed',{entity:id(site,t),enabled,mode,target});return {ok:true};
+ if(airlockControlOwner(site,t,'building'))return {...controlRejection};
+ t.gasDevice={enabled,mode,target};refreshPower(s,site);emitGas(s,site,'gas.extractor.changed',{entity:id(site,t),enabled,mode,target});return {ok:true};
 }
 export function validateGasNetworks(s){
  const number=n=>Number.isFinite(n)&&n>=0;

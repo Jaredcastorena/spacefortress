@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { isDeepStrictEqual } from 'node:util';
+import { writeFileSync } from 'node:fs';
 import { createGame, at, serialize, deserialize } from '../../src/simulation.js';
 import { executeAction } from '../../src/controls.js';
 import { totalResources } from '../../src/inventory.js';
@@ -16,14 +18,68 @@ export const TEAM = ['crew-2', 'crew-4'];
 export const person = (s, id) => s.crew.find(c => c.id === id);
 export const job = (s, id) => s.jobs.find(j => j.id === id);
 const traces = new WeakMap();
+const clip = (value, limit = 160) => {
+  const text = String(value);
+  return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
+};
+// Preview only a few fields: large labels, arguments and diagnostic descriptions
+// must never turn a failed assertion into a dump of the colony.
+function preview(value, depth = 0) {
+  if (typeof value === 'string') return clip(value);
+  if (value === null || typeof value !== 'object') return clip(value);
+  if (depth >= 2) return Array.isArray(value) ? `[${value.length} items]` : '[object]';
+  const keys = Object.keys(value).slice(0, 4);
+  return Object.fromEntries(keys.map(key => [clip(key, 80), preview(value[key], depth + 1)]).concat(
+    Object.keys(value).length > keys.length ? [['…', 'more fields']] : []));
+}
+const describe = value => clip(JSON.stringify(preview(value)), 400);
+export function diagnosticSummary(s) {
+  const sites = Object.values(s.sites ?? {});
+  return {
+    tick: preview(s.tick), crew: s.crew?.length ?? 0, jobs: s.jobs?.length ?? 0,
+    sites: sites.length, rooms: sites.reduce((n, site) => n + (site.rooms?.length ?? 0), 0),
+    outposts: Object.keys(s.outposts ?? {}).length,
+    mission: preview(s.mission?.phase ?? null), resources: preview(s.resources ?? {}),
+    blocked: (s.jobs ?? []).filter(j => j.blockedReason || j.blocked).slice(0, 2)
+      .map(j => ({ id: preview(j.id), reason: preview(j.blockedReason ?? j.blocked) })),
+  };
+}
+function fail(s, message, options, extra = {}) {
+  let artifact = '';
+  if (options?.artifactPath !== undefined) {
+    const path = options.artifactPath;
+    try {
+      if (typeof path !== 'string' || !path || /^[a-z]+:\/\//i.test(path)) throw new Error('Expected a local file path');
+      writeFileSync(path, JSON.stringify({ diagnostic: diagnostic(s), actions: traces.get(s) ?? [], ...extra }, null, 2));
+      artifact = `; artifact=${clip(path, 160)}`;
+    } catch (error) {
+      artifact = `; artifact failed: ${clip(error.message, 160)}`;
+    }
+  }
+  assert.fail(`${clip(message, 1200)}${artifact}`);
+}
+function firstDifference(expected, actual, path = '$') {
+  if (isDeepStrictEqual(expected, actual)) return null;
+  if (expected && actual && typeof expected === 'object' && typeof actual === 'object') {
+    for (const key of new Set([...Object.keys(expected), ...Object.keys(actual)])) {
+      const childPath = clip(`${path}.${clip(key, 80)}`, 240);
+      if (!Object.hasOwn(expected, key) || !Object.hasOwn(actual, key)) {
+        return `${childPath}: expected ${Object.hasOwn(expected, key) ? describe(expected[key]) : '<missing>'}, actual ${Object.hasOwn(actual, key) ? describe(actual[key]) : '<missing>'}`;
+      }
+      const difference = firstDifference(expected[key], actual[key], childPath);
+      if (difference) return difference;
+    }
+  }
+  return `${clip(path, 240)}: expected ${describe(expected)}, actual ${describe(actual)}`;
+}
 export function traceActions(s) {
   const trace = [];
   traces.set(s, trace);
   return trace;
 }
-export function act(s, id, args = {}) {
+export function act(s, id, args = {}, options) {
   const result = executeAction(s, id, args, 'test');
-  assert.ok(result.ok, `${id} ${JSON.stringify(args)} at tick ${s.tick}: ${JSON.stringify(result)}`);
+  if (!result.ok) fail(s, `${clip(id)} args=${describe(args)} at tick ${clip(s.tick)}: ${describe(result)}`, options, { action: { id, args, result } });
   traces.get(s)?.push({ id, args: structuredClone(args) });
   return result;
 }
@@ -37,16 +93,16 @@ export function diagnostic(s) {
     crew:s.crew.map(c => ({ id:c.id, site:c.site, x:c.x, y:c.y, health:c.health, injury:c.medical.injury, oxygen:c.oxygen, energy:c.energy, hunger:c.hunger, activity:c.activity, intent:c.intent, carry:c.carry })),
   };
 }
-export function until(s, predicate, label, limit = 300) {
+export function until(s, predicate, label, limit = 300, options) {
   for (let i = 0; i < limit && !predicate(s); i++) advance(s);
-  assert.ok(predicate(s), `${label}: ${JSON.stringify(diagnostic(s))}`);
+  if (!predicate(s)) fail(s, `${clip(label)}: predicate unsatisfied after limit=${clip(limit)}; ${clip(JSON.stringify(diagnosticSummary(s)), 800)}`, options);
   return s;
 }
-export function checkpoint(s, label, ticks = 3) {
+export function checkpoint(s, label, ticks = 3, options) {
   const restored = deserialize(serialize(s));
-  assert.deepEqual(restored, s, `${label}: exact reload`);
+  if (!isDeepStrictEqual(restored, s)) fail(s, `${clip(label)}: exact reload at tick ${clip(s.tick)}; ${firstDifference(s, restored)}`, options, { expected: s, actual: restored });
   advance(s, ticks); advance(restored, ticks);
-  assert.deepEqual(restored, s, `${label}: deterministic ${ticks}-tick continuation`);
+  if (!isDeepStrictEqual(restored, s)) fail(s, `${clip(label)}: deterministic ${clip(ticks)}-tick continuation at tick ${clip(s.tick)}; ${firstDifference(s, restored)}`, options, { expected: s, actual: restored });
   return restored;
 }
 export const order = (s, site, x, y, kind, building) => act(s, 'job.order', {site, x, y, kind, ...(building === undefined ? {} : {building})}).job;

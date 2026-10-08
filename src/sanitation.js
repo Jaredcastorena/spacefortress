@@ -1,5 +1,7 @@
+import { crewPathTo } from './navigation.js';
+import { advanceCrewRoute } from './crew-traversal.js';
 import { spill, add } from './inventory.js';
-import { breathable, roomAt, moveCrew } from './atmosphere.js';
+import { breathable, roomAt } from './atmosphere.js';
 import { thermalSafe } from './thermal.js';
 import { immobile } from './mobility.js';
 import { remember } from './crew.js';
@@ -73,15 +75,15 @@ export function useSanitation(s, c, site, pathTo, release) {
   if (c.intent && !['sanitation', 'haul', 'leisure'].includes(c.intent.type)) return false;
   if (c.sanitation.waste < .5 && c.intent?.type !== 'sanitation') return false;
   let target = c.intent?.type === 'sanitation' && c.intent.target ? site.tiles[c.intent.target[1] * site.size + c.intent.target[0]] : null;
-  if (target && (sanitaryBlock(s, site, target, c) || pathTo(site, c, [[target.x, target.y]]) === null)) { c.intent = null; target = null; }
+  if (target && (sanitaryBlock(s, site, target, c) || crewPathTo(s, site, c, [[target.x, target.y]]) === null)) { c.intent = null; target = null; }
   if (!target) {
-    const options = site.tiles.filter(t => t.building === 'sanitary' && !sanitaryBlock(s, site, t, c)).map(t => ({ t, route: pathTo(site, c, [[t.x, t.y]]) })).filter(o => o.route !== null).sort((a, b) => a.route.length - b.route.length);
+    const options = site.tiles.filter(t => t.building === 'sanitary' && !sanitaryBlock(s, site, t, c)).map(t => ({ t, route: crewPathTo(s, site, c, [[t.x, t.y]]) })).filter(o => o.route !== null).sort((a, b) => a.route.length - b.route.length);
     target = options[0]?.t;
     if (!target) return false; // Keep doing useful work until a facility becomes available.
     release(s, c); c.intent = { type: 'sanitation', target: [target.x, target.y], remaining: SANITARY_VISIT };
   }
-  const route = pathTo(site, c, [[target.x, target.y]]);
-  if (route.length) { moveCrew(c, site, route[0]); c.activity = 'Going to sanitary unit'; return true; }
+  const route = crewPathTo(s, site, c, [[target.x, target.y]]);
+  if (route.length) { advanceCrewRoute(s, c, site, [route.at(-1)]); c.activity = 'Going to sanitary unit'; return true; }
   c.activity = 'Using sanitary unit';
   if (--c.intent.remaining === 0) {
     add(target.sanitary.output, { waste: c.sanitation.waste }); c.sanitation.waste = 0; c.sanitation.wait = 0;

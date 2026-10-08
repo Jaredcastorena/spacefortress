@@ -20,6 +20,7 @@ import { roomComfort } from './comfort.js';
 import { roomStatus } from './rooms.js';
 import { roomAt, breathable } from './atmosphere.js';
 import { temperature } from './thermal.js';
+import { airlockStatus, airlockControlOwner } from './airlock-access.js';
 // Local, opt-in recordings. WeakMap ownership keeps instrumentation out of game saves/RNG.
 export const TELEMETRY_VERSION = 1;
 const sessions = new WeakMap();
@@ -48,7 +49,10 @@ export function observe(s) {
       const previousDerived=t.reactor?{reactorTemperature:reactorTemperature(site,t),...(gas?{gasNetwork:gas}:{})}:t.radiator?{blocked:radiatorBlock(site,t),targets:radiatorTargets(site,t).map(r=>tileEntityId(site.id,r.x,r.y)),...(gas?{gasNetwork:gas}:{})}:gas;
       // Preserve established reactor/radiator and gas shapes. Independent
       // network diagnostics never overwrite another system's derived status.
-      const derived=plumbing||electrical?{...previousDerived,...(plumbing?{plumbing}:{}),...(electrical?{electrical}:{})}:previousDerived;
+      const airlock=t.building==='airlockController'?airlockStatus(s,site,t):null;
+      const ownership={building:airlockControlOwner(site,t,'building'),pipe:airlockControlOwner(site,t,'pipe')};
+      const owned=ownership.building||ownership.pipe;
+      const derived=plumbing||electrical||airlock||owned?{...previousDerived,...(plumbing?{plumbing}:{}),...(electrical?{electrical}:{}),...(airlock?{airlock}:{}),...(owned?{airlockOwnership:ownership}:{})}:previousDerived;
       entities[tileEntityId(site.id,t.x,t.y)]={type:'tile',site:site.id,...t,...(derived?{derived}:{})};
     }
     for(const r of rooms) {
@@ -72,6 +76,7 @@ export function observe(s) {
 }
 export function systemFor(type,path) {
   const root=path[0];
+  if(root==='airlock'||root==='airlockOwner'||root==='airlockTraversal'||root==='pipe'&&path[1]==='airlockOwner')return 'airlocks';
   if(root==='derived')return 'derived_conditions';
   if(type==='colony'&&root==='shuttle'&&path[1]==='freight')return 'inventory';
   if(type==='item')return 'possessions';

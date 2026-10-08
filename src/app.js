@@ -5,6 +5,8 @@ import { breakerDetails } from './breaker-panels.js';
 import { plumbingDetails } from './plumbing-panels.js';
 import { waterNode } from './plumbing.js';
 import { gasDetails } from './gas-panels.js';
+import { airlockDetails, airlockFormAction } from './airlock-panels.js';
+import { airlockStatus } from './airlock-access.js';
 import { gasNode } from './gas-networks.js';
 import { liquidDetails } from './liquid-panels.js';
 import { reactorDetails } from './reactor-panels.js';
@@ -13,7 +15,7 @@ import { animalDetails, postDetails, pastureDetails } from './husbandry-panels.j
 import { iceAvailable } from './water.js';
 import { depositDetails, waterSupplyDetails } from './water-panels.js';
 import { itemsDetails, possessionDetails } from './possession-panels.js';
-import { controlBindings, createAgentInterface } from './controls.js';
+import { controlBindings, createAgentInterface, executeAction } from './controls.js';
 import { startRecording, stopRecording, recordingStatus, exportRecording, tileEntityId } from './telemetry.js';
 import { comfortDetails } from './comfort-panels.js';
 import { bunkDetails, crewHousingDetails } from './housing-panels.js';
@@ -52,6 +54,8 @@ const { loadFreight, unloadFreight, setReturnCrew, setOutpostResidents, setBreak
 window.spacefortress = createAgentInterface(()=>state,()=>setSpeed(0),()=>refresh());
 const renderer = new Renderer($('world')); renderer.center();
 let toastTimer, inspectorKey = null, inspectorPress = null, warningPress = null;
+const airlockDrafts = new Map();
+const airlockDraftKey = () => selected && !selected.crew ? tileEntityId(siteId,selected.x,selected.y) : null;
 // Keep a pressed control alive until its click dispatches, even if a tick refreshes the UI.
 $('inspector').addEventListener('pointerdown', e => {
   if(e.button===0&&e.target.closest?.('button, input, select, summary'))inspectorPress={pointerId:e.pointerId};
@@ -126,7 +130,7 @@ function returnDraft() {
 function inspectSite(id) { setSite(id); openDrawer('right', 'inspect'); refresh(); }
 $('environment').addEventListener('click', e => { const warning = e.target.closest('[data-outpost-warning]'); if (warning) inspectSite(warning.dataset.outpostWarning); });
 function setSite(id) { siteId = id; selected = null; renderer.selection = null; renderer.hover = null; renderer.center(); setMode('inspect'); closeDrawer('left'); closeDrawer('right'); if (!['surface', 'universe'].includes(id) && !(id === 'wreck' && state.outposts.wreck.established)) openDrawer('right', 'inspect'); refresh(); }
-const icons = { breaker:'⊣', waterPipe:'╪',waterReservoir:'▰',waterPump:'➜',waterIntake:'↧',waterOutlet:'↥', gasExtractor:'⇣',gasReservoir:'▰',gasPipe:'╋',gasTank:'◉',gasPump:'➜',gasVent:'≋', waterTank:'◒',bilgePump:'↥', reactor:'◉',radiator:'▤', fence: '▥', pastureGate: '▯', husbandryPost: '♧', galley: '♨', iceProcessor: '❄', artisan: '⚒', sculpture: '◇', holo: '✧', sanitary: '▣', recycler: '♲', medicalCot: '▱', medlab: '⚕', commons: '♧', cable: '⌁', floor: '◇', wall: '▥', door: '▣', bunk: '▰', solar: '▦', battery: '▤', scrubber: '▥', farm: '♧', refinery: '▧', advanced: '✧', stockpile: '▨', trap: '◈' };
+const icons = { airlockController:'⇄', breaker:'⊣', waterPipe:'╪',waterReservoir:'▰',waterPump:'➜',waterIntake:'↧',waterOutlet:'↥', gasExtractor:'⇣',gasReservoir:'▰',gasPipe:'╋',gasTank:'◉',gasPump:'➜',gasVent:'≋', waterTank:'◒',bilgePump:'↥', reactor:'◉',radiator:'▤', fence: '▥', pastureGate: '▯', husbandryPost: '♧', galley: '♨', iceProcessor: '❄', artisan: '⚒', sculpture: '◇', holo: '✧', sanitary: '▣', recycler: '♲', medicalCot: '▱', medlab: '⚕', commons: '♧', cable: '⌁', floor: '◇', wall: '▥', door: '▣', bunk: '▰', solar: '▦', battery: '▤', scrubber: '▥', farm: '♧', refinery: '▧', advanced: '✧', stockpile: '▨', trap: '◈' };
 $('build-menu').innerHTML = Object.entries(BUILDINGS).map(([id, b]) => `<button class="build-option" data-building="${id}" title="${esc(b.description)}"><span class="build-icon">${icons[id] || '⚙'}</span><span><span class="build-name">${b.name}</span><small>${Object.entries(b.cost).map(([r, n]) => `${n} ${r}`).join(' · ')}</small></span></button>`).join('');
 function buildBlock() {
   if (!['surface','wreck'].includes(siteId)) return 'Choose the surface or Relay K-07 for construction.';
@@ -169,11 +173,34 @@ $('save-file').addEventListener('cancel', () => setSpeed(previousSpeed));
 $('save-file').onchange = async e => { const file = e.target.files[0]; if (!file) return; try { if (file.size > 5_000_000) throw new Error('Save is too large.'); const imported = deserialize(await file.text()); state = imported; lastSave = state.tick; accumulator = 0; setSite('surface'); if (save(true, true)) toast('Colony restored.'); } catch (error) { toast(`Could not import: ${error.message}`, true); } finally { e.target.value = ''; setSpeed(previousSpeed); } };
 $('crew-list').onclick = e => { const row = e.target.closest('[data-crew]'); if (!row) return; const c = state.crew.find(c => c.id === row.dataset.crew); setMode('inspect'); if (c.site !== 'transit' && c.site !== siteId) setSite(c.site); selected = { crew: c.id }; renderer.selection = selected; openDrawer('right', 'inspect'); refresh(); };
 $('inspector').addEventListener('input', e => {
+  const airlockForm=e.target.closest('[data-airlock-form]');
+  if(airlockForm) {
+    const key=airlockDraftKey(),draft=airlockDrafts.get(key)||{};
+    for(const field of airlockForm.elements)if(field.name)draft[field.name]=field.type==='checkbox'?field.checked:field.value;
+    airlockDrafts.set(key,draft);
+    if(airlockForm.dataset.airlockForm==='release') {
+      const a=airlockStatus(state,state.sites[siteId],at(state.sites[siteId],selected.x,selected.y)),opposite=a?.doors[draft.side==='inner'?'outer':'inner'];
+      const guarded=!opposite?.intact||opposite.open;
+      airlockForm.querySelector('button[type="submit"]').disabled=guarded;
+      const hint=airlockForm.querySelector('[data-airlock-release-guard]');if(hint)hint.hidden=!guarded;
+    }
+    return;
+  }
   const form = e.target.closest('[data-freight-form]'); if (!form) return;
   const draft = freightDraft(form.dataset.site, form.dataset.operation);
   draft.resource = form.elements['freight-resource'].value; draft.amount = form.elements['freight-amount'].value;
 });
 $('inspector').onsubmit = e => {
+  const airlockForm=e.target.closest('[data-airlock-form]');
+  if(airlockForm&&selected&&!selected.crew) {
+    e.preventDefault(); const values={};
+    for(const field of airlockForm.elements)if(field.name)values[field.name]=field.type==='checkbox'?field.checked:field.value;
+    const request=airlockFormAction(airlockForm.dataset.airlockForm,values,{site:siteId,x:selected.x,y:selected.y},e.submitter?.dataset.direction);
+    if(!request){toast('Complete the airlock fields and confirm any manual release.',true);return;}
+    const r=executeAction(state,request.id,request.args,'player');
+    if(r.ok&&request.id==='airlock.release'){const draft=airlockDrafts.get(airlockDraftKey());if(draft)draft.acceptAtmosphereLoss=false;}
+    document.activeElement.blur(); result(r,r.ok?'Airlock command accepted.':''); return;
+  }
   const freightForm = e.target.closest('[data-freight-form]');
   if (freightForm) {
     e.preventDefault(); const draft = freightDraft(freightForm.dataset.site, freightForm.dataset.operation);
@@ -196,6 +223,13 @@ $('inspector').onsubmit = e => {
 $('inspector').onclick = e => {
   const button = e.target.closest('[data-action]'); if (!button) return;
   const action = button.dataset.action;
+  if(['airlock-enable','airlock-cancel','airlock-unbind'].includes(action)&&selected&&!selected.crew) {
+    const target={site:siteId,x:selected.x,y:selected.y},t=at(state.sites[siteId],selected.x,selected.y);
+    const args=action==='airlock-enable'?{...target,enabled:!t.airlock?.enabled}:action==='airlock-cancel'?{...target,crew:button.dataset.crew}:target;
+    const r=executeAction(state,action.replace('airlock-','airlock.'),args,'player');
+    if(r.ok&&action==='airlock-unbind')airlockDrafts.delete(airlockDraftKey());
+    result(r);return;
+  }
   if (action === 'inspect-outpost-tile') { setSite(button.dataset.site); selected={site:siteId,x:Number(button.dataset.x),y:Number(button.dataset.y)}; renderer.selection=selected; openDrawer('right','inspect'); refresh(); return; }
   if (action === 'inspect-site') { inspectSite(button.dataset.site); return; }
   if (action === 'freight-draft-remove') { delete freightDraft(button.dataset.site,button.dataset.operation).items[button.dataset.resource]; refresh(); return; }
@@ -316,7 +350,7 @@ function inspector() {
     if (creature && !((renderer.gasOverlay&&(gasNode(t)||t.gasDevice))||(renderer.waterOverlay&&(waterNode(t)||t.waterDevice))) && !['husbandryPost','pastureGate','fence'].includes(t.building)) return `<div class="eyebrow">FRONTIER LIFE / ${creature.species === 'tibble' ? 'BIOMASS PEST' : 'GRAZER'}</div><h2>${SPECIES[creature.species].name}</h2><p>${SPECIES[creature.species].description}</p>${creature.husbandry?'':`<dl><dt>Condition</dt><dd>${creature.health}%</dd><dt>Fed</dt><dd>${Math.round(creature.fed)}%</dd></dl>`}${animalDetails(state,creature,pathTo)}<button data-action="clear">Back to region</button>`;
     const name = BUILDINGS[t.building]?.name || (iceAvailable(t) ? 'Exposed ice seam' : null) || ({ salvage: 'Satellite components', volatile: 'Volatile deposit', collector: 'Solar collector', dock: 'Shuttle berth', shuttle: 'Surface shuttle berth', ore: 'Metal-bearing rock', rock: 'Basalt outcrop', ground: 'Regolith', floor: 'Habitat floor', deck: 'Station deck', ice: 'Comet ice', void: 'Open space' }[t.building || t.terrain]);
     const extractable = iceAvailable(t) || ['rock', 'ore'].includes(t.terrain) || ['salvage', 'volatile'].includes(t.building);
-    return `<div class="eyebrow">TILE ${t.x} / ${t.y}</div><h2>${name}</h2><p>${BUILDINGS[t.building]?.description || (extractable ? 'Recover material with an extraction order.' : 'Part of our small foothold in the universe.')}</p><dl>${atmosphereDetails(room)}${thermalDetails(state.sites[siteId], t)}${sanitationRoomDetails(state, state.sites[siteId], t)}${t.building ? `<dt>Condition</dt><dd>${Math.round(t.hp)}%</dd>` : ''}${BUILDINGS[t.building]?.demand ? `<dt>Power</dt><dd>${t.powered ? 'Online' : 'Offline'}</dd>` : ''}${t.drop ? `<dt>Awaiting haul</dt><dd>${esc(inventoryText(t.drop))}</dd>` : ''}</dl>${fireDetails(state,state.sites[siteId],t)}${gasDetails(state.sites[siteId],t)}${plumbingDetails(state,state.sites[siteId],t)}${liquidDetails(t)}${reactorDetails(state.sites[siteId],t)}${pastureDetails(state,t)}${postDetails(state,t,pathTo)}${depositDetails(t)}${shuttleDetails(state, t)}${['shuttle','dock'].includes(t.building) ? freightDetails(state,siteId,siteFreightDrafts(siteId)) : ''}${maintenanceDetails(state, state.sites[siteId], t)}${breakerDetails(state,state.sites[siteId],t)}${powerDetails(state.sites[siteId], t)}${doorDetails(t, state.tick)}${foodDetails(t.drop, temperatureAt(state.sites[siteId], t.x, t.y), "Loose food")}${bunkDetails(state, state.sites[siteId], t)}${itemsDetails(t.drop)}${roomDetails(state, state.sites[siteId], t)}${comfortDetails(state, state.sites[siteId], t)}${climateDetails(t)}${sanitaryDetails(state, state.sites[siteId], t)}${storageDetails(t, state, siteId)}${quantity(reservedAt(state, siteId, t.x, t.y)) ? `<p>Reserved here: ${esc(inventoryText(reservedAt(state, siteId, t.x, t.y)))}</p>` : ''}${jobs.length ? jobs.filter(j => j.kind !== 'operate').map(jobDetails).join('<hr>') : extractable ? '<button data-action="extract">Designate extraction</button>' : ''}<button data-action="clear">Back to region</button>`;
+    return `<div class="eyebrow">TILE ${t.x} / ${t.y}</div><h2>${name}</h2><p>${BUILDINGS[t.building]?.description || (extractable ? 'Recover material with an extraction order.' : 'Part of our small foothold in the universe.')}</p><dl>${atmosphereDetails(room)}${thermalDetails(state.sites[siteId], t)}${sanitationRoomDetails(state, state.sites[siteId], t)}${t.building ? `<dt>Condition</dt><dd>${Math.round(t.hp)}%</dd>` : ''}${BUILDINGS[t.building]?.demand ? `<dt>Power</dt><dd>${t.powered ? 'Online' : 'Offline'}</dd>` : ''}${t.drop ? `<dt>Awaiting haul</dt><dd>${esc(inventoryText(t.drop))}</dd>` : ''}</dl>${fireDetails(state,state.sites[siteId],t)}${gasDetails(state.sites[siteId],t)}${airlockDetails(state,state.sites[siteId],t,airlockDrafts.get(airlockDraftKey()))}${plumbingDetails(state,state.sites[siteId],t)}${liquidDetails(t)}${reactorDetails(state.sites[siteId],t)}${pastureDetails(state,t)}${postDetails(state,t,pathTo)}${depositDetails(t)}${shuttleDetails(state, t)}${['shuttle','dock'].includes(t.building) ? freightDetails(state,siteId,siteFreightDrafts(siteId)) : ''}${maintenanceDetails(state, state.sites[siteId], t)}${breakerDetails(state,state.sites[siteId],t)}${powerDetails(state.sites[siteId], t)}${doorDetails(t, state.tick, state.sites[siteId])}${foodDetails(t.drop, temperatureAt(state.sites[siteId], t.x, t.y), "Loose food")}${bunkDetails(state, state.sites[siteId], t)}${itemsDetails(t.drop)}${roomDetails(state, state.sites[siteId], t)}${comfortDetails(state, state.sites[siteId], t)}${climateDetails(t)}${sanitaryDetails(state, state.sites[siteId], t)}${storageDetails(t, state, siteId)}${quantity(reservedAt(state, siteId, t.x, t.y)) ? `<p>Reserved here: ${esc(inventoryText(reservedAt(state, siteId, t.x, t.y)))}</p>` : ''}${jobs.length ? jobs.filter(j => j.kind !== 'operate').map(jobDetails).join('<hr>') : extractable ? '<button data-action="extract">Designate extraction</button>' : ''}<button data-action="clear">Back to region</button>`;
   }
   if (siteId === 'surface' || siteId === 'universe') return `<div class="eyebrow">${state.mission ? 'EXPEDITION ACTIVE' : 'YOUR FIRST FOOTHOLD'}</div><h2>${state.mission ? SITES[state.mission.site].name : 'Make a home out here.'}</h2><p>${state.mission ? `${missionStatus(state.mission)}` : 'Build a colony, recover forgotten technology, and push farther into the unknown.'}</p><dl><dt>Power supply</dt><dd>${state.sites.surface.power.output.toFixed(0)} / ${state.sites.surface.power.demand} kW</dd><dt>Circuits short of power</dt><dd>${state.sites.surface.power.brownouts} / ${state.sites.surface.power.networks}</dd><dt>Battery</dt><dd>${Math.floor(state.sites.surface.power.battery)} / ${state.sites.surface.power.capacity} kJ</dd><dt>Breathing mix stored</dt><dd>${state.resources.air.toFixed(1)} units</dd><dt>Medicine in storage</dt><dd>${Math.floor(state.resources.medicine)} units</dd><dt>Injured crew</dt><dd>${state.crew.filter(c => c.health > 0 && c.medical.injury > 0).length}</dd><dt>Work orders</dt><dd>${state.jobs.length} pending</dd><dt>Tibbles detected</dt><dd>${state.creatures.filter(c => c.species === 'tibble').length}</dd></dl>${state.mission ? '<button data-action="recall">Recall expedition</button>' : '<p>Select Relay K-07 to launch your first salvage expedition.</p>'}${fireOverview(state.sites.surface)}${waterSupplyDetails(state)}${preflightDetails(state)}${freightDetails(state,'surface',siteFreightDrafts('surface'))}<button data-action="inspect-site" data-ui-action="site.inspect" data-site="wreck">Inspect Relay K-07</button>${maintenanceOverview(state)}${state.resources.cells > 0 ? '<button data-action="cell">Discharge a power cell</button>' : ''}${state.anomaly && !state.anomaly.resolved ? `<hr><div class="eyebrow">UNREGISTERED SIGNAL</div><h2>${esc(state.anomaly.title)}</h2><p>${esc(state.anomaly.description)}</p><button data-action="decode">Decode · 1 component</button><button data-action="isolate">Isolate channel</button>` : ''}`;
   return expeditionDetails(state, siteId, manifestDraft(siteId)) + freightDetails(state,siteId,siteFreightDrafts(siteId)) + residentDetails(state,siteId) + returnManifestDetails(state,siteId,returnDraft()) + (siteId === 'wreck' ? outpostGuide() : '');
@@ -345,13 +379,15 @@ function refresh() {
   $('crew-count').textContent = `${state.crew.filter(c => c.health > 0).length} ALIVE`;
   $('health-summary').innerHTML = meter(statusSite.air, `${SITES[statusSite.id].name} AIR`) + meter(p.capacity ? p.battery / p.capacity * 100 : 0, 'BATTERY RESERVE');
   const nextInspectorKey = JSON.stringify([siteId, mode, building, selected]);
-  if (!inspectorPress && (nextInspectorKey !== inspectorKey || !document.activeElement.closest?.('[data-production-form], [data-climate-form], [data-reactor-form], [data-gas-form], [data-freight-form]'))) {
+  if (!inspectorPress && (nextInspectorKey !== inspectorKey || !document.activeElement.closest?.('[data-production-form], [data-climate-form], [data-reactor-form], [data-gas-form], [data-freight-form], [data-airlock-form]'))) {
+    const airlockFocus=nextInspectorKey===inspectorKey?document.activeElement.dataset?.airlockFocus:null;
     const assigningBunk = nextInspectorKey === inspectorKey && $('inspector').querySelector('[data-bunk-assignment]')?.open;
     const openItems=nextInspectorKey===inspectorKey?[...$('inspector').querySelectorAll('[data-item-list], [data-meal-list], [data-gas-composition], [data-plumbing-endpoints], [data-breaker-diagnostics], [data-expedition-roster], .animal-breeding, .animal-transport')].map(d=>d.open):[];
     const openPanels = nextInspectorKey === inspectorKey ? new Map([...$('inspector').querySelectorAll('[data-panel-key]')].map(d=>[d.dataset.panelKey,d.open])) : new Map();
     $('inspector').innerHTML = inspector();
     for (const details of $('inspector').querySelectorAll('[data-panel-key]')) details.open = openPanels.get(details.dataset.panelKey) || false;
     [...$('inspector').querySelectorAll('[data-item-list], [data-meal-list], [data-gas-composition], [data-plumbing-endpoints], [data-breaker-diagnostics], [data-expedition-roster], .animal-breeding, .animal-transport')].forEach((d,i)=>d.open=!!openItems[i]);
+    if(airlockFocus)[...$('inspector').querySelectorAll('[data-airlock-focus]')].find(el=>el.dataset.airlockFocus===airlockFocus)?.focus({preventScroll:true});
     if (assigningBunk) { const details = $('inspector').querySelector('[data-bunk-assignment]'); if (details) details.open = true; }
   }
   if(!inspectorPress){
@@ -361,7 +397,7 @@ function refresh() {
   const actionIds={ 'freight-load':'freight.load','freight-unload':'freight.unload','freight-unload-all':'freight.unload','return-crew-apply':'expedition.return_crew','resident-toggle':'outpost.residents', 'breaker-toggle':'power.breaker','breaker-direction':'power.breaker','breaker-mode':'power.breaker','breaker-reset':'power.breaker.reset', 'plumbing-valve':'plumbing.valve',repairWaterPipe:'job.order',removeWaterPipe:'job.order', 'gas-extractor-toggle':'gas.extractor','gas-extractor-mode':'gas.extractor','gas-valve':'gas.valve','gas-toggle':'gas.device','gas-direction':'gas.device',repairPipe:'job.order',removePipe:'job.order', 'tank-fill':'water.tank','tank-drain':'water.tank', 'reactor-toggle':'reactor.configure','reactor-reset':'reactor.reset','radiator-toggle':'radiator.configure', 'fire-response':'fire.response','fire-suppress':'job.order', 'animal-transport':'husbandry.transport', 'animal-breed':'husbandry.breed', 'pasture-gate':'pasture.gate', 'animal-assign':'husbandry.assign','animal-release':'husbandry.assign','animal-policy':'husbandry.policy', 'possession-policy':'crew.possessions.collect','possession-release':'crew.possessions.release', 'bunk-owner':'housing.assign','room-role':'room.designate','climate-toggle':'climate.configure','depot-filter':'depot.accept','depot-priority':'depot.priority','production-priority':'production.priority',launch:'expedition.launch',recall:'expedition.recall',cell:'power.discharge_cell','bank-cell':'power.discharge_cell','cancel-departure':'expedition.cancel_departure','resume-expedition':'expedition.resume','cargo-policy':'expedition.cargo','auto-service':'maintenance.auto','power-priority':'power.priority','cable-toggle':'power.cable',decode:'signal.resolve',isolate:'signal.resolve',cancel:'job.cancel','life-policy':'crew.routine',labor:'crew.labor',priority:'job.priority',door:'door.mode',machine:'production.enable',extract:'job.order',service:'job.order','repair-structure':'job.order',repairCable:'job.order',removeCable:'job.order',refit:'job.order','unload-shuttle':'job.order' };
   for(const button of $('inspector').querySelectorAll('[data-action]'))if(actionIds[button.dataset.action])button.dataset.simulationAction=actionIds[button.dataset.action];
   if(selected&&!selected.crew&&state.sites[siteId]&&Number.isInteger(selected.x)&&Number.isInteger(selected.y)){const t=at(state.sites[siteId],selected.x,selected.y),id=({waterPump:'plumbing.pump',waterIntake:'plumbing.intake',waterOutlet:'plumbing.outlet'})[t?.building];for(const button of $('inspector').querySelectorAll('[data-action="plumbing-toggle"], [data-action="plumbing-direction"], [data-action="plumbing-mode"]'))button.dataset.simulationAction=id;}
-  for(const form of $('inspector').querySelectorAll('form:not([data-freight-form])'))form.dataset.simulationAction=form.hasAttribute('data-gas-extractor-form')?'gas.extractor':form.hasAttribute('data-gas-form')?'gas.device':form.hasAttribute('data-reactor-form')?'reactor.configure':form.hasAttribute('data-production-form')?'production.order':'climate.configure';
+  for(const form of $('inspector').querySelectorAll('form:not([data-freight-form]):not([data-airlock-form])'))form.dataset.simulationAction=form.hasAttribute('data-gas-extractor-form')?'gas.extractor':form.hasAttribute('data-gas-form')?'gas.device':form.hasAttribute('data-reactor-form')?'reactor.configure':form.hasAttribute('data-production-form')?'production.order':'climate.configure';
   $('crew-list').innerHTML = state.crew.map(c => `<button data-entity="${c.id}" class="crew-row ${selected?.crew === c.id ? 'active' : ''}" data-crew="${c.id}"><img class="crew-portrait" src="${crewSprite(c.color, ANATOMIES[Number(c.id.split('-')[1]) % ANATOMIES.length]).toDataURL()}" alt=""><span class="crew-text"><strong>${esc(c.name)}</strong><small>${esc(SITES[c.site]?.name || 'In transit')}${residentIds(state,'wreck').includes(c.id) ? ' · Resident' : ''} · ${esc(c.activity)}</small></span><span class="crew-health">${Math.round(c.health)}%</span></button>`).join('');
   const tasks = [['build', 'Build your first structure'], ['extract', 'Extract frontier materials'], ['salvage', 'Bring satellite components home'], ['advanced', 'Build an advanced solar array'], ['solar', 'Return with solar energy cells']];
   $('objectives').innerHTML = tasks.map(([id, text]) => `<div class="objective ${state.objectives[id] ? 'done' : ''}"><span class="check">${state.objectives[id] ? '✓' : ''}</span>${text}</div>`).join('');

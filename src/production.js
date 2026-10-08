@@ -1,3 +1,5 @@
+import { crewPathTo } from './navigation.js';
+import { advanceCrewRoute } from './crew-traversal.js';
 import { rawFood, preparedFood } from './food-lots.js';
 import { cookMeal } from './meals.js';
 import { craftKeepsake } from './possessions.js';
@@ -6,7 +8,7 @@ import { cropRoomBlock } from './rooms.js';
 import { temperatureAt } from './thermal.js';
 import { RECIPES, BUILDINGS } from './data.js';
 import { add, extract, contains, quantity, OUTPUT_CAPACITY, initializeStorage } from './inventory.js';
-import { breathable, roomAt, moveCrew } from './atmosphere.js';
+import { breathable, roomAt } from './atmosphere.js';
 import { workRate, gainExperience, remember } from './crew.js';
 
 export const staffed = t => !!RECIPES[t.building] && !RECIPES[t.building].lifeSupport && !RECIPES[t.building].automatic;
@@ -89,9 +91,9 @@ export function scheduleProduction(s, order) {
 export function operateMachine(s, c, j, site, pathTo) {
   const t = site.tiles[j.y * site.size + j.x], m = t.machine, blocked = productionBlock(s, site, t);
   if (blocked || t.building !== j.building) { if (m) m.status = blocked || 'Workstation replaced'; releaseOperation(s, j); return; }
-  const goals = [[t.x + 1, t.y], [t.x - 1, t.y], [t.x, t.y + 1], [t.x, t.y - 1]], route = pathTo(site, c, goals);
+  const goals = [[t.x + 1, t.y], [t.x - 1, t.y], [t.x, t.y + 1], [t.x, t.y - 1]], route = crewPathTo(s, site, c, goals);
   if (route === null) { c.job = null; j.worker = null; j.blockedReason = m.status = c.activity = 'Workstation route blocked'; return; }
-  if (route.length) { moveCrew(c, site, route[0]); c.activity = `Going to ${BUILDINGS[t.building].name.toLowerCase()}`; return; }
+  if (route.length) { advanceCrewRoute(s, c, site, [route.at(-1)]); c.activity = `Going to ${BUILDINGS[t.building].name.toLowerCase()}`; return; }
   const recipe = RECIPES[t.building];
   if (!quantity(m.batch)) { const batch = extract(m.input, recipe.input, t.building==='galley'); if (!batch) return; m.batch = batch; m.progress = 0; emitEvent(s,'production.batch.started',{entity:tileEntityId(site.id,t.x,t.y),actor:c.id,job:j.id,recipe:t.building,input:batch}); }
   const effort = Math.min(recipe.duration - m.progress, workRate(c, 'production'));

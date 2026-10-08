@@ -1,7 +1,9 @@
+import { crewPathTo } from './navigation.js';
+import { advanceCrewRoute, cancelCrewTraversal } from './crew-traversal.js';
 import { openMeal, moveOpenedMeal } from './meals.js';
 import { foodAge } from './food-lots.js';
 import { thermalSafe } from './thermal.js';
-import { roomAt, breathable, moveCrew } from './atmosphere.js';
+import { roomAt, breathable } from './atmosphere.js';
 import { safeBed, medicalRest, boardingPatient } from './medicine.js';
 import { immobile, impaired } from './mobility.js';
 import { airThreshold, remember, gainExperience } from './crew.js';
@@ -20,6 +22,7 @@ const rescueEvent = (s, id, helper, patient, detail = {}) => emitEvent(s, id, {
 export function releaseRescue(s, helper, reason = 'interrupted') {
   const claim = helper.rescue;
   if (!claim) return false;
+  if (reason !== 'patient_boarded') cancelCrewTraversal(s, helper);
   const patient = s.crew.find(c => c.id === claim.patient);
   helper.rescue = null;
   if (patient) rescueEvent(s, reason === 'patient_boarded' ? 'care.rescue.delivered' : 'care.rescue.interrupted', helper, patient, { reason, carrying: claim.carrying });
@@ -35,11 +38,11 @@ function destination(s, p, pathTo) {
   const site = s.sites[p.site];
   if (boardingPatient(s, p)) {
     const dock = site.tiles.find(t => t.building === 'dock' && t.hp > 0);
-    return dock && pathTo(site, p, [xy(dock)]) !== null ? xy(dock) : null;
+    return dock && crewPathTo(s, site, p, [xy(dock)]) !== null ? xy(dock) : null;
   }
-  if (safeBed(site, p.medical.bed) && pathTo(site, p, [p.medical.bed]) !== null) return [...p.medical.bed];
+  if (safeBed(site, p.medical.bed) && crewPathTo(s, site, p, [p.medical.bed]) !== null) return [...p.medical.bed];
   const cells = site.rooms.filter(r => breathable(r) && thermalSafe(r)).flatMap(r => r.cells.map(k => k.split(',').map(Number)));
-  const route = pathTo(site, p, cells);
+  const route = crewPathTo(s, site, p, cells);
   return route === null ? null : route.length ? route.at(-1) : xy(p);
 }
 export function feedPatient(s, j) {
@@ -54,13 +57,13 @@ export function completeFeeding(s, j) {
 export function reconcileNursing(s, cancelJob) {
   for (const c of s.crew) if (c.rescue) {
     const p = s.crew.find(p => p.id === c.rescue.patient);
-    if (!p || p.health <= 0 || c.health <= 0 || c.site !== p.site || c.site === 'transit' || !capable(c)) releaseRescue(s, c, !p ? 'patient_missing' : p.health <= 0 ? 'patient_deceased' : c.health <= 0 ? 'rescuer_deceased' : c.site !== p.site || c.site === 'transit' ? 'site_changed' : 'rescuer_unavailable');
+    if (!p || p.health <= 0 || c.health <= 0 || c.site !== p.site || c.site === 'transit' || !capable(c) && !c.airlockTraversal) releaseRescue(s, c, !p ? 'patient_missing' : p.health <= 0 ? 'patient_deceased' : c.health <= 0 ? 'rescuer_deceased' : c.site !== p.site || c.site === 'transit' ? 'site_changed' : 'rescuer_unavailable');
   }
   for (const j of [...s.jobs]) if (j.kind === 'feed' && !feedPatient(s, j)) cancelJob(s, j.id, true);
 }
 export function prepareNursing(s, order, cancelJob, release, pathTo) {
   reconcileNursing(s, cancelJob);
-  for (const p of s.crew) if (p.health > 0 && p.site !== 'transit' && immobile(p)) {
+  for (const p of s.crew) if (p.health > 0 && p.site !== 'transit' && immobile(p) && !p.airlockTraversal) {
     release(s, p);
     // Incapacitated carriers put their supplies down at their actual position.
     if (p.carry) dropCarriedMaterials(s, p);
@@ -71,8 +74,8 @@ export function prepareNursing(s, order, cancelJob, release, pathTo) {
     const target = destination(s, p, pathTo);
     if (!target || (p.x === target[0] && p.y === target[1])) continue;
     const site = s.sites[p.site];
-    const helpers = s.crew.filter(c => c.id !== p.id && c.site === p.site && capable(c) && !c.rescue && !c.carry && (!c.intent || ['haul', 'leisure', 'salvage'].includes(c.intent.type)))
-      .map(c => ({ c, path: pathTo(site, c, adjacent(p)) })).filter(o => o.path !== null)
+    const helpers = s.crew.filter(c => c.id !== p.id && c.site === p.site && capable(c) && !c.airlockTraversal && !c.rescue && !c.carry && (!c.intent || ['haul', 'leisure', 'salvage'].includes(c.intent.type)))
+      .map(c => ({ c, path: crewPathTo(s, site, c, adjacent(p)) })).filter(o => o.path !== null)
       .sort((a, b) => a.path.length - b.path.length || b.c.skills.medicine.level - a.c.skills.medicine.level || a.c.id.localeCompare(b.c.id));
     if (!helpers.length) { p.medical.status = 'Waiting for an available rescuer assigned to medicine'; continue; }
     const c = helpers[0].c; release(s, c); c.intent = null; c.rescue = { patient: p.id, carrying: false }; p.medical.status = 'Rescuer approaching';
@@ -95,9 +98,9 @@ export function rescue(s, c, site, pathTo) {
   const p = s.crew.find(p => p.id === r.patient);
   if (!p || p.health <= 0 || !capable(c) || c.site !== p.site) { releaseRescue(s, c, !p ? 'patient_missing' : p.health <= 0 ? 'patient_deceased' : c.site !== p.site ? 'site_changed' : 'rescuer_unavailable'); return false; }
   if (!r.carrying) {
-    const route = pathTo(site, c, adjacent(p));
+    const route = crewPathTo(s, site, c, adjacent(p));
     if (route === null) { releaseRescue(s, c, 'route_blocked'); c.activity = 'Rescue route blocked'; return true; }
-    if (route.length) { moveCrew(c, site, route[0]); c.activity = `Reaching ${p.name.split(' ')[0]} for rescue`; return true; }
+    if (route.length) { advanceCrewRoute(s, c, site, [route.at(-1)]); c.activity = `Reaching ${p.name.split(' ')[0]} for rescue`; return true; }
     if (p.carry) dropCarriedMaterials(s, p);
     // Pickup crosses only the one adjacent tile separating patient and rescuer.
     p.x = c.x; p.y = c.y;
@@ -107,10 +110,10 @@ export function rescue(s, c, site, pathTo) {
     c.activity = `Lifting ${p.name.split(' ')[0]}`; p.activity = `Being carried by ${c.name.split(' ')[0]}`; return true;
   }
   const target = destination(s, p, pathTo);
-  const route = target && pathTo(site, c, [target]);
+  const route = target && crewPathTo(s, site, c, [target]);
   if (route === null || !target) { c.activity = 'Rescue destination blocked; holding patient'; return true; }
   if (route.length) {
-    moveCrew(c, site, route[0]); p.x = c.x; p.y = c.y;
+    advanceCrewRoute(s, c, site, [route.at(-1)]); p.x = c.x; p.y = c.y;
     c.activity = `Carrying ${p.name.split(' ')[0]} to ${boardingPatient(s, p) ? 'shuttle' : 'shelter'}`;
     p.activity = `Being carried by ${c.name.split(' ')[0]}`; return true;
   }

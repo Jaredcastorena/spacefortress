@@ -1,3 +1,4 @@
+import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -84,7 +85,7 @@ test('herd and total creature limits prevent uncontrolled growth',()=>{
 });
 
 test('schema 27 migration preserves animals, supplies, jobs and RNG while adding adult lifecycle state',()=>{
- const {s}=pen();s.version=27;for(const a of s.creatures)delete a.lifecycle;const before=structuredClone(s),copy=check(s);assert.equal(copy.version, VERSION);assert.deepEqual(totalResources(copy),totalResources(s));assert.equal(copy.rng,s.rng);assert.deepEqual(copy.jobs,s.jobs);for(let i=0;i<copy.creatures.length;i++){const {lifecycle,...animal}=copy.creatures[i];assert.deepEqual(animal,before.creatures[i]);assert.deepEqual(lifecycle,newLifecycle());}
+ const {s}=pen();s.version=27;for(const a of s.creatures)delete a.lifecycle;const before=structuredClone(s),copy=check(projectPreAirlock(s));assert.equal(copy.version, VERSION);assert.deepEqual(totalResources(copy),totalResources(s));assert.equal(copy.rng,s.rng);assert.deepEqual(copy.jobs,s.jobs);for(let i=0;i<copy.creatures.length;i++){const {lifecycle,...animal}=copy.creatures[i];assert.deepEqual(animal,before.creatures[i]);assert.deepEqual(lifecycle,newLifecycle());}
 });
 
 test('partial broods and growing offspring reload deterministically and recording is observational',()=>{
