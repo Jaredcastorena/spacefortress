@@ -1,16 +1,16 @@
 # SPACEFORTRESS roadmap
 
-**Published release: v0.1.3 · Save schema: 46 · Current air diagnostics/import fixes: unreleased.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
+**Release build: v0.1.4 · Save schema: 46.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
 
 See the [README](README.md) to play, [verification status](docs/verification-status.md) for evidence and limits, and the [180-system conversion inventory](docs/conversion-inventory.md) for the wider backlog. Completing a milestone below does not complete an entire inventory family or establish full Dwarf Fortress parity.
 
-## Current local increment: explain air limits and recover finite supplies
+## v0.1.4: explain air limits and recover finite supplies
 
 - Shared breathing reasons distinguish oxygen concentration from pressure-adjusted oxygen. The hidden inspector explains the failed limit; local-agent observations use the same classification. Gas arithmetic, thresholds and save schema remain unchanged.
 - Save import preserves the actual prior speed, including pause, across completion, failure and cancellation. Local browser review confirmed the paused tick-144 import and readable full-width warning.
 - The full local gate passed 1,282 checks, zero failures and one intentional skip. After the warning layout changed, only the seven affected presentation checks were rerun and passed.
 - Preserve both earlier stops: ordinary livestock play stopped at 144 on home air; a separate paid recovery reached its 384 budget with one ten-air batch and no breathable tick. The reviewed 384→460 continuation produced 40 air from four water in 76 ticks/three commands and reached 12 consecutive breathable ticks. All seven crew/five animals stayed healthy, with three exact reloads.
-- The endpoint has exactly 56 room oxygen units, the breathing minimum, and suits at 76.79–78.49%. It establishes bounded recovery only. These local changes have not been published.
+- The endpoint has exactly 56 room oxygen units, the breathing minimum, and suits at 76.79–78.49%. It establishes bounded recovery only. Exact hosted verification belongs to the [v0.1.4 release record](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.4); the local results above retain their stated scope.
 
 See [atmosphere](docs/atmosphere.md) and [verification status](docs/verification-status.md) for quantities, source scope and remaining work.
 

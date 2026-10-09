@@ -2,21 +2,21 @@
 
 An early playable space colony simulator inspired by Dwarf Fortress. Keep seven alien founders alive, build a planetary colony, and send supplied expeditions into orbit to recover material for its next expansion.
 
-**[Play online](https://jaredcastorena.github.io/spacefortress/)** · [Online elements lab](https://jaredcastorena.github.io/spacefortress/elements.html) · [Release v0.1.3](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.3) · [Roadmap](ROADMAP.md)
+**[Play online](https://jaredcastorena.github.io/spacefortress/)** · [Online elements lab](https://jaredcastorena.github.io/spacefortress/elements.html) · [Release v0.1.4](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.4) · [Roadmap](ROADMAP.md)
 
 ![Local SPACEFORTRESS hex colony with original alien crew, an isometric habitat and closed detail drawers](docs/images/spacefortress-hex.png)
 
 **The game is still in development.** The current build has one colony floor and fixed orbital destinations. Long-lived staffed outposts, connected vertical decks, a generated universe/history and much of the wider simulation remain unfinished. The [implementation status](docs/implementation-status.md) separates working systems from plans.
 
-## Local development: clearer air warnings and bounded recovery
+## v0.1.4: clearer air warnings and bounded recovery
 
-**Unreleased; the online game remains v0.1.3.** The atmosphere inspector now distinguishes oxygen concentration from **Oxygen at this pressure**, shows the safe 16–30% nominal range and explains the same first failed limit used by crew and local-agent observations. The original unsafe room contained 20.736% oxygen, but its lower pressure left only 15.8476% of nominal oxygen available. Importing a save now preserves the actual prior speed, including pause, on completion, failure or cancellation.
+**Version 0.1.4 keeps save schema 46 and the existing gas rules.** The atmosphere inspector now distinguishes oxygen concentration from **Oxygen at this pressure**, shows the safe 16–30% nominal range and explains the same first failed limit used by crew and local-agent observations. The original unsafe room contained 20.736% oxygen, but its lower pressure left only 15.8476% of nominal oxygen available. Importing a save now preserves the actual prior speed, including pause, on completion, failure or cancellation.
 
 One full local run passed **1,282 checks, zero failures and one intentional skip**. Seven affected panel checks then passed after a presentation-only change that made the warning span the inspector width. Browser review confirmed that importing the original tick-144 save while paused kept its clock still and showed the shared low-oxygen explanation clearly.
 
 A separate paid recovery first stopped at its tick-384 budget after producing ten air without reaching breathable conditions. A reviewed continuation then ran 384→460: 76 ticks and three commands, producing **40 air from four water** and keeping home breathable for 12 consecutive ticks. All seven crew and five animals stayed fully healthy; three checkpoints reopened exactly. The processor was paused with its next paid batch preserved.
 
-The final room held **exactly the minimum 56 oxygen units**, with suit reserves only 76.79–78.49%. This proves bounded recovery, not a durable reserve or sustained exterior work. The original tick-144 livestock stop and tick-384 recovery stop remain recorded; the full ordinary livestock/kitchen chain is still unverified. See [atmosphere](docs/atmosphere.md) and [verification status](docs/verification-status.md).
+The final room held **exactly the minimum 56 oxygen units**, with suit reserves only 76.79–78.49%. This proves bounded recovery, not a durable reserve or sustained exterior work. The original tick-144 livestock stop and tick-384 recovery stop remain recorded; the full ordinary livestock/kitchen chain is still unverified. See [atmosphere](docs/atmosphere.md) and [verification status](docs/verification-status.md). The [v0.1.4 release record](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.4) tracks the final commit, required CI/Pages results and hosted checks; local evidence here does not establish deployment success.
 
 ## Published v0.1.3: hex colonies and deeper food chains
 

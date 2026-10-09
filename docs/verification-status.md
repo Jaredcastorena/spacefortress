@@ -2,9 +2,9 @@
 
 Updated October 9, 2026. This is the compact evidence index for implemented and proposed systems. **Verified** means the named scope passed its stated check. **Pending** means evidence is not yet complete. **Failed** means a known check contradicts the requirement. None of these rows declares the whole game finished.
 
-## Current local air diagnostics and recovery — unreleased
+## v0.1.4 air diagnostics and bounded recovery — schema 46
 
-These changes follow published v0.1.3 without altering schema 46 or gas rules. They clarify breathing limits and preserve the selected speed when importing saves. The bounded recovery below does not complete ordinary livestock/kitchen or exterior-work acceptance.
+Version 0.1.4 follows v0.1.3 without altering schema 46 or gas rules. It clarifies breathing limits and preserves the selected speed when importing saves. The bounded recovery below does not complete ordinary livestock/kitchen or exterior-work acceptance.
 
 | Check | Status | Evidence and scope |
 | --- | --- | --- |
@@ -16,7 +16,7 @@ These changes follow published v0.1.3 without altering schema 46 or gas rules. T
 | First separate recovery | Measured budget stop | One new recovery ran 144→384: 240 ticks/six commands. Paid processor completed at 163 (eight alloy/two components); ten air from one water/25 work completed at 184. No breathable tick. Everyone stayed at 100 health/zero injury with no unmet oxygen; four exact reloads, complete recording and valid ledgers. Endpoint oxygen 50.715774 against 56 required; no air reserve remained. Outcome `d4257393`, endpoint `ddf28a98`. |
 | Reviewed recovery continuation | Verified — bounded success | One stage reused paid infrastructure from 384→460: 76 ticks/three commands. Four batches produced 40 air from four water at 399/414/433/452; home breathable 449–460. All seven crew/five animals at 100 health/zero injury, no unmet oxygen, three exact reloads, complete recording, 97 source files stable. Maximum ledger difference 2.28×10⁻¹³. Outcome `b9fcbfb4`, endpoint `950e579b`, independently reviewed. |
 | Endpoint and remaining limits | Pending — reserve/endurance | Processor paused with fifth batch's one water and 6.333818 work preserved; physical totals include 34.5 water/ten air. Sealed room oxygen exactly 56, its minimum; pressure 78.06%; suits 76.79–78.49%. This establishes bounded recovery only. Durable room/suit reserves, sustained exterior work, paid airlock commissioning/parcel roundtrip and full ordinary livestock/kitchen acceptance remain unverified. |
-| Publication | Unreleased | Diagnostics, import fix and final warning presentation remain local. Published v0.1.3 evidence below retains its own scope. |
+| Hosted release | Release record | See [v0.1.4](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.4) for the final source commit, required CI/Pages results and live checks recorded after verification. The local results above do not assert deployment success. Published v0.1.3 evidence below retains its own scope. |
 
 ## Published v0.1.3 — schema 46
 

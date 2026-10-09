@@ -2,7 +2,9 @@
 
 SPACEFORTRESS is an early playable colony simulator. Release entries describe completed changes within their stated scope.
 
-## Unreleased
+## v0.1.4 — 2026-10-09
+
+Air diagnostics and paused-import patch release; save schema 46 and gas behavior are unchanged. See [release readiness](docs/release-readiness.md) for local evidence and the [v0.1.4 release record](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.4) for the final source commit, CI/Pages and hosted verification.
 
 - Breathing diagnostics share the same first-failure reason as the actual safety check: exterior, smoke, low/high pressure, low/high pressure-adjusted oxygen, or excess exhaled gas. Existing gas arithmetic, safety thresholds, saves and breathing behavior are unchanged.
 - The hidden atmosphere inspector and local-agent observations gain pressure-adjusted oxygen with its 16–30% nominal range and an actionable failed-limit explanation. Normal oxygen concentration alone cannot establish safe breathing: the recorded tick-144 room had 20.736% oxygen concentration but only 15.8476% of nominal oxygen pressure.
@@ -10,7 +12,7 @@ SPACEFORTRESS is an early playable colony simulator. Release entries describe co
 - Save import now restores the actual speed selected before opening the importer, including pause, on completion, failure or cancellation; no save-schema change is required.
 - The shared diagnostic core passed 25 focused checks. One full local Node run passed 1,282 checks with zero failures and one intentional skip. A later presentation-only change made the breathing warning span the inspector width; all seven affected panel checks passed. Browser review confirmed the paused tick-144 import and readable low-oxygen explanation.
 - A separate finite recovery stopped at its tick-384 budget after a paid processor produced ten air; no breathable tick had occurred. The reviewed continuation ran 384→460 in 76 ticks/three commands, producing 40 air from four water and reaching 12 consecutive breathable ticks. Everyone stayed healthy, three reloads were exact and the processor paused with its next committed batch intact.
-- The endpoint has exactly the required 56 oxygen units and suit reserves of 76.79–78.49%. Earlier tick-144 and tick-384 stops remain preserved. Durable air reserves, sustained exterior work, paid airlock commissioning and the full ordinary livestock/kitchen journey remain unverified. These changes are local and unreleased.
+- The endpoint has exactly the required 56 oxygen units and suit reserves of 76.79–78.49%. Earlier tick-144 and tick-384 stops remain preserved. Durable air reserves, sustained exterior work, paid airlock commissioning and the full ordinary livestock/kitchen journey remain unverified.
 
 ## v0.1.3 — 2026-10-08
 
