@@ -25,7 +25,7 @@ import { waterSupply } from './water.js';
 import { itemOwners } from './item-lots.js';
 import { roomComfort } from './comfort.js';
 import { roomStatus } from './rooms.js';
-import { roomAt, breathable } from './atmosphere.js';
+import { roomAt, breathable, breathingStatus } from './atmosphere.js';
 import { temperature } from './thermal.js';
 import { airlockStatus, airlockControlOwner } from './airlock-access.js';
 // Local, opt-in recordings. WeakMap ownership keeps instrumentation out of game saves/RNG.
@@ -67,7 +67,7 @@ export function observe(s) {
     }
     for(const r of rooms) {
       const anchor=[...r.cells].sort((a,b)=>{const [ax,ay]=a.split(',').map(Number),[bx,by]=b.split(',').map(Number);return ay-by||ax-bx;})[0];
-      entities[`room:${site.id}:${anchor}`]={type:'room',site:site.id,...r,derived:{purpose:roomStatus(s,site,r),comfort:roomComfort(s,site,r),temperature:temperature(r),breathable:breathable(r)}};
+      entities[`room:${site.id}:${anchor}`]={type:'room',site:site.id,...r,derived:{purpose:roomStatus(s,site,r),comfort:roomComfort(s,site,r),temperature:temperature(r),breathable:breathable(r),breathing:breathingStatus(r)}};
     }
   }
   for(const site of Object.values(sites))for(const t of site.tiles)if(t.fire)entities[t.fire.id]={type:'fire',...t.fire,tile:tileEntityId(site.id,t.x,t.y)};

@@ -171,9 +171,10 @@ $('export-recording').onclick = () => {
   try { const url=URL.createObjectURL(new Blob([exportRecording(state)],{type:'application/x-ndjson'}));const a=document.createElement('a');a.href=url;a.download=`spacefortress-recording-${state.tick}.ndjson`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Simulation recording exported.'); }
   catch(error){toast(error.message,true);}
 };
-$('import').onclick = () => { setSpeed(0); $('save-file').click(); };
-$('save-file').addEventListener('cancel', () => setSpeed(previousSpeed));
-$('save-file').onchange = async e => { const file = e.target.files[0]; if (!file) return; try { if (file.size > 5_000_000) throw new Error('Save is too large.'); const imported = deserialize(await file.text()); state = imported; lastSave = state.tick; accumulator = 0; setSite('surface'); if (save(true, true)) toast('Colony restored.'); } catch (error) { toast(`Could not import: ${error.message}`, true); } finally { e.target.value = ''; setSpeed(previousSpeed); } };
+let importSpeed = speed;
+$('import').onclick = () => { importSpeed = speed; setSpeed(0); $('save-file').click(); };
+$('save-file').addEventListener('cancel', () => setSpeed(importSpeed));
+$('save-file').onchange = async e => { const restoreSpeed = importSpeed, file = e.target.files[0]; if (!file) { setSpeed(restoreSpeed); return; } try { if (file.size > 5_000_000) throw new Error('Save is too large.'); const imported = deserialize(await file.text()); state = imported; lastSave = state.tick; accumulator = 0; setSite('surface'); if (save(true, true)) toast('Colony restored.'); } catch (error) { toast(`Could not import: ${error.message}`, true); } finally { e.target.value = ''; setSpeed(restoreSpeed); } };
 $('crew-list').onclick = e => { const row = e.target.closest('[data-crew]'); if (!row) return; const c = state.crew.find(c => c.id === row.dataset.crew); setMode('inspect'); if (c.site !== 'transit' && c.site !== siteId) setSite(c.site); selected = { crew: c.id }; renderer.selection = selected; openDrawer('right', 'inspect'); refresh(); };
 $('inspector').addEventListener('input', e => {
   const airlockForm=e.target.closest('[data-airlock-form]');

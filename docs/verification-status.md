@@ -1,8 +1,24 @@
 # Verification status
 
-Updated October 8, 2026. This is the compact evidence index for implemented and proposed systems. **Verified** means the named scope passed its stated check. **Pending** means evidence is not yet complete. **Failed** means a known check contradicts the requirement. None of these rows declares the whole game finished.
+Updated October 9, 2026. This is the compact evidence index for implemented and proposed systems. **Verified** means the named scope passed its stated check. **Pending** means evidence is not yet complete. **Failed** means a known check contradicts the requirement. None of these rows declares the whole game finished.
 
-## Current v0.1.3 — schema 46
+## Current local air diagnostics and recovery — unreleased
+
+These changes follow published v0.1.3 without altering schema 46 or gas rules. They clarify breathing limits and preserve the selected speed when importing saves. The bounded recovery below does not complete ordinary livestock/kitchen or exterior-work acceptance.
+
+| Check | Status | Evidence and scope |
+| --- | --- | --- |
+| Shared breathing status | Verified — focused | 25 core checks cover every first-failure reason, existing thresholds and rounding allowance, read-only purity and the actual tick-144 low-oxygen room. Seven initial panel/telemetry checks pass; corrected CO₂ guidance was checked separately. Gas quantities, thresholds, RNG and save schema are unchanged. |
+| Integrated local gate | Verified | One full Node run: **1,282 passed, zero failed, one intentional historical skip**, with 242 held inputs stable. Receipt `a4ea5b39`. No Python/tooling change or repeat. |
+| Final warning presentation | Verified — affected checks | A later presentation-only change made the breathing-limit explanation span the inspector width with left-aligned text. Seven affected panel checks passed (`1984284b`); no full-suite repeat. |
+| Paused import and browser | Verified — bounded local UI | Import restores the actual speed before opening the importer, including pause, on completion/failure/cancel. The browser imported the original tick-144 checkpoint while paused; the clock stayed 02:24. Inspector readings showed 20.7% oxygen concentration, 15.85% oxygen at current pressure and the shared low-oxygen reason. Final full-width warning reviewed in `31a67d6b`, screenshot `05ba8827`. This is inspection of a separate browser copy, not recovery gameplay. |
+| Original livestock stop | Preserved — measured limit | Tick 144 remains the original unsafe-home stop, with all crew/animals healthy and no slaughter/body/meat/new meal. Read-only diagnosis found 99.45% of room withdrawals came from venting; a powered scrubber had empty input while 24 air remained stored/carried. No gas or scheduler defect was found. Earlier evidence is retained below. |
+| First separate recovery | Measured budget stop | One new recovery ran 144→384: 240 ticks/six commands. Paid processor completed at 163 (eight alloy/two components); ten air from one water/25 work completed at 184. No breathable tick. Everyone stayed at 100 health/zero injury with no unmet oxygen; four exact reloads, complete recording and valid ledgers. Endpoint oxygen 50.715774 against 56 required; no air reserve remained. Outcome `d4257393`, endpoint `ddf28a98`. |
+| Reviewed recovery continuation | Verified — bounded success | One stage reused paid infrastructure from 384→460: 76 ticks/three commands. Four batches produced 40 air from four water at 399/414/433/452; home breathable 449–460. All seven crew/five animals at 100 health/zero injury, no unmet oxygen, three exact reloads, complete recording, 97 source files stable. Maximum ledger difference 2.28×10⁻¹³. Outcome `b9fcbfb4`, endpoint `950e579b`, independently reviewed. |
+| Endpoint and remaining limits | Pending — reserve/endurance | Processor paused with fifth batch's one water and 6.333818 work preserved; physical totals include 34.5 water/ten air. Sealed room oxygen exactly 56, its minimum; pressure 78.06%; suits 76.79–78.49%. This establishes bounded recovery only. Durable room/suit reserves, sustained exterior work, paid airlock commissioning/parcel roundtrip and full ordinary livestock/kitchen acceptance remain unverified. |
+| Publication | Unreleased | Diagnostics, import fix and final warning presentation remain local. Published v0.1.3 evidence below retains its own scope. |
+
+## Published v0.1.3 — schema 46
 
 This release includes seventeen accumulated development commits since v0.1.2 plus physical bodies, butchery and two meat meals. Local results below are accepted within their scope. Historical results later in this document retain their original bounds. Hosted commit, CI, Pages and live checks belong to the [v0.1.3 release record](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.3).
 

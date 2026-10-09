@@ -27,13 +27,25 @@ export function refreshRoom(r) {
   if ((r.smoke||0)/r.volume>=FIRE.smokeLimit)r.air=0;
   if (r.pressure > 150 || r.gas.oxygen / nominal > .3) r.air = 0;
 }
-export function breathable(r) {
-  if (!r) return false;
+export function breathingBlock(r) {
+  if (!r) return 'exterior';
   const oxygenPressure = r.gas.oxygen / (r.volume * GAS_PER_TILE);
   // Recycling/refill arithmetic can leave the .16 floor one adjacent double
   // low. Allow only that comparison roundoff; never clamp the stored gas.
   const minimumOxygenPressure = .16 - Number.EPSILON * .16;
-  return (r.smoke||0)/r.volume<FIRE.smokeLimit && r.pressure >= 55 && r.pressure <= 150 && oxygenPressure >= minimumOxygenPressure && oxygenPressure <= .3 && r.co2Fraction <= .02;
+  if (!((r.smoke||0)/r.volume < FIRE.smokeLimit)) return 'smoke';
+  if (!(r.pressure >= 55)) return 'low_pressure';
+  if (!(r.pressure <= 150)) return 'high_pressure';
+  if (!(oxygenPressure >= minimumOxygenPressure)) return 'low_oxygen';
+  if (!(oxygenPressure <= .3)) return 'high_oxygen';
+  if (!(r.co2Fraction <= .02)) return 'high_co2';
+  return null;
+}
+export const breathable = r => breathingBlock(r) === null;
+export function breathingStatus(r) {
+  const block = breathingBlock(r);
+  return { breathable: block === null, block, oxygenPressure: r ? r.gas.oxygen / (r.volume * GAS_PER_TILE) : null,
+    minimumOxygenPressure: .16, maximumOxygenPressure: .3 };
 }
 export const roomAt = (site, x, y) => site.rooms.find(r => r.cells.includes(key(x, y)));
 export const doorOpen = (t, tick) => t.hp <= 0 || t.doorMode === 'open' || (t.doorMode !== 'closed' && t.doorUntil > tick);

@@ -1,10 +1,20 @@
 # SPACEFORTRESS roadmap
 
-**Release build: v0.1.3 · Save schema: 46.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
+**Published release: v0.1.3 · Save schema: 46 · Current air diagnostics/import fixes: unreleased.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
 
 See the [README](README.md) to play, [verification status](docs/verification-status.md) for evidence and limits, and the [180-system conversion inventory](docs/conversion-inventory.md) for the wider backlog. Completing a milestone below does not complete an entire inventory family or establish full Dwarf Fortress parity.
 
-## Current release: physical bodies and meat meals
+## Current local increment: explain air limits and recover finite supplies
+
+- Shared breathing reasons distinguish oxygen concentration from pressure-adjusted oxygen. The hidden inspector explains the failed limit; local-agent observations use the same classification. Gas arithmetic, thresholds and save schema remain unchanged.
+- Save import preserves the actual prior speed, including pause, across completion, failure and cancellation. Local browser review confirmed the paused tick-144 import and readable full-width warning.
+- The full local gate passed 1,282 checks, zero failures and one intentional skip. After the warning layout changed, only the seven affected presentation checks were rerun and passed.
+- Preserve both earlier stops: ordinary livestock play stopped at 144 on home air; a separate paid recovery reached its 384 budget with one ten-air batch and no breathable tick. The reviewed 384→460 continuation produced 40 air from four water in 76 ticks/three commands and reached 12 consecutive breathable ticks. All seven crew/five animals stayed healthy, with three exact reloads.
+- The endpoint has exactly 56 room oxygen units, the breathing minimum, and suits at 76.79–78.49%. It establishes bounded recovery only. These local changes have not been published.
+
+See [atmosphere](docs/atmosphere.md) and [verification status](docs/verification-status.md) for quantities, source scope and remaining work.
+
+## Published v0.1.3: physical bodies and meat meals
 
 Version 0.1.3 collects seventeen development commits since v0.1.2 and the new butchery increment. Hex construction, finite air recovery, crops and meals, native plants, cultivation, veterinary care and inherited traits are included. Local verification covers 1,264 distinct passes and one intentional skip, including the exact repair of one stale recipe-option fixture after the first full run. Focused food/body/interface/integration coverage is 8/49/9/77. See [release readiness](docs/release-readiness.md) and the linked release record for local and hosted scopes.
 
@@ -18,7 +28,7 @@ See [butchery](docs/butchery.md) for controls, costs and scope.
 
 ### Next: habitat air and the ordinary livestock/kitchen journey
 
-First address finite habitat air and suit/exterior-work demand exposed by the tick-144 stop. Then continue from reviewed physical state to prove ordinary taming, slaughter, body carrying, butchery, ingredient delivery, cooking and eating, while keeping the colony safe. This precedes wider ecosystem expansion. The earlier supplied food and breeding trials do not replace that acceptance.
+Build a measured reserve beyond the minimum reached at tick 460, then verify suit recovery and finite exterior-work demand without losing safe habitat air. Sustained supply, paid airlock commissioning and a parcel roundtrip remain unverified. Continue only from reviewed physical state to prove ordinary taming, slaughter, body carrying, butchery, ingredient delivery, cooking and eating while keeping the colony safe. This precedes wider ecosystem expansion. The earlier supplied food and breeding trials and the new bounded air recovery do not replace that acceptance.
 
 ## Recent increment: inherited livestock traits
 
