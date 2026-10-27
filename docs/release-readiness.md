@@ -6,7 +6,7 @@
 
 ## v0.1.5 — connected floors and utilities
 
-Release scope: accumulated systems fixes, paid stairs, floor selection, shared stair maintenance and finite power/gas/water risers. Save schema57 migrates hex schemas40–56. Focused utility and compatibility checks pass after documented repairs; the release workflow runs syntax, full Node and Python checks before deploying Pages. The release record links the final source commit, workflow and deployed manifest.
+Release scope: accumulated systems fixes, paid stairs, floor selection, shared stair maintenance and finite power/gas/water risers. Save schema57 migrates hex schemas40–56. Focused utility and compatibility checks pass after documented repairs. The complete Node suite passed1,639 active cases with one intentional historical skip, and29 Python checks passed locally. The hosted job hit its ten-minute limit as the Node suite finished; its allowance is now twenty minutes so packaging and server checks can complete before Pages deploys. The release record links the final source commit, workflow and deployed manifest.
 
 The full upstairs build-and-live journey, animal traversal, upper airlocks, solar occlusion and ordinary outpost endurance remain pending. Publication does not establish those outcomes.
 
