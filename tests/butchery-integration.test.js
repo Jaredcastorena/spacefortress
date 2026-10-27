@@ -1,3 +1,5 @@
+import { VERSION as CURRENT_SAVE_VERSION } from '../src/data.js';
+import { projectPreDecks } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, at, step, serialize, deserialize, setLabor } from '../src/simulation.js';
@@ -14,7 +16,7 @@ const action=(s,id,args)=>{const result=executeAction(s,id,args,'test');assert.e
 const job=(s,result)=>s.jobs.find(j=>j.id===result.job);
 const rows=s=>exportRecording(s).trim().split('\n').map(JSON.parse);
 function until(s,predicate,max=100){let ticks=0;while(!predicate()&&ticks<max){step(s);ticks++;}assert.ok(predicate(),`condition not reached within ${max} ticks`);return ticks;}
-function legacy45(s){const old=structuredClone(s);old.version=45;for(const a of old.creatures)delete a.death;return old;}
+function legacy45(s){const old=projectPreDecks(s);old.version=45;for(const a of old.creatures)delete a.death;return old;}
 // Supplied local unit-test fixtures: post, tame adult and single novice handler.
 // The physical movement/work below uses the shared simulation; no old trial is replayed.
 function fixture(dead=false,species='bristleback'){
@@ -23,7 +25,7 @@ function fixture(dead=false,species='bristleback'){
   for(const worker of s.crew)for(const labor of Object.keys(worker.labors))setLabor(s,worker.id,labor,false);
   setLabor(s,c.id,'husbandry',true);c.x=11;c.y=10;
   post.building='husbandryPost';post.hp=100;post.fire=null;source.building=null;source.fire=null;
-  a.x=post.x;a.y=post.y;a.fed=100;a.husbandry.post=[post.x,post.y];a.husbandry.trust=100;a.lifecycle.enabled=false;
+  a.x=post.x;a.y=post.y;a.fed=100;a.husbandry.post={x:post.x,y:post.y,z:0};a.husbandry.trust=100;a.lifecycle.enabled=false;
   if(dead){a.x=source.x;a.y=source.y;assert.equal(registerAnimalDeath(s,a,'unknown'),true);}
   return {s,site,a,c,post,source};
 }
@@ -37,12 +39,12 @@ function apply(observation,record){
   if(record.fromTick!==undefined)observation.tick=record.tick;
 }
 
-test('schema46 shared carcass definitions and detached physical observations expose actual owners',()=>{
+test('current shared carcass definitions and detached physical observations expose actual owners',()=>{
   const f=fixture(true),{s,a,source}=f,api=createAgentInterface(()=>s);
-  assert.equal(s.version,46);assert.deepEqual(api.definitions().butchery,BUTCHERY);
+  assert.equal(s.version,CURRENT_SAVE_VERSION);assert.deepEqual(api.definitions().butchery,BUTCHERY);
   const definitions=api.definitions();definitions.butchery.processWork=99;assert.equal(api.definitions().butchery.processWork,20);
   const observation=observe(s),body=observation.entities[`carcass:${a.id}`];
-  assert.equal(body.type,'carcass');assert.equal(body.x,source.x);assert.equal(body.y,source.y);assert.equal(body.yield,4);
+  assert.equal(body.type,'carcass');assert.equal(body.x,source.x);assert.equal(body.y,source.y);assert.equal(body.z,source.z);assert.equal(body.yield,4);
   body.owner.x=0;observation.entities[a.id].death.age=99;assert.equal(a.death.owner.x,source.x);assert.equal(a.death.age,0);
   assert.equal(observe(s).entities[a.id].derived.carcass.edibleYield,4);checked(s);
 });
@@ -50,7 +52,7 @@ test('schema46 shared carcass definitions and detached physical observations exp
 test('schema45 migration changes only version and death bookkeeping, including exhausted legacy dead',()=>{
   const original=legacy45(createGame(744)),a=original.creatures[0];a.health=0;a.husbandry.product=7;a.husbandry.enabled=true;a.lifecycle.enabled=true;
   const text=serialize(original),physical=totalResources(original),loaded=deserialize(text);
-  assert.equal(loaded.version,46);assert.deepEqual(legacy45(loaded),original);assert.deepEqual(totalResources(loaded),physical);assert.equal(serialize(original),text);
+  assert.equal(loaded.version,CURRENT_SAVE_VERSION);assert.deepEqual(legacy45(loaded),original);assert.deepEqual(totalResources(loaded),physical);assert.equal(serialize(original),text);
   const dead=loaded.creatures[0];assert.equal(dead.death.disposition,'legacy');assert.equal(dead.death.cause,'legacy');assert.equal(dead.death.yield,0);assert.equal(dead.death.age,0);assert.equal(dead.death.owner,null);assert.equal(dead.death.reservedBy,null);
   assert.equal(observe(loaded).entities[`carcass:${dead.id}`],undefined);
   for(const living of loaded.creatures.filter(a=>isLivestock(a)&&a.health>0))assert.equal(living.death,null);
@@ -62,7 +64,7 @@ test('old saves reject mortality, new orders, meat and meal shadows before migra
   for(const version of [40,41,42,43,44,45])for(const mutate of mutations){const old=legacy45(createGame(745));old.version=version;mutate(old);const text=serialize(old);assert.throws(()=>deserialize(text),/shadow/);assert.equal(serialize(old),text);}
 });
 
-test('strict schema46 rejects malformed ownership, missing mortality and inconsistent phases without repair',()=>{
+test('current schema rejects malformed ownership, missing mortality and inconsistent phases without repair',()=>{
   const mutations=[f=>delete f.a.death,f=>f.a.death.extra=true,f=>f.a.death.owner={kind:'crew',crew:'missing'},f=>f.a.death.reservedBy='missing',f=>f.a.death.owner={kind:'job',job:'missing'},f=>f.a.body={},f=>{const j=butcher(f);j.phase='process';},f=>{const j=butcher(f);j.remaining=21;}];
   for(const mutate of mutations){const f=fixture(true);mutate(f);const text=serialize(f.s);assert.throws(()=>deserialize(text));assert.equal(serialize(f.s),text);}
   const live=fixture();live.a.death={};assert.throws(()=>deserialize(serialize(live.s)));
@@ -93,7 +95,7 @@ test('physical collect carry and process reload exactly, with XP only from twent
 
 test('canceling during carriage drops the whole body at the actual handler tile with no output',()=>{
   const f=fixture(true),{s,a,c,post}=f,j=butcher(f);until(s,()=>j.phase==='carry');step(s);
-  assert.equal(j.phase,'carry');const position={site:c.site,x:c.x,y:c.y},age=a.death.age;
+  assert.equal(j.phase,'carry');const position={site:c.site,x:c.x,y:c.y,z:c.z},age=a.death.age;
   action(s,'job.cancel',{job:j.id});assert.deepEqual(a.death.owner,{kind:'tile',...position});assert.equal(a.death.age,age);assert.equal(a.death.reservedBy,null);assert.equal(c.job,null);assert.equal(s.jobs.includes(j),false);assert.equal(foodOfKind(post.drop,'bristlemeat'),0);checked(s);
 });
 
@@ -107,7 +109,7 @@ test('staged interruption preserves work ownership and age, then resumes exactly
 
 test('worker death or immobility cancels carriage and drops at the actual worker position',()=>{
   for(const reason of ['dead','immobile']){
-    const f=fixture(true),{s,a,c,post}=f,j=butcher(f);until(s,()=>j.phase==='carry');const position={site:c.site,x:c.x,y:c.y};
+    const f=fixture(true),{s,a,c,post}=f,j=butcher(f);until(s,()=>j.phase==='carry');const position={site:c.site,x:c.x,y:c.y,z:c.z};
     if(reason==='dead')c.health=0;else c.medical.injury=60;
     step(s);assert.equal(s.jobs.includes(j),false);assert.deepEqual(a.death.owner,{kind:'tile',...position});assert.equal(a.death.reservedBy,null);assert.equal(foodOfKind(post.drop,'bristlemeat'),0);
   }
@@ -115,7 +117,7 @@ test('worker death or immobility cancels carriage and drops at the actual worker
 
 test('lost processing post releases a staged body and its reservation without creating supplies',()=>{
   const f=fixture(true),{s,a,post}=f,j=butcher(f);until(s,()=>j.phase==='process');post.hp=0;
-  step(s);assert.equal(s.jobs.includes(j),false);assert.deepEqual(a.death.owner,{kind:'tile',site:'surface',x:post.x,y:post.y});assert.equal(a.death.reservedBy,null);assert.equal(foodOfKind(post.drop,'bristlemeat'),0);
+  step(s);assert.equal(s.jobs.includes(j),false);assert.deepEqual(a.death.owner,{kind:'tile',site:'surface',x:post.x,y:post.y,z:post.z});assert.equal(a.death.reservedBy,null);assert.equal(foodOfKind(post.drop,'bristlemeat'),0);
 });
 
 test('spoilage during transport cancels edible work and shared disposal creates located waste once',()=>{

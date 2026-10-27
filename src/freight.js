@@ -36,7 +36,7 @@ export function freightRequest(s, siteId, kind, requested = undefined) {
 }
 export function reserveFreight(s, x, y, cost) {
   const items = extract(s.shuttle.freight, cost);
-  return items ? [{ x, y, kind: 'freight', items }] : null;
+  return items ? [{ x, y, z: 0, kind: 'freight', items }] : null;
 }
 export function freightOrdered(s, job) {
   const transfers = job.sources.map((source, index) => ({ cargo: copy(source.items), from: source.kind === 'freight' ? { entity: 'colony', slot: 'shuttle.freight' } : { entity: tileEntityId(job.site, source.x, source.y), slot: source.kind }, to: { entity: job.id, slot: `sources.${index}` } }));

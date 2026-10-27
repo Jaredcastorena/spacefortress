@@ -26,7 +26,7 @@
     </aside>
     <main class="viewport">
       <canvas id="world" tabindex="0" aria-label="Isometric colony map. Use the mouse to select tiles and designate work. Arrow keys pan the map."></canvas>
-      <div class="view-heading"><div id="site-label" class="eyebrow"></div><h1 id="site-name"></h1><p id="site-subtitle"></p></div>
+      <div class="view-heading"><div id="site-label" class="eyebrow"></div><div class="site-title"><h1 id="site-name"></h1><details id="floor-menu" class="floor-menu"><summary id="floor-label" title="Choose floor (Page Up / Page Down)">Floor 0</summary><div id="floor-list" class="floor-list" aria-label="Installed floors"></div></details></div><p id="site-subtitle"></p></div>
       <div class="map-controls"><button id="zoom-out" aria-label="Zoom out">−</button><button id="center" title="Center view (Home)">⌖</button><button id="zoom-in" aria-label="Zoom in">+</button><button id="cutaway" aria-pressed="true" title="Toggle wall cutaway">Cutaway</button><button id="power-overlay" aria-pressed="false" title="Show electrical circuits">Power</button><button id="water-overlay" aria-pressed="false" title="Show water pipes, valves and directional devices">Water</button><button id="gas-overlay" aria-pressed="false" title="Show gas pipes, isolation valves and pump directions">Gas</button></div>
       <div id="environment" class="environment"></div>
       <div id="toast" class="toast" role="status"></div>

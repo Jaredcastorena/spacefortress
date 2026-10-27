@@ -1,9 +1,12 @@
+import {activeUtilityLinks} from './utility-links.js';
 import { BUILDINGS } from './data.js';
 import { breakerClosed, BREAKER_DIRECTIONS } from './breakers.js';
-import { DIRECTIONS, step, opposite, tileAt } from './geometry.js';
+import { DIRECTIONS, step, opposite } from './geometry.js';
+import { tileAt, cellKey, positionOf, sameCell } from './spatial.js';
 
 export { breakerClosed as breakerContactClosed, BREAKER_DIRECTIONS as POWER_DIRECTIONS };
-export const powerTileKey = t => `${t.x},${t.y}`;
+// Keep existing ground graph IDs; other decks have distinct explicit keys.
+export const powerTileKey = t => {const p=positionOf(t);return p.z===0?`${p.x},${p.y}`:cellKey(p);};
 export const breakerTerminals = t => ({input:`${powerTileKey(t)}:input`,output:`${powerTileKey(t)}:output`});
 const ordinaryElectrical = t => !!(BUILDINGS[t.building]?.output || BUILDINGS[t.building]?.demand || t.building==='battery');
 const conducting = t => t.cable ? t.cable.enabled && t.cable.hp>0 : ordinaryElectrical(t) && t.hp>0;
@@ -12,13 +15,14 @@ const at = tileAt;
 function facing(t,terminal) {
   const direction=t.protection?.direction;
   if(!Object.hasOwn(BREAKER_DIRECTIONS,direction))return null;
-  return step(t.x,t.y,terminal==='input'?opposite(direction):direction);
+  const [x,y]=step(t.x,t.y,terminal==='input'?opposite(direction):direction);
+  return {x,y,z:positionOf(t).z};
 }
 function matchingVertex(t,from) {
   if(t.building!=='breaker')return conducting(t)?powerTileKey(t):null;
   for(const terminal of ['input','output']) {
     const position=facing(t,terminal);
-    if(position&&position[0]===from.x&&position[1]===from.y)return breakerTerminals(t)[terminal];
+    if(position&&sameCell(position,positionOf(from)))return breakerTerminals(t)[terminal];
   }
   return null;
 }
@@ -28,6 +32,8 @@ function matchingVertex(t,from) {
 // as in the legacy allocator. A breaker owns two vertices and no allocation tile.
 export function buildPowerTopology(site,{openContacts=new Set()}={}) {
   const vertices=new Map(),adjacency=new Map(),membership=new Map();
+  const riserNeighbors=new Map();
+  for(const link of activeUtilityLinks(site,'power'))for(const [from,to] of [[link.lower,link.upper],[link.upper,link.lower]]){const k=powerTileKey(from);riserNeighbors.set(k,[...(riserNeighbors.get(k)||[]),to]);}
   for(const t of site.tiles) {
     if(t.building==='breaker') {
       const terminals=breakerTerminals(t);
@@ -41,23 +47,25 @@ export function buildPowerTopology(site,{openContacts=new Set()}={}) {
     if(terminal) {
       const position=facing(t,terminal);
       if(position) {
-        const neighbor=at(site,...position);
+        const neighbor=at(site,position);
         const endpoint=neighbor&&matchingVertex(neighbor,t);
         if(endpoint&&vertices.has(endpoint))edges.push(endpoint);
       }
       if(breakerClosed(t)&&!openContacts.has(powerTileKey(t)))edges.push(breakerTerminals(t)[terminal==='input'?'output':'input']);
     }else if(conducting(t)) {
       for(const direction of DIRECTIONS) {
-        const neighbor=at(site,...step(t.x,t.y,direction)),endpoint=neighbor&&matchingVertex(neighbor,t);
+        const [x,y]=step(t.x,t.y,direction),neighbor=at(site,{x,y,z:positionOf(t).z}),endpoint=neighbor&&matchingVertex(neighbor,t);
         if(endpoint&&vertices.has(endpoint))edges.push(endpoint);
       }
     }
+    if(!terminal&&conducting(t))for(const p of (riserNeighbors.get(powerTileKey(t))||[])){const n=at(site,p),endpoint=n&&matchingVertex(n,t);if(endpoint&&vertices.has(endpoint))edges.push(endpoint);}
     adjacency.set(id,edges);
   }
   const circuits=[];
   for(const [startId,start] of vertices) {
     if(membership.has(startId))continue;
-    const circuitId=`circuit-${start.tile.y*site.size+start.tile.x}${start.terminal?`-${start.terminal}`:''}`;
+    const z=positionOf(start.tile).z;
+    const circuitId=`circuit-${start.tile.y*site.size+start.tile.x}${z===0?'':`-z${z}`}${start.terminal?`-${start.terminal}`:''}`;
     const cells=[startId],tiles=[],terminals=[];membership.set(startId,circuitId);
     for(let i=0;i<cells.length;i++) {
       const vertex=vertices.get(cells[i]);

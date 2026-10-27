@@ -28,11 +28,18 @@ import { roomStatus } from './rooms.js';
 import { roomAt, breathable, breathingStatus } from './atmosphere.js';
 import { temperature } from './thermal.js';
 import { airlockStatus, airlockControlOwner } from './airlock-access.js';
+import { workReadiness } from './crew.js';
+import { suitReleaseStatus } from './suit-release-status.js';
+import { resourceEntries } from './inventory.js';
 // Local, opt-in recordings. WeakMap ownership keeps instrumentation out of game saves/RNG.
-export const TELEMETRY_VERSION = 1;
+export const TELEMETRY_VERSION = 9;
 const sessions = new WeakMap();
 const clone = value => JSON.parse(JSON.stringify(value));
-export const tileEntityId = (site,x,y) => `tile:${site}:${x}:${y}`;
+export const tileEntityId = (site,x,y,z=0) => `tile:${site}:${x}:${y}${z===0?'':`:${z}`}`;
+export const roomEntityId = (site,r) => {
+  const anchor=[...r.cells].sort((a,b)=>{const [ax,ay]=a.split(',').map(Number),[bx,by]=b.split(',').map(Number);return ay-by||ax-bx;})[0];
+  return `room:${site}:${anchor}${r.z?`:${r.z}`:''}`;
+};
 export function observe(s) {
   const {sites,crew,jobs,creatures,...colony}=s;
   const selectedCrewIds=[...(s.departure?.crew||s.mission?.crew||[])],destination=s.departure?.site||s.mission?.site||null;
@@ -63,15 +70,14 @@ export function observe(s) {
       const flora=t.flora?floraStatus(s,site,t):null;
       const cultivation=t.terrain==='ground'||flora?Object.fromEntries(Object.values(FLORA).filter(def=>def.foodKind).map(def=>[def.id,{planting:plantingEligibility(s,site,t,def.id),watering:wateringEligibility(s,site,t,def.id)}])):null;
       const derived=plumbing||electrical||airlock||owned||production||flora||cultivation?{...previousDerived,...(flora?{flora}:{}),...(cultivation?{cultivation}:{}),...(production?{production}:{}),...(plumbing?{plumbing}:{}),...(electrical?{electrical}:{}),...(airlock?{airlock}:{}),...(owned?{airlockOwnership:ownership}:{})}:previousDerived;
-      entities[tileEntityId(site.id,t.x,t.y)]={type:'tile',site:site.id,...t,...(derived?{derived}:{})};
+      entities[tileEntityId(site.id,t.x,t.y,t.z)]={type:'tile',site:site.id,...t,...(derived?{derived}:{})};
     }
     for(const r of rooms) {
-      const anchor=[...r.cells].sort((a,b)=>{const [ax,ay]=a.split(',').map(Number),[bx,by]=b.split(',').map(Number);return ay-by||ax-bx;})[0];
-      entities[`room:${site.id}:${anchor}`]={type:'room',site:site.id,...r,derived:{purpose:roomStatus(s,site,r),comfort:roomComfort(s,site,r),temperature:temperature(r),breathable:breathable(r),breathing:breathingStatus(r)}};
+      entities[roomEntityId(site.id,r)]={type:'room',site:site.id,...r,derived:{purpose:roomStatus(s,site,r),comfort:roomComfort(s,site,r),temperature:temperature(r),breathable:breathable(r),breathing:breathingStatus(r)}};
     }
   }
-  for(const site of Object.values(sites))for(const t of site.tiles)if(t.fire)entities[t.fire.id]={type:'fire',...t.fire,tile:tileEntityId(site.id,t.x,t.y)};
-  for(const c of crew) {const site=sites[c.site];entities[c.id]={type:'crew',...c,derived:{expedition:{...expeditionCrewStatus(c),selected:selectedCrewIds.includes(c.id),selectedForReturn:returningCrewIds.includes(c.id)},residence:residences.get(c.id)||null,currentComfort:site?roomComfort(s,site,roomAt(site,c.x,c.y),c):null,homeComfort:c.housing.bunk?roomComfort(s,sites.surface,roomAt(sites.surface,...c.housing.bunk),c):null}};}
+  for(const site of Object.values(sites))for(const t of site.tiles)if(t.fire)entities[t.fire.id]={type:'fire',...t.fire,tile:tileEntityId(site.id,t.x,t.y,t.z)};
+  for(const c of crew) {const site=sites[c.site];entities[c.id]={type:'crew',...c,derived:{work:workReadiness(c),suitRelease:suitReleaseStatus(s,c.id),expedition:{...expeditionCrewStatus(c),selected:selectedCrewIds.includes(c.id),selectedForReturn:returningCrewIds.includes(c.id)},residence:residences.get(c.id)||null,currentComfort:site?roomComfort(s,site,roomAt(site,c.x,c.y,c.z),c):null,homeComfort:c.housing.bunk?roomComfort(s,sites.surface,roomAt(sites.surface,c.housing.bunk.x,c.housing.bunk.y,c.housing.bunk.z),c):null}};}
   for(const j of jobs) entities[j.id]={type:'job',...j};
   const pastures=pastureRegions(sites.surface);
   for(const r of pastures.regions)if(r.enclosed)entities[r.id]={type:'pasture',site:'surface',...r};
@@ -145,6 +151,13 @@ function append(s,record,after) {
   const entry={sequence:r.records.length+1,tick:s.tick,...record},bytes=new TextEncoder().encode(JSON.stringify(entry)).length;
   if(r.records.length>=r.maxRecords||r.bytes+bytes>r.maxBytes){r.active=false;r.reason=r.records.length>=r.maxRecords?'record_limit':'byte_limit';return null;}
   r.records.push(entry);r.bytes+=bytes;if(after)r.last=after;return entry.sequence;
+}
+// Quantities describe a committed transfer; item.moved retains individual identities.
+export function emitInventoryMovement(s, inventory, actor, from, to) {
+  if (!sessions.get(s)?.active) return;
+  const resources = Object.fromEntries(resourceEntries(inventory).filter(([, amount]) => Number.isFinite(amount) && amount > 0));
+  if (Object.keys(resources).length) emitEvent(s, 'inventory.transferred', { entity: actor ?? to.entity, actor, from, to, resources });
+  emitItemMovement(s, inventory, actor, from, to);
 }
 export function emitItemMovement(s,inventory,actor,from,to) { for(const item of inventory?._items||[])emitEvent(s,'item.moved',{entity:item.id,actor,from,to}); }
 export function emitEvent(s,id,details={}) { const r=sessions.get(s);if(r?.active)append(s,{kind:'event',command:r.command,event:{id,...clone(details)},changes:[]}); }

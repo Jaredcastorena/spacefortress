@@ -7,7 +7,7 @@ export const BREAKER_DIRECTIONS = Object.freeze(Object.fromEntries(DIRECTIONS.ma
 export const BREAKER_MODES = ['manual','wet_fault'];
 const at=tileAt;
 const state=t=>({...t.protection});
-const id=(site,t)=>tileEntityId(site.id,t.x,t.y);
+const id=(site,t)=>tileEntityId(site.id,t.x,t.y,t.z);
 export function initializeBreakerTile(t) {
  if(t.building==='breaker')t.protection??={kind:'breaker',direction:'ne',enabled:false,mode:'manual',tripped:false,cause:null};
 }
@@ -22,8 +22,8 @@ export function breakerStatus(s,site,t) {
 function changed(s,site,t,event,previous,cause,faultEntities=[]) {
  emitEvent(s,event,{entity:id(site,t),previous,next:state(t),cause,faultEntities,tick:s.tick});
 }
-export function setBreaker(s,siteId,x,y,enabled,direction,mode) {
- const site=s.sites[siteId],t=at(site,x,y),p=t?.protection;
+export function setBreaker(s,siteId,x,y,enabled,direction,mode,z=0) {
+ const site=s.sites[siteId],t=at(site,x,y,z),p=t?.protection;
  if(t?.building!=='breaker'||!p||typeof enabled!=='boolean'||!Object.hasOwn(BREAKER_DIRECTIONS,direction)||!BREAKER_MODES.includes(mode))return {ok:false,message:'Choose a breaker with valid contact controls.'};
  // Evaluate the old contact before changing anything: an open-and-reconfigure
  // request cannot bypass the requirement to open it first.
@@ -33,8 +33,8 @@ export function setBreaker(s,siteId,x,y,enabled,direction,mode) {
  const previous=state(t);t.protection={...p,enabled,direction,mode};
  power.refreshPower(s,site);changed(s,site,t,'power.breaker.changed',previous,'configuration');return {ok:true};
 }
-export function resetBreaker(s,siteId,x,y) {
- const site=s.sites[siteId],t=at(site,x,y),p=t?.protection;
+export function resetBreaker(s,siteId,x,y,z=0) {
+ const site=s.sites[siteId],t=at(site,x,y,z),p=t?.protection;
  if(t?.building!=='breaker'||!p)return {ok:false,message:'Select a breaker.'};
  if(t.hp<=0||breakerClosed(t)||t.fire)return {ok:false,message:t.hp<=0?'Repair the breaker before resetting it.':t.fire?'Suppress the fire before resetting the breaker.':'Open the breaker before resetting it.'};
  if(!p.tripped&&p.cause===null&&!p.enabled)return {ok:true};

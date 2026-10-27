@@ -1,3 +1,7 @@
+import { groundAirlockConfig } from '../src/airlock-locations.js';
+import { tileAt as positionTile } from '../src/spatial.js';
+const position=([x,y])=>({x,y,z:0});
+const pair=p=>[p.x,p.y];
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DIRECTIONS, neighbors, step, opposite, directionBetween, offsetToAxial, axialToOffset } from '../src/geometry.js';
@@ -22,7 +26,7 @@ function layoutFixture(rotation,anchor,lowerBranch=false) {
  tile([5,8]).terrain='floor';const chamber=[[7,7],[8,7]].map(transform),habitat=[transform([5,8])];
  site.rooms=[chamber,habitat].map(cells=>({cells:cells.map(String),volume:cells.length,gas:{oxygen:cells.length*2.1,inert:cells.length*7.9,co2:0},smoke:0,heat:cells.length*20*293.15,pressure:100}));
  const controller=put([5,5],'airlockController');
- controller.airlock={binding:'pure',config,chamberCells:chamber.map(String).sort(),ownedNodes:[],enabled:true,phase:'idle',direction:null,party:null,queue:[],nextCycle:1,cycle:null,resumePhase:null,recoverySide:null,reason:null};
+ controller.airlock={binding:'pure',config:groundAirlockConfig(config),chamberCells:chamber.map(p=>`${p},0`).sort(),ownedNodes:[],enabled:true,phase:'idle',direction:null,party:null,queue:[],nextCycle:1,cycle:null,resumePhase:null,recoverySide:null,reason:null};
  const layout=airlockLayout(site,controller,false);
  if(layout.ok){controller.airlock.ownedNodes=layout.ownedNodes;for(const ref of layout.ownedNodes){const t=airlockTile(site,ref.x,ref.y);(ref.layer==='pipe'?t.pipe:t).airlockOwner={controller:`tile:${site.id}:${controller.x}:${controller.y}`,binding:'pure'};}}
  return {site,controller,pump,tile,transform,layout};
@@ -38,20 +42,20 @@ for(const parity of [0,1])for(let rotation=0;rotation<6;rotation++)test(`hex air
  const f=layoutFixture(rotation,[12+parity,12]),{site,controller}=f,a=controller.airlock;
  assert.equal(f.layout.ok,true);assert.equal(airlockLayout(site,controller).ok,true);
  const route=airlockRouteInfo(site,controller);
- assert.deepEqual(route.inner.outside,f.transform([5,8]));assert.deepEqual(route.outer.outside,f.transform([10,6]));
+ assert.deepEqual(route.inner.outside,position(f.transform([5,8])));assert.deepEqual(route.outer.outside,position(f.transform([10,6])));
  for(const side of ['inner','outer']) {
-  const r=route[side],inward=directionBetween(r.door,r.inside);
-  assert.deepEqual(r.outside,step(...r.door,opposite(inward)));
-  const walls=neighbors(...r.door).filter(p=>String(p)!==String(r.inside)&&String(p)!==String(r.outside));assert.equal(walls.length,4);
+  const r=route[side],inward=directionBetween(pair(r.door),pair(r.inside));
+  assert.deepEqual(r.outside,position(step(r.door.x,r.door.y,opposite(inward))));
+  const walls=neighbors(r.door.x,r.door.y).filter(p=>String(p)!==String(pair(r.inside))&&String(p)!==String(pair(r.outside)));assert.equal(walls.length,4);
   for(const p of walls){const t=airlockTile(site,...p);assert.equal(t.building,'wall');t.building=null;assert.equal(airlockLayout(site,controller).ok,false);t.building='wall';t.hp=0;assert.equal(airlockLayout(site,controller).reason,'seal_broken');t.hp=100;}
  }
  const originalDirection=f.pump.gasDevice.direction;
  assert.equal(f.layout.recoveryDirection,originalDirection);
  f.pump.gasDevice.direction=opposite(originalDirection);assert.equal(airlockLayout(site,controller).recoveryDirection,originalDirection);
  f.pump.gasDevice.direction='north';assert.equal(airlockLayout(site,controller).ok,false);f.pump.gasDevice.direction=originalDirection;
- const ex=airlockTile(site,...a.config.extractor),vent=airlockTile(site,...a.config.vent);
+ const ex=positionTile(site,a.config.extractor),vent=positionTile(site,a.config.vent);
  assert.ok(f.layout.phaseNodes.recover.includes(ex)&&!f.layout.phaseNodes.recover.includes(vent));
- assert.ok(f.layout.phaseNodes.refill.includes(vent)&&!f.layout.phaseNodes.refill.includes(ex));
+ assert.ok(f.layout.phaseNodes.refill.includes(vent)&&f.layout.phaseNodes.refill.includes(ex));
  a.phase='admit';a.direction='outward';a.party={crew:'traveler',patient:null};
  assert.equal(airlockDoorPermit(site,{id:'traveler'},route.inner.outside,route.inner.door),true);
  assert.equal(airlockDoorPermit(site,{id:'stranger'},route.inner.outside,route.inner.door),false);

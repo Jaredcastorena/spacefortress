@@ -1,3 +1,4 @@
+import { tileAt } from './spatial.js';
 import { FLORA, CULTIVATION } from './flora-data.js';
 import { CROPS, MEAL_RECIPES, FOOD_KINDS } from './food-data.js';
 import { LIVESTOCK, VETERINARY } from './livestock-data.js';
@@ -25,7 +26,9 @@ import { setClimate } from './thermal.js';
 import { setDepotAccepted, setDepotPriority } from './storage.js';
 import { setProductionOrder, setProductionPriority, setProductionRecipe } from './production.js';
 import { setMachineEnabled } from './industry.js';
-import { setDoorMode } from './atmosphere.js';
+import { setStairHatch } from './vertical.js';
+import { setDoorMode, refreshAtmosphere } from './atmosphere.js';
+import { releaseSuitOxygen } from './suit-supply.js';
 import { configureAirlock, enableAirlock, requestAirlock, cancelAirlock, releaseAirlock, unbindAirlock } from './airlocks.js';
 import { setCargoAccepted, resumeExpedition, setReturnCrew } from './expedition.js';
 import { OUTPOST_SITES, setOutpostResidents } from './outposts.js';
@@ -42,6 +45,10 @@ const inventoryRequest={type:'object',properties:Object.fromEntries(RESOURCES.ma
 const optional=schema=>({...schema,optional:true});
 const entries=[];
 function register(id,binding,description,parameters,run) {entries.push({id,binding,description,parameters,run});}
+// Append the optional deck so existing positional player bindings keep their order.
+function registerTile(id,binding,description,parameters,run) {
+  register(id,binding,description+' Omitted z targets the landing deck.',{...parameters,z:optional(integer(Number.MIN_SAFE_INTEGER,Number.MAX_SAFE_INTEGER))},run);
+}
 // Domain airlock commands take named arguments; player bindings retain the
 // existing positional adapter and share the same strict public schema.
 function registerAirlock(id,binding,description,parameters,run) {
@@ -54,8 +61,11 @@ registerAirlock('airlock.request','requestAirlock','Queue one local traveler or 
 registerAirlock('airlock.cancel','cancelAirlock','Cancel a waiting request or safely return an admitted party.',{...xy,crew},cancelAirlock);
 registerAirlock('airlock.release','releaseAirlock','Manually release one side with the opposite door physically sealed.',{...xy,side:enumeration(['inner','outer']),acceptAtmosphereLoss:{type:'boolean',enum:[true]}},releaseAirlock);
 registerAirlock('airlock.unbind','unbindAirlock','Restore manual control of an idle, empty, closed airlock.',{...xy},unbindAirlock);
-register('job.order','order','Designate physical work, plant a ground bed, water it once, or gather a mature plant. Materials and workers must still reach the target.',{...xy,kind:enumeration(['extinguish','build','mine','gather','plant','waterPlant','remove','repair','service','refit','unloadShuttle','repairPipe','removePipe','repairWaterPipe','removeWaterPipe','repairCable','removeCable','animalTreat','treat','feed','hygiene']),building:optional({type:['string','null'],description:'Building ID, edible plant species for planting, watering or gathering, shuttle fit ID, animal ID for treatment, or patient crew ID, depending on kind.'})},sim.order);
+registerTile('job.order','order','Designate physical work, plant a ground bed, water it once, or gather a mature plant. Materials and workers must still reach the target.',{...xy,kind:enumeration(['extinguish','build','mine','gather','plant','waterPlant','remove','repair','service','refit','unloadShuttle','repairPipe','removePipe','repairWaterPipe','removeWaterPipe','repairCable','removeCable','animalTreat','treat','feed','hygiene']),building:optional({type:['string','null'],description:'Building ID, edible plant species for planting, watering or gathering, shuttle fit ID, animal ID for treatment, or patient crew ID, depending on kind.'})},sim.order);
+register('utility.configure','setUtilityRiser','Enable or isolate a paid utility riser independently of stairs.',{site,connection:{type:'string'},enabled},sim.setUtilityRiser);
+register('vertical.hatch','setStairHatch','Control an existing stairwell hatch; closing requires clear landings.',{site,connection:{type:'string'},mode:enumeration(['auto','open','closed'])},(s,siteId,connection,mode)=>{const result=setStairHatch(s,siteId,connection,mode);if(result.ok)refreshAtmosphere(s.sites[siteId]);return result;});
 register('job.cancel','cancelJob','Cancel an existing order; preserve its located materials.',{job},(s,id)=>{if(!s.jobs.some(j=>j.id===id))return {ok:false,message:'Unknown job.'};sim.cancelJob(s,id);return {ok:true};});
+register('crew.suit.release','releaseSuitOxygen','Release finite suit oxygen into the current sealed room, spending the crew member’s breathing reserve.',{crew,points:integer(1,100)},releaseSuitOxygen);
 register('crew.labor','setLabor','Enable or disable one work duty.',{crew,labor:enumeration(Object.keys(LABORS)),enabled},sim.setLabor);
 register('job.priority','setJobPriority','Set assignment priority for a pending job.',{job,priority},sim.setJobPriority);
 register('expedition.launch','launch','Plan supplied loading and boarding. Choose two crew, or one pilot for an already established wreck outpost; omitting crewIds still selects two.',{site,crewIds:optional({type:'array',items:crew,minItems:1,maxItems:2,uniqueItems:true})},sim.launch);
@@ -69,35 +79,35 @@ register('freight.unload','unloadFreight','Order workers to unload specified fre
 register('outpost.residents','setOutpostResidents','Station named visitors in a ready habitat while retaining a living return passenger. Remote residents leave only on physical departure; remove surface or deceased entries here.',{site:enumeration(OUTPOST_SITES),crewIds:{type:'array',items:crew,minItems:0,maxItems:7,uniqueItems:true}},setOutpostResidents);
 register('signal.resolve','resolveSignal','Investigate or isolate the current anomaly.',{investigate:enabled},sim.resolveSignal);
 register('power.discharge_cell','dischargeCell','Consume a stored energy cell to charge a bank.',{x:optional({type:['integer','null'],minimum:0,maximum:1000}),y:optional({type:['integer','null'],minimum:0,maximum:1000})},sim.dischargeCell);
-register('housing.assign','setBunkOwner','Assign a bunk to one living crew member, or null for communal use.',{...xy,crew:{type:['string','null'],entityType:'crew'}},setBunkOwner);
-register('room.designate','setRoomDesignation','Set the purpose of the selected connected compartment.',{...xy,role:enumeration(Object.keys(ROOM_ROLES))},setRoomDesignation);
-register('gas.valve','setGasValve','Open or close a gas port; retain trapped gas.',{...xy,open:enabled},setGasValve);
-register('gas.device','setGasDevice','Enable or rotate a pump, or set a vent pressure target.',{...xy,enabled,direction:enumeration(Object.keys(GAS_DIRECTIONS)),target:integer(0,150)},setGasDevice);
-register('gas.extractor','setGasExtractor','Retain CO2 and smoke, or exhaust into storage down to a pressure target.',{...xy,enabled,mode:enumeration(['filter','exhaust']),target:integer(0,150)},setGasExtractor);
-register('plumbing.valve','setWaterValve','Open or close a water pipe or reservoir valve; retain its contents.',{...xy,open:enabled},setWaterValve);
-register('plumbing.pump','setWaterPump','Enable or rotate a directional water pump.',{...xy,enabled,direction:enumeration(Object.keys(WATER_DIRECTIONS))},setWaterPump);
-register('plumbing.intake','setWaterIntake','Configure water collection from an adjacent inventory or floor into a pipe or reservoir.',{...xy,enabled,direction:enumeration(Object.keys(WATER_DIRECTIONS)),mode:enumeration(['inventory','floor'])},setWaterIntake);
-register('plumbing.outlet','setWaterOutlet','Configure water delivery from a pipe or reservoir into an adjacent inventory or floor.',{...xy,enabled,direction:enumeration(Object.keys(WATER_DIRECTIONS)),mode:enumeration(['inventory','floor'])},setWaterOutlet);
-register('water.tank','setTank','Control tank refill assignments and floor drain valve.',{...xy,fill:enabled,drain:enabled},setTank);
-register('reactor.configure','setReactor','Set reactor output and enabled state; preserve an overheat latch.',{...xy,percent:integer(0,100),enabled},setReactor);
-register('reactor.reset','resetReactor','Reset a cooled, repaired reactor after overheat shutdown.',xy,resetReactor);
-register('radiator.configure','setRadiator','Enable or isolate passive reactor cooling.',{...xy,enabled},setRadiator);
-register('climate.configure','setClimate','Set a climate target and enabled state.',{...xy,target:{type:'number',minimum:-20,maximum:35},enabled},setClimate);
-register('depot.accept','setDepotAccepted','Change a depot filter without deleting stored supplies.',{...xy,resource:enumeration(RESOURCES),enabled},setDepotAccepted);
-register('depot.priority','setDepotPriority','Set delivery priority for a depot.',{...xy,priority},setDepotPriority);
-register('production.recipe','setProductionRecipe','Select the next crop or galley recipe while finishing the committed batch.',{...xy,recipe:enumeration([...Object.keys(CROPS).filter(id=>id!=='legacy_crop'),...Object.keys(MEAL_RECIPES)])},setProductionRecipe);
-register('production.order','setProductionOrder','Set continuous production, fixed batches or a stock target.',{...xy,mode:enumeration(['continuous','batches','stock']),limit:integer(0,1000)},setProductionOrder);
-register('production.priority','setProductionPriority','Set priority for workstation operators and input delivery.',{...xy,priority},setProductionPriority);
-register('production.enable','setMachineEnabled','Pause or resume a machine while retaining its inputs and batch.',{...xy,enabled},setMachineEnabled);
-register('maintenance.auto','setAutoService','Enable or disable automatic engineering service.',{...xy,enabled},setAutoService);
-register('power.priority','setPowerPriority','Set circuit load priority.',{...xy,priority},setPowerPriority);
-register('power.breaker','setBreaker','Configure a physical breaker contact; orientation and mode changes require an open contact.',{...xy,enabled,direction:enumeration(Object.keys(BREAKER_DIRECTIONS)),mode:enumeration(BREAKER_MODES)},setBreaker);
-register('power.breaker.reset','resetBreaker','Reset an intact open breaker and leave its contact open.',xy,resetBreaker);
-register('power.cable','setCableEnabled','Connect or isolate a cable segment.',{...xy,enabled},setCableEnabled);
+registerTile('housing.assign','setBunkOwner','Assign a bunk to one living crew member, or null for communal use.',{...xy,crew:{type:['string','null'],entityType:'crew'}},setBunkOwner);
+registerTile('room.designate','setRoomDesignation','Set the purpose of the selected connected compartment.',{...xy,role:enumeration(Object.keys(ROOM_ROLES))},setRoomDesignation);
+registerTile('gas.valve','setGasValve','Open or close a gas port; retain trapped gas.',{...xy,open:enabled},setGasValve);
+registerTile('gas.device','setGasDevice','Enable or rotate a pump, or set a vent pressure target.',{...xy,enabled,direction:enumeration(Object.keys(GAS_DIRECTIONS)),target:integer(0,150)},setGasDevice);
+registerTile('gas.extractor','setGasExtractor','Retain CO2 and smoke, or exhaust into storage down to a pressure target.',{...xy,enabled,mode:enumeration(['filter','exhaust']),target:integer(0,150)},setGasExtractor);
+registerTile('plumbing.valve','setWaterValve','Open or close a water pipe or reservoir valve; retain its contents.',{...xy,open:enabled},setWaterValve);
+registerTile('plumbing.pump','setWaterPump','Enable or rotate a directional water pump.',{...xy,enabled,direction:enumeration(Object.keys(WATER_DIRECTIONS))},setWaterPump);
+registerTile('plumbing.intake','setWaterIntake','Configure water collection from an adjacent inventory or floor into a pipe or reservoir.',{...xy,enabled,direction:enumeration(Object.keys(WATER_DIRECTIONS)),mode:enumeration(['inventory','floor'])},setWaterIntake);
+registerTile('plumbing.outlet','setWaterOutlet','Configure water delivery from a pipe or reservoir into an adjacent inventory or floor.',{...xy,enabled,direction:enumeration(Object.keys(WATER_DIRECTIONS)),mode:enumeration(['inventory','floor'])},setWaterOutlet);
+registerTile('water.tank','setTank','Control tank refill assignments and floor drain valve.',{...xy,fill:enabled,drain:enabled},setTank);
+registerTile('reactor.configure','setReactor','Set reactor output and enabled state; preserve an overheat latch.',{...xy,percent:integer(0,100),enabled},setReactor);
+registerTile('reactor.reset','resetReactor','Reset a cooled, repaired reactor after overheat shutdown.',xy,resetReactor);
+registerTile('radiator.configure','setRadiator','Enable or isolate passive reactor cooling.',{...xy,enabled},setRadiator);
+registerTile('climate.configure','setClimate','Set a climate target and enabled state.',{...xy,target:{type:'number',minimum:-20,maximum:35},enabled},setClimate);
+registerTile('depot.accept','setDepotAccepted','Change a depot filter without deleting stored supplies.',{...xy,resource:enumeration(RESOURCES),enabled},setDepotAccepted);
+registerTile('depot.priority','setDepotPriority','Set delivery priority for a depot.',{...xy,priority},setDepotPriority);
+registerTile('production.recipe','setProductionRecipe','Select the next crop or galley recipe while finishing the committed batch.',{...xy,recipe:enumeration([...Object.keys(CROPS).filter(id=>id!=='legacy_crop'),...Object.keys(MEAL_RECIPES)])},setProductionRecipe);
+registerTile('production.order','setProductionOrder','Set continuous production, fixed batches or a stock target.',{...xy,mode:enumeration(['continuous','batches','stock']),limit:integer(0,1000)},setProductionOrder);
+registerTile('production.priority','setProductionPriority','Set priority for workstation operators and input delivery.',{...xy,priority},setProductionPriority);
+registerTile('production.enable','setMachineEnabled','Pause or resume a machine while retaining its inputs and batch.',{...xy,enabled},setMachineEnabled);
+registerTile('maintenance.auto','setAutoService','Enable or disable automatic engineering service.',{...xy,enabled},setAutoService);
+registerTile('power.priority','setPowerPriority','Set circuit load priority.',{...xy,priority},setPowerPriority);
+registerTile('power.breaker','setBreaker','Configure a physical breaker contact; orientation and mode changes require an open contact.',{...xy,enabled,direction:enumeration(Object.keys(BREAKER_DIRECTIONS)),mode:enumeration(BREAKER_MODES)},setBreaker);
+registerTile('power.breaker.reset','resetBreaker','Reset an intact open breaker and leave its contact open.',xy,resetBreaker);
+registerTile('power.cable','setCableEnabled','Connect or isolate a cable segment.',{...xy,enabled},setCableEnabled);
 register('crew.routine','setLifePolicy','Set balanced, work-focused or off-duty routine.',{crew,policy:enumeration(Object.keys(LIFE_POLICIES))},setLifePolicy);
 register('fire.response','setFireResponse','Enable or disable automatic supplied fire-response orders. Existing orders remain.',{site,enabled},setFireResponse);
-register('pasture.gate','setPastureGate','Latch a crew wicket to contain livestock, or hold it open for animal passage.',{...xy,mode:enumeration(['latched','open'])},setPastureGate);
-register('door.mode','setDoorMode','Set a pressure door to automatic, open or sealed.',{...xy,mode:enumeration(['auto','open','closed'])},setDoorMode);
+registerTile('pasture.gate','setPastureGate','Latch a crew wicket to contain livestock, or hold it open for animal passage.',{...xy,mode:enumeration(['latched','open'])},setPastureGate);
+registerTile('door.mode','setDoorMode','Set a pressure door to automatic, open or sealed.',{...xy,mode:enumeration(['auto','open','closed'])},setDoorMode);
 register('crew.possessions.collect','setPossessionCollection','Allow or stop physical keepsake collection during downtime.',{crew,enabled},setPossessionCollection);
 register('crew.possessions.release','releasePossession','Put the owned keepsake down at this crew member’s local position.',{crew},releasePossession);
 register('husbandry.assign','setAnimalPost','Assign one livestock animal to a reachable post, or release it with null coordinates.',{creature:{type:'string',entityType:'creature'},x:{type:['integer','null'],minimum:0,maximum:25},y:{type:['integer','null'],minimum:0,maximum:25}},sim.setAnimalPost);
@@ -146,6 +156,7 @@ function invalid(s,definition,args) {
   }
   if(Object.hasOwn(args,'x')&&args.x!==null&&args.y!==undefined&&args.y!==null) {
     const current=s.sites[args.site || 'surface'];if(!current||!sim.inside(current,args.x,args.y))return 'Tile is outside this site.';
+    if(Object.hasOwn(definition.parameters,'z')&&!tileAt(current,{x:args.x,y:args.y,z:args.z===undefined?0:args.z}))return 'Tile is outside the declared decks of this site.';
   }
   if(definition.id==='job.order') {
     if(args.kind==='animalTreat'&&!s.creatures.some(c=>c.id===args.building))return 'Unknown animal patient.';

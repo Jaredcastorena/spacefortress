@@ -55,3 +55,18 @@ An isolated Firefox session verified default hidden drawers, construction choice
 ## Next proposed work
 
 Assisted bedside hygiene is implemented and verified; see [bedside hygiene](bedside-hygiene.md). [Room designations](room-designations.md) now connect infirmaries, housing, farms and waste storage to actual furnishings and environmental conditions. Broader disease, sanitation networks, food processing and the full game conversion remain outstanding.
+
+## Offline containment helper
+
+The Node callable [containHabitatWaste](../tools/contain-habitat-waste.mjs) operates on an existing canonical colony through the same controls as a player. It checks native freight availability, assigns the selected hauler to work and requests physical waste loading. It stops once the selected room has no exposed waste, the full parcel is sealed in carry or shuttle storage, and initially exposed occupants show a measured decline. This is containment; delivery, routine restoration and medical recovery may still be pending.
+
+```js
+import { containHabitatWaste } from '../tools/contain-habitat-waste.mjs';
+const result = containHabitatWaste(state, {
+  crew: 'crew-4', habitat: [8, 10], record: true,
+  limits: { ticks: 20, commands: 2, attempts: 22 }
+});
+// Inspect result.summary.ok, failure, checkpoint and endpoint before continuing.
+```
+
+The helper mutates the supplied state and preserves its first stop without cleanup or retry. Caps can be lowered from 120 ticks, two commands and 122 attempts. New injury stops by default; an explicit `additionalSanitationInjury` allowance, at most 0.1 per person, permits only that finite additional cause. Optional recording never replaces an existing recording. With `record: false`, a caller-owned recording remains open. Seven [synthetic checks](../tests/contain-habitat-waste.test.js) cover these boundaries and canonical save/recording parity.

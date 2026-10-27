@@ -109,5 +109,5 @@ test('pending broods reserve room so two pairs cannot overfill the same pasture'
 });
 
 test('tibble reproduction has its own parent and offspring event label',()=>{
- const s=createGame();s.creatures.push({id:'tibble-parent',species:'tibble',site:'surface',x:8,y:10,health:100,fed:100,age:60});startRecording(s);step(s,5);const event=events(s).find(e=>e.id==='pest.born');assert.ok(event);assert.equal(event.parent,'tibble-parent');assert.ok(s.creatures.some(a=>a.id===event.entity));check(s);
+ const s=createGame();s.creatures.push({id:'tibble-parent',species:'tibble',site:'surface',z:0,x:8,y:10,health:100,fed:100,age:60});startRecording(s);step(s,5);const event=events(s).find(e=>e.id==='pest.born');assert.ok(event);assert.equal(event.parent,'tibble-parent');assert.ok(s.creatures.some(a=>a.id===event.entity));check(s);
 });

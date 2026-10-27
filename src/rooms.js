@@ -1,28 +1,30 @@
+import { roomContains, roomTiles } from './room-locations.js';
+import { cellKey, positionOf, sameCell, tileAt } from './spatial.js';
 import { roomAt, breathable } from './atmosphere.js';
 import { temperature, thermalSafe } from './thermal.js';
 import { exposedWaste } from './sanitation.js';
 
 export const ROOM_ROLES = { general: 'General use', quarters: 'Living quarters', infirmary: 'Infirmary', farm: 'Greenhouse', waste: 'Waste storage' };
-const key = t => `${t.x},${t.y}`;
+const key = t => cellKey(positionOf(t));
 export function initializeDesignations(s) { for (const site of Object.values(s.sites)) site.designations ??= []; }
 export function roomDesignation(site, room) {
-  const markers = room ? (site.designations || []).filter(d => room.cells.includes(key(d))) : [];
+  const markers = room ? (site.designations || []).filter(d => roomContains(room,d)) : [];
   const roles = [...new Set(markers.map(d => d.role))];
   return { markers, roles, role: roles.length > 1 ? 'conflict' : roles[0] || 'general' };
 }
-export function setRoomDesignation(s, siteId, x, y, role) {
+export function setRoomDesignation(s, siteId, x, y, role,z=0) {
   const site = s.sites[siteId];
-  if (!site || !Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= site.size || y >= site.size || !Object.hasOwn(ROOM_ROLES, role)) return { ok: false, message: 'Choose a compartment and a valid purpose.' };
-  const room = roomAt(site, x, y);
+  if (!tileAt(site,{x,y,z}) || !Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= site.size || y >= site.size || !Object.hasOwn(ROOM_ROLES, role)) return { ok: false, message: 'Choose a compartment and a valid purpose.' };
+  const room = roomAt(site, x, y, z);
   if (!room && role !== 'general') return { ok: false, message: 'Select habitat flooring inside a compartment.' };
-  site.designations = site.designations.filter(d => room ? !room.cells.includes(key(d)) : d.x !== x || d.y !== y);
-  if (role !== 'general') site.designations.push({ x, y, role });
+  site.designations = site.designations.filter(d => room ? !roomContains(room,d) : !sameCell(positionOf(d),{x,y,z}));
+  if (role !== 'general') site.designations.push({ x, y, z, role });
   return { ok: true };
 }
-export function livingAllowed(site, x, y) { return !roomDesignation(site, roomAt(site, x, y)).roles.includes('waste'); }
+export function livingAllowed(site, x, y, z=0) { return !roomDesignation(site, roomAt(site, x, y, z)).roles.includes('waste'); }
 export function roomAcceptsResource(site, t, resource) {
   if (!site) return true;
-  const { roles } = roomDesignation(site, roomAt(site, t.x, t.y));
+  const { roles } = roomDesignation(site, roomAt(site,t.x,t.y,t.z));
   if (resource === 'waste' && roles.some(r => ['quarters', 'infirmary', 'farm'].includes(r))) return false;
   return !(['food', 'medicine'].includes(resource) && roles.includes('waste'));
 }
@@ -30,11 +32,11 @@ export function roomStatus(s, site, room) {
   const designation = roomDesignation(site, room), { role } = designation;
   const result = { ...designation, ready: false, issues: [], occupants: 0, residents: 0, furnishings: 0, exposed: 0 };
   if (!room) { result.issues.push('No compartment at this location'); return result; }
-  result.occupants = s.crew.filter(c => c.health > 0 && c.site === site.id && room.cells.includes(key(c))).length;
-  result.residents = site.id === 'surface' ? s.crew.filter(c => c.health > 0 && c.housing?.bunk && room.cells.includes(c.housing.bunk.join(','))).length : 0;
+  result.occupants = s.crew.filter(c => c.health > 0 && c.site === site.id && roomContains(room,c)).length;
+  result.residents = site.id === 'surface' ? s.crew.filter(c => c.health > 0 && c.housing?.bunk && roomContains(room,c.housing.bunk)).length : 0;
   if (role === 'general') return result;
   if (role === 'conflict') { result.issues.push('Merged compartments have different purposes; choose one to resolve them'); return result; }
-  const tiles = room.cells.map(k => { const [x,y] = k.split(',').map(Number); return site.tiles[y * site.size + x]; });
+  const tiles = roomTiles(site,room);
   const furniture = { quarters: 'bunk', infirmary: 'medicalCot', farm: 'farm', waste: 'stockpile' }[role];
   result.furnishings = tiles.filter(t => t.building === furniture && t.hp > 0).length;
   if (!result.furnishings) result.issues.push(`Needs ${ { quarters: 'a working bunk', infirmary: 'a working medical cot', farm: 'working hydroponics', waste: 'a working cargo depot' }[role] }`);
@@ -55,13 +57,13 @@ export function roomStatus(s, site, room) {
   result.ready = result.issues.length === 0; return result;
 }
 export function roomBenefit(s, site, t, role) {
-  const room = roomAt(site, t.x, t.y);
+  const room = roomAt(site,t.x,t.y,t.z);
   if (roomDesignation(site, room).role !== role) return false;
   return roomStatus(s, site, room).ready;
 }
 export function cropRoomBlock(s, site, t) {
   if (t.building !== 'farm') return null;
-  const room = roomAt(site, t.x, t.y), d = roomDesignation(site, room);
+  const room = roomAt(site,t.x,t.y,t.z), d = roomDesignation(site, room);
   if (d.roles.includes('waste')) return 'Crops cannot operate in waste storage';
   if (!d.roles.includes('farm')) return null;
   const status = roomStatus(s, site, room);
@@ -72,7 +74,7 @@ export function validateDesignations(s) {
     if (!Array.isArray(site.designations) || site.designations.length > site.tiles.length) throw new Error('Invalid room designations.');
     const anchors = new Set();
     for (const d of site.designations) {
-      if (!d || !Number.isInteger(d.x) || !Number.isInteger(d.y) || d.x < 0 || d.y < 0 || d.x >= site.size || d.y >= site.size || d.role === 'general' || !Object.hasOwn(ROOM_ROLES, d.role) || anchors.has(key(d))) throw new Error('Invalid room designation marker.');
+      if (!d || d.z !== 0 || !Number.isInteger(d.x) || !Number.isInteger(d.y) || d.x < 0 || d.y < 0 || d.x >= site.size || d.y >= site.size || d.role === 'general' || !Object.hasOwn(ROOM_ROLES, d.role) || anchors.has(key(d))) throw new Error('Invalid room designation marker.');
       anchors.add(key(d));
     }
   }

@@ -1,3 +1,6 @@
+import { stairLinks, stairOpen, STAIR } from './vertical.js';
+import { tileAt, cellKey, positionOf } from './spatial.js';
+import { roomAtPosition, roomCellKey } from './room-locations.js';
 import { neighbors } from './geometry.js';
 import { refreshPower } from './power.js';
 import { BUILDINGS } from './data.js';
@@ -8,9 +11,9 @@ const ZERO = 273.15;
 const capacity = r => r.volume * HEAT_CAPACITY;
 export const temperature = r => r ? r.heat / capacity(r) - ZERO : null;
 export const thermalSafe = r => !!r && temperature(r) >= 5 && temperature(r) <= 35;
-const roomHere = (site, x, y) => site.rooms.find(r => r.cells.includes(`${x},${y}`));
+const roomHere = (site,x,y,z=0) => roomAtPosition(site,{x,y,z});
 export const outsideTemperature = (siteId, tick) => siteId === 'surface' ? (tick % 300 < 220 ? 8 : -35) : ({ wreck: -60, comet: -100, solar: 90 }[siteId] ?? 8);
-export const temperatureAt = (site, x, y) => temperature(roomHere(site, x, y)) ?? site.thermal.ambient;
+export const temperatureAt = (site, x, y, z=0) => temperature(roomHere(site, x, y, z)) ?? site.thermal.ambient;
 export function initializeClimate(t) {
   if (t.building === 'climate') t.climate ??= { enabled: true, target: 20, status: 'Waiting for climate control' };
   else delete t.climate;
@@ -26,10 +29,11 @@ export function initializeThermal(s) {
 // Each retained floor cell keeps its share. New thermal mass enters at exterior temperature.
 export function remapThermal(site, old, rooms) {
   if (!site.thermal) return;
-  const energy = new Map(); old.forEach(r => r.cells.forEach(k => energy.set(k, r.heat / r.volume)));
+  const energy = new Map(); old.forEach(r => r.cells.forEach(k => energy.set(roomCellKey(r,k), r.heat / r.volume)));
   for (const r of rooms) {
     r.heat = 0;
-    for (const k of r.cells) {
+    for (const cell of r.cells) {
+      const k=roomCellKey(r,cell);
       if (energy.has(k)) { r.heat += energy.get(k); energy.delete(k); }
       else { const added = HEAT_CAPACITY * (site.thermal.ambient + ZERO); r.heat += added; site.thermal.added += added; }
     }
@@ -37,22 +41,26 @@ export function remapThermal(site, old, rooms) {
   for (const amount of energy.values()) site.thermal.removed += amount;
 }
 function links(site) {
-  const owners = new Map(); site.rooms.forEach((r, i) => r.cells.forEach(k => owners.set(k, i)));
-  const at = (x, y) => x >= 0 && y >= 0 && x < site.size && y < site.size ? site.tiles[y * site.size + x] : null;
+  const owners = new Map(); site.rooms.forEach((r, i) => r.cells.forEach(k => owners.set(roomCellKey(r,k), i)));
+  const at = (x,y,z) => tileAt(site,{x,y,z});
   const external = t => !t || (t.terrain !== 'floor' && !['wall', 'door'].includes(t.building));
   const result = [];
   for (const [cell, a] of owners) {
-    const [x, y] = cell.split(',').map(Number);
-    for (const [nx, ny] of neighbors(x, y)) if (external(at(nx, ny))) result.push({ a, b: null, rate: .6 });
+    const [x, y, z] = cell.split(',').map(Number);
+    for (const [nx, ny] of neighbors(x, y)) if (external(at(nx, ny, z))) result.push({ a, b: null, rate: .6 });
   }
   for (const t of site.tiles) if (['wall', 'door'].includes(t.building)) {
     const sides = new Set();
-    for (const [x, y] of neighbors(t.x, t.y)) { const owner = owners.get(`${x},${y}`); if (owner !== undefined) sides.add(owner); else if (external(at(x, y))) sides.add(null); }
+    for (const [x, y] of neighbors(t.x, t.y)) { const z=positionOf(t).z,owner = owners.get(cellKey({x,y,z})); if (owner !== undefined) sides.add(owner); else if (external(at(x, y, z))) sides.add(null); }
     const open = t.hp <= 0 || (t.building === 'door' && (t.doorMode === 'open' || (t.doorMode !== 'closed' && t.doorUntil > site.atmosphere.tick)));
     const rate = open ? .8 : .015 + .4 * (1 - t.hp / 100) ** 2, ids = [...sides];
     for (let a = 0; a < ids.length; a++) for (let b = a + 1; b < ids.length; b++) {
       result.push({ a: ids[a] === null ? ids[b] : ids[a], b: ids[a] === null ? null : ids[b], rate: rate / Math.max(1, ids.length - 1) });
     }
+  }
+  for(const link of stairLinks(site))if(stairOpen(site,link)){
+    const a=owners.get(cellKey(link.lower))??null,b=owners.get(cellKey(link.upper))??null;
+    if(a!==b)result.push({a:a===null?b:a,b:a===null?null:b,rate:STAIR.heatConductance});
   }
   return result;
 }
@@ -76,7 +84,7 @@ export function updateThermal(s) {
     }
     site.rooms.forEach((r, i) => r.heat += changes[i]);
     for (const t of site.tiles) {
-      initializeClimate(t); const r = roomHere(site, t.x, t.y);
+      initializeClimate(t); const r = roomHere(site, t.x, t.y, positionOf(t).z);
       if (t.building === 'climate') {
         const unit = t.climate;
         if (t.fire) unit.status = 'Fire at equipment';
@@ -97,13 +105,13 @@ export function updateThermal(s) {
 }
 // Pressure suits protect exterior work; indoor exposure slowly accumulates and recovers in safe shelter.
 export function thermalExposure(c, site, suited) {
-  const temp = temperatureAt(site, c.x, c.y), low = suited ? -120 : 5, high = suited ? 100 : 35;
+  const temp = temperatureAt(site, c.x, c.y, positionOf(c).z), low = suited ? -120 : 5, high = suited ? 100 : 35;
   const strain = temp < low ? (temp - low) * .012 : temp > high ? (temp - high) * .012 : 0;
   c.thermalStress = strain ? Math.max(-100, Math.min(100, c.thermalStress + strain)) : Math.sign(c.thermalStress) * Math.max(0, Math.abs(c.thermalStress) - .8);
   return Math.abs(c.thermalStress) > 70 ? (Math.abs(c.thermalStress) - 70) * .006 : 0;
 }
-export function setClimate(s, siteId, x, y, target, enabled) {
-  const t = s.sites[siteId]?.tiles.find(t => t.x === x && t.y === y);
+export function setClimate(s, siteId, x, y, target, enabled,z=0) {
+  const t = tileAt(s.sites[siteId],{x,y,z});
   if (t?.building !== 'climate' || !Number.isInteger(target) || target < -20 || target > 35 || typeof enabled !== 'boolean') return { ok: false, message: 'Choose a climate unit and a target from -20 to 35 °C.' };
   t.climate.target = target; t.climate.enabled = enabled; t.climate.status = enabled ? 'Waiting for climate control' : 'Paused by player'; refreshPower(s, s.sites[siteId]); return { ok: true };
 }

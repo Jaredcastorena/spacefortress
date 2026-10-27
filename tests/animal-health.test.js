@@ -15,7 +15,7 @@ import { inheritGenome } from '../src/animal-traits.js';
 function patient(species='bristleback'){
   const site={id:'surface',size:8,rooms:[],thermal:{ambient:8},tiles:Array.from({length:64},(_,i)=>({x:i%8,y:Math.floor(i/8),terrain:'ground',building:null,hp:100,drop:null}))};
   const post=site.tiles[3*8+3];post.building='husbandryPost';
-  const a={id:'patient-1',species,site:'surface',x:3,y:3,health:100,fed:80,age:0,husbandry:{post:[3,3],trust:100,product:0,care:true,harvest:true,retryAt:0,blocked:null},lifecycle:newLifecycle(null,[],species)};
+  const a={id:'patient-1',species,site:'surface',x:3,y:3,health:100,fed:80,age:0,husbandry:{post:{x:3,y:3,z:0},trust:100,product:0,care:true,harvest:true,retryAt:0,blocked:null},lifecycle:newLifecycle(null,[],species)};
   const c={id:'crew-0',site:'surface',x:2,y:3,health:100};
   const s={tick:0,nextId:10,seed:123,rng:321,sites:{surface:site},creatures:[a],crew:[c],jobs:[],log:[]};initializeAnimalHealth(s);return {s,a,c,site,post};
 }
@@ -77,7 +77,7 @@ test('injured adults pause an existing brood and injured juveniles pause growth 
   const s=createGame(),site=s.sites.surface,[a,b]=s.creatures;
   for(let y=15;y<=23;y++)for(let x=3;x<=9;x++){const t=at(site,x,y);t.terrain='ground';t.building=x===3||x===9||y===15||y===23?'fence':null;t.hp=100;t.flora={lichen:{biomass:80,harvests:0,origin:'native',generation:'native'}};}
   for(const [animal,x] of [[a,6],[b,7]]){animal.x=x;animal.y=18;animal.fed=100;animal.husbandry.trust=100;animal.lifecycle.enabled=true;}
-  s.tick=1;updateBreeding(s);const brood=a.lifecycle.brood;assert.ok(brood);injureAnimal(s,a,1,'fire');a.husbandry.post=[6,18];at(site,6,18).building='husbandryPost';a.condition.treated=1;
+  s.tick=1;updateBreeding(s);const brood=a.lifecycle.brood;assert.ok(brood);injureAnimal(s,a,1,'fire');a.husbandry.post={x:6,y:18,z:0};at(site,6,18).building='husbandryPost';a.condition.treated=1;
   for(let i=0;i<5;i++){s.tick++;updateAnimalHealth(s,a);updateBreeding(s);}assert.equal(brood.progress,0);assert.equal(breedingStatus(s,a).reason,'injured');
   for(let i=0;i<5;i++){s.tick++;updateAnimalHealth(s,a);updateBreeding(s);}assert.equal(brood.progress,1);
   const child={...structuredClone(b),id:'bristleback-900',x:5,y:19,genetics:inheritGenome(s.seed,a,b,'supplied-child'),husbandry:{...b.husbandry,post:null,product:0},lifecycle:newLifecycle(s.tick,[a.id,b.id])};initializeAnimalCondition(child);s.creatures.push(child);injureAnimal(s,child,1,'cold');const growth=child.lifecycle.growth;s.tick++;updateBreeding(s);assert.equal(child.lifecycle.growth,growth);
@@ -95,7 +95,7 @@ test('wounded animals request food below60 while a paid treatment stays queued, 
 test('physical transport can cancel both pending work types while preserving injury and credit',()=>{
   const {s,a,site}=patient();injureAnimal(s,a,10,'fire');a.condition.treated=2;const j=treatment(a,8);s.jobs=[j,{id:'job-2',kind:'animalCare',animal:a.id,site:'surface',x:3,y:3}];site.tiles[4*8+4].building='husbandryPost';
   const q=structuredClone(a.condition),cancelled=[];const result=requestTransport(s,a.id,4,4,(_s,id)=>{cancelled.push(id);s.jobs=s.jobs.filter(j=>j.id!==id);});
-  assert.equal(result.ok,true);assert.deepEqual(cancelled,['job-1','job-2']);assert.deepEqual(a.condition,q);assert.deepEqual(a.husbandry.post,[3,3]);assert.equal(s.jobs[0].kind,'animalLead');
+  assert.equal(result.ok,true);assert.deepEqual(cancelled,['job-1','job-2']);assert.deepEqual(a.condition,q);assert.deepEqual(a.husbandry.post,{x:3,y:3,z:0});assert.equal(s.jobs[0].kind,'animalLead');
 });
 
 test('strict conditions and veterinary job pins reject malformed state',()=>{
@@ -105,7 +105,7 @@ test('strict conditions and veterinary job pins reject malformed state',()=>{
 });
 
 test('semantic injury/recovery/death transitions are recorded once and never revive a dead animal',()=>{
-  const s=createGame(),a=s.creatures[0],site=s.sites.surface,post=at(site,10,15);post.building='husbandryPost';a.x=10;a.y=15;a.husbandry.post=[10,15];a.fed=80;startRecording(s);
+  const s=createGame(),a=s.creatures[0],site=s.sites.surface,post=at(site,10,15);post.building='husbandryPost';a.x=10;a.y=15;a.husbandry.post={x:10,y:15,z:0};a.fed=80;startRecording(s);
   injureAnimal(s,a,1,'fire');a.condition.treated=1;recover(s,a,10);injureAnimal(s,a,200,'fire');const q=structuredClone(a.condition);assert.equal(injureAnimal(s,a,1,'fire'),0);recover(s,a,10);assert.equal(a.health,0);assert.deepEqual(a.condition,q);
   const events=exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>r.event?.entity===a.id).map(r=>r.event);
   assert.equal(events.filter(e=>e.id==='animal.recovered').length,1);assert.equal(events.filter(e=>e.id==='animal.died').length,1);assert.equal(events.filter(e=>e.id==='animal.injured').length,2);assert.ok(events.some(e=>e.id==='animal.recovery.state_changed'&&e.current==='recovering'));assert.equal(VETERINARY.medicine,1);

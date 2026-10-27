@@ -190,7 +190,7 @@ test('breaker repair and dismantling saves retain their defined physical work an
     if (kind === 'repair') { cost.jobs[0].cost = {}; cost.jobs[0].sources = []; }
     else {
       cost.jobs[0].cost = { alloy: 1 };
-      cost.jobs[0].sources = [{ x: 8, y: 10, kind: 'stock', items: { alloy: 1 } }];
+      cost.jobs[0].sources = [{ x: 8, y: 10, z: 0, kind: 'stock', items: { alloy: 1 } }];
     }
     assert.throws(() => reload(cost), `${kind} has a defined material cost`);
   }

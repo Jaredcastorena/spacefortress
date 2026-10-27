@@ -65,7 +65,7 @@ test('hauled tank water reaches a staffed farm through intake, pipes, pump, rese
 
 test('an intake uses only unclaimed producer output and the promised shipment still reaches its depot',()=>{
  const f=outputFixture(),{s,site,source,node}=f,c=s.crew[0];into(f,source,'output',3);const before=totalResources(s).water;
- c.labors.hauling=true;c.x=8;c.y=8;c.intent={type:'haul',target:[8,9],source:'output',items:{water:2},destination:{kind:'stock',target:[8,10]}};
+ c.labors.hauling=true;c.x=8;c.y=8;c.intent={type:'haul',target: { x: 8, y: 9, z: 0 },source:'output',items:{water:2},destination:{kind:'stock',target: { x: 8, y: 10, z: 0 }}};
  run(f,6);close(source.machine.output.water,2);close(waterNode(node).water,1);
  const status=plumbingStatus(s,site,f.intake);assert.equal(status.blockedCode,'source_reserved');close(status.reservedOutput,2);close(status.reservedInput,0);
  deliver(s,c);close(source.machine.output.water||0,0);close(waterNode(node).water,1);close(totalResources(s).water,before);check(s);
@@ -74,7 +74,7 @@ test('an intake uses only unclaimed producer output and the promised shipment st
 test('cancelled or deceased output claimants release water for an intake without consuming a second copy',()=>{
  for(const release of ['cancel','death']){
   const f=outputFixture(),{s,source,node}=f,c=s.crew[0];into(f,source,'output',1);const before=totalResources(s).water;
-  c.intent={type:'haul',target:[8,9],source:'output',items:{water:1},destination:{kind:'stock',target:[8,10]}};
+  c.intent={type:'haul',target: { x: 8, y: 9, z: 0 },source:'output',items:{water:1},destination:{kind:'stock',target: { x: 8, y: 10, z: 0 }}};
   run(f,2);close(waterNode(node).water,0);
   if(release==='cancel')c.intent=null;else c.health=0;
   run(f,2);close(source.machine.output.water||0,0);close(waterNode(node).water,1);close(totalResources(s).water,before);
@@ -84,8 +84,8 @@ test('cancelled or deceased output claimants release water for an intake without
 
 test('an outlet leaves space for both an incoming pickup and carried water, including deliveries retained through pause',()=>{
  const f=inputFixture(),{s,site,target,node}=f,[carrying,picking]=s.crew;fill(f,node,2);into(f,target,'input',.5);
- carrying.x=9;carrying.y=10;carrying.carry=extract(stock(s),{water:.5});carrying.delivery={kind:'input',target:[12,9]};
- picking.labors.hauling=true;picking.x=8;picking.y=11;picking.intent={type:'haul',target:[8,10],source:'stock',items:{water:.5},destination:{kind:'input',target:[12,9]}};
+ carrying.x=9;carrying.y=10;carrying.carry=extract(stock(s),{water:.5});carrying.delivery={kind:'input',target: { x: 12, y: 9, z: 0 }};
+ picking.labors.hauling=true;picking.x=8;picking.y=11;picking.intent={type:'haul',target: { x: 8, y: 10, z: 0 },source:'stock',items:{water:.5},destination:{kind:'input',target: { x: 12, y: 9, z: 0 }}};
  const before=totalResources(s).water;run(f,6);close(target.machine.input.water,1);close(waterNode(node).water,1.5);
  const status=plumbingStatus(s,site,f.outlet);assert.equal(status.blockedCode,'target_reserved');close(status.reservedInput,1);close(status.reservedOutput,0);
  setMachineEnabled(s,'surface',12,9,false);run(f,2);close(target.machine.input.water,1);
@@ -123,7 +123,7 @@ test('reversing inventory adapters does not reverse their transfer roles or siph
 
 test('a deceased incoming carrier frees destination capacity while their actual water drops at the death location',()=>{
  const f=inputFixture(),{s,target,node}=f,c=s.crew[0];fill(f,node,2);into(f,target,'input',1);
- c.x=9;c.y=10;c.carry=extract(stock(s),{water:1});c.delivery={kind:'input',target:[12,9]};
+ c.x=9;c.y=10;c.carry=extract(stock(s),{water:1});c.delivery={kind:'input',target: { x: 12, y: 9, z: 0 }};
  const before=totalResources(s).water;run(f,2);close(target.machine.input.water,1);close(waterNode(node).water,2);
  c.health=0;step(s);run(f,4);
  assert.equal(c.carry,null);assert.equal(c.delivery,null);close(at(f.site,9,10).drop.water,1);
@@ -132,7 +132,7 @@ test('a deceased incoming carrier frees destination capacity while their actual 
 
 test('dismantling a consumer preserves its water and redirects an already carried shipment into storage',()=>{
  const f=inputFixture(),{s,site,target,node}=f,c=s.crew[0];fill(f,node,2);into(f,target,'input',.5);
- c.x=8;c.y=11;c.carry=extract(stock(s),{water:1});c.delivery={kind:'input',target:[12,9]};
+ c.x=8;c.y=11;c.carry=extract(stock(s),{water:1});c.delivery={kind:'input',target: { x: 12, y: 9, z: 0 }};
  const before=totalResources(s).water;
  // Keep this living carrier in physical recovery so demolition can overtake its delivery.
  c.energy=1;c.intent={type:'rest',target:null};

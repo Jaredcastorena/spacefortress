@@ -43,7 +43,7 @@ Stable tile IDs identify observed reactor settings/heat and radiator controls. D
 
 Seventeen reactor tests cover delivered construction and empty commissioning, physical/batched hauling, day/night generation, condition/output scaling, finite fuel, diagnostic noninterference, heat ledgers, shutdown/recovery, thermal connection geometry and pressure units, demolition/cargo recovery, shared controls/records, noise, migration and deterministic continuation. The water-release suite had **552 passing tests** (including 29 isolated elements-lab tests).
 
-Isolated Firefox checks original reactor/radiator drawings, hidden default drawers, output and pause controls, edits retained through refresh, radiator links/switching, hot reset guard and visible shutdown warning, cooled player reset, action/event labels and schema-31 save/reload. QA artifacts are `.runtime-qa/colony-reactor-check.mjs` and `colony-reactor-*.png`. No dependencies or external assets were added.
+Isolated Firefox checks original reactor/radiator drawings, hidden default drawers, output and pause controls, edits retained through refresh, radiator links/switching, hot reset guard and visible shutdown warning, cooled player reset, action/event labels and schema-31 save/reload. No dependencies or external assets were added.
 
 This remains an abstract game model. There are no coolant pipes, reactor chemistry, radiation sickness, meltdown, spent-fuel hauling, long-range thermal networks or operator staffing during generation. Surface construction remains the only supported construction network; generated worlds, true local z-levels and the larger SPACEFORTRESS conversion are still unfinished.
 

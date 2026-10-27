@@ -134,7 +134,7 @@ test('save validation rejects overfilled holds, invalid fitting state and bad or
     s => { s.shuttle.accepted.push(s.shuttle.accepted[0]); },
     s => { s.mission.cargo = { alloy: 19 }; },
     s => { s.mission.capacity = 200; },
-    s => { team(s)[0].intent = { type: 'salvage', target: [25, 25], items: { alloy: 2 } }; },
-    s => { team(s)[0].carry = { alloy: 3 }; team(s)[0].delivery = { kind: 'shuttle', target: [5, 5] }; },
+    s => { team(s)[0].intent = { type: 'salvage', target: { x: 25, y: 25, z: 0 }, items: { alloy: 2 } }; },
+    s => { team(s)[0].carry = { alloy: 3 }; team(s)[0].delivery = { kind: 'shuttle', target: { x: 5, y: 5, z: 0 } }; },
   ]) { const s = expedition(); corrupt(s); assert.throws(() => deserialize(serialize(s))); }
 });

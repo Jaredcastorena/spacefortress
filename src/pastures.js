@@ -1,28 +1,29 @@
+import { positionOf, cellKey, horizontalNeighbors, tileAt, sameCell } from './spatial.js';
 import { isLivestock } from './livestock-data.js';
-import { neighbors } from './geometry.js';
-import { animalPassable } from './navigation.js';
+import { groundStep } from './spatial.js';
+import { animalPassablePosition } from './navigation.js';
 import { floraBiomass } from './flora.js';
 import { emitEvent, recordingStatus, tileEntityId } from './telemetry.js';
 // Derived animal-access regions. Neither regions nor observations own supplies or RNG.
 export function pastureRegions(site) {
   const byCell=new Map(),regions=[];
   for(const tile of site.tiles){
-    const start=tile.y*site.size+tile.x;
-    if(byCell.has(start)||!animalPassable(site,tile.x,tile.y))continue;
-    const r={id:`pasture:${site.id}:${tile.x}:${tile.y}`,cells:[],enclosed:true,lichen:0};
+    const start=cellKey(positionOf(tile));
+    if(byCell.has(start)||!animalPassablePosition(site,positionOf(tile)))continue;
+    const r={id:`pasture:${site.id}:${tile.x}:${tile.y}${positionOf(tile).z===0?'':`:${tile.z}`}`,z:positionOf(tile).z,cells:[],enclosed:true,lichen:0};
     const queue=[tile];byCell.set(start,r);
     for(let i=0;i<queue.length;i++){
-      const t=queue[i];r.cells.push([t.x,t.y]);if(t.terrain==='ground'&&(!t.building||['fence','pastureGate','husbandryPost'].includes(t.building)))r.lichen+=floraBiomass(t);
+      const t=queue[i];r.cells.push(positionOf(t));if(t.terrain==='ground'&&(!t.building||['fence','pastureGate','husbandryPost'].includes(t.building)))r.lichen+=floraBiomass(t);
       if(t.x===0||t.y===0||t.x===site.size-1||t.y===site.size-1)r.enclosed=false;
-      for(const [x,y] of neighbors(t.x,t.y))if(animalPassable(site,x,y)&&!byCell.has(y*site.size+x)){byCell.set(y*site.size+x,r);queue.push(site.tiles[y*site.size+x]);}
+      for(const p of horizontalNeighbors(positionOf(t)))if(animalPassablePosition(site,p)&&!byCell.has(cellKey(p))){byCell.set(cellKey(p),r);queue.push(tileAt(site,p));}
     }
     regions.push(r);
   }
   return {byCell,regions};
 }
 export function animalPasture(s,a,regions=pastureRegions(s.sites.surface)) {
-  const size=s.sites.surface.size,r=regions.byCell.get(a.y*size+a.x),post=a.husbandry?.post;
-  return {region:r?.id||null,enclosed:!!r?.enclosed,tiles:r?.cells.length||0,lichen:r?.lichen||0,postReachable:post?!!r&&regions.byCell.get(post[1]*size+post[0])===r:null};
+  const r=a.site==='surface'?regions.byCell.get(cellKey(positionOf(a))):null,post=a.husbandry?.post;
+  return {region:r?.id||null,enclosed:!!r?.enclosed,tiles:r?.cells.length||0,lichen:r?.lichen||0,postReachable:post?!!r&&regions.byCell.get(cellKey(post))===r:null};
 }
 export function pastureSnapshot(s) {
   if(!recordingStatus(s).active)return null;
@@ -40,15 +41,17 @@ export function recordPastureChanges(s,before) {
   }
 }
 export function moveAnimal(s,a,next,reason) {
+  const destination=groundStep(s.sites[a.site],a,next);if(!destination)return false;
+  next=[destination.x,destination.y];
   const from=tileEntityId(a.site,a.x,a.y);[a.x,a.y]=next;
-  emitEvent(s,'animal.moved',{entity:a.id,from,to:tileEntityId(a.site,a.x,a.y),reason});
+  emitEvent(s,'animal.moved',{entity:a.id,from,to:tileEntityId(a.site,a.x,a.y),reason});return true;
 }
-export function setPastureGate(s,siteId,x,y,mode) {
-  const site=s.sites[siteId],t=site&&x>=0&&y>=0&&x<site.size&&y<site.size?site.tiles[y*site.size+x]:null;
+export function setPastureGate(s,siteId,x,y,mode,z=0) {
+  const site=s.sites[siteId],t=tileAt(site,{x,y,z});
   if(t?.building!=='pastureGate'||!['latched','open'].includes(mode))return {ok:false,message:'Select a pasture gate.'};
-  if(mode==='latched'&&s.creatures.some(a=>a.site===siteId&&isLivestock(a)&&a.health>0&&a.x===x&&a.y===y))return {ok:false,message:'Wait for the animal to clear the gate.'};
+  if(mode==='latched'&&s.creatures.some(a=>a.site===siteId&&isLivestock(a)&&a.health>0&&sameCell(positionOf(a),{x,y,z})))return {ok:false,message:'Wait for the animal to clear the gate.'};
   const before=pastureSnapshot(s),previous=t.gateMode;t.gateMode=mode;
-  if(previous!==mode)emitEvent(s,'pasture.gate.mode_changed',{entity:tileEntityId(siteId,x,y),previous,mode,effective:t.hp>0});
+  if(previous!==mode)emitEvent(s,'pasture.gate.mode_changed',{entity:tileEntityId(siteId,x,y,z),previous,mode,effective:t.hp>0});
   recordPastureChanges(s,before);return {ok:true};
 }
 export function validatePastures(s) {

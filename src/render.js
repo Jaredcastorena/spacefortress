@@ -1,3 +1,6 @@
+import {riserKind,utilityAt,utilityActive} from './utility-links.js';
+import { stairOpen } from './vertical.js';
+import { cellKey, positionOf } from './spatial.js';
 import { isLivestock, livestockDef } from './livestock-data.js';
 import { immobile } from './mobility.js';
 import { at, inside, key, isDay, roomAt } from './simulation.js';
@@ -48,7 +51,7 @@ export class Renderer {
   center() { this.pan = { x: 0, y: 0 }; this.zoom = Math.min(1.1, Math.max(.5, this.w / 900)); }
   origin(site) { const b=projectedBounds(site.size);return {x:this.w/2-(b.left+b.right)*this.zoom/2+this.pan.x,y:this.h/2-(b.top+b.bottom)*this.zoom/2+this.pan.y}; }
   project(x, y) { return projectTile(x,y); }
-  screenToTile(px, py, site) { const o=this.origin(site),[x,y]=unprojectTile((px-o.x)/this.zoom,(py-o.y)/this.zoom);return tileAt(site,x,y)?{x,y}:null; }
+  screenToTile(px, py, site, z = 0) { const o=this.origin(site),[x,y]=unprojectTile((px-o.x)/this.zoom,(py-o.y)/this.zoom);return tileAt(site,x,y,z)?{x,y,z}:null; }
   polygon(points, fill, stroke) { const c = this.ctx; c.beginPath(); points.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = .7; c.stroke(); } }
   diamond(x, y, fill, stroke) { this.polygon([[x, y - 16], [x + 32, y], [x, y + 16], [x - 32, y]], fill, stroke); }
   hex(x,y,fill,stroke,scale=1) { this.polygon(HEX_CORNERS.map(([dx,dy])=>[x+dx*scale,y+dy*scale]),fill,stroke); }
@@ -111,23 +114,23 @@ export class Renderer {
       c.save(); c.globalAlpha = .16; c.beginPath(); c.arc(this.w * .87, this.h * .92, this.w * .36, 0, Math.PI * 2); c.fillStyle = siteId === 'solar' ? '#d28a39' : '#679097'; c.fill(); c.strokeStyle = '#b1d6dc'; c.lineWidth = 3; c.stroke(); c.restore();
     }
   }
-  draw(s, siteId, mode, build) {
+  draw(s, siteId, mode, build, viewZ = 0) {
     const c = this.ctx; c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); c.imageSmoothingEnabled = false; this.backdrop(siteId);
     if (siteId === 'universe') { this.universe(s); return; }
-    const site = s.sites[siteId], origin = this.origin(site), shuttle = shuttlePresence(s, siteId); c.save(); c.translate(origin.x, origin.y); c.scale(this.zoom, this.zoom);
-    const airlocks=site.tiles.filter(t=>t.airlock).map(t=>airlockStatus(s,site,t));
+    const site = s.sites[siteId], visibleTiles=site.tiles.filter(t=>(t.z??0)===viewZ), origin = this.origin(site), shuttle = shuttlePresence(s, siteId); c.save(); c.translate(origin.x, origin.y); c.scale(this.zoom, this.zoom);
+    const airlocks=visibleTiles.filter(t=>t.airlock).map(t=>airlockStatus(s,site,t));
     const airlockCells=new Set(airlocks.flatMap(a=>a.chamberCells));
-    const airlockDoors=new Map(airlocks.flatMap(a=>['inner','outer'].map(side=>[a.doors[side].tile.join(','),{...a.doors[side],permitted:a.permissions[side]}])));
+    const airlockDoors=new Map(airlocks.flatMap(a=>['inner','outer'].map(side=>[cellKey(a.doors[side].tile),{...a.doors[side],permitted:a.permissions[side]}])));
     const airlockWaiting=new Set(airlocks.flatMap(a=>a.queue.flatMap(q=>[q.crew,q.patient]).filter(Boolean)));
-    const selectedRoom = mode === 'inspect' && Number.isInteger(this.selection?.x) && Number.isInteger(this.selection?.y) ? roomAt(site, this.selection.x, this.selection.y) : null;
+    const selectedRoom = mode === 'inspect' && this.selection?.site === siteId && (this.selection?.z??0)===viewZ && Number.isInteger(this.selection?.x) && Number.isInteger(this.selection?.y) ? roomAt(site, this.selection.x, this.selection.y, viewZ) : null;
     const selectedCells = new Set(selectedRoom?.cells || []);
     const tileColors = { ground: ['#61564a', '#66594b', '#5b5147', '#6a5e4f'], floor: ['#6e8080', '#748585', '#718282', '#6b7c7e'], deck: ['#465b65', '#4d626d', '#516570', '#435964'], ice: ['#7d9fba', '#90aec6', '#779ab4', '#82a5be'], ore: ['#5c5346', '#665645', '#605246', '#68574a'], rock: ['#64594d', '#5a5147', '#685b4e', '#62574a'] };
-    for (const t of site.tiles) {
+    for (const t of visibleTiles) {
       if (t.terrain === 'void') continue;
       const [x, y] = this.project(t.x, t.y);
       this.hexPrism(x, y + 5, 5, tileColors[t.terrain][t.variant], t.terrain === 'ice' ? '#4c718e' : '#3e4140', '#343b3c');
       this.hex(x, y, tileColors[t.terrain][t.variant], t.terrain === 'floor' ? '#8f9d923d' : '#a5aa9417');
-      if(airlockCells.has(key(t.x,t.y)))this.hex(x,y,'#8ddce622','#82cbd580');
+      if(airlockCells.has(cellKey(positionOf(t))))this.hex(x,y,'#8ddce622','#82cbd580');
       if (selectedCells.has(key(t.x, t.y))) this.hex(x, y, '#93d5c218');
       if (t.terrain === 'floor' || t.terrain === 'deck') { c.fillStyle = '#b2c0af42'; c.fillRect(x - 1, y - 12, 2, 1); c.fillRect(x - 24, y, 2, 1); }
       if (t.terrain === 'ground') { c.fillStyle = '#b59a702b'; c.fillRect(x - 15 + t.variant * 5, y - 3 + t.variant, 3, 1); }
@@ -138,34 +141,37 @@ export class Renderer {
       const [tx,ty] = cell.split(',').map(Number), [x,y] = this.project(tx,ty);
       for(const direction of DIRECTIONS){const [nx,ny]=step(tx,ty,direction);if(!selectedCells.has(key(nx,ny))){const [a,b]=edge(tx,ty,direction).map(([u,v])=>projectGround(u,v));this.line(...a,...b,'#a5dcc5',2);}}
     }
-    const pending = new Map(s.jobs.filter(j => j.site === siteId).map(j => [key(j.x, j.y), j]));
+    const pending = new Map(s.jobs.filter(j => j.site === siteId && (j.z??0)===viewZ).map(j => [key(j.x, j.y), j]));
     const reservedTiles = new Set();
-    for (const j of pending.values()) {
-      if (quantity(j.materials)) reservedTiles.add(key(j.x, j.y));
-      for (const source of j.sources) if (quantity(source.items)) reservedTiles.add(key(source.x, source.y));
+    for (const j of s.jobs.filter(j=>j.site===siteId)) {
+      if ((j.z??0)===viewZ && quantity(j.materials)) reservedTiles.add(key(j.x, j.y));
+      for (const source of j.sources) if ((source.z??0)===viewZ && quantity(source.items)) reservedTiles.add(key(source.x, source.y));
     }
-    const crew = s.crew.filter(p => p.site === siteId);
-    const carcasses=s.creatures.flatMap(animal=>{const position=carcassPosition(s,animal);return position?.site===siteId?[{animal,position}]:[];});
-    const sorted = [...site.tiles].sort(compareHexDepth);
+    const crew = s.crew.filter(p => p.site === siteId && (p.z??0)===viewZ);
+    const carcasses=s.creatures.flatMap(animal=>{const position=carcassPosition(s,animal);return position?.site===siteId&&position.z===viewZ?[{animal,position}]:[];});
+    const links=new Map((site.verticalLinks||[]).map(link=>[link.id,link]));
+    const sorted = [...visibleTiles].sort(compareHexDepth);
     for (const t of sorted) {
       const [x, y] = this.project(t.x, t.y);
       this.wildFlora(t,x,y);
+      const stair=links.get(t.verticalLink);if(stair)this.stairwell(x,y,stairOpen(site,stair),stair.upper.z===viewZ?'↓':'↑',stair.hp);
       if (t.terrain === 'rock') { const h = 12 + t.variant * 5; this.box(x, y, 26, 13, h, '#8a7963', '#685b4e', '#4b4842'); this.line(x - 12, y - h - 5, x + 2, y - h + 3, '#a49375'); }
       if (t.terrain === 'ore') { this.box(x, y, 22, 10, 11, '#897563', '#6d5744', '#4c473b'); for (let k = 0; k < 3; k++) { c.fillStyle = ['#ce9863', '#dfb777', '#b78052'][k]; c.fillRect(x - 14 + k * 10, y - 17 + (k % 2) * 5, 6, 4); } }
       if (t.deposit?.remaining > 0) { const h = 4 + t.deposit.remaining / 2; this.box(x,y,19,9,h,'#b9d8de','#7aaebf','#4c788c'); this.line(x-12,y-h-2,x+5,y-h+4,'#e0eff0',2); this.line(x+5,y-h+4,x+10,y-h-2,'#668fa5',2); }
       if(t.liquid>1e-8){c.save();c.globalAlpha=Math.min(.8,.2+t.liquid/4*.6);this.hex(x,y,'#3b94ba','#8bcee0');this.line(x-12,y,x+2,y+7,'#b2deeb',1);c.restore();}
       if (t.building) this.structure(t, x, y, s,airlocks.find(a=>a.entity===`tile:${site.id}:${t.x}:${t.y}`),site);
-      const controlledDoor=airlockDoors.get(key(t.x,t.y));
+      for(const kind of Object.keys(t.risers||{})){const link=utilityAt(site,t,kind);if(link&&(this[`${kind}Overlay`]||this.selection?.site===siteId&&this.selection.x===t.x&&this.selection.y===t.y&&(this.selection.z??0)===viewZ))this.riserMarker(x,y,kind,utilityActive(site,link));}
+      const controlledDoor=airlockDoors.get(cellKey(positionOf(t)));
       if(controlledDoor){const color=!controlledDoor.intact?'#ed937e':controlledDoor.permitted?'#9be1bf':'#ecc37c';c.fillStyle=color;c.fillRect(x-4,y-30,8,6);if(!controlledDoor.permitted){c.strokeStyle=color;c.lineWidth=2;c.strokeRect(x-2,y-34,4,5);}}
       // The berth remains on the map while the craft follows its physical location.
-      if (shuttle.present && shuttle.terminal?.x === t.x && shuttle.terminal.y === t.y) this.shuttleCraft(x, y);
+      if (shuttle.present && shuttle.terminal?.x === t.x && shuttle.terminal.y === t.y && (shuttle.terminal.z??0) === viewZ) this.shuttleCraft(x, y);
       if(waterNode(t)?.water>0&&(t.waterPipe?.hp??t.hp)<50){this.polygon([[x+17,y-19],[x+13,y-11],[x+17,y-8],[x+21,y-11]],'#89c7f1','#eeaa82');}
       if(t.wetShort){this.line(x-9,y-2,x-2,y-12,'#ffd390',2);this.line(x-2,y-12,x+2,y-3,'#ffc276',2);this.line(x+2,y-3,x+10,y-15,'#ffb35e',2);}
-      const smokeRoom=roomAt(site,t.x,t.y);
+      const smokeRoom=roomAt(site,t.x,t.y,t.z);
       if(smokeRoom?.smoke>0){const density=smokeRoom.smoke/smokeRoom.volume;c.save();c.globalAlpha=Math.min(.4,density*3);this.box(x,y-14,20,10,5,'#a29b8f','#716d69','#595d60');c.restore();}
       if(t.fire){const h=16+t.fire.intensity*.22+(s.tick%3)*2;this.polygon([[x-14,y-4],[x-8,y-h],[x-1,y-h+12],[x+8,y-h-8],[x+15,y-4],[x,y+3]],'#ee7938','#ffb761');this.polygon([[x-6,y-3],[x+1,y-h+12],[x+8,y-4],[x,y+1]],'#ffe0a0');}
 
-      for (const creature of s.creatures.filter(a => a.site === siteId && a.x === t.x && a.y === t.y && (a.health>0||!isLivestock(a)))) {
+      for (const creature of s.creatures.filter(a => a.site === siteId && (a.z??0)===viewZ && a.x === t.x && a.y === t.y && (a.health>0||!isLivestock(a)))) {
         if (isLivestock(creature)) {
           const def=livestockDef(creature);
           const escorted=s.jobs.some(j=>j.kind==='animalLead'&&j.animal===creature.id&&j.phase==='escort');
@@ -222,12 +228,12 @@ export class Renderer {
         if(t?.building!=='gasPump'||!gasNode(neighbor))return false;
         const ports=pumpPorts(site,t);return ports.input===neighbor||ports.output===neighbor;
       };
-      for(const t of site.tiles){
+      for(const t of visibleTiles){
         if(!gasNode(t)&&t.building!=='gasPump')continue;
         const [x,y]=this.project(t.x,t.y),node=gasNode(t),hp=t.pipe?.hp??t.hp;
         const color=hp<50?'#f49883':node&&!node.open?'#edc174':t.gasDevice?.enabled===false?'#899ba8':'#82dbe2';
         for(const direction of DIRECTIONS){
-          const neighbor=tileAt(site,...step(t.x,t.y,direction));
+          const neighbor=tileAt(site,...step(t.x,t.y,direction),t.z??0);
           if(neighbor&&accepts(t,neighbor)&&accepts(neighbor,t)){
             const [nx,ny]=this.project(neighbor.x,neighbor.y);
             this.line(x,y,(x+nx)/2,(y+ny)/2,'#173644',7);
@@ -249,11 +255,11 @@ export class Renderer {
         if(source||target)return t.waterDevice.mode==='floor'||!!neighbor?.machine;
         return (ports.input===neighbor||ports.output===neighbor)&&!!waterNode(neighbor);
       };
-      for(const t of site.tiles){
+      for(const t of visibleTiles){
         const node=waterNode(t);if(!node&&!t.waterDevice)continue;
         const [x,y]=this.project(t.x,t.y),hp=t.waterPipe?.hp??t.hp,color=hp<50?'#f49c83':node&&!node.open?'#efc674':t.waterDevice?.enabled===false?'#869aa9':'#82baf4';
         for(const direction of DIRECTIONS){
-          const neighbor=tileAt(site,...step(t.x,t.y,direction));if(!neighbor)continue;
+          const neighbor=tileAt(site,...step(t.x,t.y,direction),t.z??0);if(!neighbor)continue;
           const ports=t.waterDevice?waterPorts(site,t):null;
           const endpoint=ports&&((t.building==='waterIntake'&&ports.input===neighbor)||(t.building==='waterOutlet'&&ports.output===neighbor));
           const connect=accepts(t,neighbor)&&(endpoint||accepts(neighbor,t));
@@ -263,15 +269,16 @@ export class Renderer {
         else{c.fillStyle='#193551';c.strokeStyle=color;c.lineWidth=2;c.fillRect(x-5,y-4,10,8);c.strokeRect(x-5,y-4,10,8);if(!node.open)this.line(x-6,y-5,x+6,y+5,'#efc674',3);if(hp<50){this.line(x+7,y-4,x+10,y-10,'#f49c83',2);this.line(x+10,y-1,x+16,y-4,'#f49c83',2);}}
       }
     }
-    if (siteId === 'surface' && s.debris.target) { const [x, y] = this.project(s.debris.target.x, s.debris.target.y); this.hex(x, y, '#ec8e7e44', '#ffc28a'); c.fillStyle = '#ffe4bb'; c.font = 'bold 12px monospace'; c.textAlign = 'center'; c.fillText('IMPACT', x, y - 40); }
-    if (this.selection && !this.selection.crew && this.selection.site === siteId) { const [x, y] = this.project(this.selection.x, this.selection.y); c.lineWidth = 2; this.hex(x, y, '#b7dbbb12', '#c7e5ce'); }
-    if (this.hover && this.hover.x >= 0 && this.hover.y >= 0 && this.hover.x < site.size && this.hover.y < site.size) {
+    if (siteId === 'surface' && s.debris.target && (s.debris.target.z??0)===viewZ) { const [x, y] = this.project(s.debris.target.x, s.debris.target.y); this.hex(x, y, '#ec8e7e44', '#ffc28a'); c.fillStyle = '#ffe4bb'; c.font = 'bold 12px monospace'; c.textAlign = 'center'; c.fillText('IMPACT', x, y - 40); }
+    if (this.selection && !this.selection.crew && this.selection.site === siteId && (this.selection.z??0)===viewZ) { const [x, y] = this.project(this.selection.x, this.selection.y); c.lineWidth = 2; this.hex(x, y, '#b7dbbb12', '#c7e5ce'); }
+    if (this.hover && (this.hover.z??0) === viewZ && this.hover.x >= 0 && this.hover.y >= 0 && this.hover.x < site.size && this.hover.y < site.size) {
       const [x, y] = this.project(this.hover.x, this.hover.y); this.hex(x, y, mode === 'build' ? '#8ee5cc55' : '#ffffdd1a', mode === 'mine' ? '#edbd7e' : '#c5e6d8');
-      if (mode === 'build') { c.globalAlpha = .5; this.structure({ building: build, terrain: 'floor', hp: 100, powered: true, x: this.hover.x, y: this.hover.y }, x, y, s,null,site); c.globalAlpha = 1; }
+      if (mode === 'build' && build === 'stairwell') { c.globalAlpha=.5;this.stairwell(x,y,true,'↑');c.globalAlpha=1;c.fillStyle='#c7e5ce';c.font='10px monospace';c.textAlign='center';c.fillText(`Landing → floor ${viewZ+1}`,x,y-36); }
+      else if (mode === 'build') { c.globalAlpha = .5; this.structure({ building: build, terrain: 'floor', hp: 100, powered: true, x: this.hover.x, y: this.hover.y, z: viewZ }, x, y, s,null,site); c.globalAlpha = 1; }
     }
     c.restore();
     if (siteId === 'surface' && !isDay(s)) { c.fillStyle = '#0a1b3840'; c.fillRect(0, 0, this.w, this.h); }
-    c.fillStyle = '#58717e'; c.font = '9px monospace'; c.textAlign = 'left'; c.fillText(`HEX GRID / ${site.size} × ${site.size}     ${Math.round(this.zoom * 100)}%`, 22, this.h - 108);
+    c.fillStyle = '#58717e'; c.font = '9px monospace'; c.textAlign = 'left'; c.fillText(`FLOOR ${viewZ} / HEX GRID / ${site.size} × ${site.size}     ${Math.round(this.zoom * 100)}%`, 22, this.h - 108);
     if(this.powerOverlay){c.fillStyle='#b0d5c3';c.fillText('POWER / BREAKER TRIANGLE: OUTPUT SIDE   GAP: OPEN CONTACT',22,this.h-122);}
     if(this.waterOverlay){c.fillStyle='#a8c7ef';c.fillText('WATER / DASHED ROUTE   SQUARE: VALVE   AMBER: CLOSED   CORAL: LEAK   ARROW: FLOW',22,this.h-122);}
     if(this.gasOverlay){c.fillStyle='#9ed6d9';c.fillText('GAS / CYAN: ROUTE   AMBER: VALVE CLOSED   CORAL: LEAK   ARROW: PUMP OUTLET',22,this.h-122);}
@@ -293,6 +300,13 @@ export class Renderer {
     const length=Math.hypot(vx,vy),ux=vx/length,uy=vy/length;
     this.polygon([[x+vx,y+vy],[x+vx-ux*10-uy*5,y+vy-uy*10+ux*5],[x+vx-ux*10+uy*5,y+vy-uy*10-ux*5]],color,'#173644');
   }
+  riserMarker(x,y,kind,active){const i=['power','gas','water'].indexOf(kind);this.ctx.fillStyle=active?{power:'#e6c681',gas:'#82dbe2',water:'#82baf4'}[kind]:'#dc9e88';this.ctx.font='bold 11px monospace';this.ctx.textAlign='center';this.ctx.fillText(`${kind[0].toUpperCase()}↕`,x-18+i*18,y-25);}
+  stairwell(x,y,open,direction,condition=100) {
+    this.hex(x,y,'#20323a',condition<50?'#f29b86':'#91bdb9',.62);
+    for(let n=0;n<4;n++)this.box(x-10+n*6,y+5-n*3,7,3,3+n*3,'#a6c3bc','#597d7c','#34515b');
+    if(!open)this.hex(x,y-6,'#4c6976cc','#dcb879',.5);
+    this.ctx.fillStyle=condition<50?'#f29b86':open?'#b8ebcb':'#edca8c';this.ctx.font='bold 15px monospace';this.ctx.textAlign='center';this.ctx.fillText(direction,x+17,y-17);
+  }
   shuttleCraft(x, y) {
     this.box(x, y - 5, 26, 13, 20, '#d3d1b7', '#8b9c95', '#667e80');
     this.box(x + 2, y - 25, 15, 7, 7, '#6eaaa9', '#375e6c', '#2c4e62');
@@ -301,7 +315,9 @@ export class Renderer {
   }
   structure(t, x, y, s, airlock=null,site=null) {
     const c = this.ctx, b = t.building;
-    if(b==='gasPipe'){this.portStar(x,y,'#93d0d4','#35677a');this.box(x,y,6,3,5,'#e1be7f','#a18d60','#756e53');}
+    if(riserKind(b))this.riserMarker(x,y,riserKind(b),true);
+    else if(b==='stairwell')this.stairwell(x,y,true,'↑');
+    else if(b==='gasPipe'){this.portStar(x,y,'#93d0d4','#35677a');this.box(x,y,6,3,5,'#e1be7f','#a18d60','#756e53');}
     else if(b==='airlockController'){
       this.box(x,y,17,9,13,'#9aaea9','#50747b','#365660');
       this.box(x,y-13,13,7,8,'#506e79','#324e5b','#29434e');
@@ -385,7 +401,7 @@ export class Renderer {
     else if (b === 'fence' || b === 'pastureGate') {
       const open=t.hp<=0||(b==='pastureGate'&&t.gateMode==='open'),height=t.hp<=0?6:19;
       this.box(x,y,3,2,height,'#bcc6ad','#798b7c','#4d6966');
-      const links=DIRECTIONS.filter(direction=>['fence','pastureGate','wall'].includes(tileAt(site,...step(t.x,t.y,direction))?.building)).map(direction=>hexDirectionVector(direction,.5));
+      const links=DIRECTIONS.filter(direction=>['fence','pastureGate','wall'].includes(tileAt(site,...step(t.x,t.y,direction),t.z??0)?.building)).map(direction=>hexDirectionVector(direction,.5));
       if(!links.length)links.push(hexDirectionVector('ne',.4),hexDirectionVector('sw',.4));
       for(const [dx,dy] of links){
         if(!open){for(const h of [6,16])this.line(x,y-h,x+dx,y+dy-h,'#a4b79d',3);for(const f of [.3,.7])this.line(x+dx*f,y+dy*f-16,x+dx*f,y+dy*f-6,'#5c8079',1);}

@@ -84,7 +84,7 @@ test('forecast identifies a tile in advance and impact damage is recorded there'
 
 test('damage to the outdoor cable interrupts life support; crew repair restores the atmosphere', () => {
   const { s, site, life } = fixture(), cable = at(site, 7, 13);
-  assert.ok(cable.cable); cable.cable.hp = 40; s.debris = { next: 1, target: { x: 7, y: 13 }, count: 0 };
+  assert.ok(cable.cable); cable.cable.hp = 40; s.debris = { next: 1, target: { x: 7, y: 13, z: 0 }, count: 0 };
   step(s, 175); assert.equal(cable.cable.hp, 0); assert.equal(life.powered, false);
   assert.equal(breathable(site.rooms[0]), true); assert.ok(site.rooms[0].co2Fraction <= .02);
   assert.ok(s.crew.some(c => c.oxygen < 100)); assert.equal(s.flags.airWarning, true);
@@ -95,7 +95,7 @@ test('damage to the outdoor cable interrupts life support; crew repair restores 
 });
 
 test('hull impact leaks atmosphere and delivered repair supplies restore the seal', () => {
-  const { s, site } = fixture(), wall = at(site, 6, 9); s.debris = { next: 1, target: { x: 6, y: 9 }, count: 0 };
+  const { s, site } = fixture(), wall = at(site, 6, 9); s.debris = { next: 1, target: { x: 6, y: 9, z: 0 }, count: 0 };
   step(s); assert.equal(wall.hp, 65); assert.ok(site.rooms[0].leakArea > 0); const escaped = site.atmosphere.vented.oxygen;
   step(s, 10); assert.ok(site.atmosphere.vented.oxygen > escaped);
   const j = order(s, 'surface', 6, 9, 'repair').job; until(s, () => !s.jobs.includes(j)); assert.equal(wall.hp, 100); assert.equal(site.rooms[0].leakArea, 0);

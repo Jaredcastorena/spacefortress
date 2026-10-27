@@ -1,3 +1,5 @@
+import { stairLinks, stairOpen, STAIR } from './vertical.js';
+import { tileAt, positionOf } from './spatial.js';
 import { neighbors as hexNeighbors, forwardNeighbors } from './geometry.js';
 import { take, add, quantity, OUTPUT_CAPACITY } from './inventory.js';
 import { roomAt } from './atmosphere.js';
@@ -7,8 +9,8 @@ import { emitEvent, tileEntityId } from './telemetry.js';
 import { absorbCultivationWater } from './flora.js';
 import { CULTIVATION } from './flora-data.js';
 export const LIQUID = { capacity:4, flow:.5, release:.5, pump:.5, wet:.25, quench:.25, faultPower:5, faultDamage:.25 };
-const at=(site,x,y)=>x>=0&&y>=0&&x<site.size&&y<site.size?site.tiles[y*site.size+x]:null;
-const neighbors=(site,t)=>hexNeighbors(t.x,t.y).map(([x,y])=>at(site,x,y)).filter(Boolean);
+const at=(site,x,y,z=0)=>tileAt(site,{x,y,z});
+const neighbors=(site,t)=>hexNeighbors(t.x,t.y).map(([x,y])=>at(site,x,y,positionOf(t).z)).filter(Boolean);
 export function liquidOpen(site,t,tick=site.atmosphere.tick){
  if(!t||t.terrain==='rock'||t.building==='wall'&&t.hp>0)return false;
  if(t.building==='door'&&t.hp>0)return t.doorMode==='open'||t.doorMode==='auto'&&t.doorUntil>tick;
@@ -24,13 +26,13 @@ export function initializeLiquids(s){
 export function releaseWater(s,site,t,amount,cause){
  const n=Math.min(amount,t.machine?.input.water||0,LIQUID.capacity-t.liquid);if(n<=1e-9)return 0;
  take(t.machine.input,{water:n});t.liquid+=n;site.liquids.released+=n;
- emitEvent(s,'water.released',{entity:tileEntityId(site.id,t.x,t.y),amount:n,cause,from:'machine.input',to:'floor'});return n;
+ emitEvent(s,'water.released',{entity:tileEntityId(site.id,t.x,t.y,positionOf(t).z),amount:n,cause,from:'machine.input',to:'floor'});return n;
 }
 function transfer(s,site,a,b){
  if(!liquidOpen(site,a,s.tick)||!liquidOpen(site,b,s.tick))return;
  if(a.liquid<b.liquid)[a,b]=[b,a];
  const n=Math.min(LIQUID.flow,(a.liquid-b.liquid)*.25,LIQUID.capacity-b.liquid);if(n<=1e-9)return;
- a.liquid-=n;b.liquid+=n;emitEvent(s,'water.flowed',{from:tileEntityId(site.id,a.x,a.y),to:tileEntityId(site.id,b.x,b.y),amount:n});
+ a.liquid-=n;b.liquid+=n;emitEvent(s,'water.flowed',{from:tileEntityId(site.id,a.x,a.y,positionOf(a).z),to:tileEntityId(site.id,b.x,b.y,positionOf(b).z),amount:n});
 }
 export function flowLiquids(s){
  for(const site of Object.values(s.sites)){
@@ -39,16 +41,22 @@ export function flowLiquids(s){
    releaseWater(s,site,t,Math.max(rate,t.tank.drain?LIQUID.release:0),leaking&&t.tank.drain?'drain_and_damage':leaking?'damaged_tank':'drain_valve');
   }
   if(!site.tiles.some(t=>t.liquid>0))continue;
+  for(const link of stairLinks(site))if(stairOpen(site,link)){
+   const upper=tileAt(site,link.upper),lower=tileAt(site,link.lower);
+   if(!liquidOpen(site,upper,s.tick)||!liquidOpen(site,lower,s.tick))continue;
+   const amount=Math.min(STAIR.waterFlow,upper.liquid,LIQUID.capacity-lower.liquid);
+   if(amount>1e-9){upper.liquid-=amount;lower.liquid+=amount;emitEvent(s,'water.flowed',{from:tileEntityId(site.id,upper.x,upper.y,upper.z),to:tileEntityId(site.id,lower.x,lower.y,lower.z),amount,connection:link.id});}
+  }
   const cells=s.tick%2?site.tiles:[...site.tiles].reverse();
   for(const t of cells)if(t.liquid>0||neighbors(site,t).some(n=>n.liquid>0)){
    // Keep the existing per-edge flow cap and visit each undirected hex edge once.
-   for(const [x,y] of forwardNeighbors(t.x,t.y)){const n=at(site,x,y);if(n)transfer(s,site,t,n);}
+   for(const [x,y] of forwardNeighbors(t.x,t.y)){const n=at(site,x,y,positionOf(t).z);if(n)transfer(s,site,t,n);}
   }
   for(const t of site.tiles)if(t.liquid>0&&liquidOpen(site,t,s.tick)){
    const space=t.terrain==='void',edge=t.x===0||t.y===0||t.x===site.size-1||t.y===site.size-1;
    const soil=['ground','ore'].includes(t.terrain),drainage=space?t.liquid:edge?Math.min(.5,t.liquid):soil?Math.min(CULTIVATION.absorptionRate,t.liquid):0;
    const absorbed=!space&&!edge&&t.terrain==='ground'?absorbCultivationWater(s,site,t,drainage):0,n=drainage-absorbed;
-   if(n>0){t.liquid-=n;site.liquids.lost+=n;emitEvent(s,'water.lost',{entity:tileEntityId(site.id,t.x,t.y),amount:n,cause:space?'space':edge?'map_edge':'ground_drainage'});}
+   if(n>0){t.liquid-=n;site.liquids.lost+=n;emitEvent(s,'water.lost',{entity:tileEntityId(site.id,t.x,t.y,positionOf(t).z),amount:n,cause:space?'space':edge?'map_edge':'ground_drainage'});}
   }
  }
 }
@@ -61,7 +69,7 @@ export function pumpLiquids(s){
    if(!liquidOpen(site,from,s.tick))continue;
    const n=Math.min(remaining,from.liquid);if(n<=1e-9)continue;
    from.liquid-=n;remaining-=n;moved+=n;add(m.output,{water:n});site.liquids.recovered+=n;
-   emitEvent(s,'water.pumped',{entity:tileEntityId(site.id,t.x,t.y),from:tileEntityId(site.id,from.x,from.y),amount:n,to:'machine.output'});
+   emitEvent(s,'water.pumped',{entity:tileEntityId(site.id,t.x,t.y,positionOf(t).z),from:tileEntityId(site.id,from.x,from.y,positionOf(from).z),amount:n,to:'machine.output'});
   }
   m.status=status||(moved?'Recovering floor water':'Floor dry');
  }
@@ -69,19 +77,19 @@ export function pumpLiquids(s){
 export const wetCable=t=>!!(t.cable?.enabled&&t.cable.hp>0&&(t.liquid||0)>=LIQUID.wet);
 export function shortCable(s,site,t){
  const energy=LIQUID.faultPower;site.liquids.faultEnergy+=energy;
- const room=roomAt(site,t.x,t.y);if(room){room.heat+=energy;site.thermal.equipment+=energy;}else site.liquids.faultHeatVented+=energy;
+ const room=roomAt(site,t.x,t.y,t.z);if(room){room.heat+=energy;site.thermal.equipment+=energy;}else site.liquids.faultHeatVented+=energy;
  damage(s,site,t,'cable',LIQUID.faultDamage,'water');
- emitEvent(s,'power.wet_short',{entity:tileEntityId(site.id,t.x,t.y),energy,condition:t.cable.hp});
+ emitEvent(s,'power.wet_short',{entity:tileEntityId(site.id,t.x,t.y,t.z),energy,condition:t.cable.hp});
 }
 export function quenchWater(s,site,t){
  if(t.liquid<LIQUID.quench)return false;
  t.liquid-=LIQUID.quench;site.liquids.quenched+=LIQUID.quench;
- emitEvent(s,'water.used_for_fire',{entity:tileEntityId(site.id,t.x,t.y),amount:LIQUID.quench});return true;
+ emitEvent(s,'water.used_for_fire',{entity:tileEntityId(site.id,t.x,t.y,positionOf(t).z),amount:LIQUID.quench});return true;
 }
-export function setTank(s,siteId,x,y,fill,drain){
- const site=s.sites[siteId],t=site&&at(site,x,y);
+export function setTank(s,siteId,x,y,fill,drain,z=0){
+ const site=s.sites[siteId],t=site&&at(site,x,y,z);
  if(t?.building!=='waterTank'||typeof fill!=='boolean'||typeof drain!=='boolean')return {ok:false,message:'Choose a water tank and fill/drain controls.'};
- t.machine.enabled=fill;t.tank.drain=drain;emitEvent(s,'water.tank.changed',{entity:tileEntityId(siteId,x,y),fill,drain});refreshPower(s,site);return {ok:true};
+ t.machine.enabled=fill;t.tank.drain=drain;emitEvent(s,'water.tank.changed',{entity:tileEntityId(siteId,x,y,z),fill,drain});refreshPower(s,site);return {ok:true};
 }
 export function validateLiquids(s){
  const amount=n=>Number.isFinite(n)&&n>=0;

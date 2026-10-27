@@ -17,6 +17,7 @@ const job = (s, sources, cost) => ({
   site: 'wreck',
   x: target[0],
   y: target[1],
+  z: 0,
   kind: 'build',
   building: 'stockpile',
   cost,
@@ -57,12 +58,12 @@ test('construction leaves material promised to a same-site pickup in dock import
   const { s, dock } = outpost(), carrier = s.crew[0];
   dock.imports = { alloy: 6 };
   carrier.site = 'wreck'; carrier.x = 4; carrier.y = 10; carrier.carry = null;
-  carrier.intent = { type: 'haul', target: [dock.x, dock.y], source: 'imports', items: { alloy: 4 }, destination: { kind: 'stock', target: [6, 11] } };
+  carrier.intent = { type: 'haul', target: { x: dock.x, y: dock.y, z: 0 }, source: 'imports', items: { alloy: 4 }, destination: { kind: 'stock', target: { x: 6, y: 11, z: 0 } } };
 
   assert.equal(constructionResources(s, 'wreck').alloy, 2);
   assert.equal(reserveConstruction(s, 'wreck', ...target, { alloy: 3 }, pathTo), null);
   const sources = reserveConstruction(s, 'wreck', ...target, { alloy: 2 }, pathTo);
-  assert.deepEqual(sources, [{ x: dock.x, y: dock.y, kind: 'imports', items: { alloy: 2 } }]);
+  assert.deepEqual(sources, [{ x: dock.x, y: dock.y, z: 0, kind: 'imports', items: { alloy: 2 } }]);
   assert.deepEqual(dock.imports, { alloy: 4 });
 });
 

@@ -6,9 +6,9 @@ import { haul } from '../src/industry.js';
 import { initializeStorage, extract, add, totalResources } from '../src/inventory.js';
 import { foodLots } from '../src/food-lots.js';
 
-const input = { kind: 'input', target: [7, 9] };
-const depotDestination = { kind: 'stock', target: [8, 10] };
-const pickup = (items, destination = input, source = 'output', target = [12, 10]) => ({ type: 'haul', target, source, items, destination });
+const input = { kind: 'input', target: { x: 7, y: 9, z: 0 } };
+const depotDestination = { kind: 'stock', target: { x: 8, y: 10, z: 0 } };
+const pickup = (items, destination = input, source = 'output', target = { x: 12, y: 10, z: 0 }) => ({ type: 'haul', target, source, items, destination });
 const crew = (id, fields = {}) => ({ id, site: 'surface', health: 100, carry: null, delivery: null, intent: null, ...fields });
 const freeze = value => { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
 
@@ -23,11 +23,11 @@ function fixture() {
 test('incoming claims count matching live pickup and actual carried quantities once', () => {
   const s = { crew: [
     crew('pickup', { intent: pickup({ water: 1.25, food: 2 }) }),
-    crew('carrying', { carry: { water: .5 }, delivery: input, intent: { type: 'rest', target: [9, 9] } }),
+    crew('carrying', { carry: { water: .5 }, delivery: input, intent: { type: 'rest', target: { x: 9, y: 9, z: 0 } } }),
     crew('other-site', { site: 'wreck', intent: pickup({ water: 9 }) }),
     crew('dead', { health: 0, carry: { water: 7 }, delivery: input }),
     crew('other-kind', { intent: pickup({ water: 8 }, { ...input, kind: 'stock' }) }),
-    crew('other-tile', { intent: pickup({ water: 6 }, { ...input, target: [7, 10] }) }),
+    crew('other-tile', { intent: pickup({ water: 6 }, { ...input, target: { x: 7, y: 10, z: 0 } }) }),
     crew('abandoned-cargo', { carry: { water: 4 }, delivery: null }),
     crew('job-cargo', { carry: { water: 3 }, delivery: { ...input, kind: 'job', job: 'job-1' } }),
   ] };
@@ -44,7 +44,7 @@ test('output claims reserve only pending pickups from the matching inventory own
     crew('carrying', { carry: { water: 6 }, delivery: depotDestination, intent: { type: 'air', target: null } }),
     crew('dead', { health: 0, intent: pickup({ water: 8 }, depotDestination) }),
     crew('stock', { intent: pickup({ water: 9 }, depotDestination, 'stock') }),
-    crew('elsewhere', { intent: pickup({ water: 9 }, depotDestination, 'output', [12, 11]) }),
+    crew('elsewhere', { intent: pickup({ water: 9 }, depotDestination, 'output', { x: 12, y: 11, z: 0 }) }),
     crew('off-site', { site: 'wreck', intent: pickup({ water: 9 }, depotDestination) }),
   ] };
   assert.equal(outgoingInventory(s, 'surface', [12, 10], 'output', 'water'), 2.75);
@@ -112,12 +112,12 @@ test('haulers reserve only residual machine space after held and pending incomin
   const { s, site, depot } = fixture(), farm = at(site, 7, 9), extra = at(site, 12, 11);
   farm.machine.enabled = true; farm.machine.input = { water: .25, fertilizer: .5 };
   extra.building = 'stockpile'; initializeStorage(extra); extra.stock = { water: 10 }; depot.stock = { water: 10 };
-  s.crew[0].carry = { water: .75 }; s.crew[0].delivery = input; s.crew[0].intent = { type: 'rest', target: [9, 9] };
-  s.crew[1].intent = pickup({ water: .5 }, input, 'stock', [8, 10]);
+  s.crew[0].carry = { water: .75 }; s.crew[0].delivery = input; s.crew[0].intent = { type: 'rest', target: { x: 9, y: 9, z: 0 } };
+  s.crew[1].intent = pickup({ water: .5 }, input, 'stock', { x: 8, y: 10, z: 0 });
   assert.equal(incomingInventory(s, 'surface', input, 'water'), 1.25);
   haul(s, s.crew[2], site, pathTo);
   assert.deepEqual(s.crew[2].intent.items, { water: .5 });
-  assert.deepEqual(s.crew[2].intent.target, [12, 11]);
+  assert.deepEqual(s.crew[2].intent.target, { x: 12, y: 11, z: 0 });
   assert.equal(incomingInventory(s, 'surface', input, 'water') + farm.machine.input.water, 2);
   haul(s, s.crew[3], site, pathTo);
   assert.equal(s.crew[3].intent, null);
@@ -134,7 +134,7 @@ test('interrupted deliveries remain reserved and food hauling retains its origin
   assert.equal(outgoingInventory(s, 'surface', [12, 10], 'drop', 'food'), 2);
   for (let i = 0; i < 30 && !c.carry; i++) haul(s, c, site, pathTo);
   assert.equal(outgoingInventory(s, 'surface', [12, 10], 'drop', 'food'), 0);
-  c.intent = { type: 'rest', target: [9, 9] }; setLabor(s, c.id, 'hauling', false);
+  c.intent = { type: 'rest', target: { x: 9, y: 9, z: 0 } }; setLabor(s, c.id, 'hauling', false);
   assert.equal(incomingInventory(s, 'surface', depotDestination, 'food'), 2);
   assert.deepEqual(foodLots(c.carry), [{ amount: 2, age: 120, meal }]);
   for (let i = 0; i < 30 && c.carry; i++) haul(s, c, site, pathTo);

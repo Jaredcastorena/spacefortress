@@ -1,3 +1,4 @@
+import { positionOf, sameCell } from './spatial.js';
 import { needsNursing, carriedBy } from './nursing.js';
 import { breathable, roomAt } from './atmosphere.js';
 import { thermalSafe } from './thermal.js';
@@ -11,15 +12,15 @@ export function initializeHygiene(s) {
 }
 export function hygienePatient(s, j) {
   const p = s.crew.find(c => c.id === j.patient);
-  return p && p.site === j.site && needsNursing(s, p) && !carriedBy(s, p) && p.x === j.x && p.y === j.y && p.sanitation.waste >= .5 ? p : null;
+  return p && p.site === j.site && needsNursing(s, p) && !carriedBy(s, p) && sameCell(positionOf(p),positionOf(j)) && p.sanitation.waste >= .5 ? p : null;
 }
 export function hygieneReady(s, j, worker) {
   const p = hygienePatient(s, j), site = s.sites[j.site];
-  return !!p && worker.site === j.site && !worker.carry && breathable(roomAt(site, p.x, p.y)) && thermalSafe(roomAt(site, p.x, p.y)) && breathable(roomAt(site, worker.x, worker.y)) && thermalSafe(roomAt(site, worker.x, worker.y));
+  return !!p && worker.site === j.site && positionOf(worker).z === positionOf(j).z && !worker.carry && breathable(roomAt(site,p.x,p.y,p.z)) && thermalSafe(roomAt(site,p.x,p.y,p.z)) && breathable(roomAt(site,worker.x,worker.y,worker.z)) && thermalSafe(roomAt(site,worker.x,worker.y,worker.z));
 }
 export function completeHygiene(s, j, worker) {
   const p = hygienePatient(s, j);
-  if (!p || worker.site !== j.site || worker.carry) return;
+  if (!p || worker.site !== j.site || positionOf(worker).z !== positionOf(j).z || worker.carry) return;
   const amount = Math.min(CARRY_CAPACITY, p.sanitation.waste);
   p.sanitation.waste -= amount;
   if (p.sanitation.waste < .5) p.sanitation.wait = 0;
@@ -32,7 +33,7 @@ export function reconcileHygiene(s, cancelJob) {
 }
 export function prepareHygiene(s, order, cancelJob, release) {
   reconcileHygiene(s, cancelJob);
-  for (const p of s.crew) if (needsNursing(s, p) && p.sanitation.waste >= .5 && s.tick >= p.sanitation.retryAt && !s.crew.some(c => c.rescue?.patient === p.id) && !s.jobs.some(j => j.kind === 'hygiene' && j.patient === p.id)) order(s, p.site, p.x, p.y, 'hygiene', p.id);
+  for (const p of s.crew) if (needsNursing(s, p) && p.sanitation.waste >= .5 && s.tick >= p.sanitation.retryAt && !s.crew.some(c => c.rescue?.patient === p.id) && !s.jobs.some(j => j.kind === 'hygiene' && j.patient === p.id)) order(s, p.site, p.x, p.y, 'hygiene', p.id, p.z);
   // Let a sole medic interrupt nonurgent treatment when an overflow is approaching.
   // A hungry patient's meal retains precedence over hygiene.
   for (const j of s.jobs.filter(j => j.kind === 'hygiene' && !j.worker)) {

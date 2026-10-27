@@ -1,3 +1,5 @@
+import {activeUtilityLinks} from './utility-links.js';
+import { tileAt, positionOf } from './spatial.js';
 import { DIRECTIONS, neighbors, forwardNeighbors, step, opposite } from './geometry.js';
 import { RECIPES, BUILDINGS } from './data.js';
 import { add, extract } from './inventory.js';
@@ -12,8 +14,8 @@ export const WATER_DIRECTIONS = Object.freeze(Object.fromEntries(DIRECTIONS.map(
 const DEVICES = ['waterPump','waterIntake','waterOutlet'];
 const EQUIPMENT = ['waterReservoir',...DEVICES];
 const EPS = 1e-9;
-const at = (site,x,y) => site && x>=0 && y>=0 && x<site.size && y<site.size ? site.tiles[y*site.size+x] : null;
-const id = (site,t) => tileEntityId(site.id,t.x,t.y);
+const at = (site,x,y,z=0) => tileAt(site,{x,y,z});
+const id = (site,t) => tileEntityId(site.id,t.x,t.y,positionOf(t).z);
 const owner = (site,t,slot) => ({entity:id(site,t),slot});
 const nodeSlot = t => t.waterPipe ? 'waterPipe' : 'waterStore';
 const condition = t => t.waterPipe ? t.waterPipe.hp : t.hp;
@@ -38,7 +40,7 @@ export function initializePlumbing(s) {
 export function waterPorts(site,t) {
   const direction=t.waterDevice?.direction;
   if(!Object.hasOwn(WATER_DIRECTIONS,direction))return {input:null,output:null};
-  return {input:at(site,...step(t.x,t.y,opposite(direction))),output:at(site,...step(t.x,t.y,direction))};
+  return {input:at(site,...step(t.x,t.y,opposite(direction)),positionOf(t).z),output:at(site,...step(t.x,t.y,direction),positionOf(t).z)};
 }
 
 const BLOCKED = {
@@ -63,8 +65,8 @@ function devicePlan(s,site,t) {
   const outputSlot=targetNode?(waterNode(output)?nodeSlot(output):null):floor?'liquid':targetInventory?'machine.input':null;
   // Reservation names refer to machine inventory slots, not device direction:
   // output claims protect source goods; input claims protect delivery space.
-  const reservedOutput=sourceInventory?.reservedKind?outgoingInventory(s,site.id,[input.x,input.y],sourceInventory.reservedKind,'water'):0;
-  const reservedInput=targetInventory?incomingInventory(s,site.id,{kind:'input',target:[output.x,output.y]},'water'):0;
+  const reservedOutput=sourceInventory?.reservedKind?outgoingInventory(s,site.id,input,sourceInventory.reservedKind,'water'):0;
+  const reservedInput=targetInventory?incomingInventory(s,site.id,{kind:'input',target:output},'water'):0;
   const sourceWater=sourceNode?(waterNode(input)?.water||0):floor?(input?.liquid||0):(sourceInventory?.inventory.water||0);
   const targetWater=targetNode?(waterNode(output)?.water||0):floor?(output?.liquid||0):(targetInventory?.water||0);
   const targetCapacity=targetNode?waterCapacity(output):floor?LIQUID.capacity:targetInventory?targetRecipe.input.water*2:0;
@@ -100,12 +102,12 @@ export function plumbingStatus(s,site,t) {
     blocked:plan.blockedCode?BLOCKED[plan.blockedCode]:null,status:plan.blockedCode?BLOCKED[plan.blockedCode]:t.building==='waterPump'?'Pumping available water':t.building==='waterIntake'?'Collecting available water':'Supplying destination'};
 }
 
-function moveNodes(s,site,a,b,amount,reason,device=null) {
+function moveNodes(s,site,a,b,amount,reason,device=null,connection=null) {
   const source=waterNode(a),destination=waterNode(b);
   const n=Math.min(amount,source.water,Math.max(0,waterCapacity(b)-destination.water));
   if(n<=EPS)return 0;
   source.water-=n;destination.water+=n;
-  emitEvent(s,'plumbing.transferred',{from:owner(site,a,nodeSlot(a)),to:owner(site,b,nodeSlot(b)),amount:n,reason,...(device?{device:id(site,device)}:{})});
+  emitEvent(s,'plumbing.transferred',{from:owner(site,a,nodeSlot(a)),to:owner(site,b,nodeSlot(b)),amount:n,reason,...(connection?{connection}:{}),...(device?{device:id(site,device)}:{})});
   return n;
 }
 function releaseFloor(s,site,source,target,amount,reason,device=null) {
@@ -120,7 +122,7 @@ function leak(s,site,t) {
   if(remaining<=EPS)return;
   // A full open tile retains overflow; a boundary fitting can leak into its
   // adjacent open cells. No full or isolated destination is an implicit sink.
-  let targets=liquidOpen(site,t,s.tick)?[t]:neighbors(t.x,t.y).map(([x,y])=>at(site,x,y)).filter(n=>n&&liquidOpen(site,n,s.tick));
+  let targets=liquidOpen(site,t,s.tick)?[t]:neighbors(t.x,t.y).map(([x,y])=>at(site,x,y,positionOf(t).z)).filter(n=>n&&liquidOpen(site,n,s.tick));
   targets=targets.filter(n=>n.liquid<LIQUID.capacity-EPS);
   while(remaining>EPS&&targets.length) {
     const share=remaining/targets.length;let moved=0;
@@ -134,10 +136,15 @@ export function flowPlumbing(s) {
     const nodes=ordered(s,site.tiles.filter(t=>waterNode(t)));
     // The flow cap is per edge; six connected sides can carry more total water.
     for(const t of nodes)for(const [x,y] of forwardNeighbors(t.x,t.y)) {
-      const neighbor=at(site,x,y);if(!port(t)||!port(neighbor))continue;
+      const neighbor=at(site,x,y,positionOf(t).z);if(!port(t)||!port(neighbor))continue;
       let a=t,b=neighbor,delta=waterNode(a).water/waterCapacity(a)-waterNode(b).water/waterCapacity(b);
       if(delta<0){[a,b]=[b,a];delta=-delta;}
       moveNodes(s,site,a,b,Math.min(PLUMBING.flow,delta/(1/waterCapacity(a)+1/waterCapacity(b))),'level');
+    }
+    for(const link of activeUtilityLinks(site,'water')){
+      let a=tileAt(site,link.lower),b=tileAt(site,link.upper),delta=waterNode(a).water/waterCapacity(a)-waterNode(b).water/waterCapacity(b);
+      if(delta<0){[a,b]=[b,a];delta=-delta;}
+      moveNodes(s,site,a,b,Math.min(PLUMBING.flow,delta/(1/waterCapacity(a)+1/waterCapacity(b))),'riser',null,link.id);
     }
     for(const t of nodes)if(condition(t)<50)leak(s,site,t);
   }
@@ -169,7 +176,7 @@ export function operatePlumbing(s) {
 export function removePlumbing(s,site,t,accessibleDropTile,overlay=false) {
   const node=overlay?t.waterPipe:t.waterStore,n=node?.water||0;
   if(n>0) {
-    if(!accessibleDropTile||at(site,accessibleDropTile.x,accessibleDropTile.y)!==accessibleDropTile)throw new Error('Water dismantling needs an accessible recovery tile.');
+    if(!accessibleDropTile||tileAt(site,positionOf(accessibleDropTile))!==accessibleDropTile||positionOf(accessibleDropTile).z!==positionOf(t).z)throw new Error('Water dismantling needs an accessible recovery tile.');
     accessibleDropTile.drop=add(accessibleDropTile.drop||{},{water:n});
     node.water=0;site.plumbing.delivered+=n;
     emitEvent(s,'plumbing.delivered',{from:owner(site,t,overlay?'waterPipe':'waterStore'),to:owner(site,accessibleDropTile,'drop'),amount:n,reason:'dismantled'});
@@ -177,20 +184,20 @@ export function removePlumbing(s,site,t,accessibleDropTile,overlay=false) {
   if(overlay)t.waterPipe=null;else{delete t.waterStore;delete t.waterDevice;}
   return n;
 }
-export function setWaterValve(s,siteId,x,y,open) {
-  const site=s.sites[siteId],t=at(site,x,y),node=waterNode(t);
+export function setWaterValve(s,siteId,x,y,open,z=0) {
+  const site=s.sites[siteId],t=at(site,x,y,z),node=waterNode(t);
   if(!node||typeof open!=='boolean')return {ok:false,message:'Select a water pipe or reservoir valve.'};
   node.open=open;emitEvent(s,'plumbing.valve.changed',{entity:id(site,t),open});return {ok:true};
 }
-function setDevice(s,siteId,x,y,building,enabled,direction,mode) {
-  const site=s.sites[siteId],t=at(site,x,y);
+function setDevice(s,siteId,x,y,building,enabled,direction,mode,z=0) {
+  const site=s.sites[siteId],t=at(site,x,y,z);
   if(t?.building!==building||!t.waterDevice||typeof enabled!=='boolean'||!Object.hasOwn(WATER_DIRECTIONS,direction)||(building!=='waterPump'&&!['inventory','floor'].includes(mode)))return {ok:false,message:'Choose the matching water device with valid controls.'};
   t.waterDevice={enabled,direction,...(building==='waterPump'?{}:{mode})};refreshPower(s,site);
   emitEvent(s,'plumbing.device.changed',{entity:id(site,t),building,...t.waterDevice});return {ok:true};
 }
-export const setWaterPump=(s,siteId,x,y,enabled,direction)=>setDevice(s,siteId,x,y,'waterPump',enabled,direction);
-export const setWaterIntake=(s,siteId,x,y,enabled,direction,mode)=>setDevice(s,siteId,x,y,'waterIntake',enabled,direction,mode);
-export const setWaterOutlet=(s,siteId,x,y,enabled,direction,mode)=>setDevice(s,siteId,x,y,'waterOutlet',enabled,direction,mode);
+export const setWaterPump=(s,siteId,x,y,enabled,direction,z=0)=>setDevice(s,siteId,x,y,'waterPump',enabled,direction,undefined,z);
+export const setWaterIntake=(s,siteId,x,y,enabled,direction,mode,z=0)=>setDevice(s,siteId,x,y,'waterIntake',enabled,direction,mode,z);
+export const setWaterOutlet=(s,siteId,x,y,enabled,direction,mode,z=0)=>setDevice(s,siteId,x,y,'waterOutlet',enabled,direction,mode,z);
 
 export function validatePlumbing(s) {
   const number=n=>Number.isFinite(n)&&n>=0;
@@ -218,7 +225,7 @@ export function validatePlumbing(s) {
     if(!Number.isFinite(supplied)||!Number.isFinite(expected)||!Number.isFinite(stored)||Math.abs(stored-expected)>1e-6+supplied*1e-9)throw new Error('Plumbing water does not balance.');
   }
   for(const j of s.jobs) {
-    const t=at(s.sites[j.site],j.x,j.y);
+    const t=at(s.sites[j.site],j.x,j.y,positionOf(j).z);
     if(['repairWaterPipe','removeWaterPipe'].includes(j.kind)) {
       const repair=j.kind==='repairWaterPipe';
       if(!t?.waterPipe||(repair&&t.waterPipe.hp>=100)||j.building!==null||j.work!==3||!keys(j.cost,repair?['alloy']:[])||(repair&&j.cost.alloy!==1))throw new Error('Invalid water pipe work order.');

@@ -28,7 +28,7 @@ test('orders reserve a post without teleporting, granting trust or changing assi
 test('handler must reach the animal, attach a lead and physically cross a latched gate',()=>{
  const f=pen(),{s,a,site,gate}=f;assert.equal(animalPath(site,a,[[6,19]]),null);const j=request(f);
  until(s,()=>!s.jobs.includes(j)); // Every tick is save-validated by the helper.
- assert.deepEqual(a.husbandry.post,[6,19]);assert.equal(gate.gateMode,'latched');assert.equal(a.x,6);assert.equal(a.y,19);assert.ok(s.crew.some(c=>c.x===6&&c.y===19));check(s);
+ assert.deepEqual(a.husbandry.post,{x:6,y:19,z:0});assert.equal(gate.gateMode,'latched');assert.equal(a.x,6);assert.equal(a.y,19);assert.ok(s.crew.some(c=>c.x===6&&c.y===19));check(s);
 });
 
 test('escort movement stays with its handler and advances at most one tile each three ticks',()=>{
@@ -50,7 +50,7 @@ test('crew recovery interrupts transport rather than taking the animal to a bunk
 });
 
 test('cancellation releases the post and animal without deleting supplies or its old home',()=>{
- const f=pen(),{s,site,a}=f;at(site,12,18).terrain='ground';at(site,12,18).building='husbandryPost';assert.ok(setAnimalPost(s,a.id,12,18).ok);const j=request(f);until(s,()=>j.phase==='escort');const position=[a.x,a.y],supplies=totalResources(s);cancelJob(s,j.id);assert.deepEqual([a.x,a.y],position);assert.deepEqual(a.husbandry.post,[12,18]);assert.deepEqual(totalResources(s),supplies);assert.equal(transportFor(s,a),undefined);check(s);
+ const f=pen(),{s,site,a}=f;at(site,12,18).terrain='ground';at(site,12,18).building='husbandryPost';assert.ok(setAnimalPost(s,a.id,12,18).ok);const j=request(f);until(s,()=>j.phase==='escort');const position=[a.x,a.y],supplies=totalResources(s);cancelJob(s,j.id);assert.deepEqual([a.x,a.y],position);assert.deepEqual(a.husbandry.post,{x:12,y:18,z:0});assert.deepEqual(totalResources(s),supplies);assert.equal(transportFor(s,a),undefined);check(s);
 });
 
 test('post reservation rejects competing assignment or transport and releases on cancellation',()=>{

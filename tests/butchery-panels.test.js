@@ -1,3 +1,4 @@
+import { sameCell, positionOf } from '../src/spatial.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -15,7 +16,7 @@ const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>
 function fixture(species='bristleback',dead=false) {
   const s=createGame(),site=s.sites.surface,a=s.creatures.find(a=>a.species===species),post=at(site,12,10),source=at(site,13,10);
   post.building='husbandryPost';post.hp=100;post.fire=null;source.terrain='ground';source.building=null;source.fire=null;source.flora={};
-  a.site=site.id;a.x=post.x;a.y=post.y;a.husbandry.post=[post.x,post.y];a.husbandry.trust=100;a.lifecycle.enabled=false;
+  a.site=site.id;a.x=post.x;a.y=post.y;a.husbandry.post={x:post.x,y:post.y,z:0};a.husbandry.trust=100;a.lifecycle.enabled=false;
   initializeAnimalDeaths(s);
   if(dead){a.x=source.x;a.y=source.y;assert.equal(registerAnimalDeath(s,a,'unknown'),true);}
   return {s,site,a,post,source};
@@ -84,7 +85,7 @@ test('spoiled bodies reject meat processing and expose the shared finite disposa
 test('retrieval, carrier and staged phases show actual owner, partial work, escaped blockers and shared cancellation',()=>{
   const f=fixture('bristleback',true),{s,a,post}=f,job=butcher(f),worker=s.crew[0];worker.name='<handler>';job.worker=worker.id;job.blockedReason='<blocked> & waiting';
   for(const [phase,owner,label,location] of [
-    ['collect',{kind:'tile',site:'surface',x:a.x,y:a.y},'Retrieving body','On tile surface 13 / 10'],
+    ['collect',{kind:'tile',site:'surface',x:a.x,y:a.y,z:a.z},'Retrieving body','On tile surface 13 / 10'],
     ['carry',{kind:'crew',crew:worker.id},'Carrying body to post','Carried by &lt;handler&gt;'],
     ['process',{kind:'job',job:job.id},'Butchering at post','Staged at surface 12 / 10']
   ]) {
@@ -118,7 +119,7 @@ test('renderer places one physical body at tile, carrier or job location and nev
   const oldDocument=globalThis.document;
   try {
     for(const [owner,position] of [
-      [{kind:'tile',site:'surface',x:source.x,y:source.y},{x:source.x,y:source.y}],
+      [{kind:'tile',site:'surface',x:source.x,y:source.y,z:source.z},{x:source.x,y:source.y}],
       [{kind:'crew',crew:worker.id},{x:worker.x,y:worker.y}],
       [{kind:'job',job:job.id},{x:post.x,y:post.y}]
     ]) {
@@ -135,8 +136,8 @@ test('renderer places one physical body at tile, carrier or job location and nev
 test('inspector body lookup follows physical owner rather than retained animal death coordinates',()=>{
   const f=fixture('bristleback',true),{s,a,post,source}=f,job=butcher(f);a.death.owner={kind:'job',job:job.id};job.phase='process';
   const start=app.indexOf('    const remains='),end=app.indexOf('    const creature =',start),lookup=app.slice(start,end)+'\nhtml=remains;';
-  const inspect=t=>{const context={state:s,siteId:'surface',t,carcassPosition,animalButcheryDetails,html:''};vm.runInNewContext(lookup,context);return context.html;};
-  assert.equal(inspect(source),'');assert.ok(inspect(post).includes(`data-entity="carcass:${a.id}"`));
+  const inspect=t=>{const context={state:s,siteId:'surface',t,carcassPosition,animalButcheryDetails,sameCell,positionOf,html:''};vm.runInNewContext(lookup,context);return context.html;};
+  assert.equal(inspect({...post,z:4}),'');assert.equal(inspect(source),'');assert.ok(inspect(post).includes(`data-entity="carcass:${a.id}"`));
   assert.equal((inspect(post).match(/class="animal-butchery"/g)||[]).length,1);
   assert.match(app,/c\.health>0\|\|!isLivestock\(c\)/);
 });

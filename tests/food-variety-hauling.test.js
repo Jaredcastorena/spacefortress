@@ -64,7 +64,7 @@ test('selection change cancels unpicked ingredient promises and partially accept
   depot.stock = mixed(typedFood('siltgrain', 2, 120), typedFood('curd', 2, 80));
   haul(s, c, site, pathTo); assert.deepEqual(c.intent.foodKinds, { siltgrain: 2, curd: 2 });
   other.carry = mixed(typedFood('siltgrain', 1, 150), typedFood('curd', 1, 170));
-  other.delivery = { kind: 'input', target: [galley.x, galley.y], recipeId: 'curd_bake' };
+  other.delivery = { kind: 'input', target: { x: galley.x, y: galley.y, z: 0 }, recipeId: 'curd_bake' };
   const before = totalResources(s).food;
   assert.equal(setProductionRecipe(s, 'surface', galley.x, galley.y, 'berry_curd').ok, true);
   assert.equal(c.intent, null);
@@ -113,7 +113,7 @@ test('typed care reservation is atomic, excludes meals and refunds original lots
 test('construction reserves only typed portions left by an earlier generic oldest-first pickup claim', () => {
   const { s, depot, c } = fixture();
   depot.stock = mixed(typedFood('fungalcap', 1, 50), typedFood('sunberry', 1, 100));
-  c.intent = { type: 'haul', target: [depot.x, depot.y], source: 'stock', items: { food: 1 }, destination: { kind: 'stock', target: [12, 11] } };
+  c.intent = { type: 'haul', target: { x: depot.x, y: depot.y, z: 0 }, source: 'stock', items: { food: 1 }, destination: { kind: 'stock', target: { x: 12, y: 11, z: 0 } } };
   assert.equal(availableInventory(s, 'surface', [depot.x, depot.y], 'stock', 'food', null, feed), 1);
   const sources = reserveConstruction(s, 'surface', 11, 10, { food: 1 }, pathTo, feed);
   assert.equal(foodOfKind(sources[0].items, 'fungalcap'), 1);
@@ -144,7 +144,7 @@ test('spoiled fungal care waits for the same ingredient and cancellation returns
 test('generic care cannot steal the kind promised to an ingredient hauler', () => {
   const { s, depot, c } = fixture();
   depot.stock = mixed(typedFood('fungalcap', 1, 200), typedFood('sunberry', 1, 100));
-  c.intent = { type: 'haul', target: [depot.x, depot.y], source: 'stock', items: { food: 1 }, foodKinds: { fungalcap: 1 }, recipeId: 'fungal_stew', destination: { kind: 'input', target: [12, 10], recipeId: 'fungal_stew' } };
+  c.intent = { type: 'haul', target: { x: depot.x, y: depot.y, z: 0 }, source: 'stock', items: { food: 1 }, foodKinds: { fungalcap: 1 }, recipeId: 'fungal_stew', destination: { kind: 'input', target: { x: 12, y: 10, z: 0 }, recipeId: 'fungal_stew' } };
   assert.equal(reserveConstruction(s, 'surface', 11, 10, { food: 1 }, pathTo), null);
   assert.equal(reserveConstruction(s, 'surface', 11, 10, { food: 1 }, pathTo, true), null);
   assert.equal(foodOfKind(depot.stock, 'fungalcap'), 1);

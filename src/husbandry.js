@@ -1,7 +1,9 @@
+import { tileAt, positionOf, sameCell, cellKey } from './spatial.js';
+import { validAnimalPosition } from './animal-locations.js';
 import { distance } from './geometry.js';
 import { transportFor, postReserved } from './animal-transport.js';
 import { adult } from './breeding.js';
-import { animalPath } from './navigation.js';
+import { animalPathToPosition } from './navigation.js';
 import { moveAnimal } from './pastures.js';
 import { spill } from './inventory.js';
 import { planFoodSelection, typedFood } from './food-lots.js';
@@ -16,8 +18,8 @@ export function initializeHusbandry(s) {
   for(const c of s.crew){c.labors.husbandry??=true;c.skills.husbandry??={level:c.role==='Botanist'?2:0,xp:0};}
   for(const a of s.creatures)if(isLivestock(a))a.husbandry??={post:null,trust:0,product:0,care:true,harvest:true,retryAt:0,blocked:null};
 }
-const postTile=(s,a)=>a.husbandry.post?s.sites.surface.tiles[a.husbandry.post[1]*s.sites.surface.size+a.husbandry.post[0]]:null;
-export const animalForJob=(s,j)=>s.creatures.find(a=>a.id===j.animal&&isLivestock(a)&&a.health>0&&a.husbandry.post?.[0]===j.x&&a.husbandry.post?.[1]===j.y);
+const postTile=(s,a)=>a.husbandry.post?tileAt(s.sites.surface,a.husbandry.post):null;
+export const animalForJob=(s,j)=>s.creatures.find(a=>a.id===j.animal&&isLivestock(a)&&a.health>0&&a.site===j.site&&sameCell(a.husbandry.post,positionOf(j)));
 export function animalJobValid(s,j) {
   if(dispatchJob(j))return dispatchJobValid(s,j);
   if(j.kind==='animalTreat')return animalTreatmentValid(s,j);
@@ -26,9 +28,9 @@ export function animalJobValid(s,j) {
 }
 export function assignAnimal(s,id,x,y,pathTo,cancelJob) {
   const a=s.creatures.find(a=>a.id===id&&isLivestock(a)&&a.health>0);if(!a)return {ok:false,message:'Choose living livestock.'};
-  if(x!==null||y!==null){const site=s.sites.surface;if(!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=site.size||y>=site.size)return {ok:false,message:'Choose a husbandry post.'};const t=site.tiles[y*site.size+x];if(t.building!=='husbandryPost'||t.hp<=0)return {ok:false,message:'Choose a working husbandry post.'};if(postReserved(s,x,y,id))return {ok:false,message:'This post is reserved for transport.'};if(s.jobs.some(j=>carcassJob(j)&&j.site==='surface'&&j.x===x&&j.y===y))return {ok:false,message:'This post is reserved for carcass handling.'};if(s.creatures.some(o=>o!==a&&o.health>0&&o.husbandry?.post?.[0]===x&&o.husbandry.post[1]===y))return {ok:false,message:'This post already has an animal.'};if(pathTo(site,a,[[x,y]])===null)return {ok:false,message:'The animal cannot reach this post.'};}
+  if(x!==null||y!==null){const site=s.sites.surface;if(!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=site.size||y>=site.size)return {ok:false,message:'Choose a husbandry post.'};const t=tileAt(site,{x,y,z:0});if(t.building!=='husbandryPost'||t.hp<=0)return {ok:false,message:'Choose a working husbandry post.'};if(postReserved(s,x,y,id))return {ok:false,message:'This post is reserved for transport.'};if(s.jobs.some(j=>carcassJob(j)&&j.site==='surface'&&sameCell(positionOf(j),{x,y,z:0})))return {ok:false,message:'This post is reserved for carcass handling.'};if(s.creatures.some(o=>o!==a&&o.health>0&&sameCell(o.husbandry?.post,{x,y,z:0})))return {ok:false,message:'This post already has an animal.'};if(positionOf(a).z!==0||pathTo(site,a,[[x,y]])===null)return {ok:false,message:'The animal cannot reach this post.'};}
   for(const j of [...s.jobs])if(j.animal===id)cancelJob(s,j.id,true);
-  a.husbandry.post=x===null?null:[x,y];a.husbandry.retryAt=0;a.husbandry.blocked=null;
+  a.husbandry.post=x===null?null:{x,y,z:0};a.husbandry.retryAt=0;a.husbandry.blocked=null;
   emitEvent(s,'animal.post.assigned',{entity:id,target:x===null?null:tileEntityId('surface',x,y)});return {ok:true};
 }
 export function animalPolicy(s,id,policy,enabled,cancelJob) {
@@ -44,7 +46,7 @@ export function prepareHusbandry(s,order,cancelJob) {
   for(const j of [...s.jobs])if(animalJob(j)&&!animalJobValid(s,j))cancelJob(s,j.id,true);
   for(const a of s.creatures)if(isLivestock(a)&&a.health>0&&a.husbandry.post){
     const h=a.husbandry,t=postTile(s,a);if(transportFor(s,a))continue;if(!t.hp||s.tick<h.retryAt)continue;
-    const pending=s.jobs.filter(j=>j.site==='surface'&&j.x===t.x&&j.y===t.y),needsCare=h.care&&(h.trust<100||a.fed<((a.condition.injury>1e-8||a.condition.treated>1e-8)?60:40));
+    const pending=s.jobs.filter(j=>j.site==='surface'&&sameCell(positionOf(j),positionOf(t))),needsCare=h.care&&(h.trust<100||a.fed<((a.condition.injury>1e-8||a.condition.treated>1e-8)?60:40));
     const canFeed=pending.every(j=>j.kind==='animalTreat'&&j.animal===a.id);
     const kind=needsCare&&canFeed?'animalCare':!pending.length&&animalActivityAllowed(a)&&adult(a)&&h.harvest&&h.trust===100&&h.product>=100&&a.fed>=40&&a.health>=40?'animalHarvest':null;
     if(kind){const result=order(s,'surface',t.x,t.y,kind,a.id);h.blocked=result.ok?null:result.message;}else h.blocked=null;
@@ -77,7 +79,7 @@ export function moveAssignedAnimal(s,a,pathTo,roamPasture=false) {
   const t=postTile(s,a);if(!t||t.building!=='husbandryPost'||t.hp<=0)return false;
   const working=s.jobs.some(j=>animalJob(j)&&j.animal===a.id)||a.condition.treated>1e-8;
   if(working||(!roamPasture&&distance([a.x,a.y],[t.x,t.y])>2)){
-    if(s.tick%3===0){const route=pathTo(s.sites.surface,a,[[t.x,t.y]]);if(route?.length)moveAnimal(s,a,route[0],'post');}
+    if(s.tick%3===0){const route=animalPathToPosition(s.sites.surface,{...a,...positionOf(a)},[positionOf(t)]);if(route?.length)moveAnimal(s,a,route[0],'post');}
     return true;
   }
   return false;
@@ -88,7 +90,7 @@ export function animalCondition(s,a) {
 export function husbandryStatus(s,a,_pathTo) {
   const h=a.husbandry;if(!h)return null;
   if(a.health<=0)return 'Deceased';const transport=transportFor(s,a);if(transport)return transport.blockedReason||(transport.phase==='escort'?'Being escorted to a post':'Handler collection designated');if(!h.post)return h.trust===100?'Tame; no post assigned':'Wild; no post assigned';const t=postTile(s,a);
-  if(t?.building!=='husbandryPost')return 'Post lost';if(!t.hp)return 'Post damaged';if(animalPath(s.sites.surface,a,[h.post])===null)return 'Post route blocked';
+  if(t?.building!=='husbandryPost')return 'Post lost';if(!t.hp)return 'Post damaged';if(animalPathToPosition(s.sites.surface,{...a,...positionOf(a)},[h.post])===null)return 'Post route blocked';
   const job=s.jobs.find(j=>animalJob(j)&&j.animal===a.id);if(job)return job.blockedReason|| (job.kind==='animalCare'?'Care designated':job.kind==='animalTreat'?'Veterinary treatment designated':'Harvest designated');
   if(h.blocked)return h.blocked;
   const def=livestockDef(a),health=animalHealthStatus(s,a);
@@ -99,7 +101,7 @@ export function validateHusbandry(s) {
   const posts=new Set(),ids=new Set();
   for(const a of s.creatures){if(ids.has(a.id))throw new Error('Duplicate creature identity.');ids.add(a.id);if(!isLivestock(a))continue;const h=a.husbandry;
     if(!h||(h.blocked!==null&&(typeof h.blocked!=='string'||h.blocked.length>200))||![h.trust,h.product].every(n=>Number.isFinite(n)&&n>=0&&n<=100)||typeof h.care!=='boolean'||typeof h.harvest!=='boolean'||!Number.isSafeInteger(h.retryAt)||h.retryAt<0||h.retryAt>s.tick+120)throw new Error('Invalid animal care state.');
-    if(h.post!==null){if(!Array.isArray(h.post)||h.post.length!==2||!h.post.every(n=>Number.isInteger(n)&&n>=0&&n<s.sites.surface.size)||postTile(s,a)?.building!=='husbandryPost')throw new Error('Invalid husbandry post.');if(a.health>0){const key=h.post.join(',');if(posts.has(key))throw new Error('Husbandry post assigned twice.');posts.add(key);}}
+    if(h.post!==null){if(!validAnimalPosition(s.sites.surface,h.post)||postTile(s,a)?.building!=='husbandryPost')throw new Error('Invalid husbandry post.');if(a.health>0){const key=cellKey(h.post);if(posts.has(key))throw new Error('Husbandry post assigned twice.');posts.add(key);}}
   }
   const assigned=new Map();for(const j of s.jobs.filter(animalJob)){const a=animalForJob(s,j),prior=assigned.get(j.animal)||[];
     if(prior.length>=2||prior.includes(j.kind)||prior.length===1&&![...prior,j.kind].every(kind=>['animalCare','animalTreat'].includes(kind)))throw new Error('Conflicting animal work orders.');

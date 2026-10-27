@@ -8,7 +8,7 @@ import { plumbingDetails } from '../src/plumbing-panels.js';
 import { breakerDetails } from '../src/breaker-panels.js';
 
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} differs from ${b}`);
-const grid=size=>({size,tiles:Array.from({length:size*size},(_,i)=>({x:i%size,y:Math.floor(i/size)}))});
+const grid=size=>({size,tiles:Array.from({length:size*size},(_,i)=>({x:i%size,y:Math.floor(i/size),z:0}))});
 function graphics(){
   const renderer=Object.create(Renderer.prototype),lines=[],polygons=[];
   Object.assign(renderer,{w:1200,h:800,dpr:1,zoom:1,pan:{x:0,y:0},stars:[],cutaway:true});

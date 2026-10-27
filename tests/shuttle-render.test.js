@@ -84,3 +84,35 @@ test('system map draws a travel marker only during actual outbound or return tra
     assert.equal(markers.length, ['outbound', 'returning'].includes(phase) ? 1 : 0);
   }
 });
+
+
+test('the landing-deck view hides upper tiles, actors, work and impact markers',()=>{
+ const s=fixture(),baseline=draw(s,'surface'),site=s.sites.surface;
+ site.levels.push({z:1,name:'Upper'});site.tiles.push(...site.tiles.map(t=>({...structuredClone(t),z:1})));
+ s.crew.push({id:'upper-person',site:'surface',x:8,y:8,z:1,health:100});
+ s.jobs.push({id:'upper-work',site:'surface',x:8,y:8,z:1,kind:'build',building:'wall',remaining:4,work:4,materials:{alloy:2},sources:[]});
+ s.debris.target={x:8,y:8,z:1};const actual=draw(s,'surface');
+ assert.deepEqual(actual.commands,baseline.commands);assert.deepEqual(actual.crafts,baseline.crafts);
+});
+
+
+test('upper drawing uses only its structures, stair landing and declared hit-test floor',()=>{
+ const s=fixture(),site=s.sites.surface;s.creatures=[];
+ site.levels.push({z:1,name:'Upper'});
+ const upper=site.tiles.map(t=>({x:t.x,y:t.y,z:1,terrain:'void',building:null,variant:0,hp:100,liquid:0}));site.tiles.push(...upper);
+ const landing=upper[8*site.size+8],built=upper[9*site.size+8];landing.terrain=built.terrain='floor';built.building='wall';landing.verticalLink='vertical-999';
+ site.verticalLinks=[{id:'vertical-999',kind:'stairwell',lower:{x:8,y:8,z:0},upper:{x:8,y:8,z:1},hp:100,mode:'open',openUntil:0}];
+ const {renderer,crafts}=graphics(),structures=[],stairs=[];
+ renderer.structure=t=>structures.push(t);renderer.stairwell=(...args)=>stairs.push(args);
+ renderer.draw(s,'surface','inspect',null,1);
+ assert.deepEqual(structures,[built]);assert.equal(stairs.length,1);assert.equal(stairs[0][3],'↓');assert.deepEqual(crafts,[]);
+ const origin=renderer.origin(site),[x,y]=renderer.project(8,8);
+ assert.deepEqual(renderer.screenToTile(origin.x+x,origin.y+y,site,1),{x:8,y:8,z:1});
+ assert.equal(renderer.screenToTile(origin.x+x,origin.y+y,site,2),null);
+});
+
+test('supply reservations appear on their source floor even when the construction is upstairs',()=>{
+ const s=fixture();s.jobs.push({id:'upper-work',site:'surface',x:8,y:8,z:1,kind:'build',building:'wall',materials:{},sources:[{x:6,y:7,z:0,items:{alloy:2}}]});
+ const {commands}=draw(s,'surface'),[x,y]=project([6,7]);
+ assert.ok(commands.some(c=>c.name==='box'&&c.args[0]===x-18&&c.args[1]===y+6&&c.args[5]==='#d2b9db'));
+});

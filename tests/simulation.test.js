@@ -84,7 +84,7 @@ test('bristlebacks consume local lichen without draining colony food', () => {
   step(s, 9); assert.ok(t.flora.lichen.biomass < lichen); assert.equal(s.resources.food, 24);
 });
 test('tibbles consume biomass, multiply, and can be caught with a constructed trap', () => {
-  const s = createGame(); s.creatures.push({ id: 'test-tibble', species: 'tibble', site: 'surface', x: 8, y: 10, health: 100, fed: 60, age: 59 });
+  const s = createGame(); s.creatures.push({ id: 'test-tibble', species: 'tibble', site: 'surface', z: 0, x: 8, y: 10, health: 100, fed: 60, age: 59 });
   // Isolate food losses from crop production.
   at(s.sites.surface, 7, 9).machine.enabled = false; const food = s.resources.food;
   step(s, 60); assert.ok(s.resources.food < food); assert.ok(s.creatures.filter(c => c.species === 'tibble').length > 1);

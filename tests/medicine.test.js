@@ -40,7 +40,7 @@ test('medicine duties gate treatment and the patient cannot treat themself', () 
 
 test('scarce cots are reserved for the most injured crew without duplicate claims', () => {
   const { s } = clinic(); noMedics(s); injure(s, s.crew[0], 5, 'debris impact'); injure(s, s.crew[1], 20, 'solar exposure'); step(s);
-  assert.deepEqual(s.crew[1].medical.bed, [10, 9]); assert.equal(s.crew[0].medical.bed, null); assert.equal(s.jobs.filter(j => j.kind === 'treat').length, 1);
+  assert.deepEqual(s.crew[1].medical.bed, { x: 10, y: 9, z: 0 }); assert.equal(s.crew[0].medical.bed, null); assert.equal(s.jobs.filter(j => j.kind === 'treat').length, 1);
   assert.doesNotThrow(() => deserialize(serialize(s)));
 });
 
@@ -107,7 +107,7 @@ test('medical health, duties and supplies reload exactly and reject a legacy sch
 });
 
 test('invalid medical state, duplicate cot claims and invalid treatment doses are rejected', () => {
-  for (const corrupt of [s => s.crew[0].medical.injury = -1, s => s.crew[0].medical.treated = 2, s => s.crew[0].medical.injury = 2, s => s.crew.slice(0, 2).forEach(c => c.medical.bed = [10, 9])]) {
+  for (const corrupt of [s => s.crew[0].medical.injury = -1, s => s.crew[0].medical.treated = 2, s => s.crew[0].medical.injury = 2, s => s.crew.slice(0, 2).forEach(c => c.medical.bed = { x: 10, y: 9, z: 0 })]) {
     const s = createGame(); corrupt(s); assert.throws(() => deserialize(serialize(s)));
   }
   const { s, patient } = clinic(); noMedics(s); injure(s, patient, 10, 'debris impact'); step(s); s.jobs.find(j => j.kind === 'treat').dose = 26; assert.throws(() => deserialize(serialize(s)));

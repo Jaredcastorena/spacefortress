@@ -5,12 +5,13 @@ import { RESOURCES, SITES, SHUTTLE_FITS } from './data.js';
 import { contains, quantity, take } from './inventory.js';
 import { constructionResources } from './construction.js';
 import { SUIT_PER_POINT } from './atmosphere.js';
+import { suitRefillPlan } from './suit-supply.js';
 import { routeFuel, routeTime, initializeReturnCrew } from './expedition.js';
 import { expeditionCrewStatus, expeditionCrewCountAllowed } from './expedition-readiness.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
 export const DEPARTURE_AIR_RESERVE = 10;
 export const SHIP_SUPPLIES = ['fuel', 'food', 'air', 'alloy', 'components'];
-export const refillMix = crew => crew.reduce((n, c) => n + (100 - c.oxygen) * SUIT_PER_POINT / .21, 0);
+export const refillMix = crew => crew.reduce((n, c) => n + suitRefillPlan(c).air, 0);
 export const departureCrew = s => (s.departure?.crew || []).map(id=>s.crew.find(c=>c.id===id)).filter(Boolean);
 export const boardingDeparture = (s, c) => s.departure?.stage === 'boarding' && !c.rescue && !c.medical?.injury && c.life?.policy !== 'rest' && s.departure.crew.includes(c.id);
 const context=(s,plan=s.departure)=>({entity:'colony',crewIds:[...plan.crew],site:`site:${plan.site}`,tick:s.tick});
@@ -105,7 +106,7 @@ export function tryDeparture(s, log) {
   const air = refillMix(crew), fuel = routeFuel(s, d.site), cost = { fuel: fuel / 2, food: crew.length, air };
   if (!contains(s.shuttle.supplies, { ...cost, fuel })) { d.status = 'More loaded supplies required'; return; }
   take(s.shuttle.supplies, cost); s.sites.surface.atmosphere.vented.inert += air * .79;
-  for (const c of crew) { c.oxygen = 100; c.hunger = Math.max(80, c.hunger); c.medical.bed = null; c.site = 'transit'; c.activity = `In transit to ${SITES[d.site].name}`; }
+  for (const c of crew) { c.oxygen = suitRefillPlan(c).to; c.hunger = Math.max(80, c.hunger); c.medical.bed = null; c.site = 'transit'; c.activity = `In transit to ${SITES[d.site].name}`; }
   s.mission = { site: d.site, phase: 'outbound', remaining: routeTime(s, d.site), fit: s.shuttle.fit, capacity: SHUTTLE_FITS[s.shuttle.fit].capacity, legacyCapacity: false, crew: [...d.crew], cargo: {}, collector: false, heat: 0, returnFuel: fuel / 2, kitReserved: d.site === 'solar' };
   initializeReturnCrew(s.mission);
   emitEvent(s,'expedition.departed',{...context(s,d),previous:'boarding',next:'outbound',from:{entity:tileEntityId('surface',16,11),slot:'shuttle'},to:{entity:`site:${d.site}`,slot:'transit'},consumed:{...cost},returnFuel:fuel/2,fit:s.shuttle.fit,reason:'ready'});

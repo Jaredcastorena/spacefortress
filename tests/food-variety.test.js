@@ -76,7 +76,7 @@ test('changing the next recipe preserves committed ingredients and work, spills 
   const result=order(s,site.id,t.x,t.y,'operate');assert.equal(result.ok,true);
   const j=result.job;c.job=j.id;j.worker=c.id;operateMachine(s,c,j,site,pathTo);assert.ok(m.progress>0);
   const paid=structuredClone(m.batch), progress=m.progress, before=totalResources(s);
-  s.crew[1].intent={type:'haul',target:[8,10],source:'stock',items:{food:1},destination:{kind:'input',target:[t.x,t.y]},recipeId:'curd_bake',foodKinds:{curd:1}};
+  s.crew[1].intent={type:'haul',target: { x: 8, y: 10, z: 0 },source:'stock',items:{food:1},destination:{kind:'input',target: { x: t.x, y: t.y, z: 0 }},recipeId:'curd_bake',foodKinds:{curd:1}};
   assert.equal(setProductionRecipe(s,site.id,t.x,t.y,'fungal_stew').ok,true);
   assert.equal(recipeFor(t).id,'curd_bake');assert.equal(recipeFor(t,'selected').id,'fungal_stew');assert.equal(j.work,32);
   assert.deepEqual(m.batch,paid);assert.equal(m.progress,progress);assert.equal(m.input.food,undefined);assert.equal(t.drop.food,2);

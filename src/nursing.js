@@ -1,6 +1,7 @@
-import { neighbors } from './geometry.js';
-import { crewPathTo } from './navigation.js';
-import { advanceCrewRoute, cancelCrewTraversal } from './crew-traversal.js';
+import { roomCellPosition } from './room-locations.js';
+import { horizontalNeighbors, positionOf, sameCell } from './spatial.js';
+import { crewPathToPosition as crewPathTo } from './navigation.js';
+import { advanceCrewRoutePositions as advanceCrewRoute, cancelCrewTraversal } from './crew-traversal.js';
 import { openMeal, moveOpenedMeal } from './meals.js';
 import { foodAge } from './food-lots.js';
 import { thermalSafe } from './thermal.js';
@@ -11,14 +12,14 @@ import { airThreshold, remember, gainExperience } from './crew.js';
 import { dropCarriedMaterials } from './construction.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
 
-const xy = c => [c.x, c.y];
-const adjacent = c => neighbors(c.x, c.y);
+const xy = positionOf;
+const adjacent = c => horizontalNeighbors(positionOf(c));
 export const carriedBy = (s, patient) => s.crew.find(c => c.rescue?.carrying && c.rescue.patient === patient.id);
-export const atCot = (s, c) => c.medical.bed?.[0] === c.x && c.medical.bed?.[1] === c.y && safeBed(s.sites[c.site], c.medical.bed);
+export const atCot = (s, c) => sameCell(c.medical.bed,positionOf(c)) && safeBed(s.sites[c.site], c.medical.bed);
 export const needsNursing = (s, c) => c.health > 0 && !!s.sites[c.site] && !boardingPatient(s, c) && (immobile(c) || atCot(s, c));
 const rescueEvent = (s, id, helper, patient, detail = {}) => emitEvent(s, id, {
   entity: patient.id, actor: helper.id, site: `site:${patient.site}`,
-  tile: tileEntityId(patient.site, patient.x, patient.y), tick: s.tick, ...detail,
+  tile: tileEntityId(patient.site, patient.x, patient.y, patient.z), tick: s.tick, ...detail,
 });
 export function releaseRescue(s, helper, reason = 'interrupted') {
   const claim = helper.rescue;
@@ -41,14 +42,14 @@ function destination(s, p, pathTo) {
     const dock = site.tiles.find(t => t.building === 'dock' && t.hp > 0);
     return dock && crewPathTo(s, site, p, [xy(dock)]) !== null ? xy(dock) : null;
   }
-  if (safeBed(site, p.medical.bed) && crewPathTo(s, site, p, [p.medical.bed]) !== null) return [...p.medical.bed];
-  const cells = site.rooms.filter(r => breathable(r) && thermalSafe(r)).flatMap(r => r.cells.map(k => k.split(',').map(Number)));
+  if (safeBed(site, p.medical.bed) && crewPathTo(s, site, p, [p.medical.bed]) !== null) return {...p.medical.bed};
+  const cells = site.rooms.filter(r => breathable(r) && thermalSafe(r)).flatMap(r => r.cells.map(k => roomCellPosition(r,k)));
   const route = crewPathTo(s, site, p, cells);
   return route === null ? null : route.length ? route.at(-1) : xy(p);
 }
 export function feedPatient(s, j) {
   const p = s.crew.find(c => c.id === j.patient);
-  return p && p.site === j.site && needsNursing(s, p) && p.x === j.x && p.y === j.y && !carriedBy(s, p) && p.medical.servings === 0 ? p : null;
+  return p && p.site === j.site && needsNursing(s, p) && sameCell(positionOf(p),positionOf(j)) && !carriedBy(s, p) && p.medical.servings === 0 ? p : null;
 }
 export function completeFeeding(s, j) {
   const p = feedPatient(s, j); if (!p) return;
@@ -73,17 +74,17 @@ export function prepareNursing(s, order, cancelJob, release, pathTo) {
   for (const p of [...s.crew].filter(p => p.health > 0 && p.site !== 'transit' && immobile(p)).sort((a, b) => a.health - b.health || a.id.localeCompare(b.id))) {
     if (s.crew.some(c => c.rescue?.patient === p.id)) continue;
     const target = destination(s, p, pathTo);
-    if (!target || (p.x === target[0] && p.y === target[1])) continue;
+    if (!target || sameCell(positionOf(p),target)) continue;
     const site = s.sites[p.site];
     const helpers = s.crew.filter(c => c.id !== p.id && c.site === p.site && capable(c) && !c.airlockTraversal && !c.rescue && !c.carry && (!c.intent || ['haul', 'leisure', 'salvage'].includes(c.intent.type)))
       .map(c => ({ c, path: crewPathTo(s, site, c, adjacent(p)) })).filter(o => o.path !== null)
       .sort((a, b) => a.path.length - b.path.length || b.c.skills.medicine.level - a.c.skills.medicine.level || a.c.id.localeCompare(b.c.id));
     if (!helpers.length) { p.medical.status = 'Waiting for an available rescuer assigned to medicine'; continue; }
     const c = helpers[0].c; release(s, c); c.intent = null; c.rescue = { patient: p.id, carrying: false }; p.medical.status = 'Rescuer approaching';
-    rescueEvent(s, 'care.rescue.assigned', c, p, { destination: tileEntityId(p.site, ...target) });
+    rescueEvent(s, 'care.rescue.assigned', c, p, { destination: tileEntityId(p.site, target.x, target.y, target.z) });
   }
   for (const p of s.crew) if (needsNursing(s, p) && !carriedBy(s, p) && p.hunger < 45 && s.tick >= p.medical.feedRetryAt && !p.medical.servings && !(p.intent?.type === 'meal' && p.intent.servings > 0) && !s.jobs.some(j => j.kind === 'feed' && j.patient === p.id)) {
-    const result = order(s, p.site, p.x, p.y, 'feed', p.id);
+    const result = order(s, p.site, p.x, p.y, 'feed', p.id, p.z);
     if (!result.ok && p.hunger < 35) p.medical.status = `Needs food: ${result.message}`;
   }
   // A sole medic must be able to feed the patient whose treatment is waiting for food.
@@ -104,7 +105,7 @@ export function rescue(s, c, site, pathTo) {
     if (route.length) { advanceCrewRoute(s, c, site, [route.at(-1)]); c.activity = `Reaching ${p.name.split(' ')[0]} for rescue`; return true; }
     if (p.carry) dropCarriedMaterials(s, p);
     // Pickup crosses only the one adjacent tile separating patient and rescuer.
-    p.x = c.x; p.y = c.y;
+    p.x = c.x; p.y = c.y; p.z = c.z;
     if (p.intent?.type === 'meal' && p.intent.servings > 0) { moveOpenedMeal(p.intent,p.medical); }
     p.intent = null; r.carrying = true;
     rescueEvent(s, 'care.rescue.picked_up', c, p);
@@ -114,7 +115,7 @@ export function rescue(s, c, site, pathTo) {
   const route = target && crewPathTo(s, site, c, [target]);
   if (route === null || !target) { c.activity = 'Rescue destination blocked; holding patient'; return true; }
   if (route.length) {
-    advanceCrewRoute(s, c, site, [route.at(-1)]); p.x = c.x; p.y = c.y;
+    advanceCrewRoute(s, c, site, [route.at(-1)]); p.x = c.x; p.y = c.y; p.z = c.z;
     c.activity = `Carrying ${p.name.split(' ')[0]} to ${boardingPatient(s, p) ? 'shuttle' : 'shelter'}`;
     p.activity = `Being carried by ${c.name.split(' ')[0]}`; return true;
   }
@@ -130,13 +131,13 @@ export function dependentCare(s, c, site, pathTo, release) {
   release(s, c);
   if (c.intent?.type === 'meal' && c.intent.servings > 0) return false; // Finish a ration already paid for.
   if (atCot(s, c)) {
-    c.intent = { type: 'medical', target: [...c.medical.bed] };
+    c.intent = { type: 'medical', target: {...c.medical.bed} };
     medicalRest(s, c, site, pathTo);
     if (c.hunger < 35) c.activity = 'Waiting for a bedside meal';
     return true;
   }
   c.intent = null; c.activity = 'Unable to walk; needs rescue';
-  if (breathable(roomAt(site, c.x, c.y))) c.energy = Math.min(100, c.energy + .18);
+  if (breathable(roomAt(site,c.x,c.y,c.z))) c.energy = Math.min(100, c.energy + .18);
   return true;
 }
 export function validateNursing(s) {
@@ -146,7 +147,7 @@ export function validateNursing(s) {
     const r = c.rescue;
     if (r !== null) {
       const p = s.crew.find(p => p.id === r?.patient);
-      if (!r || !p || p.id === c.id || c.site === 'transit' || c.site !== p.site || c.job || c.intent || c.carry || p.rescue || claims.has(p.id) || typeof r.carrying !== 'boolean' || (r.carrying && (p.x !== c.x || p.y !== c.y || p.carry))) throw new Error('Invalid patient transport.');
+      if (!r || !p || p.id === c.id || c.site === 'transit' || c.site !== p.site || c.job || c.intent || c.carry || p.rescue || claims.has(p.id) || typeof r.carrying !== 'boolean' || (r.carrying && (!sameCell(positionOf(p),positionOf(c)) || p.carry))) throw new Error('Invalid patient transport.');
       claims.add(p.id);
     }
   }

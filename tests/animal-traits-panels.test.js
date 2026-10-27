@@ -6,7 +6,7 @@ import { animalDetails, animalTraitDetails, breedingDetails } from '../src/husba
 
 function fixture(species='bristleback') {
   const s=createGame(),a=s.creatures.find(a=>a.species===species),t=at(s.sites.surface,12,10);
-  t.building='husbandryPost';t.hp=100;a.x=t.x;a.y=t.y;a.husbandry.post=[t.x,t.y];a.husbandry.trust=100;
+  t.building='husbandryPost';t.hp=100;a.x=t.x;a.y=t.y;a.husbandry.post={x:t.x,y:t.y,z:0};a.husbandry.trust=100;
   a.genetics={origin:'founder',thermal:[-1,-1],pace:[1,1]};
   return {s,a,t};
 }

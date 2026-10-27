@@ -26,6 +26,7 @@ export function openMeal(s,c,meal,food) {
 }
 export function eatPortion(s,c,meal) {
   const portion=extract(meal.openedFood||openedInventory({...meal,servings:meal.servings+1}),{food:1/8});
+  if(meal.openedFood)meal.foodAge=foodAge(meal.openedFood);
   const quality=portion?foodLots(portion).reduce((n,l)=>n+l.amount*(l.meal?.quality||0),0)*8:0;
   const comfort=portion?foodLots(portion).reduce((n,l)=>n+l.amount*(MEAL_RECIPES[l.meal?.recipeId]?.comfort||0),0)*8:0;
   meal.qualityTotal=(meal.qualityTotal||0)+quality;
@@ -42,8 +43,8 @@ export function moveOpenedMeal(source,destination) {
   const food=structuredClone(openedInventory(source));
   const existing=structuredClone(openedInventory(destination));add(existing,food);
   destination.openedFood=existing;destination.qualityTotal=(destination.qualityTotal||0)+(source.qualityTotal||0);
-  destination.servings+=source.servings;destination.foodAge=Math.max(destination.foodAge||0,source.foodAge||0);
-  source.servings=0;delete source.openedFood;delete source.qualityTotal;
+  destination.servings+=source.servings;destination.foodAge=foodAge(existing);
+  source.servings=0;source.foodAge=0;delete source.openedFood;delete source.qualityTotal;
 }
 export function validateMeals(s,owners) {
   const metadata=new Map();

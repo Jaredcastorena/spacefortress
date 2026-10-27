@@ -24,7 +24,7 @@ test('synthetic controller fixture is a strict schema40 hex save with detached p
  const f=fixture(),before=snapshot(f.s);
  roundtrip(f.s,'configured fixture');
  for(let i=0;i<3;i++){
- const status=airlockStatus(f.s,f.site,f.controller);status.config.inner[0]=-1;status.reservoir.gas.oxygen=999;
+ const status=airlockStatus(f.s,f.site,f.controller);status.config.inner.x=-1;status.reservoir.gas.oxygen=999;
  const observed=observe(f.s);observed.entities['tile:surface:5:5'].derived.airlock.queue.push({crew:'forged'});
  planCrewRoute(f.s,f.site,f.crew,[[10,7]]);airlockLayout(f.site,f.controller);
  }
@@ -99,7 +99,7 @@ test('full simulation waits preserve an ordinary job, named parcel, food age and
  const parcelId=`item-${f.s.nextItemId++}`,stock=f.tile(18,11).stock;
  stock.keepsakes=1;stock._items=[{id:parcelId,maker:f.crew.id,style:'art',quality:2,created:0}];stock._food=[{amount:1,age:12}];
  f.crew.carry=extract(stock,{alloy:2,food:1,keepsakes:1});syncResources(f.s);
- f.crew.delivery={kind:'stock',target:[18,11]};
+ f.crew.delivery={kind:'stock',target: { x: 18, y: 11, z: 0 }};
  const ordered=executeAction(f.s,'job.order',{site:'surface',x:11,y:7,kind:'build',building:'floor'},'test');assert.equal(ordered.ok,true);
  const job=f.s.jobs.find(j=>j.id===ordered.job),remaining=job.remaining;job.worker=f.crew.id;f.crew.job=job.id;f.crew.labors.construction=true;
  request(f);roundtrip(f.s,'ordinary assigned job and named parcel');until(f,()=>f.controller.airlock.phase==='recover');

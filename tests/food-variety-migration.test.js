@@ -1,3 +1,5 @@
+import { VERSION as CURRENT_SAVE_VERSION } from '../src/data.js';
+import { projectPreDecks } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, at, serialize, deserialize, order, setAnimalPost } from '../src/simulation.js';
@@ -11,7 +13,7 @@ import { observe, startRecording, exportRecording } from '../src/telemetry.js';
 
 // Explicit legacy schema construction: no historical/private colony is replayed.
 function legacy40(waterOnly=false) {
-  const s=createGame(701);s.version=40;s.creatures=s.creatures.filter(a=>a.species!=='glazefoot');
+  const s=projectPreDecks(createGame(701));s.version=40;s.creatures=s.creatures.filter(a=>a.species!=='glazefoot');
   const farm=at(s.sites.surface,7,9),galley=at(s.sites.surface,10,10);
   galley.building='galley';initializeStorage(galley);initializeReliability(s);refreshPower(s,s.sites.surface);
   farm.machine.batch=waterOnly?{water:1}:{water:1,fertilizer:.25};farm.machine.progress=11;
@@ -27,7 +29,7 @@ function legacy40(waterOnly=false) {
   return s;
 }
 function withoutFoodSchema(s) {
-  const copy=structuredClone(s);copy.version=40;
+  const copy=projectPreDecks(s);copy.version=40;
   for(const site of Object.values(copy.sites))for(const tile of site.tiles)if(tile.machine){delete tile.machine.recipeId;delete tile.machine.batchRecipeId;}
   for(const site of Object.values(copy.sites))for(const tile of site.tiles){if(tile.flora?.lichen)tile.lichen=tile.flora.lichen.biomass;delete tile.flora;}
   for(const a of copy.creatures){delete a.condition;delete a.genetics;delete a.death;}
@@ -38,7 +40,7 @@ function withoutFoodSchema(s) {
 test('schema40 hex migration changes only food schema defaults, retaining old batches, portions and animals',()=>{
   for(const waterOnly of [false,true]){
     const old=legacy40(waterOnly),text=serialize(old),before=totalResources(old),loaded=deserialize(text);
-    assert.equal(loaded.version,46);assert.deepEqual(totalResources(loaded),before);
+    assert.equal(loaded.version,CURRENT_SAVE_VERSION);assert.deepEqual(totalResources(loaded),before);
     assert.deepEqual(withoutFoodSchema(loaded),old);assert.equal(serialize(old),text);
     const farm=at(loaded.sites.surface,7,9),galley=at(loaded.sites.surface,10,10);
     assert.equal(farm.machine.recipeId,'fungalcap');assert.equal(farm.machine.batchRecipeId,'legacy_crop');
@@ -85,13 +87,13 @@ test('schema46 rejects malformed recipe pins, durations, ingredient claims and d
 
 test('schema46 validates exact haul claims and actual operator skill while retaining old delivery recipe IDs',()=>{
   const s=createGame(705),site=s.sites.surface,t=at(site,10,10);t.building='galley';initializeStorage(t);initializeReliability(s);refreshPower(s,s.sites.surface);t.machine.recipeId='curd_bake';
-  const c=s.crew[0];c.intent={type:'haul',target:[8,10],source:'stock',items:{food:1},foodKinds:{siltgrain:1},recipeId:'curd_bake',destination:{kind:'input',target:[10,10],recipeId:'curd_bake'}};
+  const c=s.crew[0];c.intent={type:'haul',target: { x: 8, y: 10, z: 0 },source:'stock',items:{food:1},foodKinds:{siltgrain:1},recipeId:'curd_bake',destination:{kind:'input',target: { x: 10, y: 10, z: 0 },recipeId:'curd_bake'}};
   assert.equal(serialize(deserialize(serialize(s))),serialize(s));
-  for(const patch of [{foodKinds:{siltgrain:2}},{foodKinds:{unknown:1}},{foodKinds:{glazeegg:1}},{recipeId:'fungal_stew'},{destination:{kind:'input',target:[10,10],recipeId:'unknown'}}]){const bad=structuredClone(s);Object.assign(bad.crew[0].intent,patch);assert.throws(()=>deserialize(serialize(bad)));}
-  c.intent=null;c.carry=typedFood('siltgrain',1);c.delivery={kind:'input',target:[10,10],recipeId:'grain_flatbread'};
+  for(const patch of [{foodKinds:{siltgrain:2}},{foodKinds:{unknown:1}},{foodKinds:{glazeegg:1}},{recipeId:'fungal_stew'},{destination:{kind:'input',target:{x:10,y:10,z:0},recipeId:'unknown'}}]){const bad=structuredClone(s);Object.assign(bad.crew[0].intent,patch);assert.throws(()=>deserialize(serialize(bad)));}
+  c.intent=null;c.carry=typedFood('siltgrain',1);c.delivery={kind:'input',target: { x: 10, y: 10, z: 0 },recipeId:'grain_flatbread'};
   assert.equal(serialize(deserialize(serialize(s))),serialize(s));
-  c.delivery.target=[9,9];assert.equal(serialize(deserialize(serialize(s))),serialize(s));
+  c.delivery.target={x:9,y:9,z:0};assert.equal(serialize(deserialize(serialize(s))),serialize(s));
   c.carry=null;c.delivery=null;const farm=at(site,7,9);farm.machine.recipeId='sunberry';farm.machine.batchRecipeId='sunberry';farm.machine.batch={water:1.5,fertilizer:.25};farm.machine.progress=1;
-  const job={id:`job-${s.nextId++}`,site:'surface',x:7,y:9,kind:'operate',building:'farm',cost:{},sources:[],materials:{},work:40,remaining:39,worker:c.id,priority:1,blockedReason:null,missingFood:0,foodSpoiled:0};s.jobs.push(job);c.job=job.id;c.skills.production.level=3;
+  const job={id:`job-${s.nextId++}`,site:'surface',x:7,y:9,z:0,kind:'operate',building:'farm',cost:{},sources:[],materials:{},work:40,remaining:39,worker:c.id,priority:1,blockedReason:null,missingFood:0,foodSpoiled:0};s.jobs.push(job);c.job=job.id;c.skills.production.level=3;
   assert.equal(serialize(deserialize(serialize(s))),serialize(s));c.skills.production.level=2;assert.throws(()=>deserialize(serialize(s)),/lacks recipe skill/);
 });

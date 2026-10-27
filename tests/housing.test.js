@@ -27,7 +27,7 @@ test('bunks begin communal; assigning, moving, replacing and clearing owners is 
 });
 
 test('crew walk to their personal bunk ahead of closer communal bunks and remember actual sleep',()=>{
-  const {s,c}=fixture();assign(s,c);c.energy=10;step(s);assert.deepEqual(c.intent.target,[12,7]);assert.ok(!c.memories.some(m=>m.kind==='personal-bunk'));
+  const {s,c}=fixture();assign(s,c);c.energy=10;step(s);assert.deepEqual(c.intent.target,{ x: 12, y: 7, z: 0 });assert.ok(!c.memories.some(m=>m.kind==='personal-bunk'));
   step(s,12);assert.equal(c.x,12);assert.equal(c.y,7);assert.ok(c.memories.some(m=>m.kind==='personal-bunk'&&m.mood===4));check(s);
 });
 
@@ -38,7 +38,7 @@ test('ready living quarters improve the memory of sleeping at home',()=>{
 });
 
 test('personal bunks exclude other sleepers while communal bunks remain usable',()=>{
-  const {s,c}=fixture();assign(s,s.crew[1],9);c.energy=10;step(s);assert.notDeepEqual(c.intent.target,[9,7]);assert.ok(c.intent.target);check(s);
+  const {s,c}=fixture();assign(s,s.crew[1],9);c.energy=10;step(s);assert.notDeepEqual(c.intent.target,{ x: 9, y: 7, z: 0 });assert.ok(c.intent.target);check(s);
 });
 
 test('when all bunks are private, floor rest ends and useful work resumes',()=>{
@@ -50,26 +50,26 @@ test('when all bunks are private, floor rest ends and useful work resumes',()=>{
 
 test('a broken home keeps ownership, causes displacement and becomes usable after repair',()=>{
   const {s,site,c}=fixture();assign(s,c);at(site,12,7).hp=0;c.energy=10;step(s);
-  assert.deepEqual(c.housing.bunk,[12,7]);assert.notDeepEqual(c.intent.target,[12,7]);assert.ok(c.memories.some(m=>m.kind==='housing-displaced'));
-  assert.match(housingObstruction(s,c,pathTo),/repair/);at(site,12,7).hp=100;c.intent=null;c.energy=10;step(s);assert.deepEqual(c.intent.target,[12,7]);check(s);
+  assert.deepEqual(c.housing.bunk,{ x: 12, y: 7, z: 0 });assert.notDeepEqual(c.intent.target,{ x: 12, y: 7, z: 0 });assert.ok(c.memories.some(m=>m.kind==='housing-displaced'));
+  assert.match(housingObstruction(s,c,pathTo),/repair/);at(site,12,7).hp=100;c.intent=null;c.energy=10;step(s);assert.deepEqual(c.intent.target,{ x: 12, y: 7, z: 0 });check(s);
 });
 
 test('unreachable homes and waste-room homes use communal fallback without losing ownership',()=>{
   const {s,site,c}=fixture();assign(s,c);for(let y=7;y<=11;y++){const t=at(site,10,y);spillStorage(t);t.building='wall';}updateRooms(site);
-  assert.ok(setDoorMode(s,'surface',10,12,'closed').ok);assert.match(housingObstruction(s,c,pathTo),/unreachable/);c.energy=10;step(s);assert.deepEqual(c.intent.target,[9,7]);
-  setRoomDesignation(s,'surface',12,8,'waste');assert.match(housingObstruction(s,c,pathTo),/waste storage/);assert.deepEqual(c.housing.bunk,[12,7]);check(s);
+  assert.ok(setDoorMode(s,'surface',10,12,'closed').ok);assert.match(housingObstruction(s,c,pathTo),/unreachable/);c.energy=10;step(s);assert.deepEqual(c.intent.target,{ x: 9, y: 7, z: 0 });
+  setRoomDesignation(s,'surface',12,8,'waste');assert.match(housingObstruction(s,c,pathTo),/waste storage/);assert.deepEqual(c.housing.bunk,{ x: 12, y: 7, z: 0 });check(s);
 });
 
 test('unsafe air at home does not trap sleepers or erase their assignment',()=>{
   const {s,site,c}=fixture();assign(s,c);for(let y=7;y<=11;y++){const t=at(site,10,y);spillStorage(t);t.building='wall';}updateRooms(site);
   const r=roomAt(site,12,8);fillRoom(r,0);
-  assert.match(housingObstruction(s,c,pathTo),/safe air/);c.energy=10;step(s);assert.deepEqual(c.intent.target,[9,7]);assert.deepEqual(c.housing.bunk,[12,7]);
+  assert.match(housingObstruction(s,c,pathTo),/safe air/);c.energy=10;step(s);assert.deepEqual(c.intent.target,{ x: 9, y: 7, z: 0 });assert.deepEqual(c.housing.bunk,{ x: 12, y: 7, z: 0 });
 });
 
 test('reassignment releases sleep claims immediately without teleporting crew or losing cargo',()=>{
-  const {s,c}=fixture();c.energy=10;step(s);const [x,y]=c.intent.target,pos=[c.x,c.y];c.carry={ore:2};const before=totalResources(s);
+  const {s,c}=fixture();c.energy=10;step(s);const {x,y}=c.intent.target,pos=[c.x,c.y];c.carry={ore:2};const before=totalResources(s);
   assign(s,s.crew[1],x,y);assert.equal(c.intent.target,null);assert.deepEqual([c.x,c.y],pos);assert.deepEqual(totalResources(s),before);
-  step(s);assert.notDeepEqual(c.intent.target,[x,y]);assert.equal(c.carry.ore,2);check(s);
+  step(s);assert.notDeepEqual(c.intent.target,{ x: x, y: y, z: 0 });assert.equal(c.carry.ore,2);check(s);
 });
 
 test('dismantling a personal bunk releases ownership and preserves its physical salvage',()=>{
@@ -103,6 +103,6 @@ test('housing, sleep claims and inventories reload exactly and reject a legacy s
 
 test('invalid assignments and saves are rejected',()=>{
   const {s,c}=fixture();for(const args of [['wreck',12,7,c.id],['surface',8,8,c.id],['surface',12,7,'missing']])assert.equal(setBunkOwner(s,...args).ok,false);
-  const invalid=[s=>delete s.crew[0].housing,s=>s.crew[0].housing.bunk=[-1,7],s=>s.crew[0].housing.bunk=[8,8],s=>{s.crew[0].housing.bunk=[12,7];s.crew[1].housing.bunk=[12,7];},s=>{s.crew[0].housing.bunk=[12,7];s.crew[0].health=0;},s=>{assign(s,s.crew[0]);s.crew[1].intent={type:'rest',target:[12,7]};}];
+  const invalid=[s=>delete s.crew[0].housing,s=>s.crew[0].housing.bunk={ x: -1, y: 7, z: 0 },s=>s.crew[0].housing.bunk={ x: 8, y: 8, z: 0 },s=>{s.crew[0].housing.bunk={ x: 12, y: 7, z: 0 };s.crew[1].housing.bunk={ x: 12, y: 7, z: 0 };},s=>{s.crew[0].housing.bunk={ x: 12, y: 7, z: 0 };s.crew[0].health=0;},s=>{assign(s,s.crew[0]);s.crew[1].intent={type:'rest',target:{ x: 12, y: 7, z: 0 }};}];
   for(const mutate of invalid){const {s}=fixture();mutate(s);assert.throws(()=>check(s));}
 });

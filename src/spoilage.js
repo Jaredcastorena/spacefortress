@@ -1,6 +1,8 @@
+import { tileAt as spatialTile } from './spatial.js';
+import { shipmentPosition } from './shipment-locations.js';
 import { openedInventory, moveOpenedMeal, validateMeals } from './meals.js';
 import { add, contains, quantity, spill } from './inventory.js';
-import { foodLots, storeLots, FOOD_LIFETIME, decayRate } from './food-lots.js';
+import { foodLots, foodAge, storeLots, FOOD_LIFETIME, decayRate } from './food-lots.js';
 import { temperatureAt } from './thermal.js';
 import { reserveConstruction } from './construction.js';
 
@@ -9,29 +11,29 @@ export function initializeFood(s) {
   for (const j of s.jobs) { j.missingFood = 0; j.foodSpoiled = 0; }
   for (const c of s.crew) { c.medical.foodAge ??= 0; if (c.intent?.type === 'meal') c.intent.foodAge ??= 0; }
 }
-const location = (s, siteId, x, y) => ({ site: s.sites[siteId], x, y });
+const location = (s, siteId, x, y, z = 0) => ({ site: s.sites[siteId], x, y, z });
 function shipLocation(s) {
   if (!s.mission) return location(s, 'surface', 16, 11);
   if (['outbound', 'returning'].includes(s.mission.phase)) return null;
   const site = s.sites[s.mission.site], dock = site.tiles.find(t => t.building === 'dock');
   // Losing a terminal does not destroy its onboard stores. Until a berth is
   // available, age them at the same cabin temperature used during transit.
-  return dock ? { site, x: dock.x, y: dock.y } : null;
+  return dock ? { site, ...shipmentPosition(dock) } : null;
 }
 export function foodOwners(s) {
   const result = [], put = (inventory, place, extras = {}) => { if (inventory) result.push({ inventory, place, ...extras }); };
   for (const site of Object.values(s.sites)) for (const t of site.tiles) {
-    const place = { site, x: t.x, y: t.y };
+    const place = { site, ...shipmentPosition(t) };
     put(t.stock, place, { retainWaste: true }); put(t.drop, place, { retainWaste: true }); put(t.imports, place, { retainWaste: true });
     if (t.machine) for (const kind of ['input', 'output', 'batch']) put(t.machine[kind], place, { machine: t, batch: kind === 'batch' });
   }
   for (const j of s.jobs) {
-    put(j.materials, location(s, j.site, j.x, j.y), { job: j });
-    for (const source of j.sources) put(source.items, location(s, j.site, source.x, source.y), { job: j });
+    put(j.materials, location(s, j.site, j.x, j.y, j.z), { job: j });
+    for (const source of j.sources) put(source.items, location(s, j.site, source.x, source.y, source.z), { job: j });
   }
   for (const c of s.crew) {
     const job = c.delivery?.kind === 'job' && s.jobs.find(j => j.id === c.delivery.job);
-    put(c.carry, c.site === 'transit' ? null : location(s, c.site, c.x, c.y), { job, crew: c, retainWaste: !job });
+    put(c.carry, c.site === 'transit' ? null : location(s, c.site, c.x, c.y, c.z), { job, crew: c, retainWaste: !job });
   }
   put(s.shuttle.supplies, shipLocation(s), { retainWaste: true });
   put(s.shuttle.freight, shipLocation(s), { retainWaste: true });
@@ -48,12 +50,12 @@ function ageInventory(inventory, rate) {
   if (spoiled) { inventory.food = Math.max(0, inventory.food - spoiled); if (inventory.food < 1e-9) delete inventory.food; }
   storeLots(inventory, remaining); return spoiled;
 }
-const tileAt = place => place.site.tiles[place.y * place.site.size + place.x];
+const tileAt = place => spatialTile(place.site, shipmentPosition(place));
 export function updateFood(s, pathTo) {
   let spoiledNow = 0;
   for (const owner of foodOwners(s)) {
     const { inventory, place, job, crew, machine, batch } = owner;
-    const spoiled = ageInventory(inventory, decayRate(place ? temperatureAt(place.site, place.x, place.y) : 20));
+    const spoiled = ageInventory(inventory, decayRate(place ? temperatureAt(place.site,place.x,place.y,place.z) : 20));
     if (!spoiled) continue;
     spoiledNow += spoiled;
     if (owner.retainWaste) add(inventory, { waste: spoiled }); else spill(tileAt(place), { waste: spoiled });
@@ -71,10 +73,11 @@ export function updateFood(s, pathTo) {
     }
   }
   for (const c of s.crew) {
-    const place = c.site === 'transit' ? null : location(s, c.site, c.x, c.y), rate = decayRate(place ? temperatureAt(place.site, c.x, c.y) : 20);
+    const place = c.site === 'transit' ? null : location(s, c.site, c.x, c.y, c.z), rate = decayRate(place ? temperatureAt(place.site,c.x,c.y,c.z) : 20);
     for (const meal of [c.medical, c.intent?.type === 'meal' ? c.intent : null]) {
       if (!meal?.servings) { if (meal) meal.foodAge = 0; continue; }
-      meal.foodAge = (meal.foodAge || 0) + rate;
+      // Actual remaining lots are authoritative; older saves may retain an eaten lot's age.
+      meal.foodAge = (meal.openedFood ? foodAge(meal.openedFood) : meal.foodAge || 0) + rate;
       if(meal.openedFood){const lots=foodLots(meal.openedFood);for(const l of lots)l.age+=rate;storeLots(meal.openedFood,lots);}
       if (meal.foodAge < FOOD_LIFETIME) continue;
       const amount = meal.servings / 8; spoiledNow += amount;
@@ -83,7 +86,7 @@ export function updateFood(s, pathTo) {
     }
     // Spoilage can invalidate an expedition pickup while its owner is recovering.
     if (c.intent?.type === 'salvage') {
-      const tile = s.sites[c.site].tiles[c.intent.target[1] * s.sites[c.site].size + c.intent.target[0]];
+      const tile = spatialTile(s.sites[c.site], c.intent.target);
       if (!tile.drop || !contains(tile.drop, c.intent.items)) c.intent = null;
     }
   }

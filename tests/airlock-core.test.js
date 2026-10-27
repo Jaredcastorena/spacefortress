@@ -1,11 +1,20 @@
 import test from 'node:test';
+const position=([x,y])=>({x,y,z:0});
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { mkdir, writeFile, readFile, chmod } from 'node:fs/promises';
+import { join } from 'node:path';
+import { serialize, deserialize } from '../src/simulation.js';
+import { executeAction } from '../src/controls.js';
+import { startRecording, stopRecording, exportRecording } from '../src/telemetry.js';
 import { fixture, command, request, cycle, until, physicalTick, ledger, assertLedger, snapshot, close, CONFIG, STAGING } from './helpers/airlock-fixture.js';
-import { airlockStatus, airlockDoorPermit, airlockOpen, airlockLayout } from '../src/airlock-access.js';
-import { gasNode, gasCapacity, newPipe } from '../src/gas-networks.js';
-import { mix, moveCrew, refreshRoom, updateRooms } from '../src/atmosphere.js';
+import { airlockStatus, airlockDoorPermit, airlockOpen, airlockLayout, airlockRoomReading, airlockSideBlock, airlockGasQuantities, airlockTankMakeupAllowance } from '../src/airlock-access.js';
+import { gasNode, gasCapacity, newPipe, updateGasNetworks } from '../src/gas-networks.js';
+import { mix, moveCrew, refreshRoom, refreshAtmosphere, updateRooms, breathe } from '../src/atmosphere.js';
 import { continueCrewTraversal, advanceCrewRoute } from '../src/crew-traversal.js';
 import { neighbors } from '../src/geometry.js';
+import { prepareAirlocks } from '../src/airlocks.js';
+import { initializeStorage } from '../src/inventory.js';
 
 // Every installation here is a labeled synthetic fixture; paid acceptance is separate.
 test('synthetic real-physics outward and inward cycles conserve species, smoke and allocated energy',()=>{
@@ -27,10 +36,10 @@ test('synthetic real-physics outward and inward cycles conserve species, smoke a
 test('same-tick stale paths, unrelated crew and animals cannot tailgate either door',()=>{
  const f=fixture();request(f);until(f,()=>f.controller.airlock.phase==='admit');
  const stranger=f.s.crew[1];[stranger.x,stranger.y]=STAGING.inner;
- assert.equal(airlockDoorPermit(f.site,stranger,STAGING.inner,CONFIG.inner),false);
+ assert.equal(airlockDoorPermit(f.site,stranger,position(STAGING.inner),position(CONFIG.inner)),false);
  assert.equal(moveCrew(stranger,f.site,CONFIG.inner),false);assert.deepEqual([stranger.x,stranger.y],STAGING.inner);
- assert.equal(airlockDoorPermit(f.site,{id:'animal',species:'bristleback'},STAGING.inner,CONFIG.inner),false);
- assert.equal(airlockDoorPermit(f.site,f.crew,[8,7],CONFIG.outer),false);
+ assert.equal(airlockDoorPermit(f.site,{id:'animal',species:'bristleback'},position(STAGING.inner),position(CONFIG.inner)),false);
+ assert.equal(airlockDoorPermit(f.site,f.crew,position([8,7]),position(CONFIG.outer)),false);
  assert.equal(moveCrew(f.crew,f.site,CONFIG.outer),false);
  assert.ok(!(airlockStatus(f.s,f.site,f.controller).permissions.inner&&airlockStatus(f.s,f.site,f.controller).permissions.outer));
 });
@@ -123,7 +132,7 @@ test('manual release lets unclaimed crew enter and leave the selected side for r
  }
  assert.deepEqual([f.crew.x,f.crew.y],destination);
  }
- assert.equal(airlockDoorPermit(f.site,f.crew,[8,7],CONFIG.outer),false);
+ assert.equal(airlockDoorPermit(f.site,f.crew,position([8,7]),position(CONFIG.outer)),false);
  const result=advanceCrewRoute(f.s,f.crew,f.site,[STAGING.outer]);assert.equal(result.status,'blocked');assert.equal(f.crew.airlockTraversal,null);
 });
 
@@ -157,4 +166,211 @@ test('setup rejects a vent whose only pump route passes through the closed extra
  updateRooms(f.site);const before=snapshot(f.s);
  const result=command(f,'configure',{...CONFIG,pump:[7,9],reservoir:[7,11]});
  assert.equal(result.ok,false);assert.equal(result.reason,'layout_changed');assert.equal(snapshot(f.s),before);
+});
+
+
+// Finite lean gas is installed only in this labeled synthetic mechanics fixture.
+function finiteRefillFixture(reserve) {
+ const f=fixture({chamberGas:.2,reserveGas:reserve,smoke:0});
+ const lean=amount=>({oxygen:amount*.161,inert:amount*.839,co2:0});
+ f.chamber.gas=lean(.2);f.habitat.gas=mix(f.habitat.volume*10);
+ for(const room of [f.chamber,f.habitat]){room.smoke=0;room.heat=room.volume*20*293.15;refreshRoom(room);}
+ for(const t of f.site.tiles)if(gasNode(t)){gasNode(t).gas=mix(0);gasNode(t).smoke=0;}
+ f.reservoir.gasStore.gas=lean(reserve);f.site.gasNetwork.loaded=lean(reserve);
+ [f.crew.x,f.crew.y]=CONFIG.chamber;
+ return f;
+}
+
+for(const reserve of [20,19.7])test(`synthetic finite refill with reserve ${reserve} reaches a live safe exit`,()=>{
+ const f=finiteRefillFixture(reserve),before=ledger(f),initial=snapshot(f.s);
+ airlockStatus(f.s,f.site,f.controller);assert.equal(snapshot(f.s),initial,'status must not transfer or change finite gas');
+ request(f,'inward');prepareAirlocks(f.s);
+ assert.equal(f.controller.airlock.reason,null,'finite gas at the commanded target is breathable');
+ physicalTick(f);
+ let matched=null;
+ until(f,()=>!f.crew.airlockTraversal,{max:200,label:'finite lean-gas inward cycle',onTick:()=>{
+  if(airlockOpen(f.site,f.inner)&&!matched){
+   matched=airlockRoomReading(f.chamber);
+   assert.equal(airlockSideBlock(f.site,f.controller,'inner'),null,'live safe gas and pressure must precede opening');
+   assert.ok(matched.breathable&&matched.thermalSafe);assert.equal(airlockOpen(f.site,f.outer),false);
+   assert.equal(f.vent.gasDevice.target,100,'physical command keeps its habitat target');
+   const remaining=airlockLayout(f.site,f.controller).phaseNodes.refill.reduce((n,t)=>n+Object.values(gasNode(t).gas).reduce((a,b)=>a+b,0),0);
+   assert.ok(remaining>0&&remaining<reserve,'the physical vent consumes only finite reserve');
+   close(remaining+Object.values(matched.gas).reduce((a,b)=>a+b,0),reserve+.2,'finite refill gas');
+  }
+ }});
+ assert.ok(matched,'the real inner door must open');assert.deepEqual([f.crew.x,f.crew.y],STAGING.inner);
+ assert.ok(f.site.gasNetwork.delivered.oxygen>0,'actual vent transfers must occur');assertLedger(f,before);
+ assert.equal(f.controller.airlock.phase,'idle');assert.equal(f.inner.doorMode,'closed');assert.equal(f.outer.doorMode,'closed');
+});
+
+test('synthetic finite refill rejects reserve that cannot reach safe oxygen partial pressure',()=>{
+ const f=finiteRefillFixture(19.6),before=ledger(f);request(f,'inward');prepareAirlocks(f.s);
+ assert.equal(f.controller.airlock.reason,'contaminated_mix');assert.equal(f.controller.airlock.party,null);
+ assert.equal(f.inner.doorMode,'closed');assert.equal(f.outer.doorMode,'closed');assertLedger(f,before);
+});
+
+test('synthetic refill keeps the rounded habitat target and status remains read-only',()=>{
+ const f=finiteRefillFixture(20);f.habitat.gas=mix(f.habitat.volume*10*.996);refreshRoom(f.habitat);
+ request(f,'inward');until(f,()=>f.site.gasNetwork.delivered.oxygen>0,{max:20,label:'physical vent starts'});
+ assert.equal(f.controller.airlock.reason,null);assert.equal(f.vent.gasDevice.target,100);
+ const before=snapshot(f.s);airlockStatus(f.s,f.site,f.controller);assert.equal(snapshot(f.s),before);
+});
+
+
+// SYNTHETIC finite pocket: the original 20-unit reserve is split physically
+// before the canonical recording boundary. Neither inventory is granted later.
+test('synthetic refill returns a finite extractor pocket through its disabled passive port',async()=>{
+ const f=fixture({chamberGas:.2,reserveGas:20,smoke:0});
+ const pocket=3, fraction=pocket/20;
+ f.extractor.gasStore.gas=Object.fromEntries(Object.entries(f.reservoir.gasStore.gas).map(([k,n])=>[k,n*fraction]));
+ f.reservoir.gasStore.gas=Object.fromEntries(Object.entries(f.reservoir.gasStore.gas).map(([k,n])=>[k,n*(1-fraction)]));
+ [f.crew.x,f.crew.y]=STAGING.outer;
+ const input=serialize(f.s);assert.equal(serialize(deserialize(input)),input,'prepared input is canonical');
+ const before=ledger(f),initialPressure=f.habitat.pressure;
+ assert.ok(17<Math.max(0,f.chamber.volume*10*(initialPressure-2)/100-.2),'reservoir alone cannot meet the finite fill requirement');
+ let failure=null,recording='',ticks=0;
+ startRecording(f.s,{maxRecords:12000,maxBytes:128_000_000});
+ try {
+  const result=executeAction(f.s,'airlock.request',{site:'surface',x:CONFIG.x,y:CONFIG.y,crew:f.crew.id,direction:'inward'},'agent');assert.equal(result.ok,true);
+  while(f.crew.airlockTraversal||f.controller.airlock.queue.length||f.controller.airlock.phase!=='idle') {
+   assert.ok(ticks<80,'finite passive-pocket cycle stops within 80 full ticks');
+   assert.equal(executeAction(f.s,'simulation.step',{ticks:1},'agent').ok,true);ticks++;
+   assert.equal(f.controller.airlock.reason,null);
+   if(f.vent.gasDevice.enabled){assert.equal(f.extractor.gasStore.open,true);assert.equal(f.extractor.gasDevice.enabled,false);}
+  }
+  assert.deepEqual([f.crew.x,f.crew.y],STAGING.inner);assertLedger(f,before);
+  for(const ref of f.controller.airlock.ownedNodes){const n=gasNode(f.tile(ref.x,ref.y));if(n)assert.equal(n.open,false,'idle ports isolate retained contents');}
+  assert.equal(executeAction(f.s,'airlock.enable',{site:'surface',x:CONFIG.x,y:CONFIG.y,enabled:false},'agent').ok,true);
+  assert.equal(f.controller.airlock.phase,'paused');
+  for(const ref of f.controller.airlock.ownedNodes){const n=gasNode(f.tile(ref.x,ref.y));if(n)assert.equal(n.open,false,'paused ports isolate retained contents');}
+ } catch(error) {failure=error;}
+ stopRecording(f.s);recording=exportRecording(f.s);
+ const rows=recording.trim().split('\n').map(line=>JSON.parse(line)),records=rows.slice(1,-1),events=records.filter(r=>r.kind==='event').map(r=>r.event);
+ try {
+  assert.ok(events.some(e=>e.id==='gas.transferred'&&e.from===`tile:surface:${CONFIG.extractor.join(':')}`&&e.amount>0),'stored extractor gas moves through physical typed transfers');
+  assert.equal(events.filter(e=>e.id==='gas.extracted').length,0,'disabled extractor never captures during this inward refill');
+  assert.equal(events.filter(e=>e.id==='airlock.traversed'&&e.direction==='inward').length,1);
+  assert.equal(records.filter(r=>r.kind==='external').length,0);records.forEach((r,i)=>assert.equal(r.sequence,i+1));assert.equal(rows.at(-1).reason,'stopped');
+ } catch(error) {failure??=error;}
+ const directory=process.env.AIRLOCK_FREIGHT_OUTPUT_DIR;
+ if(directory){
+  await mkdir(directory,{recursive:true});
+  for(const [label,text] of Object.entries({input,endpoint:serialize(f.s),recording,summary:JSON.stringify({ticks,ok:!failure,failure:failure?.message})})){
+   const sha=createHash('sha256').update(text).digest('hex'),path=join(directory,`core-passive-pocket-${label}-sha256-${sha}.txt`);
+   try{await writeFile(path,text,{flag:'wx'});}catch(error){if(error.code!=='EEXIST')throw error;}
+   assert.equal(createHash('sha256').update(await readFile(path)).digest('hex'),sha);await chmod(path,0o444);
+  }
+ }
+ if(failure)throw failure;
+});
+
+// SYNTHETIC finite inward journey. Every preparation precedes the canonical
+// boundary; subsequent room pressure loss comes from ordinary suit refilling.
+test('full ticks correct exit pressure drift without losing the party, cycle or parcel',()=>{
+ const f=fixture({chamberGas:.2,reserveGas:35,smoke:0});
+ [f.crew.x,f.crew.y]=STAGING.outer;f.crew.oxygen=50;
+ const depot=f.tile(...STAGING.inner);depot.building='stockpile';initializeStorage(depot);depot.stock={};
+ f.crew.carry={alloy:1};f.crew.delivery={kind:'stock',target: { x: STAGING.inner[0], y: STAGING.inner[1], z: 0 }};
+ const input=serialize(f.s);assert.equal(serialize(deserialize(input)),input);
+ const before=ledger(f),parcel=JSON.stringify(f.crew.carry),delivery=JSON.stringify(f.crew.delivery);
+ startRecording(f.s,{maxRecords:12000,maxBytes:128_000_000});
+ assert.equal(executeAction(f.s,'airlock.request',{site:CONFIG.site,x:CONFIG.x,y:CONFIG.y,crew:f.crew.id,direction:'inward'},'agent').ok,true);
+ let ticks=0,cycleId=null,correctionSeen=false;
+ while(f.crew.airlockTraversal||f.controller.airlock.queue.length||f.controller.airlock.phase!=='idle') {
+  assert.ok(ticks++<100,'finite exit correction completes within 100 full ticks');
+  assert.equal(executeAction(f.s,'simulation.step',{ticks:1},'agent').ok,true);
+  const a=f.controller.airlock;
+  assert.equal(a.reason,null);assert.equal(JSON.stringify(f.crew.carry),parcel);assert.equal(JSON.stringify(f.crew.delivery),delivery);
+  if(a.party){cycleId??=a.cycle;assert.equal(a.cycle,cycleId);assert.equal(a.party.crew,f.crew.id);}
+  assert.ok(!(airlockOpen(f.site,f.inner)&&airlockOpen(f.site,f.outer)));
+ }
+ stopRecording(f.s);
+ const events=exportRecording(f.s).trim().split('\n').map(JSON.parse).filter(r=>r.kind==='event').map(r=>r.event);
+ correctionSeen=events.some(e=>e.id==='airlock.phase_changed'&&e.reason==='exit_pressure_drift'&&e.next==='refill');
+ assert.equal(correctionSeen,true,'physiology forces sealed finite correction');
+ assert.ok(events.some(e=>e.id==='crew.air.allocated'&&e.refillOxygen>0));
+ assert.equal(events.filter(e=>e.id==='airlock.traversed'&&e.direction==='inward').length,1);
+ assert.deepEqual([f.crew.x,f.crew.y],STAGING.inner);assertLedger(f,before);
+});
+
+for(const refusal of ['occupied threshold','party already outside','split rescue party'])test(`exit pressure correction refuses ${refusal}`,()=>{
+ const f=fixture({chamberGas:20,reserveGas:35,smoke:0});
+ [f.crew.x,f.crew.y]=CONFIG.chamber;f.crew.oxygen=50;request(f,'inward');
+ until(f,()=>f.controller.airlock.phase==='release',{tick:g=>physicalTick(g,{move:false})});
+ // Native body refill removes finite room oxygen; no gas parcel is edited.
+ breathe(f.site,f.crew);breathe(f.site,f.crew);breathe(f.site,f.crew);
+ assert.equal(airlockSideBlock(f.site,f.controller,'inner'),'pressure_mismatch');
+ if(refusal==='occupied threshold')[f.crew.x,f.crew.y]=CONFIG.inner;
+ else if(refusal==='party already outside')[f.crew.x,f.crew.y]=STAGING.inner;
+ else {const patient=f.s.crew[1];f.controller.airlock.party.patient=patient.id;f.crew.rescue={patient:patient.id,carrying:true};}
+ const cycleId=f.controller.airlock.cycle,party=JSON.stringify(f.controller.airlock.party);
+ prepareAirlocks(f.s);
+ assert.equal(f.controller.airlock.phase,'release');assert.equal(f.controller.airlock.cycle,cycleId);assert.equal(JSON.stringify(f.controller.airlock.party),party);
+ assert.equal(f.pump.gasDevice.enabled,false);assert.equal(f.extractor.gasDevice.enabled,false);assert.equal(f.vent.gasDevice.enabled,false);
+ if(refusal==='occupied threshold')assert.equal(f.inner.doorMode,'open','an occupied threshold is never sealed');
+});
+
+
+function tankMakeupFixture(options={}) {
+ const f=fixture({...options,configure:false});f.reservoir.building='gasTank';initializeStorage(f.reservoir);
+ assert.equal(executeAction(f.s,'airlock.configure',CONFIG,'test').ok,true);return f;
+}
+
+test('owned tank makeup reserves smoke recovery headroom and keeps allowance read-only',()=>{
+ const f=tankMakeupFixture({reserveGas:0}),layout=airlockLayout(f.site,f.controller),q=airlockGasQuantities(layout);
+ for(const t of q.recover){gasNode(t).gas=mix(gasCapacity(t));gasNode(t).smoke=0;}
+ f.reservoir.gasStore.gas=mix(80-q.recoverNeeded-.5);f.vent.gasStore.gas=mix(10);
+ f.reservoir.machine.input.air=3;const before=JSON.stringify(f.s);
+ close(airlockTankMakeupAllowance(f.site,f.reservoir),.5);assert.equal(JSON.stringify(f.s),before);
+ const loaded={...f.site.gasNetwork.loaded};updateGasNetworks(f.s);
+ close(f.reservoir.machine.input.air,2.5);close(f.site.gasNetwork.loaded.oxygen-loaded.oxygen,.5*.21);close(f.site.gasNetwork.loaded.inert-loaded.inert,.5*.79);
+ const after=airlockGasQuantities(airlockLayout(f.site,f.controller));close(after.headroom,after.recoverNeeded);close(airlockTankMakeupAllowance(f.site,f.reservoir),0);
+});
+
+test('owned tank makeup eligibility preserves lifecycle, power and manual ownership gates',()=>{
+ const f=tankMakeupFixture();const input=serialize(f.s);assert.equal(serialize(deserialize(input)),input);
+ const a=f.controller.airlock;request(f);assert.ok(airlockTankMakeupAllowance(f.site,f.reservoir)>0);
+ a.phase='paused';a.resumePhase='idle';a.reason='supply_empty';assert.ok(airlockTankMakeupAllowance(f.site,f.reservoir)>0);
+ for(const reason of ['manual_release','disabled','no_power','contaminated_mix','reservoir_full']){a.reason=reason;assert.equal(airlockTankMakeupAllowance(f.site,f.reservoir),0);}
+ a.reason='supply_empty';a.party={crew:f.crew.id};assert.equal(airlockTankMakeupAllowance(f.site,f.reservoir),0);a.party=null;
+ f.controller.powered=false;assert.equal(airlockTankMakeupAllowance(f.site,f.reservoir),0);f.controller.powered=true;
+ a.enabled=false;assert.equal(airlockTankMakeupAllowance(f.site,f.reservoir),0);a.enabled=true;
+ f.inner.doorMode='open';assert.equal(airlockTankMakeupAllowance(f.site,f.reservoir),0);f.inner.doorMode='closed';
+ f.reservoir.gasStore.open=true;assert.equal(airlockTankMakeupAllowance(f.site,f.reservoir),0);f.reservoir.gasStore.open=false;
+ for(const [id,args] of [['production.enable',{site:'surface',x:7,y:3,enabled:false}],['gas.valve',{site:'surface',x:7,y:3,open:true}]]){
+  const result=executeAction(f.s,id,args,'test');assert.equal(result.code,'simulation_rejected');assert.equal(result.reason,'airlock_controlled');
+ }
+ const orphan=tankMakeupFixture(),canonical=serialize(orphan.s);assert.equal(serialize(deserialize(canonical)),canonical);
+ orphan.reservoir.airlockOwner.binding='orphan';assert.equal(airlockTankMakeupAllowance(orphan.site,orphan.reservoir),0);assert.throws(()=>deserialize(serialize(orphan.s)));
+});
+
+// SYNTHETIC preparation ends at the canonical boundary. Only shared actions
+// and ordinary native hauling run after recording begins; no journey claim.
+test('full ticks replenish queued supply-empty admission from physically hauled finite air',async()=>{
+ const f=tankMakeupFixture({chamberGas:0,reserveGas:0,smoke:0});
+ f.habitat.gas={oxygen:2.9,inert:7.1,co2:0};refreshAtmosphere(f.site);
+ for(const c of f.s.crew.slice(1,4)){c.x=18;c.y=11;c.labors.hauling=true;}
+ const input=serialize(f.s);assert.equal(serialize(deserialize(input)),input);
+ const before=ledger(f),initialAir=f.tile(18,11).stock.air;let ticks=0,attempts=0,sawPaused=false,sawPickup=false,failure=null;
+ startRecording(f.s,{maxRecords:12000,maxBytes:128_000_000});
+ const act=(id,args)=>{assert.ok(attempts++<120,'120 shared attempts');const result=executeAction(f.s,id,args,'agent');assert.equal(result.ok,true,result.reason||result.message);};
+ try {
+  act('airlock.request',{site:'surface',x:CONFIG.x,y:CONFIG.y,crew:f.crew.id,direction:'outward'});
+  while(!f.controller.airlock.party){
+   assert.ok(ticks++<80,'80 full ticks');act('simulation.step',{ticks:1});
+   const a=f.controller.airlock;sawPaused||=a.phase==='paused'&&a.reason==='supply_empty';sawPickup||=f.s.crew.some(c=>(c.carry?.air||0)>0);
+   assert.ok(a.reason===null||a.reason==='supply_empty',a.reason);assert.ok(f.s.crew.every(c=>c.health===100&&c.medical.injury===0),'first harm');
+   assert.equal(serialize(deserialize(serialize(f.s))),serialize(f.s));
+   const loaded=f.site.gasNetwork.loaded,after=ledger(f);close(after.oxygen,before.oxygen+loaded.oxygen);close(after.inert,before.inert+loaded.inert);close(after.co2,before.co2);close(after.energy,0);
+  }
+  assert.ok(sawPaused&&sawPickup);assert.ok(f.site.gasNetwork.loaded.oxygen>0);assert.equal(f.controller.airlock.reason,null);
+  const packaged=f.tile(18,11).stock.air+(f.reservoir.machine.input.air||0)+f.s.crew.reduce((n,c)=>n+(c.carry?.air||0),0);
+  close(packaged+Object.values(f.site.gasNetwork.loaded).reduce((a,b)=>a+b,0),initialAir);
+ }catch(error){failure=error;}
+ stopRecording(f.s);const recording=exportRecording(f.s),directory=process.env.AIRLOCK_FREIGHT_OUTPUT_DIR;
+ const events=recording.trim().split('\n').map(JSON.parse).filter(r=>r.kind==='event').map(r=>r.event);
+ try {assert.ok(events.some(e=>e.id==='gas.loaded'&&e.binding===f.controller.airlock.binding&&e.amount>0));}catch(error){failure??=error;}
+ if(directory){await mkdir(directory,{recursive:true});for(const [label,text] of Object.entries({input,endpoint:serialize(f.s),recording,summary:JSON.stringify({ticks,attempts,ok:!failure,failure:failure?.message})})){const sha=createHash('sha256').update(text).digest('hex'),path=join(directory,`core-tank-makeup-${label}-sha256-${sha}.txt`);await writeFile(path,text,{flag:'wx'});assert.equal(createHash('sha256').update(await readFile(path)).digest('hex'),sha);await chmod(path,0o444);}}
+ if(failure)throw failure;
 });

@@ -1,8 +1,10 @@
+import { roomAtPosition } from './room-locations.js';
+import { positionOf } from './spatial.js';
 import { temperatureAt, thermalSafe } from './thermal.js';
 const esc = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export function thermalDetails(site, t) {
-  const room = site.rooms.find(r => r.cells.includes(`${t.x},${t.y}`));
-  return `<dt>Temperature</dt><dd>${temperatureAt(site, t.x, t.y).toFixed(1)} °C${room && !thermalSafe(room) ? ' · unsafe' : ''}</dd><dt>Exterior</dt><dd>${site.thermal.ambient} °C</dd>`;
+  const room = roomAtPosition(site,positionOf(t));
+  return `<dt>Temperature</dt><dd>${temperatureAt(site,t.x,t.y,t.z).toFixed(1)} °C${room && !thermalSafe(room) ? ' · unsafe' : ''}</dd><dt>Exterior</dt><dd>${site.thermal.ambient} °C</dd>`;
 }
 export function climateDetails(t) {
   if (t.building !== 'climate') return '';

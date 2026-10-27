@@ -2,10 +2,15 @@ import { distance } from '../src/geometry.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, at, step, order, cancelJob, setLabor, serialize, deserialize } from '../src/simulation.js';
-import { setProductionOrder, setProductionPriority, projectedStock } from '../src/production.js';
+import { setProductionOrder, setProductionPriority, projectedStock, inputBatchesWanted, scheduleProduction, initializeProduction } from '../src/production.js';
 import { setMachineEnabled } from '../src/industry.js';
-import { totalResources, syncResources, initializeStorage, take } from '../src/inventory.js';
+import { totalResources, syncResources, initializeStorage, take, add, extract } from '../src/inventory.js';
 import { refreshPower } from '../src/power.js';
+import { executeAction } from '../src/controls.js';
+import { typedFood } from '../src/food-lots.js';
+import { CROPS, MEAL_RECIPES } from '../src/food-data.js';
+import { cookMeal } from '../src/meals.js';
+import { currentOutpost } from './helpers/current-outpost.js';
 const depot = s => at(s.sites.surface, 8, 10);
 const until = (s, predicate, limit = 250) => { for (let i = 0; i < limit && !predicate(); i++) { step(s); deserialize(serialize(s)); } assert.ok(predicate(), `Expected condition by tick ${s.tick}`); };
 function workshop() {
@@ -50,6 +55,48 @@ test('stock targets include loose or finished products and restart when products
   take(depot(s).stock, { alloy: 2 }); syncResources(s); m.input.ore = 1; until(s, () => m.completed === 3); assert.equal(projectedStock(s, s.sites.surface, 'alloy'), 40);
 });
 
+test('unloaded dock products meet stock targets and production resumes after those imports are used', () => {
+  const s = currentOutpost(), site = s.sites.wreck, dock = site.tiles.find(t => t.building === 'dock');
+  const act = (id, args) => { const result = executeAction(s, id, args, 'test'); assert.equal(result.ok, true, `${id}: ${result.message}`); return result; };
+  for (const t of s.sites.surface.tiles) if (t.machine && t.building !== 'scrubber') act('production.enable', { site: 'surface', x: t.x, y: t.y, enabled: false });
+  add(s.shuttle.freight, extract(at(site, 8, 10).drop, { alloy: 2 }));
+  for (const crew of s.mission.crew) act('crew.labor', { crew, labor: 'hauling', enabled: true });
+  act('freight.unload', { site: site.id, items: { alloy: 2 } });
+  assert.equal(projectedStock(s, site, 'alloy'), 0, 'committed freight is not available stock');
+  for (let ticks = 0; ticks < 80 && s.jobs.some(j => j.kind === 'unloadCargo'); ticks++) act('simulation.step', { ticks: 1 });
+  assert.equal(s.jobs.some(j => j.kind === 'unloadCargo'), false);
+  assert.equal(dock.imports.alloy, 2);
+  assert.deepEqual(deserialize(serialize(s)), s);
+  for (const crew of s.mission.crew) act('crew.labor', { crew, labor: 'hauling', enabled: false });
+  // Supply a workstation fixture after physical unloading; no paid construction claim.
+  const t = at(site, 8, 10); t.terrain = 'floor'; t.building = 'refinery'; t.hp = 100; t.powered = true;
+  initializeStorage(t); initializeProduction(s); t.machine.input.ore = 1;
+  act('production.order', { site: site.id, x: t.x, y: t.y, mode: 'stock', limit: 2 });
+  assert.equal(projectedStock(s, site, 'alloy'), 2);
+  assert.equal(inputBatchesWanted(s, site, t), 0);
+  scheduleProduction(s, order);
+  assert.equal(s.jobs.some(j => j.site === site.id && j.kind === 'operate'), false);
+  assert.equal(t.machine.status, 'Stock target met');
+  take(dock.imports, { alloy: 2 }); syncResources(s);
+  assert.equal(inputBatchesWanted(s, site, t), 1);
+  scheduleProduction(s, order);
+  assert.equal(s.jobs.filter(j => j.site === site.id && j.kind === 'operate').length, 1);
+});
+
+test('dock stock targets filter mixed crop kinds and prepared meal recipes', () => {
+  const s = createGame(), site = s.sites.wreck, dock = site.tiles.find(t => t.building === 'dock'), chef = s.crew[0];
+  add(dock.imports, typedFood('fungalcap', 2)); add(dock.imports, typedFood('sunberry', 3));
+  add(dock.imports, cookMeal(s, chef, { id: `job-${s.nextId++}`, site: site.id, x: dock.x, y: dock.y }, { food: 2 }));
+  add(dock.imports, cookMeal(s, chef, { id: `job-${s.nextId++}`, site: site.id, x: dock.x, y: dock.y }, typedFood('fungalcap', 2), 'fungal_stew'));
+  assert.equal(projectedStock(s, site, 'food'), 9);
+  assert.equal(projectedStock(s, site, 'food', null, false, CROPS.fungalcap), 2);
+  assert.equal(projectedStock(s, site, 'food', null, false, CROPS.sunberry), 3);
+  assert.equal(projectedStock(s, site, 'food', null, true), 4);
+  assert.equal(projectedStock(s, site, 'food', null, true, MEAL_RECIPES.basic_ration), 2);
+  assert.equal(projectedStock(s, site, 'food', null, true, MEAL_RECIPES.fungal_stew), 2);
+  assert.equal(projectedStock(s, site, 'food', null, true, MEAL_RECIPES.curd_bake), 0);
+});
+
 test('two machines with the same stock target reserve promised output without duplicating a batch', () => {
   const { s, t, m } = workshop(); const second = at(s.sites.surface, 12, 10); second.building = 'refinery'; initializeStorage(second); second.machine.input.ore = 1; refreshPower(s, s.sites.surface);
   operators(s, false); for (const tile of [t, second]) setProductionOrder(s, 'surface', tile.x, tile.y, 'stock', 38);
@@ -58,7 +105,7 @@ test('two machines with the same stock target reserve promised output without du
 });
 
 test('stock accounting includes goods in transit to storage but excludes committed building supplies', () => {
-  const { s, t, m } = workshop(); take(depot(s).stock, { alloy: 5 }); syncResources(s); const c = s.crew[0]; c.carry = { alloy: 5 }; c.delivery = { kind: 'stock', target: [8, 10] }; c.x = 10; c.y = 14;
+  const { s, t, m } = workshop(); take(depot(s).stock, { alloy: 5 }); syncResources(s); const c = s.crew[0]; c.carry = { alloy: 5 }; c.delivery = { kind: 'stock', target: { x: 8, y: 10, z: 0 } }; c.x = 10; c.y = 14;
   setProductionOrder(s, 'surface', t.x, t.y, 'stock', 36); step(s); assert.equal(operation(s, t), undefined); assert.equal(m.progress, 0);
   until(s, () => !c.carry); order(s, 'surface', 11, 14, 'build', 'solar'); step(s); assert.ok(operation(s, t)); assert.ok(projectedStock(s, s.sites.surface, 'alloy') < 36);
 });

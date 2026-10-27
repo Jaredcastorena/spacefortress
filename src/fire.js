@@ -1,38 +1,39 @@
+import { tileAt, positionOf, sameCell } from './spatial.js';
 import { neighbors } from './geometry.js';
 import { gasNode } from './gas-networks.js';
 import { LIQUID, quenchWater } from './liquids.js';
 import { BUILDINGS } from './data.js';
 import { roomAt, refreshRoom } from './atmosphere.js';
-import { advanceCrewRoute } from './crew-traversal.js';
+import { advanceCrewRoutePositions } from './crew-traversal.js';
 import { temperature } from './thermal.js';
 import { damage } from './maintenance.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
 export const FIRE={faultTicks:120,smokeLimit:.04,filterRate:.08,suppressionWater:2,suppressionWork:8,retry:120};
 const adjacent=t=>neighbors(t.x,t.y);
-const at=(site,x,y)=>x>=0&&y>=0&&x<site.size&&y<site.size?site.tiles[y*site.size+x]:null;
+const at=(site,x,y,z=0)=>tileAt(site,{x,y,z});
 export const combustible=t=>t?.hp>0&&!!BUILDINGS[t.building]&&!['floor','wall','door','fence','pastureGate','cable','solar','advanced','sculpture'].includes(t.building);
 const oxygen=r=>!!r&&r.gas.oxygen/(r.volume*10)>=.12;
 export function initializeFire(s){for(const site of Object.values(s.sites)){site.fireSafety??={automatic:true,smokeProduced:0,smokeCleared:0,smokeVented:0,oxygenBurned:0};site.thermal.combustion??=0;for(const r of site.rooms)r.smoke??=0;}}
 export function ignite(s,site,t,cause='electrical_fault',parent=null){
- if((t.liquid||0)>=LIQUID.wet||t.fire||!combustible(t)||!oxygen(roomAt(site,t.x,t.y)))return false;
+ if((t.liquid||0)>=LIQUID.wet||t.fire||!combustible(t)||!oxygen(roomAt(site,t.x,t.y,t.z)))return false;
  t.fire={id:`fire-${s.nextId++}`,started:s.tick,age:0,intensity:20,retryAt:0,blocked:null};delete t.fireFault;
- emitEvent(s,'fire.ignited',{entity:t.fire.id,target:tileEntityId(site.id,t.x,t.y),cause,parent});s.log.unshift({tick:s.tick,message:`Fire at ${site.id} ${t.x}/${t.y}. Suppression needs delivered water; isolate damaged equipment.`,type:'danger'});s.log=s.log.slice(0,60);return true;
+ emitEvent(s,'fire.ignited',{entity:t.fire.id,target:tileEntityId(site.id,t.x,t.y,positionOf(t).z),cause,parent});s.log.unshift({tick:s.tick,message:`Fire at ${site.id} ${t.x}/${t.y}. Suppression needs delivered water; isolate damaged equipment.`,type:'danger'});s.log=s.log.slice(0,60);return true;
 }
 export function extinguish(s,site,t,reason,actor=null,job=null){
- if(!t.fire)return;emitEvent(s,'fire.extinguished',{entity:t.fire.id,target:tileEntityId(site.id,t.x,t.y),reason,actor,job});delete t.fire;delete t.fireFault;
+ if(!t.fire)return;emitEvent(s,'fire.extinguished',{entity:t.fire.id,target:tileEntityId(site.id,t.x,t.y,positionOf(t).z),reason,actor,job});delete t.fire;delete t.fireFault;
 }
 export function updateFire(s){
  for(const site of Object.values(s.sites)){
   for(const t of site.tiles){
    if(t.fire)continue;
-   if(!combustible(t)||!oxygen(roomAt(site,t.x,t.y))){delete t.fireFault;continue;}
+   if(!combustible(t)||!oxygen(roomAt(site,t.x,t.y,t.z))){delete t.fireFault;continue;}
    if(t.powered&&BUILDINGS[t.building]?.demand&&t.hp<=30){t.fireFault=(t.fireFault||0)+1;if(t.fireFault>=FIRE.faultTicks)ignite(s,site,t);}
    else delete t.fireFault;
-   if(!t.fire&&temperature(roomAt(site,t.x,t.y))>=90)ignite(s,site,t,'overheating');
+   if(!t.fire&&temperature(roomAt(site,t.x,t.y,t.z))>=90)ignite(s,site,t,'overheating');
   }
   // A newly spread fire starts burning on the following tick.
   for(const t of site.tiles.filter(t=>t.fire)){
-   const f=t.fire,r=roomAt(site,t.x,t.y);f.age++;
+   const f=t.fire,r=roomAt(site,t.x,t.y,t.z);f.age++;
    if(quenchWater(s,site,t)){extinguish(s,site,t,'floor_water');continue;}
    if(!combustible(t)){extinguish(s,site,t,'fuel_exhausted');continue;}
    if(!oxygen(r)){f.intensity-=10;if(f.intensity<=0)extinguish(s,site,t,'oxygen_starved');continue;}
@@ -41,25 +42,26 @@ export function updateFire(s){
    r.gas.oxygen-=consumed;r.gas.co2+=consumed;r.smoke+=smoke;r.heat+=heat;
    site.fireSafety.oxygenBurned+=consumed;site.fireSafety.smokeProduced+=smoke;site.thermal.combustion+=heat;
    damage(s,site,t,'structure',f.intensity*.005,'fire');if(t.cable)damage(s,site,t,'cable',f.intensity*.003,'fire');if(t.pipe)damage(s,site,t,'pipe',f.intensity*.003,'fire');if(t.waterPipe)damage(s,site,t,'waterPipe',f.intensity*.003,'fire');refreshRoom(r);
-   emitEvent(s,'fire.burned',{entity:f.id,target:tileEntityId(site.id,t.x,t.y),oxygen:consumed,smoke,heat});
+   emitEvent(s,'fire.burned',{entity:f.id,target:tileEntityId(site.id,t.x,t.y,positionOf(t).z),oxygen:consumed,smoke,heat});
    if(t.hp<=0){extinguish(s,site,t,'fuel_exhausted');continue;}
-   if(f.age%30===0&&f.intensity>=60){const next=adjacent(t).map(([x,y])=>at(site,x,y)).find(n=>combustible(n)&&!n.fire&&roomAt(site,n.x,n.y)===r);if(next)ignite(s,site,next,'spread',f.id);}
+   if(f.age%30===0&&f.intensity>=60){const next=adjacent(t).map(([x,y])=>at(site,x,y,positionOf(t).z)).find(n=>combustible(n)&&!n.fire&&roomAt(site,n.x,n.y,n.z)===r);if(next)ignite(s,site,next,'spread',f.id);}
   }
  }
 }
-export function fireJobValid(s,j){return s.sites[j.site]?.tiles[j.y*s.sites[j.site].size+j.x]?.fire?.id===j.fire;}
+export function fireJobValid(s,j){const t=tileAt(s.sites[j.site],positionOf(j));return !!t?.fire&&t.fire.id===j.fire;}
 export function prepareFire(s,order,cancelJob){
  for(const j of [...s.jobs])if(j.kind==='extinguish'&&!fireJobValid(s,j))cancelJob(s,j.id,true);
- for(const site of Object.values(s.sites))if(site.fireSafety.automatic)for(const t of site.tiles)if(t.fire&&s.tick>=t.fire.retryAt&&!s.jobs.some(j=>j.kind==='extinguish'&&j.site===site.id&&j.x===t.x&&j.y===t.y)){
+ for(const site of Object.values(s.sites))if(site.fireSafety.automatic)for(const t of site.tiles)if(t.fire&&s.tick>=t.fire.retryAt&&!s.jobs.some(j=>j.kind==='extinguish'&&j.site===site.id&&sameCell(positionOf(j),positionOf(t)))){
+  if(positionOf(t).z!==0){t.fire.blocked='Fire response on this deck is not available yet.';continue;}
   const result=order(s,site.id,t.x,t.y,'extinguish');t.fire.blocked=result.ok?null:result.message;
  }
 }
 export function setFireResponse(s,siteId,enabled){const site=s.sites[siteId];if(!site||typeof enabled!=='boolean')return {ok:false,message:'Choose a site and response policy.'};site.fireSafety.automatic=enabled;return {ok:true};}
 export function evadeFire(s,c,site,pathTo,release){
- if(!at(site,c.x,c.y)?.fire)return false;
- release(s,c);const before=[c.x,c.y],movement=advanceCrewRoute(s,c,site,site.tiles.filter(t=>!t.fire).map(t=>[t.x,t.y]));
+ if(!at(site,c.x,c.y,positionOf(c).z)?.fire)return false;
+ release(s,c);const before=positionOf(c),movement=advanceCrewRoutePositions(s,c,site,site.tiles.filter(t=>!t.fire&&positionOf(t).z===before.z).map(positionOf));
  if(movement.status!=='waiting_airlock')c.activity=movement.status==='blocked'?'Trapped by fire':'Escaping a fire';
- if(c.x!==before[0]||c.y!==before[1])emitEvent(s,'fire.evacuated',{actor:c.id,target:tileEntityId(site.id,c.x,c.y)});
+ if(!sameCell(positionOf(c),before))emitEvent(s,'fire.evacuated',{actor:c.id,target:tileEntityId(site.id,c.x,c.y,positionOf(c).z)});
  return true;
 }
 export function validateFire(s){

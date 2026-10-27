@@ -1,3 +1,4 @@
+import { groundAirlockConfig } from '../src/airlock-locations.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { airlockDetails, airlockFormAction, airlockOwnershipDetails, AIRLOCK_REFERENCES } from '../src/airlock-panels.js';
@@ -7,7 +8,7 @@ function fixture() {
   const site={id:'surface',size:9,tiles:Array.from({length:81},(_,i)=>({x:i%9,y:Math.floor(i/9),terrain:'floor',building:null,hp:100})),rooms:[],atmosphere:{tick:0}};
   const at=(x,y)=>site.tiles[y*site.size+x],t=at(1,1);t.building='airlockController';t.powered=false;
   const config={chamber:[3,3],inner:[2,3],outer:[4,3],extractor:[3,3],pump:[5,3],reservoir:[6,3],vent:[3,4]};
-  t.airlock={binding:'test-binding',config,chamberCells:['3,3'],ownedNodes:[],enabled:false,phase:'paused',direction:null,party:null,queue:[],nextCycle:1,cycle:null,resumePhase:null,recoverySide:null,reason:'no_power'};
+  t.airlock={binding:'test-binding',config:groundAirlockConfig(config),chamberCells:['3,3,0'],ownedNodes:[],enabled:false,phase:'paused',direction:null,party:null,queue:[],nextCycle:1,cycle:null,resumePhase:null,recoverySide:null,reason:'no_power'};
   for(const side of ['inner','outer'])Object.assign(at(...config[side]),{building:'door',doorMode:'closed',doorUntil:0,airlockOwner:{controller:'tile:surface:1:1',binding:'test-binding'}});
   Object.assign(at(6,3),{building:'gasReservoir',gasStore:{gas:{oxygen:5,inert:15,co2:0},smoke:2,open:false}});
   site.rooms.push({cells:['3,3'],volume:1,gas:{oxygen:2,inert:8,co2:0},smoke:0,heat:293.15*20});

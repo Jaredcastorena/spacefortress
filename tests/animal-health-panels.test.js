@@ -14,7 +14,7 @@ const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>
 function fixture(species='bristleback') {
   const s=createGame(),site=s.sites.surface,a=s.creatures.find(a=>a.species===species),t=at(site,12,10);
   t.building='husbandryPost';t.hp=100;a.x=t.x;a.y=t.y;a.site='surface';a.health=90;a.fed=80;
-  a.husbandry.trust=100;a.husbandry.post=[t.x,t.y];a.husbandry.care=true;a.lifecycle.enabled=true;
+  a.husbandry.trust=100;a.husbandry.post={x:t.x,y:t.y,z:0};a.husbandry.care=true;a.lifecycle.enabled=true;
   a.condition={injury:10,treated:4,thermalStress:0,cause:'fire',recovery:'none'};
   return {s,site,a,t,bindings:controlBindings(()=>s)};
 }

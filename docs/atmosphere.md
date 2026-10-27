@@ -1,6 +1,6 @@
 # Compartments, breathing, and life support
 
-Original atmosphere implementation: September 16, 2026. Updated October 9 for v0.1.4 breathing diagnostics, paused-import fix and bounded recovery; v0.1.3 already includes hex compartments and experimental cycling airlocks. Values below are game balancing units, not an engineering or chemistry model.
+Original atmosphere implementation: September 16, 2026. Updated October 9 for v0.1.4 breathing diagnostics, paused-import fix and subsequent local finite-reserve evidence; v0.1.3 already includes hex compartments and experimental cycling airlocks. Values below are game balancing units, not an engineering or chemistry model.
 
 ## Stored quantities
 
@@ -41,6 +41,22 @@ Safe rooms can refill suits by up to two percentage points per tick, taking that
 
 Preflight suit top-ups consume reachable stored breathing mix; unused inert gas is accounted as vented. Returning crew retain their remaining suit reserves and refill through ordinary habitat behavior. Shuttle cabin life support and respiration during transit remain abstracted.
 
+### Stored mix for suit recovery
+
+Crew seeking air first try a reachable breathable compartment. When none is reachable, they can walk to a local stockpile containing packaged breathing mix, or an operational dock with mix in its imports. Supply is used only after arrival, with normal routes and airlock interlocks. Each tick transfers at most two suit percentage points, up to the existing 90% recovery target; reaching that target completes the recovery intention immediately.
+
+One mix unit provides 0.21 oxygen unit, equivalent to 2.1 suit percentage points. Its remaining 0.79 inert unit is vented locally. Refills consume finite physical inventory and can be partial when a source runs out. The transfer fills the suit; supplying room gas still requires life-support delivery. Boarding continues to use the same mix conversion for its paid full-suit refill.
+
+Empty, unreachable or remote reserves provide no refill. Existing job, carrier and shuttle supplies are separate owners. Breathing, fatigue, other emergencies and hazards continue during this recovery. A colony with no packaged mix needs another supply or engineering route; this mechanism does not create air.
+
+### Manual suit oxygen release
+
+The crew inspector has a collapsed **Emergency oxygen** form. It releases an integer from 1 to 100 points from that crew member's suit into their current sealed compartment. One point transfers 0.1 oxygen units. The actor must be alive, mobile and at a physical site; the requested reserve and nominal room gas capacity must both be available. The operation is all-or-nothing and does not move the actor or interrupt work, cargo or recovery.
+
+This spends the actor's breathing reserve and can exhaust it. Pure oxygen can make the room oxygen-rich and unsafe under the existing breathing rules; nominal capacity is not a safe-composition guarantee. The form displays both warnings and the current maximum.
+
+Only suit oxygen and room oxygen change ownership. The existing atmosphere `injected.oxygen` ledger records room ingress; `refilled`, escaped gas and gas-network delivery counters remain unchanged. Total physical gas remains conserved across suits, rooms, inventories, pipes and escaped gas. No new save fields or simulation tick are needed. The shared `crew.suit.release` action and `crew.suit.released` event are described in the [simulation interface](simulation-interface.md).
+
 ## Leakage and doors
 
 Exposed floor edges, damaged hull seals and open doors create gas connections. Flow depends on the difference in gas density, opening conductance and compartment volume. Transfers use a snapshot of source mixtures and bounded outgoing quantities, preventing negative inventories when several openings drain one room. Connected rooms also exchange mixture at equal pressure, so contamination can spread without a pressure imbalance.
@@ -67,13 +83,22 @@ An atmosphere processor consumes one water and produces ten breathing-mix units 
 
 Stored mix, carried mix, the life-support input and room gas are distinct physical owners. Air elsewhere in the colony cannot be injected until a hauler completes delivery. Recycling exhaled gas does not replace gas already lost outside, and a limited supply rate can be overtaken by an open exterior doorway. Sustained operation requires enough production, delivered reserves and isolation for the actual loss rate.
 
-This connects water, power, hauling, seals and survival. An outage stops recycling and production; exhaled gas accumulates; crew switch to suits and crops stop; restoring power and delivery can recover the habitat. Critical supply priorities are still handled by the simple existing job scheduler.
+This connects water, power, hauling, seals and survival. An outage stops powered recycling and production, and exhaled gas accumulates. Crew rely on suits if the remaining room gas becomes unsafe; sufficient room reserves can keep breathing safe through an outage. Restoring power and delivery can recover the habitat. Critical supply priorities are still handled by the simple existing job scheduler.
+
+## Player guidance: recovering finite air
+
+1. Reduce unnecessary exterior trips and keep direct exterior doors closed when they are not needed. An open route outside can lose gas faster than life support replaces it.
+2. Keep life support and necessary temperature control powered. Pause idle, nonessential machinery when it competes with the atmosphere processor for power.
+3. Use the existing processor with physically delivered water and a Production worker. Its air output must reach life support; stored or carried mix alone does not refill the room.
+4. Watch **Oxygen at this pressure**, the actual life-support input and crew suit reserves. A room just at the 16% breathing minimum may have little room for further loss or suit charging, even when concentration looks normal.
+5. Preserve a rested operator and hauler while recovering air. Unsafe rooms prevent normal rest, and low suit air can interrupt work. Check each crew member’s `derived.work` reading and existing intention alongside their energy and suit reserve; the processor needs 25 work per batch.
+6. Order finite batches and preserve water for the next supply stage. The measured reserve below used 24 water in that particular sealed colony; required quantities depend on room size, existing gas, losses, suit use and equipment. It is not a universal recovery recipe.
 
 ## Inspection and persistence
 
 Pressure, oxygen fraction, exhaled gas and compartment size appear in the existing hidden tile inspector. The v0.1.4 diagnostics label the separate readings **Oxygen concentration** and **Oxygen at this pressure**, with a 16–30% nominal range for the latter. The first failed breathing limit appears in a full-width, left-aligned explanation. Door modes and life-support supply status are contextual controls. The colony drawer reports stored breathing mix. The permanent resource bar retains its prior contents. Occupied habitat facilities generate a log entry when air becomes unsafe and another when it becomes breathable again. Local-agent room observations retain their existing breathable flag and add the same derived breathing status, including the reason and oxygen limits. These are read-only diagnostics; they add no saved gas, resources or new gameplay action.
 
-The local import fix preserves the actual speed selected before opening the importer. Completion, failure and cancellation restore that speed, including pause; the remembered last nonzero speed for time controls is separate. Importing an unsafe checkpoint while paused therefore allows inspection without silently advancing its simulation. No saved state or schema change is involved.
+The v0.1.4 import fix preserves the actual speed selected before opening the importer. Completion, failure and cancellation restore that speed, including pause; the remembered last nonzero speed for time controls is separate. Importing an unsafe checkpoint while paused therefore allows inspection without silently advancing its simulation. No saved state or schema change is involved.
 
 Schema 5 originally introduced gas quantities, derived readings, escaped/supplied-gas counters and door state. Schemas 1–4 migrate their old room air percentages into proportional quantities of nominal mixture. Legacy saves without breathing mix receive one 160-unit commissioning supply in a depot or a recoverable pile. Subsequent loads do not grant more. Volume, composition, topology, counters, door modes and cached readings are validated on import. Existing failed-load preservation remains in place. This is the original atmosphere migration, not the current save-version number; see [verification status](verification-status.md).
 
@@ -93,7 +118,15 @@ Reusing that paid infrastructure, one continuation ran 384→460: **76 ticks and
 
 All seven crew and five animals stayed at 100 health with zero injury and no unmet oxygen. Three reloads were exact, recording was complete and 97 source files remained unchanged. Physical accounting matched within a largest floating difference of 2.28×10⁻¹³; 34.5 water and ten air remained across physical owners.
 
-**The reserve is still thin.** At the stop the sealed room had exactly 56 oxygen units, its minimum, and 78.06% nominal pressure. Suits held 76.79–78.49%. This proves bounded recovery under the measured conditions, not a durable room or suit reserve, repeated exterior-work endurance or the complete ordinary food chain. Further acceptance must establish those margins before claiming sustainable operation. See [verification status](verification-status.md) for the frozen evidence and earlier stops.
+**The tick-460 reserve was still thin.** At that stop the sealed room had exactly 56 oxygen units, its minimum, and 78.06% nominal pressure. Suits held 76.79–78.49%. This stage proved bounded recovery under its measured conditions; it did not establish room/suit reserves or exterior endurance. Its checkpoint and the earlier stops remain preserved.
+
+### Finite reserve through two nights: ticks 460–951
+
+One reviewed continuation reused the paid infrastructure and unchanged published v0.1.4 runtime. It ran **491 ticks and four public commands**, completing 24 batches including the previously committed batch: **240 air from 24 water**. The habitat passed all 491 end-of-tick breathing checks, including both nights. At the stop, pressure was 100% of nominal and room oxygen was 63.010370 units out of a nominal 350, or **18.00296%**. All seven suits reached 100%; all seven crew and five animals retained 100 health with zero injury.
+
+Three checkpoints reloaded exactly. The complete trace contained 2,174 records; all 97 source files were unchanged. Resource accounting matched exactly, with a maximum gas-accounting difference of 1.2×10⁻¹². The processor was paused and empty; automatic product collection for the target bristleback was disabled while its care remained unchanged.
+
+**The remaining supplies are finite:** 10.5 water, 23 food, 14 alloy, no components and **no packaged air**. This accepts the measured indoor room/suit reserve through two nights. It does not establish sustained exterior work, paid airlock commissioning, indefinite endurance or the complete ordinary livestock-to-meal chain. The next stage needs a reviewed water/air supply plan from this actual endpoint. See [verification status](verification-status.md) for the preserved stages and evidence.
 
 The original atmosphere release passed 252 tests, including 20 atmosphere cases. This historical evidence covers conserved room edits, pressure equalization, composition mixing, breathing and suit refill, contamination, finite supplies, recycling, an outage/recovery chain, breach area and room size, damage, door modes, whole-system gas accounting, preflight supplies, processor-to-life-support deliveries, deterministic saves, migration and malformed state. Source syntax and documentation links passed at that checkpoint. Current integrated results are in [verification status](verification-status.md).
 

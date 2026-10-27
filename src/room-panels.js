@@ -1,8 +1,9 @@
+import { sameCell, positionOf } from './spatial.js';
 import { ROOM_ROLES, roomStatus } from './rooms.js';
 import { roomAt } from './atmosphere.js';
 const esc = value => String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function roomDetails(s, site, t) {
-  const room = roomAt(site, t.x, t.y), marker = site.designations.find(d => d.x === t.x && d.y === t.y);
+  const room = roomAt(site,t.x,t.y,t.z), marker = site.designations.find(d => sameCell(positionOf(d),positionOf(t)));
   if (!room) return marker ? `<hr><div class="eyebrow">DORMANT ROOM DESIGNATION</div><p>${esc(ROOM_ROLES[marker.role])} is anchored here. Restore habitat flooring or clear the designation.</p><button data-action="room-role" data-role="general">Clear designation</button>` : '';
   const status = roomStatus(s, site, room), effects = {
     general: 'Mixed use. Ordinary furniture, recovery and storage rules apply.',

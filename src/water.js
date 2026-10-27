@@ -1,3 +1,5 @@
+import { sameCell } from './spatial.js';
+import { shipmentPosition } from './shipment-locations.js';
 // Ice reserves are terrain resources, separate from extracted inventory.
 export const ICE_SEAM_CAPACITY = 12;
 export const ICE_EXTRACTION_AMOUNT = 6;
@@ -13,7 +15,7 @@ export function initializeWater(s) {
       // Migration never covers existing structures, inventories or designated work.
       if (t.deposit !== undefined || t.building || t.drop || t.cable ||
           !['ground','ice'].includes(t.terrain) ||
-          s.jobs.some(j => j.site === site.id && (j.x === t.x && j.y === t.y || j.sources.some(source => source.x === t.x && source.y === t.y)))) continue;
+          s.jobs.some(j => j.site === site.id && (sameCell(shipmentPosition(j), shipmentPosition(t)) || j.sources.some(source => sameCell(source, shipmentPosition(t)))))) continue;
       t.deposit = { resource: 'ice', remaining: ICE_SEAM_CAPACITY };
     }
   }

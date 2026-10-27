@@ -4,7 +4,7 @@ import { VERSION } from '../src/data.js';
 import { createGame, at, step, order, serialize, deserialize, setLabor, pathTo } from '../src/simulation.js';
 import { initializeStorage, add, extract, totalResources, syncResources } from '../src/inventory.js';
 import { foodLots, preparedFood, rawFood, foodAge, FOOD_LIFETIME } from '../src/food-lots.js';
-import { cookMeal } from '../src/meals.js';
+import { cookMeal, moveOpenedMeal } from '../src/meals.js';
 import { setMachineEnabled } from '../src/industry.js';
 import { setProductionOrder } from '../src/production.js';
 import { setCableEnabled, refreshPower } from '../src/power.js';
@@ -76,14 +76,69 @@ test('air interruption preserves opened quality and a death drops the same remai
  c.health=0;step(s);const drop=at(site,c.x,c.y).drop;assert.equal(preparedFood(drop),7/8);assert.equal(foodLots(drop)[0].meal.id,id);assert.equal(c.medical.openedFood,undefined);check(s);
 });
 
+function mixedRation() {
+ const f=colony({galley:false,hauling:false}),fresh={};prepared(f.s,fresh,3,0);
+ f.depot.stock={food:1/8,_food:[{amount:1/8,age:FOOD_LIFETIME-3}]};
+ const food=extract(fresh,{food:7/8});add(f.depot.stock,food);
+ f.c.hunger=20;f.c.x=8;f.c.y=10;
+ return {...f,meal:foodLots(food)[0].meal};
+}
+const eatenEvents=(s,c)=>exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>r.event?.id==='meal.portion.eaten'&&r.event.actor===c.id).map(r=>r.event);
+
+test('eating the oldest portion keeps the physically remaining fresh meal edible',()=>{
+ const {s,c,meal}=mixedRation(),waste=totalResources(s).waste;check(s);startRecording(s);
+ step(s);assert.equal(c.intent.servings,8);
+ step(s);assert.equal(c.intent.servings,7);assert.equal(c.intent.foodAge,2);
+ assert.deepEqual(foodLots(c.intent.openedFood),[{amount:7/8,age:2,meal}]);
+ step(s);assert.equal(c.intent.servings,6);assert.equal(c.intent.openedFood.food,6/8);
+ assert.equal(c.intent.foodAge,3);assert.equal(s.foodSpoiled,0);assert.equal(totalResources(s).waste,waste+2/16);
+ const portions=eatenEvents(s,c);assert.equal(portions.length,2);
+ assert.deepEqual(portions.map(p=>p.food),[1/8,1/8]);assert.deepEqual(portions.map(p=>p.quality),[0,3]);
+ assert.deepEqual(portions[0].lots,[{amount:1/8,age:FOOD_LIFETIME-1}]);
+ assert.deepEqual(portions[1].lots,[{amount:1/8,age:3,meal}]);check(s);
+});
+
+test('a valid saved stale opened age resumes like the age of its remaining lots',()=>{
+ const {s,c,meal}=mixedRation();step(s,2);c.intent.foodAge=FOOD_LIFETIME-1;
+ const copy=check(s);assert.equal(copy.crew[0].intent.foodAge,FOOD_LIFETIME-1);
+ c.intent.foodAge=foodAge(c.intent.openedFood);step(s);step(copy);
+ assert.deepEqual(copy,s);assert.equal(copy.foodSpoiled,0);
+ assert.deepEqual(foodLots(copy.crew[0].intent.openedFood),[{amount:6/8,age:3,meal}]);check(copy);
+});
+
+test('air interruption preserves fresh remaining portions for medical consumption',()=>{
+ const {s,c,meal}=mixedRation(),waste=totalResources(s).waste;startRecording(s);step(s,2);
+ c.x=16;c.y=11;c.oxygen=1;step(s);
+ assert.equal(c.intent.type,'air');assert.equal(c.medical.servings,7);
+ assert.equal(c.medical.openedFood.food,7/8);assert.equal(c.medical.foodAge,foodAge(c.medical.openedFood));
+ assert.equal(s.foodSpoiled,0);check(s);step(s);
+ assert.equal(c.medical.servings,6);assert.equal(c.medical.openedFood.food,6/8);
+ assert.equal(c.medical.foodAge,foodAge(c.medical.openedFood));assert.equal(s.foodSpoiled,0);
+ assert.equal(totalResources(s).waste,waste+2/16);
+ const portions=eatenEvents(s,c);assert.equal(portions.length,2);assert.equal(portions[1].food,1/8);
+ assert.deepEqual(portions[1].lots[0].meal,meal);check(s);
+});
+
+test('opened transfers discard stale cached ages while retaining legacy destination age',()=>{
+ const {s,c,meal}=mixedRation();step(s,2);c.intent.foodAge=FOOD_LIFETIME-1;
+ c.medical.servings=1;c.medical.foodAge=100;
+ const source=c.intent;moveOpenedMeal(source,c.medical);
+ assert.equal(c.medical.servings,8);assert.equal(c.medical.openedFood.food,1);
+ assert.equal(c.medical.foodAge,100);assert.equal(source.servings,0);assert.equal(source.foodAge,0);
+ assert.equal(source.openedFood,undefined);assert.equal(source.qualityTotal,undefined);
+ assert.deepEqual(foodLots(c.medical.openedFood),[{amount:1/8,age:100},{amount:7/8,age:2,meal}]);check(s);
+});
+
 test('medics deliver prepared food through the existing bedside supply job',()=>{
  const {s,site,depot,c}=colony({galley:false,hauling:false});depot.stock={};const id=prepared(s,depot.stock,3);c.x=10;c.y=9;at(site,10,9).building='medicalCot';injure(s,c,65,'test');c.hunger=20;
  until(s,()=>c.medical.servings>0);assert.equal(foodLots(c.medical.openedFood)[0].meal.id,id);assert.ok(!c.memories.some(m=>m.kind==='prepared-meal'));until(s,()=>c.memories.some(m=>m.kind==='prepared-meal'));check(s);
 });
 
 test('prepared portions spoil into their remaining food mass without awarding enjoyment',()=>{
- const {s,depot,c}=colony({galley:false,hauling:false});depot.stock={};prepared(s,depot.stock,2,FOOD_LIFETIME-3);c.x=8;c.y=10;c.hunger=20;step(s);step(s);assert.equal(c.intent.servings,7);step(s);
- assert.equal(c.intent.servings,0);assert.equal(c.intent.openedFood,undefined);assert.ok(!c.memories.some(m=>m.kind==='prepared-meal'));assert.equal(s.foodSpoiled,1+7/8);check(s);
+ const {s,depot,c}=colony({galley:false,hauling:false});depot.stock={};const id=prepared(s,depot.stock,2,FOOD_LIFETIME-3);c.x=8;c.y=10;c.hunger=20;startRecording(s);step(s);step(s);assert.equal(c.intent.servings,7);step(s);
+ assert.equal(c.intent.servings,0);assert.equal(c.intent.openedFood,undefined);assert.ok(!c.memories.some(m=>m.kind==='prepared-meal'));assert.equal(s.foodSpoiled,1+7/8);
+ assert.equal(totalResources(s).food,0);assert.equal(totalResources(s).waste,1+7/8+1/16);
+ const portions=eatenEvents(s,c);assert.equal(portions.length,1);assert.equal(portions[0].food,1/8);assert.equal(portions[0].lots[0].meal.id,id);check(s);
 });
 
 test('save continuation keeps batches and partly eaten food deterministic',()=>{

@@ -231,10 +231,10 @@ test('detached plumbing observations distinguish source output claims from incom
   source.machine.output.water = 2;
   at(site, 11, 9).waterPipe = {...newWaterPipe(), water:1};
   site.plumbing.loaded += 1;
-  s.crew[0].intent = {type:'haul', source:'output', target:[9,8], items:{water:1}, destination:{kind:'stock', target:[8,10]}};
+  s.crew[0].intent = {type:'haul', source:'output', target: { x: 9, y: 8, z: 0 }, items:{water:1}, destination:{kind:'stock', target: { x: 8, y: 10, z: 0 }}};
   s.crew[1].carry = {water:.75};
-  s.crew[1].delivery = {kind:'input', target:[13,8]};
-  s.crew[2].intent = {type:'haul', source:'stock', target:[8,10], items:{water:.5}, destination:{kind:'input', target:[13,8]}};
+  s.crew[1].delivery = {kind:'input', target: { x: 13, y: 8, z: 0 }};
+  s.crew[2].intent = {type:'haul', source:'stock', target: { x: 8, y: 10, z: 0 }, items:{water:.5}, destination:{kind:'input', target: { x: 13, y: 8, z: 0 }}};
   at(site, 8, 10).stock.water -= 3.75;
   syncResources(s);
   refreshPower(s, site); updatePower(s, site);

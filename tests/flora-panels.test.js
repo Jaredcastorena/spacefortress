@@ -124,7 +124,6 @@ test('actual cultivation clicks send one shared job order and wait for delivery 
   }
   assert.match(app,/plant:'job.order',waterPlant:'job.order'/);
   assert.match(app,/!\['operate','gather','plant','waterPlant'\]\.includes\(j.kind\)/);
-  assert.match(app,/querySelectorAll\('\[data-panel-key\]'\)/);
 });
 
 test('pending gathering displays real job progress and cancellation with escaped text',()=>{

@@ -4,10 +4,10 @@ import { availableInventory, hasOutgoingInventory, incomingInventory, outgoingIn
 import { add, extract } from '../src/inventory.js';
 
 const xy = [1, 1];
-const input = { kind: 'input', target: [2, 1] };
+const input = { kind: 'input', target: { x: 2, y: 1, z: 0 } };
 const crew = (id, fields = {}) => ({ id, site: 'wreck', health: 100, carry: null, delivery: null, intent: null, ...fields });
-const haul = (source, items, destination = input) => ({ type: 'haul', target: [...xy], source, items, destination });
-const salvage = items => ({ type: 'salvage', target: [...xy], items });
+const haul = (source, items, destination = input) => ({ type: 'haul', target: { x: xy[0], y: xy[1], z: 0 }, source, items, destination });
+const salvage = items => ({ type: 'salvage', target: { x: xy[0], y: xy[1], z: 0 }, items });
 const tile = (s, site = 'wreck') => s.sites[site].tiles[5];
 function fixture() {
   const makeSite = id => ({ id, size: 4, tiles: Array.from({ length: 16 }, (_, i) => ({ x: i % 4, y: Math.floor(i / 4), building: null })) });
@@ -50,14 +50,14 @@ test('shared source exclusion protects both local and shuttle pending pickups', 
 test('pickup, held local shipment and job reservation never debit physical source twice', () => {
   const s = fixture(), c = crew('local', { intent: haul('imports', { alloy: 4 }) }); s.crew.push(c);
   assert.equal(availableInventory(s, 'wreck', xy, 'imports', 'alloy'), 8);
-  c.carry = extract(tile(s).imports, c.intent.items); c.delivery = { kind: 'job', job: 'build-1', target: [2, 2] };
+  c.carry = extract(tile(s).imports, c.intent.items); c.delivery = { kind: 'job', job: 'build-1', target: { x: 2, y: 2, z: 0 } };
   // Deliberately retain the old intent across this boundary: actual carry wins.
   assert.equal(outgoingInventory(s, 'wreck', xy, 'imports', 'alloy'), 0);
   assert.equal(availableInventory(s, 'wreck', xy, 'imports', 'alloy'), 8);
   s.mission = { site: 'wreck', crew: [c.id] };
   assert.equal(shuttleCargoClaims(s), 0, 'construction cargo is not a shuttle commitment');
   const reserved = extract(tile(s).imports, { alloy: 3 });
-  const j = { id: 'build-1', site: 'wreck', sources: [{ x: 1, y: 1, kind: 'imports', items: reserved }], materials: {} }; s.jobs.push(j);
+  const j = { id: 'build-1', site: 'wreck', sources: [{ x: 1, y: 1, z: 0, kind: 'imports', items: reserved }], materials: {} }; s.jobs.push(j);
   assert.equal(availableInventory(s, 'wreck', xy, 'imports', 'alloy'), 5, 'job.sources already owns extracted goods');
   add(j.materials, c.carry); c.carry = null; c.delivery = null; c.intent = null;
   assert.equal(availableInventory(s, 'wreck', xy, 'imports', 'alloy'), 5);
@@ -100,11 +100,11 @@ test('hold claims include only selected living site passengers with a shuttle de
   const s = fixture();
   s.crew = [
     crew('pickup', { intent: salvage({ alloy: 2, water: .5 }) }),
-    crew('held', { carry: { components: 1 }, delivery: { kind: 'shuttle', target: xy }, intent: { type: 'rest' } }),
-    crew('transition', { carry: { fuel: 1.5 }, delivery: { kind: 'shuttle', target: xy }, intent: salvage({ fuel: 6 }) }),
-    crew('builder', { carry: { alloy: 6 }, delivery: { kind: 'job', job: 'build-1', target: xy } }),
+    crew('held', { carry: { components: 1 }, delivery: { kind: 'shuttle', target: { x: xy[0], y: xy[1], z: 0 } }, intent: { type: 'rest' } }),
+    crew('transition', { carry: { fuel: 1.5 }, delivery: { kind: 'shuttle', target: { x: xy[0], y: xy[1], z: 0 } }, intent: salvage({ fuel: 6 }) }),
+    crew('builder', { carry: { alloy: 6 }, delivery: { kind: 'job', job: 'build-1', target: { x: xy[0], y: xy[1], z: 0 } } }),
     crew('input', { carry: { water: 5 }, delivery: input }),
-    crew('stock', { carry: { food: 4 }, delivery: { kind: 'stock', target: xy } }),
+    crew('stock', { carry: { food: 4 }, delivery: { kind: 'stock', target: { x: xy[0], y: xy[1], z: 0 } } }),
     crew('orphan', { carry: { food: 3 }, intent: salvage({ food: 6 }) }),
     crew('dead', { health: 0, intent: salvage({ components: 6 }) }),
     crew('surface', { site: 'surface', intent: salvage({ components: 6 }) }),
@@ -136,7 +136,7 @@ test('repeated frozen reservation reads preserve imports, food/item metadata, ID
   const meal = { id: 'meal-job-4', maker: 'crew-1', quality: 2, created: 5 };
   const item = { id: 'item-4', maker: 'crew-1', quality: 2, created: 5, style: 'orbital' };
   tile(s).imports = { food: 3, keepsakes: 1, _food: [{ amount: 3, age: 84, meal }], _items: [item], _metadata: 999 };
-  s.crew.push(crew('local', { intent: haul('imports', { food: 1 }) }), crew('ship', { carry: { food: 2, _food: [{ amount: 2, age: 100, meal }] }, delivery: { kind: 'shuttle', target: xy } }));
+  s.crew.push(crew('local', { intent: haul('imports', { food: 1 }) }), crew('ship', { carry: { food: 2, _food: [{ amount: 2, age: 100, meal }] }, delivery: { kind: 'shuttle', target: { x: xy[0], y: xy[1], z: 0 } } }));
   s.mission = { site: 'wreck', crew: ['ship'] };
   const before = JSON.stringify(s); freeze(s);
   for (let i = 0; i < 3; i++) {

@@ -17,7 +17,7 @@ export function currentOutpost(phase='working-pile') {
   if(phase!=='outbound') {
     const components=extract(stock,{components:3}),alloy=extract(stock,{alloy:2});
     pile.drop=phase==='working-pile'?{...components,...alloy}:alloy;
-    if(phase==='working-carried')Object.assign(carrier,{x:8,y:10,carry:components,delivery:{kind:'shuttle',target:[4,11]}});
+    if(phase==='working-carried')Object.assign(carrier,{x:8,y:10,carry:components,delivery:{kind:'shuttle',target: { x: 4, y: 11, z: 0 }}});
     if(['working-cargo','returning'].includes(phase))s.mission.cargo=components;
   }
   syncResources(s);return s;

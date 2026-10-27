@@ -39,7 +39,7 @@ test('water-pipe damage keeps gas pipe, cable and fitting condition independent 
   damage(s, site, t, 'waterPipe', 60, 'debris');
   assert.equal(t.waterPipe.hp, 40);
   assert.equal(t.pipe.hp, 100); assert.equal(t.cable.hp, 100); assert.equal(t.hp, 100);
-  assert.deepEqual(site.incidents[0], { tick: 0, x: 11, y: 9, target: 'waterPipe', cause: 'debris', amount: 60 });
+  assert.deepEqual(site.incidents[0], { tick: 0, x: 11, y: 9, z: 0, target: 'waterPipe', cause: 'debris', amount: 60 });
   assert.ok(s.log.some(e => e.message.startsWith('Water pipe at 11/9:')));
   assert.ok(events(s).some(e => e.id === 'structure.damaged' && e.entity === 'tile:surface:11:9' && e.target === 'waterPipe' && e.amount === 60 && e.condition === 40));
   damage(s, site, t, 'pipe', 20, 'fire'); assert.equal(t.pipe.hp, 80); assert.equal(t.waterPipe.hp, 40);
@@ -58,7 +58,7 @@ test('an exposed water pipe alone can receive a debris forecast and independent 
   for (const t of site.tiles) { t.building = null; t.cable = null; t.pipe = null; t.waterPipe = null; }
   const t = at(site, 2, 2); t.terrain = 'ground'; t.waterPipe = newWaterPipe();
   s.debris = { next: 5, count: 0, target: null };
-  updateDebris(s); assert.deepEqual(s.debris.target, { x: 2, y: 2 });
+  updateDebris(s); assert.deepEqual(s.debris.target, { x: 2, y: 2, z: 0 });
   s.tick = 5; updateDebris(s);
   assert.equal(t.waterPipe.hp, 40); assert.equal(t.hp, 100);
   assert.equal(site.incidents.length, 1); assert.equal(site.incidents[0].target, 'waterPipe');
@@ -150,5 +150,5 @@ test('water-pipe incidents survive reload while invalid target and incident fiel
   for (const change of [
     i => { i.target = 'water-pipe'; }, i => { i.cause = 'unknown'; }, i => { i.amount = 0; },
     i => { i.amount = 101; }, i => { i.tick = 1; }, i => { i.x = site.size; },
-  ]) { const copy = check(s); change(copy.sites.surface.incidents[0]); assert.throws(() => check(copy), /Invalid damage history/); }
+  ]) { const copy = check(s); change(copy.sites.surface.incidents[0]); assert.throws(() => check(copy), /Invalid (damage history|hazard location)/); }
 });

@@ -1,3 +1,4 @@
+import { roomTiles, roomContains } from './room-locations.js';
 import { BUILDINGS } from './data.js';
 import { roomAt, breathable } from './atmosphere.js';
 import { thermalSafe } from './thermal.js';
@@ -13,8 +14,8 @@ export function initializeComfort(s) {
 // Derived from the current compartment. Walls/doors isolate this abstract room-wide hum.
 export function roomComfort(s, site, room, c = null) {
   if (!room) return { score: 0, usable: false, art: 0, noise: 0, crowding: 0, dirty: false, private: false, shared: false };
-  const tiles = room.cells.map(k => { const [x,y]=k.split(',').map(Number); return site.tiles[y*site.size+x]; });
-  const occupants = s.crew.filter(p=>p.health>0 && p.site===site.id && room.cells.includes(`${p.x},${p.y}`)).length;
+  const tiles = roomTiles(site,room);
+  const occupants = s.crew.filter(p=>p.health>0 && p.site===site.id && roomContains(room,p)).length;
   const beds = tiles.filter(t=>['bunk','medicalCot'].includes(t.building) && t.hp>0).length;
   const styles = new Map(); let noise = 0;
   for (const t of tiles) {
@@ -27,13 +28,13 @@ export function roomComfort(s, site, room, c = null) {
   const privateRoom=beds===1 && occupants<=1;
   const shared=tiles.some(t=>t.building==='commons' && t.hp>0);
   const preference=c?.housing.preference;
-  const usable=breathable(room) && thermalSafe(room) && livingAllowed(site,tiles[0].x,tiles[0].y);
+  const usable=breathable(room) && thermalSafe(room) && livingAllowed(site,tiles[0].x,tiles[0].y,tiles[0].z);
   const score=usable ? Math.max(-6,Math.min(6,art*(preference==='art'?2:1) + (preference==='quiet'&&privateRoom?1:0) + (preference==='company'&&shared?1:0) - Math.min(3,noise)*(preference==='quiet'?2:1) - crowding - (dirty?2:0))) : 0;
   return {score,usable,art,noise,crowding,dirty,private:privateRoom,shared};
 }
 
 export function experienceComfort(s,c,site) {
-  const comfort=roomComfort(s,site,roomAt(site,c.x,c.y),c);
+  const comfort=roomComfort(s,site,roomAt(site,c.x,c.y,c.z),c);
   if (!comfort.usable) return comfort;
   c.life.stress=Math.max(0,Math.min(100,c.life.stress-comfort.score*(comfort.score<0?.02:.04)));
   if (comfort.score>=2) remember(s,c,'comfortable-room','Spent restorative time in a room that suits me.',Math.min(6,comfort.score));

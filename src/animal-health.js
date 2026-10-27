@@ -1,3 +1,4 @@
+import { tileAt as spatialTile, positionOf, sameCell } from './spatial.js';
 import { isLivestock, VETERINARY } from './livestock-data.js';
 import { temperatureAt } from './thermal.js';
 import { distance } from './geometry.js';
@@ -8,20 +9,20 @@ import { registerAnimalDeath } from './animal-carcasses.js';
 const EPS=1e-8;
 const recoveryReasons={none:'No active treatment credit.',needs_post:'Needs to reach its working assigned post.',needs_food:'Needs nutrition of at least 60 to recover.',unsafe_temperature:'Needs temperature within its species range.',fire:'Recovery paused by fire.',transport:'Recovery paused during transport.',recovering:'Recovering from treated injuries at the post.'};
 const thermalBand=stress=>Math.abs(stress)>70?'danger':Math.abs(stress)>=45?'stressed':'normal';
-const tileAt=(site,x,y)=>site&&Number.isInteger(x)&&Number.isInteger(y)&&x>=0&&y>=0&&x<site.size&&y<site.size?site.tiles[y*site.size+x]:null;
-const postTile=(s,a)=>a.husbandry?.post?tileAt(s.sites.surface,...a.husbandry.post):null;
+const tileAt=(site,x,y,z=0)=>spatialTile(site,{x,y,z});
+const postTile=(s,a)=>a.husbandry?.post?spatialTile(s.sites.surface,a.husbandry.post):null;
 const transporting=(s,a)=>s.jobs.some(j=>j.kind==='animalLead'&&j.animal===a.id);
 const untreated=a=>Math.max(0,a.condition.injury-a.condition.treated);
-const safeTemperature=(s,a)=>{const temp=temperatureAt(s.sites[a.site],a.x,a.y),[low,high]=animalTraits(a).temperatureRange;return temp>=low&&temp<=high;};
+const safeTemperature=(s,a)=>{const temp=temperatureAt(s.sites[a.site],a.x,a.y,a.z),[low,high]=animalTraits(a).temperatureRange;return temp>=low&&temp<=high;};
 export function initializeAnimalCondition(a){if(isLivestock(a))a.condition??={injury:0,treated:0,thermalStress:0,cause:null,recovery:'none'};}
 export function initializeAnimalHealth(s){for(const a of s.creatures)initializeAnimalCondition(a);}
 export const animalActivityAllowed=a=>!a.condition||a.condition.injury<=EPS&&Math.abs(a.condition.thermalStress)<45;
 function recoveryState(s,a){
   if(a.health<=0||a.condition.treated<=EPS)return 'none';
   if(transporting(s,a))return 'transport';
-  const tile=tileAt(s.sites[a.site],a.x,a.y),post=postTile(s,a);
+  const tile=tileAt(s.sites[a.site],a.x,a.y,positionOf(a).z),post=postTile(s,a);
   if(tile?.fire)return 'fire';
-  if(a.site!=='surface'||post?.building!=='husbandryPost'||post.hp<=0||a.x!==post.x||a.y!==post.y)return 'needs_post';
+  if(a.site!=='surface'||post?.building!=='husbandryPost'||post.hp<=0||!sameCell(positionOf(a),positionOf(post)))return 'needs_post';
   if(!safeTemperature(s,a))return 'unsafe_temperature';
   if(a.fed<60)return 'needs_food';
   return 'recovering';
@@ -41,7 +42,7 @@ export function injureAnimal(s,a,amount,cause){
 }
 export function updateAnimalHealth(s,a){
   if(!isLivestock(a)||a.health<=0)return;
-  const q=a.condition,site=s.sites[a.site],tile=tileAt(site,a.x,a.y),temp=temperatureAt(site,a.x,a.y),[low,high]=animalTraits(a).temperatureRange;
+  const q=a.condition,site=s.sites[a.site],tile=tileAt(site,a.x,a.y),temp=temperatureAt(site,a.x,a.y,a.z),[low,high]=animalTraits(a).temperatureRange;
   const previous=thermalBand(q.thermalStress),strain=temp<low?(temp-low)*.012:temp>high?(temp-high)*.012:0;
   q.thermalStress=strain?Math.max(-100,Math.min(100,q.thermalStress+strain)):Math.sign(q.thermalStress)*Math.max(0,Math.abs(q.thermalStress)-.8);
   const current=thermalBand(q.thermalStress);
@@ -61,7 +62,7 @@ export function updateAnimalHealth(s,a){
 export function animalHealthStatus(s,a){
   if(!isLivestock(a)||!a.condition)return null;
   const q=a.condition,recovery=recoveryState(s,a);
-  return {injury:q.injury,treated:q.treated,untreated:untreated(a),thermalStress:q.thermalStress,temperature:temperatureAt(s.sites[a.site],a.x,a.y),temperatureRange:animalTraits(a).temperatureRange,thermalState:thermalBand(q.thermalStress),recovery,recoveryReason:recoveryReasons[recovery],activityAllowed:animalActivityAllowed(a)};
+  return {injury:q.injury,treated:q.treated,untreated:untreated(a),thermalStress:q.thermalStress,temperature:temperatureAt(s.sites[a.site],a.x,a.y,a.z),temperatureRange:animalTraits(a).temperatureRange,thermalState:thermalBand(q.thermalStress),recovery,recoveryReason:recoveryReasons[recovery],activityAllowed:animalActivityAllowed(a)};
 }
 export function animalTreatmentEligibility(s,a){
   const fail=(code,message)=>({ok:false,code,message,dose:0});
@@ -70,11 +71,11 @@ export function animalTreatmentEligibility(s,a){
   const post=postTile(s,a);if(a.site!=='surface'||post?.building!=='husbandryPost'||post.hp<=0)return fail('needs_post','Assign a working surface husbandry post.');
   if(untreated(a)<=EPS)return fail('covered','No uncovered injury needs medicine.');
   if(transporting(s,a))return fail('transport','Finish or cancel animal transport first.');
-  if(s.jobs.some(j=>(j.animal===a.id||j.site==='surface'&&j.x===post.x&&j.y===post.y)&&!(j.kind==='animalCare'&&j.animal===a.id)))return fail('busy','Finish or cancel conflicting animal work first.');
+  if(s.jobs.some(j=>(j.animal===a.id||j.site==='surface'&&sameCell(positionOf(j),positionOf(post)))&&!(j.kind==='animalCare'&&j.animal===a.id)))return fail('busy','Finish or cancel conflicting animal work first.');
   return {ok:true,code:'ready',message:'Ready to designate veterinary treatment.',dose:Math.min(VETERINARY.maxDose,untreated(a))};
 }
 function treatmentAnimal(s,j){
-  return s.creatures.find(a=>a.id===j.animal&&isLivestock(a)&&a.health>0&&a.site===j.site&&a.husbandry.trust===100&&a.husbandry.post?.[0]===j.x&&a.husbandry.post?.[1]===j.y);
+  return s.creatures.find(a=>a.id===j.animal&&isLivestock(a)&&a.health>0&&a.site===j.site&&a.husbandry.trust===100&&sameCell(a.husbandry.post,positionOf(j)));
 }
 export function animalTreatmentValid(s,j){
   if(j.kind!=='animalTreat'||j.site!=='surface'||j.building!==null||j.work!==VETERINARY.work||!Number.isFinite(j.dose)||j.dose<=0||j.dose>VETERINARY.maxDose)return false;
@@ -84,10 +85,10 @@ export function animalTreatmentValid(s,j){
 export function animalTreatmentReady(s,j){
   if(!animalTreatmentValid(s,j))return false;
   const a=treatmentAnimal(s,j),tile=postTile(s,a);
-  return a.x===j.x&&a.y===j.y&&a.fed>=60&&!tile.fire&&safeTemperature(s,a)&&!s.jobs.some(o=>o.kind==='animalCare'&&o.animal===a.id);
+  return sameCell(positionOf(a),positionOf(j))&&a.fed>=60&&!tile.fire&&safeTemperature(s,a)&&!s.jobs.some(o=>o.kind==='animalCare'&&o.animal===a.id);
 }
 export function completeAnimalTreatment(s,c,j){
-  if(!animalTreatmentReady(s,j)||(j.materials?.medicine||0)<VETERINARY.medicine||!c||c.site!==j.site||distance([c.x,c.y],[j.x,j.y])>1)return false;
+  if(!animalTreatmentReady(s,j)||(j.materials?.medicine||0)<VETERINARY.medicine||!c||c.site!==j.site||positionOf(c).z!==positionOf(j).z||distance([c.x,c.y],[j.x,j.y])>1)return false;
   const a=treatmentAnimal(s,j),dose=Math.min(j.dose,untreated(a));a.condition.treated+=dose;
   emitEvent(s,'animal.treatment.completed',{entity:a.id,actor:c.id,job:j.id,target:tileEntityId(j.site,j.x,j.y),medicine:VETERINARY.medicine,dose,credit:a.condition.treated});
   updateRecoveryState(s,a);return true;

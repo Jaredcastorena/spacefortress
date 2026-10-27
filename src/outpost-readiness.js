@@ -1,7 +1,10 @@
+import { roomTiles } from './room-locations.js';
+import { positionOf, cellKey } from './spatial.js';
+import { tileEntityId, roomEntityId } from './telemetry.js';
 import { GAS_PER_TILE, breathable, refreshAtmosphere } from './atmosphere.js';
 import { temperature, thermalSafe } from './thermal.js';
 import { previewPower, breakerConditions } from './power.js';
-import { crewPathTo, passable } from './navigation.js';
+import { crewPathToPosition as crewPathTo, passablePosition } from './navigation.js';
 import { livingAllowed } from './rooms.js';
 import { availableInventory } from './inventory-reservations.js';
 import { impaired, immobile } from './mobility.js';
@@ -9,18 +12,15 @@ import { RESOURCES, RECIPES } from './data.js';
 
 // Commissioning guards in existing game units, not endurance predictions.
 export const OUTPOST_RESERVES = Object.freeze({ foodPerResident: 2, airPerResident: 5, reactorFuel: 1 });
-const xy = t => [t.x, t.y];
-const position = t => `${t.x},${t.y}`;
-const byPosition = (a, b) => a.y - b.y || a.x - b.x;
-const entity = (site, t) => `tile:${site.id}:${t.x}:${t.y}`;
+const xy = positionOf;
+const position = t => cellKey(positionOf(t));
+const byPosition = (a, b) => positionOf(a).z - positionOf(b).z || a.y - b.y || a.x - b.x;
+const entity = (site, t) => tileEntityId(site.id,t.x,t.y,positionOf(t).z);
 const working = t => t.hp > 0 && !t.fire;
-const reachable = (s, site, from, to) => passable(site, from.x, from.y) && crewPathTo(s, site, from, [xy(to)]) !== null;
+const reachable = (s, site, from, to) => passablePosition(site,positionOf(from)) && crewPathTo(s, site, from, [xy(to)]) !== null;
 const amount = n => Number.isFinite(n) && n > 0 ? n : 0;
 const note = (code, message, details = {}) => ({ code, message, ...details });
-const roomId = (site, room) => `room:${site.id}:${[...room.cells].sort((a, b) => {
-  const [ax, ay] = a.split(',').map(Number), [bx, by] = b.split(',').map(Number);
-  return ay - by || ax - bx;
-})[0]}`;
+const roomId = (site, room) => roomEntityId(site.id,room);
 
 // Match distinct beds, rather than assuming a count proves each person has one.
 function assignBeds(s, site, crew, beds) {
@@ -65,7 +65,7 @@ export function outpostReadiness(s, siteId = 'wreck', crewIds = []) {
   const terminals = site.tiles.filter(t => t.building === 'dock').sort(byPosition);
   const dock = terminals.find(working);
   if (!dock) block(terminals.length ? 'dock_damaged' : 'dock_missing', 'A functioning local dock is required.');
-  else result.dock = { entity: entity(site, dock), x: dock.x, y: dock.y, condition: dock.hp };
+  else result.dock = { entity: entity(site, dock), ...positionOf(dock), condition: dock.hp };
   const dockRoutes = new Map(), localRoutes = new Map();
   const fromDock = t => {
     if (!dockRoutes.has(t)) dockRoutes.set(t, !!dock && reachable(s, site, dock, t));
@@ -92,7 +92,7 @@ export function outpostReadiness(s, siteId = 'wreck', crewIds = []) {
   refreshAtmosphere(measuredSite);
   for (const room of measuredSite.rooms) {
     const measured = room;
-    const tiles = room.cells.map(k => { const [x, y] = k.split(',').map(Number); return site.tiles[y * site.size + x]; });
+    const tiles = roomTiles(site,room);
     const support = tiles.filter(t => t.building === 'scrubber' && t.machine?.enabled && operative(t));
     const climates = tiles.filter(t => t.building === 'climate' && t.climate?.enabled && operative(t));
     const warmControl = climates.some(t => t.climate.target >= 5 && t.climate.target <= 35);
@@ -103,7 +103,7 @@ export function outpostReadiness(s, siteId = 'wreck', crewIds = []) {
     if (!temperate) issues.push(note('temperature_unsafe', 'Compartment temperature must be 5–35 °C.'));
     if (!reached) issues.push(note('room_unreachable', 'Connect this compartment to the dock.'));
     if (tiles.some(t => t.fire)) issues.push(note('habitat_fire', 'Suppress the fire in this compartment.'));
-    if (!tiles.every(t => livingAllowed(site, t.x, t.y))) issues.push(note('living_area_required', 'Living spaces cannot be designated as waste storage.'));
+    if (!tiles.every(t => livingAllowed(site, t.x, t.y, t.z))) issues.push(note('living_area_required', 'Living spaces cannot be designated as waste storage.'));
     if (!support.length) issues.push(note('life_support_unpowered', 'Provide functioning, enabled and wired life support.'));
     if (!warmControl || climates.some(t => t.climate.target < 5 || t.climate.target > 35)) issues.push(note('climate_unavailable', 'Provide powered climate control with safe temperature targets.'));
     const reading = {

@@ -105,7 +105,7 @@ test('birth transfers the frozen child after policy interruption and mate death 
 });
 
 test('metabolic pace changes readiness but keeps harvest quantities and nutrition cost fixed',()=>{
-  for(const pace of [-1,0,1]){const {s,a,site}=fixture();a.genetics=genome(0,pace);a.husbandry.post=[3,3];site.tiles[3*8+3].building='husbandryPost';for(let i=0;i<100;i++)animalCondition(s,a);close(a.husbandry.product,25*(1+.2*pace));
+  for(const pace of [-1,0,1]){const {s,a,site}=fixture();a.genetics=genome(0,pace);a.husbandry.post={x:3,y:3,z:0};site.tiles[3*8+3].building='husbandryPost';for(let i=0;i<100;i++)animalCondition(s,a);close(a.husbandry.product,25*(1+.2*pace));
     a.husbandry.product=100;const job={id:'job-1',kind:'animalHarvest',animal:a.id,site:'surface',x:3,y:3,building:null};assert.equal(completeAnimalJob(s,{id:'worker'},job),true);assert.equal(a.fed,80);assert.equal(a.husbandry.product,0);assert.equal(site.tiles[3*8+3].drop.food,2);assert.equal(site.tiles[3*8+3].drop.waste,.25);
   }
 });
@@ -114,7 +114,7 @@ test('thermal preferences govern actual heat/cold strain and veterinary recovery
   for(const species of Object.keys(LIVESTOCK)){
     const warm=fixture(species),cold=fixture(species);warm.a.genetics=genome(1,0);cold.a.genetics=genome(-1,0);const high=LIVESTOCK[species].temperature[1];warm.site.thermal.ambient=cold.site.thermal.ambient=high+4;updateAnimalHealth(warm.s,warm.a);updateAnimalHealth(cold.s,cold.a);assert.equal(warm.a.condition.thermalStress,0);assert.ok(cold.a.condition.thermalStress>0);
     const low=LIVESTOCK[species].temperature[0];warm.site.thermal.ambient=cold.site.thermal.ambient=low-4;warm.a.condition.thermalStress=cold.a.condition.thermalStress=0;updateAnimalHealth(warm.s,warm.a);updateAnimalHealth(cold.s,cold.a);assert.ok(warm.a.condition.thermalStress<0);assert.equal(cold.a.condition.thermalStress,0);
-    for(const f of [warm,cold]){f.a.husbandry.post=[3,3];f.site.tiles[3*8+3].building='husbandryPost';f.site.thermal.ambient=high+4;injureAnimal(f.s,f.a,1,'fire');f.a.condition.treated=1;updateAnimalHealth(f.s,f.a);assert.deepEqual(animalHealthStatus(f.s,f.a).temperatureRange,animalTraits(f.a).temperatureRange);}
+    for(const f of [warm,cold]){f.a.husbandry.post={x:3,y:3,z:0};f.site.tiles[3*8+3].building='husbandryPost';f.site.thermal.ambient=high+4;injureAnimal(f.s,f.a,1,'fire');f.a.condition.treated=1;updateAnimalHealth(f.s,f.a);assert.deepEqual(animalHealthStatus(f.s,f.a).temperatureRange,animalTraits(f.a).temperatureRange);}
     close(warm.a.condition.injury,.9);assert.equal(cold.a.condition.injury,1);assert.equal(animalHealthStatus(cold.s,cold.a).recovery,'unsafe_temperature');
   }
 });

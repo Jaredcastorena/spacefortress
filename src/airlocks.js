@@ -1,8 +1,10 @@
+import { tileAt, positionOf, sameCell } from './spatial.js';
+import { groundAirlockConfig, groundAirlockCells } from './airlock-locations.js';
 import { emitEvent } from './telemetry.js';
 import { refreshAtmosphere } from './atmosphere.js';
 import { refreshPower } from './power.js';
 import { opposite as oppositeDirection } from './geometry.js';
-import { airlockTile as at, airlockId as id, airlockKey as key, airlockRoom, airlockNode as node, airlockGas as gas, airlockPayload as payload, airlockCapacity as capacity, airlockOpen as open, airlockLayout, airlockRouteInfo, airlockPhysicalPath, airlockSideBlock, airlockPermittedSide, airlockRoomReading } from './airlock-access.js';
+import { airlockTile as at, airlockId as id, airlockKey as key, airlockRoom, airlockNode as node, airlockGas as gas, airlockPayload as payload, airlockCapacity as capacity, airlockOpen as open, airlockLayout, airlockRouteInfo, airlockPhysicalPath, airlockSideBlock, airlockPermittedSide, airlockRoomReading, airlockGasQuantities as quantities } from './airlock-access.js';
 
 const opposite=side=>side==='inner'?'outer':'inner';
 const members=entry=>entry?[entry.crew,...(entry.patient?[entry.patient]:[])]:[];
@@ -14,23 +16,23 @@ const error=(reason,message=reason.replaceAll('_',' '))=>({ok:false,reason,messa
 const refreshedResult=(s,site,result={ok:true})=>{refreshPower(s,site);return result;};
 const entrySide=a=>a.direction==='outward'?'inner':'outer';
 const exitSide=a=>a.recoverySide||(a.direction==='outward'?'outer':'inner');
-const inside=(a,c)=>!!c&&a.chamberCells.includes(key([c.x,c.y]));
-const doorPosition=(a,c)=>!!c&&['inner','outer'].some(side=>key(a.config[side])===key([c.x,c.y]));
+const inside=(a,c)=>!!c&&a.chamberCells.includes(key(positionOf(c)));
+const doorPosition=(a,c)=>!!c&&['inner','outer'].some(side=>key(a.config[side])===key(positionOf(c)));
 const event=(s,site,t,name,details={})=>emitEvent(s,`airlock.${name}`,{entity:id(site,t),site:site.id,cycle:t.airlock?.cycle??null,tick:s.tick,reason:name,...details});
-const occupied=(s,site,p)=>s.crew.some(c=>c.site===site.id&&c.health>0&&c.x===p[0]&&c.y===p[1])||(s.creatures||[]).some(c=>(c.site||'surface')===site.id&&c.health>0&&c.x===p[0]&&c.y===p[1]);
+const occupied=(s,site,p)=>s.crew.some(c=>c.site===site.id&&c.health>0&&sameCell(positionOf(c),p))||(s.creatures||[]).some(c=>(c.site||'surface')===site.id&&c.health>0&&sameCell(positionOf(c),p));
 function setDoor(s,site,t,side,wanted) {
- const d=at(site,...t.airlock.config[side]);if(d?.building!=='door'||d.hp<=0||!wanted&&occupied(s,site,[d.x,d.y]))return false;
+ const d=tileAt(site,t.airlock.config[side]);if(d?.building!=='door'||d.hp<=0||!wanted&&occupied(s,site,positionOf(d)))return false;
  const previous=open(site,d);d.doorMode=wanted?'open':'closed';d.doorUntil=0;
  if(previous!==wanted){event(s,site,t,'door_changed',{door:id(site,d),previous,next:wanted,party:members(t.airlock.party)});refreshAtmosphere(site);}
  return true;
 }
 function stopTransfers(site,t) {
  const a=t.airlock;
- for(const ref of a.ownedNodes){const n=at(site,ref.x,ref.y),holder=ref.layer==='pipe'?n?.pipe:n;if(holder?.airlockOwner?.binding!==a.binding)continue;if(node(n))node(n).open=false;if(n.gasDevice)n.gasDevice.enabled=false;}
+ for(const ref of a.ownedNodes){const n=tileAt(site,ref),holder=ref.layer==='pipe'?n?.pipe:n;if(holder?.airlockOwner?.binding!==a.binding)continue;if(node(n))node(n).open=false;if(n.gasDevice)n.gasDevice.enabled=false;}
 }
 function phase(s,site,t,next,reason='measured_conditions') {
  const a=t.airlock,previous=a.phase;if(previous===next)return;
- a.phase=next;event(s,site,t,'phase_changed',{previous,next,reason,party:members(a.party),chamber:airlockRoomReading(airlockRoom(site,a.config.chamber))?.pressure??null,reservoirPayload:payload(at(site,...a.config.reservoir)),inner:id(site,at(site,...a.config.inner)||{x:a.config.inner[0],y:a.config.inner[1]}),outer:id(site,at(site,...a.config.outer)||{x:a.config.outer[0],y:a.config.outer[1]})});
+ a.phase=next;event(s,site,t,'phase_changed',{previous,next,reason,party:members(a.party),chamber:airlockRoomReading(airlockRoom(site,a.config.chamber))?.pressure??null,reservoirPayload:payload(tileAt(site,a.config.reservoir)),inner:id(site,tileAt(site,a.config.inner)||a.config.inner),outer:id(site,tileAt(site,a.config.outer)||a.config.outer)});
 }
 function pause(s,site,t,reason) {
  const a=t.airlock;stopTransfers(site,t);for(const side of ['inner','outer'])setDoor(s,site,t,side,false);
@@ -47,11 +49,7 @@ function partyBlock(s,site,t) {
  if(a.party){const c=s.crew.find(c=>c.id===a.party.crew);if(!c||c.site!==site.id||c.health<=0)return 'traveler_missing';if(a.party.patient){const patient=s.crew.find(c=>c.id===a.party.patient);if(!patient||patient.health<=0||patient.site!==site.id||c.rescue?.patient!==patient.id||!c.rescue.carrying)return 'party_separated';}}
  return null;
 }
-function quantities(layout) {
- const {recover,refill}=layout.phaseNodes;
- const room=layout.room,amount=gas(room.gas),residual=room.volume*.1;
- return {recover,refill,headroom:recover.reduce((n,t)=>n+Math.max(0,capacity(t)-payload(t)),0),recoverNeeded:Math.max(0,amount-residual)*(amount?(amount+(room.smoke||0))/amount:1),supply:refill.reduce((n,t)=>n+gas(node(t).gas),0),fillNeeded:Math.max(0,room.volume*10*Math.max(0,layout.habitat.pressure-2)/100-amount)};
-}
+const refillTarget=layout=>Math.max(0,Math.min(150,Math.round(layout.habitat.pressure)));
 function resources(layout,mode,admission=false) {
  const q=quantities(layout),room=layout.room;
  if((mode==='recover'||admission)&&q.headroom+1e-8<q.recoverNeeded)return 'reservoir_full';
@@ -60,9 +58,10 @@ function resources(layout,mode,admission=false) {
   const habitat=airlockRoomReading(layout.habitat),chamber=airlockRoomReading(room);
   if(!habitat.thermalSafe||!chamber.thermalSafe)return 'unsafe_temperature';
   if(!habitat.breathable)return 'contaminated_mix';
-  const total=q.supply,needed=q.fillNeeded,mix={...room.gas};let smoke=room.smoke||0;
+  const total=q.supply,target=room.volume*10*refillTarget(layout)/100;
+  const needed=Math.min(total,Math.max(0,target-gas(room.gas))),mix={...room.gas};let smoke=room.smoke||0;
   if(total>0)for(const t of q.refill){const n=node(t);for(const k of ['oxygen','inert','co2'])mix[k]+=n.gas[k]*needed/total;smoke+=n.smoke*needed/total;}
-  // Assess the actual available mixture at the intended full pressure. This
+  // Assess only finite gas available toward the commanded vent target. This
   // anticipates contamination without claiming mixing or purification occurred.
   const predicted=airlockRoomReading({...room,gas:mix,smoke});
   if(!predicted.breathable)return 'contaminated_mix';
@@ -76,7 +75,7 @@ function estimatedTicks(layout) {
 function admissionBlock(s,site,t,layout,request) {
  const c=s.crew.find(c=>c.id===request.crew),side=request.direction==='outward'?'inner':'outer';
  if(!c||c.health<=0||c.site!==site.id)return 'traveler_missing';
- if(!inside(t.airlock,c)&&!airlockPhysicalPath(site,[c.x,c.y],layout.route[side].outside))return 'route_unavailable';
+ if(!inside(t.airlock,c)&&!airlockPhysicalPath(site,positionOf(c),layout.route[side].outside))return 'route_unavailable';
  const resource=resources(layout,null,true);if(resource)return resource;
  const required=.18*(Math.ceil(1.25*estimatedTicks(layout))+20);
  if(members(request).some(pid=>(s.crew.find(c=>c.id===pid)?.oxygen??0)<required))return 'insufficient_suit';
@@ -89,12 +88,25 @@ function desiredTransfer(site,t,layout,current) {
  // matching habitat for an outward admission.
  return side==='outer'||layout.room.pressure>layout.habitat.pressure+2?'recover':'refill';
 }
+// Physiology can change pressure after an exit first matches. Re-enter the
+// existing finite transfer phase only while the whole party can be sealed in.
+function correctExitPressure(s,site,t) {
+ const a=t.airlock,eligible=a.phase==='release'||a.phase==='paused'&&a.resumePhase==='release'&&a.reason==='pressure_mismatch';
+ if(!eligible||!a.party||airlockSideBlock(site,t,exitSide(a))!=='pressure_mismatch')return false;
+ if(!members(a.party).every(pid=>inside(a,s.crew.find(c=>c.id===pid)))||['inner','outer'].some(side=>occupied(s,site,a.config[side])))return false;
+ stopTransfers(site,t);
+ if(!['inner','outer'].every(side=>setDoor(s,site,t,side,false)))return false;
+ const wasPaused=a.phase==='paused';a.reason=null;a.resumePhase=null;
+ phase(s,site,t,exitSide(a)==='inner'?'refill':'recover','exit_pressure_drift');
+ if(wasPaused)event(s,site,t,'resumed',{reason:'exit_pressure_drift'});
+ return true;
+}
 function command(site,t,layout,mode) {
  stopTransfers(site,t);if(!mode)return;
- const a=t.airlock,pump=at(site,...a.config.pump),ex=at(site,...a.config.extractor),vent=at(site,...a.config.vent);
+ const a=t.airlock,pump=tileAt(site,a.config.pump),ex=tileAt(site,a.config.extractor),vent=tileAt(site,a.config.vent);
  for(const n of layout.phaseNodes[mode])node(n).open=true;
- ex.gasStore.open=mode==='recover';vent.gasStore.open=mode==='refill';
- ex.gasDevice={enabled:mode==='recover',mode:'exhaust',target:0};vent.gasDevice={enabled:mode==='refill',target:Math.max(0,Math.min(150,Math.round(layout.habitat.pressure)))};
+ ex.gasStore.open=true;vent.gasStore.open=mode==='refill';
+ ex.gasDevice={enabled:mode==='recover',mode:'exhaust',target:0};vent.gasDevice={enabled:mode==='refill',target:refillTarget(layout)};
  pump.gasDevice={enabled:true,direction:mode==='recover'?layout.recoveryDirection:oppositeDirection(layout.recoveryDirection)};
 }
 function clearClaim(s,site,t,entry,reason) {
@@ -114,16 +126,17 @@ export function configureAirlock(s,args) {
  if(t.airlock&&(t.airlock.party||t.airlock.queue.length||!(t.airlock.phase==='idle'||t.airlock.phase==='paused'&&t.airlock.resumePhase==='idle')))return error('cycle_active');
  const names=['chamber','inner','outer','extractor','pump','reservoir','vent'];
  if(names.some(k=>!Array.isArray(args[k])||args[k].length!==2||!args[k].every(Number.isInteger)||!at(site,...args[k])))return error('invalid_reference');
- if(new Set(names.filter(k=>k!=='chamber').map(k=>key(args[k]))).size!==6)return error('duplicate_reference');
- const room=airlockRoom(site,args.chamber);if(!room)return error('layout_changed');
- const previous=t.airlock,config=Object.fromEntries(names.map(k=>[k,[...args[k]]])),a={binding:'pending',config,chamberCells:[...room.cells].sort(),ownedNodes:[],enabled:true,phase:'idle',direction:null,party:null,queue:[],nextCycle:1,cycle:null,resumePhase:null,recoverySide:null,reason:null};
+ const config=groundAirlockConfig(args);
+ if(new Set(names.filter(k=>k!=='chamber').map(k=>key(config[k]))).size!==6)return error('duplicate_reference');
+ const room=airlockRoom(site,config.chamber);if(!room)return error('layout_changed');
+ const previous=t.airlock,a={binding:'pending',config,chamberCells:groundAirlockCells(room).sort(),ownedNodes:[],enabled:true,phase:'idle',direction:null,party:null,queue:[],nextCycle:1,cycle:null,resumePhase:null,recoverySide:null,reason:null};
  const layout=airlockLayout(site,{...t,airlock:a},false);if(!layout.ok)return error(layout.reason);
- if(['inner','outer'].some(side=>open(site,at(site,...config[side]))))return error('door_open');
+ if(['inner','outer'].some(side=>open(site,tileAt(site,config[side]))))return error('door_open');
  if(s.crew.some(c=>c.site===site.id&&c.health>0&&(inside(a,c)||doorPosition(a,c)))||(s.creatures||[]).some(c=>(c.site||'surface')===site.id&&c.health>0&&(inside(a,c)||doorPosition(a,c))))return error('unexpected_occupant');
- for(const ref of layout.ownedNodes){const n=at(site,ref.x,ref.y),holder=ref.layer==='pipe'?n.pipe:n;if(holder.airlockOwner&&holder.airlockOwner.binding!==previous?.binding)return error('airlock_controlled');}
- if(previous)for(const ref of previous.ownedNodes){const n=at(site,ref.x,ref.y),holder=ref.layer==='pipe'?n?.pipe:n;if(holder?.airlockOwner?.binding===previous.binding)delete holder.airlockOwner;}
+ for(const ref of layout.ownedNodes){const n=tileAt(site,ref),holder=ref.layer==='pipe'?n.pipe:n;if(holder.airlockOwner&&holder.airlockOwner.binding!==previous?.binding)return error('airlock_controlled');}
+ if(previous)for(const ref of previous.ownedNodes){const n=tileAt(site,ref),holder=ref.layer==='pipe'?n?.pipe:n;if(holder?.airlockOwner?.binding===previous.binding)delete holder.airlockOwner;}
  a.binding=`airlock-${s.nextId++}`;a.ownedNodes=layout.ownedNodes;t.airlock=a;
- for(const ref of a.ownedNodes){const n=at(site,ref.x,ref.y);(ref.layer==='pipe'?n.pipe:n).airlockOwner={controller:id(site,t),binding:a.binding};}
+ for(const ref of a.ownedNodes){const n=tileAt(site,ref);(ref.layer==='pipe'?n.pipe:n).airlockOwner={controller:id(site,t),binding:a.binding};}
  stopTransfers(site,t);for(const side of ['inner','outer'])setDoor(s,site,t,side,false);
  event(s,site,t,'configured',{binding:a.binding,config:a.config,ownedNodes:a.ownedNodes});return refreshedResult(s,site);
 }
@@ -140,10 +153,10 @@ export function requestAirlock(s,args) {
  if(!c||c.site!==site.id||c.health<=0)return error('traveler_missing');
  for(const [otherSite,other] of controllers(s))for(const entry of [...other.airlock.queue,...(other.airlock.party?[other.airlock.party]:[])])if(members(entry).includes(c.id))return other===t&&entry.direction===args.direction?{ok:true,queued:other.airlock.party!==entry}:error('already_requested');
  const patient=c.rescue?.carrying?c.rescue.patient:null,p=patient?s.crew.find(c=>c.id===patient):null;
- if(patient&&(!p||p.site!==site.id||p.health<=0||p.x!==c.x||p.y!==c.y))return error('party_separated');
+ if(patient&&(!p||p.site!==site.id||p.health<=0||!sameCell(positionOf(p),positionOf(c))))return error('party_separated');
  if(patient&&controllers(s).some(([,other])=>[...other.airlock.queue,...(other.airlock.party?[other.airlock.party]:[])].some(entry=>members(entry).includes(patient))))return error('already_requested');
  const layout=airlockLayout(site,t);if(!layout.ok)return error(layout.reason);if(!a.enabled)return error('disabled');
- const side=args.direction==='outward'?'inner':'outer';if(!inside(a,c)&&!airlockPhysicalPath(site,[c.x,c.y],layout.route[side].outside))return error('route_unavailable');
+ const side=args.direction==='outward'?'inner':'outer';if(!inside(a,c)&&!airlockPhysicalPath(site,positionOf(c),layout.route[side].outside))return error('route_unavailable');
  const entry={crew:c.id,patient,direction:args.direction,destination:null,requestTick:s.tick,emergency:Math.min(c.oxygen,p?.oxygen??100)<.18*(Math.ceil(1.25*estimatedTicks(layout))+20)};
  a.queue.push(entry);a.queue.sort((l,r)=>Number(r.emergency)-Number(l.emergency)||l.requestTick-r.requestTick||l.crew.localeCompare(r.crew));
  for(const member of members(entry))s.crew.find(c=>c.id===member).airlockTraversal={controller:id(site,t),binding:a.binding,cycle:null,requestTick:s.tick,destination:null};
@@ -162,7 +175,7 @@ export function cancelAirlock(s,args) {
 }
 export function releaseAirlock(s,args) {
  const [site,t]=resolve(s,args),a=t?.airlock;if(!a||!['inner','outer'].includes(args.side)||args.acceptAtmosphereLoss!==true)return error('invalid_override');
- const other=at(site,...a.config[opposite(args.side)]),door=at(site,...a.config[args.side]);
+ const other=tileAt(site,a.config[opposite(args.side)]),door=tileAt(site,a.config[args.side]);
  if(other?.building!=='door'||other.hp<100||open(site,other))return error('seal_broken');
  if(door?.building!=='door'||door.hp<=0)return error('seal_broken');
  pause(s,site,t,'manual_release');a.recoverySide=args.side;a.enabled=false;setDoor(s,site,t,args.side,true);
@@ -172,13 +185,13 @@ export function unbindAirlock(s,args) {
  const [site,t]=resolve(s,args),a=t?.airlock;if(!a)return error('invalid_controller');
  if(a.party||a.queue.length||!['idle','paused'].includes(a.phase))return error('cycle_active');
  if(s.crew.some(c=>c.site===site.id&&c.health>0&&(inside(a,c)||doorPosition(a,c)))||(s.creatures||[]).some(c=>(c.site||'surface')===site.id&&c.health>0&&(inside(a,c)||doorPosition(a,c))))return error('unexpected_occupant');
- if(['inner','outer'].some(side=>{const d=at(site,...a.config[side]);return d?.building!=='door'||d.hp<100||open(site,d);} ))return error('door_open');
+ if(['inner','outer'].some(side=>{const d=tileAt(site,a.config[side]);return d?.building!=='door'||d.hp<100||open(site,d);} ))return error('door_open');
  detach(s,site,t,'unbound');return refreshedResult(s,site);
 }
 function detach(s,site,t,reason) {
  const a=t.airlock;stopTransfers(site,t);for(const side of ['inner','outer'])setDoor(s,site,t,side,false);
  for(const entry of [...a.queue,...(a.party?[a.party]:[])])clearClaim(s,site,t,entry,reason);
- for(const ref of a.ownedNodes){const n=at(site,ref.x,ref.y),holder=ref.layer==='pipe'?n?.pipe:n;if(holder?.airlockOwner?.binding===a.binding)delete holder.airlockOwner;}
+ for(const ref of a.ownedNodes){const n=tileAt(site,ref),holder=ref.layer==='pipe'?n?.pipe:n;if(holder?.airlockOwner?.binding===a.binding)delete holder.airlockOwner;}
  event(s,site,t,'unbound',{reason,binding:a.binding});t.airlock=null;
 }
 export function invalidateAirlockPart(s,site,t,layer='building',reason='part_removed') {
@@ -201,7 +214,7 @@ export function prepareAirlocks(s) {
   const current=a.phase==='paused'?a.resumePhase:a.phase;
   if(!a.party&&a.queue.length&&current==='idle') {
    const request=waitingInside||a.queue[0],traveler=s.crew.find(c=>c.id===request.crew),staging=layout.route[request.direction==='outward'?'inner':'outer'].outside;
-   if(!waitingInside&&(traveler.x!==staging[0]||traveler.y!==staging[1]))continue;
+   if(!waitingInside&&!sameCell(positionOf(traveler),staging))continue;
    block=admissionBlock(s,site,t,layout,request);
    if(block){pause(s,site,t,block);continue;}
    if(a.phase==='paused')resume(s,site,t);
@@ -209,6 +222,7 @@ export function prepareAirlocks(s) {
    for(const member of members(a.party)){const c=s.crew.find(c=>c.id===member);c.airlockTraversal.cycle=a.cycle;}
    phase(s,site,t,waitingInside?'seal_entry':'prepare_entry','request_admitted');
   }
+  correctExitPressure(s,site,t);
   const desired=a.phase==='paused'?a.resumePhase:a.phase,mode=desiredTransfer(site,t,layout,desired);
   if(mode&&(block=resources(layout,mode))){pause(s,site,t,block);continue;}
   if(!['admit','release'].includes(desired))for(const side of ['inner','outer'])if(!setDoor(s,site,t,side,false)){block='door_obstructed';}
@@ -221,7 +235,7 @@ export function gateAirlocks(s) {
   const a=t.airlock;if(a.reason==='manual_release')continue;
   if(!a.enabled){pause(s,site,t,'disabled');continue;}
   const layout=airlockLayout(site,t);if(!layout.ok){pause(s,site,t,layout.reason);continue;}
-  const desired=a.phase==='paused'?a.resumePhase:a.phase,mode=desiredTransfer(site,t,layout,desired),needed=[t,...(mode?[at(site,...a.config.pump),at(site,...a.config[mode==='recover'?'extractor':'vent'])]:[])];
+  const desired=a.phase==='paused'?a.resumePhase:a.phase,mode=desiredTransfer(site,t,layout,desired),needed=[t,...(mode?[tileAt(site,a.config.pump),tileAt(site,a.config[mode==='recover'?'extractor':'vent'])]:[])];
   const blocked=partyBlock(s,site,t)||(mode&&resources(layout,mode))||(!a.party&&a.queue.length&&desired==='idle'?admissionBlock(s,site,t,layout,a.queue[0]):null)||(!['admit','release'].includes(desired)&&['inner','outer'].some(side=>occupied(s,site,a.config[side]))&&'door_obstructed')||(a.party&&['admit','release'].includes(desired)&&airlockSideBlock(site,t,desired==='admit'?entrySide(a):exitSide(a)))||needed.some(n=>!n?.powered)&&'no_power';
   if(blocked){pause(s,site,t,blocked);continue;}
   if(a.phase==='paused')resume(s,site,t);
@@ -230,9 +244,11 @@ export function gateAirlocks(s) {
 export function reconcileAirlocks(s) {
  for(const [site,t] of controllers(s)) {
   const a=t.airlock;
-  if(a.reason==='manual_release') {const other=at(site,...a.config[opposite(a.recoverySide)]),route=airlockRouteInfo(site,t);if(other?.building!=='door'||other.hp<100||open(site,other)){stopTransfers(site,t);setDoor(s,site,t,a.recoverySide,false);a.reason='seal_broken';}else if(a.party&&route&&members(a.party).every(pid=>{const c=s.crew.find(c=>c.id===pid),p=route[a.recoverySide].outside;return c&&c.x===p[0]&&c.y===p[1];}))finish(s,site,t);continue;}
+  if(a.reason==='manual_release') {const other=tileAt(site,a.config[opposite(a.recoverySide)]),route=airlockRouteInfo(site,t);if(other?.building!=='door'||other.hp<100||open(site,other)){stopTransfers(site,t);setDoor(s,site,t,a.recoverySide,false);a.reason='seal_broken';}else if(a.party&&route&&members(a.party).every(pid=>{const c=s.crew.find(c=>c.id===pid),p=route[a.recoverySide].outside;return c&&sameCell(positionOf(c),p);}))finish(s,site,t);continue;}
   const layout=airlockLayout(site,t),block=!layout.ok?layout.reason:partyBlock(s,site,t);
   if(block){pause(s,site,t,block);continue;}if(!a.enabled||!t.powered){pause(s,site,t,!a.enabled?'disabled':'no_power');continue;}
+  // Reconciliation seals and changes phase only; transfers wait for prepare.
+  correctExitPressure(s,site,t);
   if(a.phase==='paused'||!a.party)continue;
   const people=members(a.party).map(pid=>s.crew.find(c=>c.id===pid)),allInside=people.every(c=>inside(a,c)),doorsClear=['inner','outer'].every(side=>!occupied(s,site,a.config[side]));
   if(a.phase==='prepare_entry'&&!airlockSideBlock(site,t,entrySide(a)))phase(s,site,t,'admit','entry_matched');
@@ -243,7 +259,7 @@ export function reconcileAirlocks(s) {
    phase(s,site,t,exitSide(a)==='outer'?'recover':'refill','entry_sealed');
   }
   if(['recover','refill'].includes(a.phase)&&!airlockSideBlock(site,t,exitSide(a))) {stopTransfers(site,t);phase(s,site,t,'release','exit_matched');}
-  if(a.phase==='release'&&doorsClear&&people.every(c=>c&&c.x===layout.route[exitSide(a)].outside[0]&&c.y===layout.route[exitSide(a)].outside[1])){finish(s,site,t);continue;}
+  if(a.phase==='release'&&doorsClear&&people.every(c=>c&&sameCell(positionOf(c),layout.route[exitSide(a)].outside))){finish(s,site,t);continue;}
   if(['admit','release'].includes(a.phase)) {
    const side=airlockPermittedSide(site,t);if(!side){pause(s,site,t,airlockSideBlock(site,t,a.phase==='admit'?entrySide(a):exitSide(a))||'seal_broken');continue;}
    setDoor(s,site,t,opposite(side),false);setDoor(s,site,t,side,true);

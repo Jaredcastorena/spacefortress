@@ -4,7 +4,15 @@ Implemented September 16, 2026, following the user's request to clearly mark sma
 
 ## One set of gameplay controls
 
+The job.order action now accepts optional z for basic building, repair, service, dismantling and patient treatment/feeding/hygiene. Material reservation, worker selection, physical delivery, completion, cancellation and occupied boundaries use full positions. Crew walking remains on the actor’s declared floor; it cannot cross floors or invent a connection. Other upper work families and upper airlock-controller construction reject explicitly. This makes 28 actions with optional deck targeting. A paid job.order build with building stairwell now creates the next empty deck and landing only when construction completes; other targeted actions require an existing declared cell. Schema55 persists declared floors and links.
+
+Eleven colony controls also accept optional z: depot filters/priorities, production recipe/order/priority/enable, maintenance policy, room purpose, bunk ownership, pasture gates and pressure doors. Job release, priority changes, haul claims and occupancy checks use the full position. Staffed production now schedules and routes workers on the selected floor, consuming delivered inputs. Meal pickup, bunk recovery, downtime and finite suit refills also use actual-floor positions. Medical cot selection, treatment, bedside feeding/hygiene and rescue also execute within a declared floor. Hauling and rescue records retain actual deck IDs. Vertical hauling and upper airlock execution remain pending. Together with the sixteen equipment commands, 27 actions expose deck targeting. Other upper work families and airlock/crew actions retain explicit boundaries.
+
+Sixteen equipment controls accept optional z: gas valves/pumps/vents/extractors, water valves/pumps/intakes/outlets/tanks, reactor controls/reset, radiators, climate, cable switching, power priority and breaker controls/reset. Omission targets deck zero; undeclared decks reject without mutation. Existing positional player bindings retain their argument order. These controls do not create floors; canonical saves currently declare only the landing deck. Other action families continue rejecting z until their domain callers are converted.
+
 `src/controls.js` registers the named action catalog. The browser's gameplay controls and `window.spacefortress.act(id, args)` use the same dispatcher, argument validation and underlying simulation rules. An agent cannot gain free resources or teleport workers through this interface. Autonomous simulation jobs still use internal functions; their outcomes appear in tick records and semantic events.
+
+The vertical.hatch action sets auto/open/closed on an existing declared stairwell by site and connection ID. Closing requires both landings to be clear. Damaged stairs block walking while their broken hatch remains an environmental opening. Typed vertical.hatch.changed and vertical.traversed records retain connection IDs and actual endpoints, including a carried patient. Paid stair construction is available through job.order with building stairwell. It costs6 alloy and1 component with12 work, includes the upper landing, and supports up to8 decks. Cancellation before completion creates no deck; schema55 saves retain completed links. Floor extension above deck zero requires support immediately below. Schema56 adds connection-owned repair/remove jobs through job.order at either landing. Repair costs1 alloy/8 work; removal costs1 alloy/12 work, runs from below, seals the opening and returns3 alloy while retaining the floors. Both endpoints are reserved. Completion rechecks clear landings and routes for upstairs crew. Events vertical.damaged, vertical.blocked, vertical.repaired and vertical.removed identify the shared connection; jobs expose their connection ID. The browser floor chip and Page Up / Page Down select installed floors. UI-only view state is absent from saves and observations; tile commands carry explicit z through the shared dispatcher. Changing floors clears selection and invalidates held clicks. Selecting a stair landing exposes vertical.hatch controls.
 
 Action families include physical job orders/cancellation/priorities, labor and routines, bunk ownership, animal post assignment/care policies, keepsake collection/release, room purposes, climate, production, depot filters/priorities, power/cables/cells, doors, maintenance, expedition preparation/recall/cargo, and signal choices. `simulation.step` advances 1–300 deterministic ticks. All browser agent actions pause realtime advancement first; further agent steps explicitly advance time. UI camera/menu navigation, playback speed and save-file operations are not gameplay decisions in this catalog.
 
@@ -27,6 +35,14 @@ Action parameter objects reject unknown fields, invalid types, missing arguments
 
 For Node-based local experiments, import `createGame` from `src/simulation.js`, `executeAction` from `src/controls.js` and recording helpers from `src/telemetry.js`. Use this dispatcher for external decisions; direct state edits are marked `external` and do not contain a player/agent intent.
 
+## Utility connections between floors
+
+Use `job.order` with `kind: "build"`, `building: "powerRiser" | "gasRiser" | "waterRiser"` and the lower endpoint's `site`, `x`, `y`, `z`. Both adjacent habitat floors and matching cable/pipe endpoints must already exist. Construction costs two alloy/eight work and claims both endpoints; blocked completion retains its material.
+
+`utility.configure` accepts `{site, connection, enabled}`. Connection IDs are `utility-N`; the same command serves player and agent controls. Either endpoint can order `repair` (one alloy/six work) or `remove` (five work/refund one alloy) with the matching riser building. Maintenance jobs expose `utilityConnection`.
+
+Typed records include `utility.constructed`, `utility.repaired`, `utility.removed`, `utility.damaged` and `utility.isolation.changed`; gas/water transfer records include the connection ID. Save schema57 stores `site.utilityLinks` and `tile.risers`. Risers contain no stored gas, water or energy. Existing endpoint valves, cable controls and damage rules still apply; stair hatches are independent.
+
 ## Freight, residence and return actions
 
 **v0.1.2 development preview — save schema 38.** These shared bindings, detached readings and recorded transitions have bounded acceptance, including genuine freight and resident controls. The complete fresh-colony endurance/resupply/care/pickup journey remains unfinished. Check the current catalog for precise fields; accepting an action does not mean its shipment or journey has finished.
@@ -48,15 +64,15 @@ Living remote residents cannot be removed by editing the resident list, even aft
 
 ## Entity identities and observations
 
-Observation schema version **1** uses `{schemaVersion, tick, entities}`. IDs are stable within a colony/recording and scoped to that episode:
+Observation/recording schema version **9** uses `{schemaVersion, grid, tick, entities}`. Crew shipment and need targets, personal pickup claims, medical beds and home bunks are `{x,y,z}` objects (nullable fields retain null); job sources include `z`. Home bunks always belong to surface, independently of the owner’s current site. Animal posts also use explicit positions. Carcass tile owners include z; crew/job owner variants remain ID-only, and their derived carcass position includes z. Airlock configuration, route endpoints, door positions and nullable party/queue/traveler destinations use `{x,y,z}`; owned nodes include `z`, and chamber cell keys are `"x,y,z"`. The configure action still accepts ground coordinate pairs. Rooms now include `z`; each local `"x,y"` cell belongs to that room deck. Ground room IDs stay unchanged; a nonzero room deck adds a suffix. Full multi-deck command and entity identity support remains pending. This shape change requires consumers to honor the header version. Existing schema1–8 exports remain unchanged; do not mix records across versions. Pasture entities include `z` and `{x,y,z}` cells. Ground pasture/plant IDs retain their format; nonzero decks append `:<z>`. Animal birth/grazing and pest feeding/capture events retain the physical deck. Room-purpose markers include `z`, and outpost readiness dock coordinates include `z`. Room purposes, occupants, comfort and readiness use each room’s actual deck. Debris forecast targets are nullable `{x,y,z}` positions; site damage incidents include `z`. Ground tile/event IDs remain unchanged. Tile observations, electrical branch diagnostics, gas/water transfers and fire/reactor/damage/breaker/wet-short events can distinguish a nonzero deck with `tile:<site>:<x>:<y>:<z>`. Other event producers and command targeting still require conversion before additional decks are playable. IDs are stable within a colony/recording and scoped to that episode:
 
 | Entity | ID | Contents |
 | --- | --- | --- |
 | Colony | `colony` | Tick, seed/RNG state, available resources, expedition/departure/shuttle state, objectives, hazards and narrative log |
 | Site | `site:surface` | Site metadata, circuits, energy/atmosphere/heat ledgers, designations, incidents |
-| Tile | `tile:surface:12,7` | Terrain, structure/condition, inventories, machines/orders, cable/power, storage and maintenance |
+| Tile | `tile:surface:12:7` | Terrain, structure/condition, inventories, machines/orders, cable/power, storage and maintenance |
 | Compartment | `room:surface:7,7` | Floor cells, gases, heat and derived room purpose/readiness, comfort, temperature and breathability |
-| Crew | Existing ID, such as `crew-0` | Position, needs, work/recovery intention, skills, labors, memories, relationships, medical/sanitation state, housing/preference, and derived current/home comfort |
+| Crew | Existing ID, such as `crew-0` | Position, needs, work/recovery intention, skills, labors, memories, relationships, medical/sanitation state, housing/preference, and derived current/home comfort and personal work readiness |
 | Job | Existing ID, such as `job-1` | Kind, target, worker, priority, progress, blocked reason, reserved and delivered materials |
 | Meal batch | `meal-job-1` | Cook, quality, creation tick, remaining food and all inventory/portion locations; may be split between owners |
 | Item | `item-1` | Maker, style, quality, creation tick and physical owner/slot; see [possessions](possessions.md) |
@@ -90,6 +106,12 @@ When suit oxygen is used, a suit receives oxygen, or demand goes unmet, recordin
 
 These are measured allocations, not rewards. Normal room-only breathing remains visible through existing room and atmosphere counters. Allocation records are transient and do not add saved resources or alter simulation results when recording is enabled.
 
+### Depot suit refill event
+
+Each positive transfer emits `crew.suit.refilled`. `entity` and `actor` identify the crew member; `site` identifies the site; `target` is the supplying tile ID; `slot` is `stock` or `imports`. `air` is the physical breathing mix consumed, `oxygen` is the gas amount added to the suit, and `ventedInert` is the unused inert gas. `from` and `to` are suit percentages. Zero transfers emit no refill event.
+
+These transfers appear separately from `crew.air.allocated.refillOxygen`, which measures room-to-suit charging. Existing `simulation.step` performs the same automatic recovery for players and local controllers. Observations and recording expose the physical result without adding a saved supply or a new control.
+
 ### Outpost and transport readings
 
 The colony's derived shuttle location and expedition return IDs complement each crew member's `derived.residence` and `derived.expedition.selectedForReturn`. A site's `derived.shuttle` distinguishes an intact terminal from a craft that is physically there. `site.derived.expedition.crewLimits` exposes `{min, max, defaultCount}` for outbound selection; `colony.derived.expedition.crewLimits` is null when there is no active destination.
@@ -99,6 +121,39 @@ The colony's derived shuttle location and expedition return IDs complement each 
 - `site.derived.habitat`: the pure readiness result for the registered roster, otherwise null. Fields include `site`, `crewIds`, `ready`, stable `blockers`, dock condition, measured `rooms`, bunk assignments, local available/required provisions with owner sources, current power circuits and individual crew/care conditions. An empty roster reports that a proposed selection is required.
 
 The UI can call the same pure readiness helper for a complete proposed roster before stationing it. It checks actual paths, room gas/temperature, current utility allocation and unpromised local supplies. Neither observation nor a readiness call reserves stock, claims a bunk, emits an event or advances time. Onboard freight and surface stock cannot count as local resident provisions. Returned item/meal locations retain their physical `shuttle.freight`, dock `imports`, job, carry and storage slots.
+
+### Crew work readiness
+
+Each crew entity exposes `derived.work = {available, blockers, minimumSuitOxygen}`. This comes from the same pure `workReadiness` function used by runtime assignment. `blockers` contains every matching stable code in the order below; an empty list means personal work eligibility passes. `minimumSuitOxygen` is the existing temperament-dependent limit (35 for cautious crew, 25 otherwise).
+
+| Code | Current personal constraint |
+| --- | --- |
+| `dead` | Health is not positive. |
+| `thermal_stress` | Absolute thermal stress has reached the work limit of 45. |
+| `immobile` | Mobility prevents independent movement. |
+| `rescuing` | The crew member is committed to a rescue. |
+| `assigned_medical_cot` | A medical cot is assigned. |
+| `off_duty` | The off-duty routine is selected. |
+| `in_transit` | The crew member is aboard a travelling shuttle. |
+| `busy_intent` | An existing intention occupies the crew member. |
+| `carrying` | A carried inventory is already assigned. |
+| `assigned_job` | A work assignment already exists. |
+| `low_suit_oxygen` | Suit oxygen is below the personal work limit. |
+| `hungry` | Hunger is below 35. |
+| `fatigued` | Energy is below 25. |
+
+Readiness describes the current tick. A particular job also needs the enabled labor, site/path, supplies and skill requirements. An ongoing intention is available in the crew's existing `intent` field, so a controller can distinguish seeking air, rest and hauling. These readings do not change assignment rules, resources, RNG, saves or recording behavior.
+
+### Workstation crew readiness
+
+Tile `derived.production` retains `eligibleCrewIds` for local living crew with enabled Production and the required recipe skill. It now also exposes:
+
+| Field | Meaning |
+| --- | --- |
+| `crewReadiness` | Detached `{id, available, blockers, minimumSuitOxygen}` readings from the same personal work rules listed above, for each qualified crew member. |
+| `availableCrewIds` | Qualified crew whose current personal work reading is available. It does not predict routes, boarding, airlock traversal or endurance. |
+
+Existing machine, recipe, material and busy reasons retain precedence. If those pass but nobody is personally ready, `blockedCode` is `operators_unavailable`. A mutually assigned operator at this exact workstation can continue when `assigned_job` is the only personal blocker; they still do not appear available for a new assignment. No other personal constraint is ignored. These diagnostics change no assignment rules, costs, save fields or observation schema.
 
 ## Local recording and export
 
@@ -120,6 +175,7 @@ The new transport/care event families describe committed transitions:
 
 | Event | Recorded transition |
 | --- | --- |
+| `inventory.transferred` | Ordinary hauling pickup, full/partial delivery or setdown. `actor`/`entity` identify the carrier; `from` and `to` identify exact `{entity, slot}` owners; `resources` contains positive quantities actually moved. Slots include `stock`, `drop`, `imports`, `machine.input`, `machine.output` and `sanitary.output`. Failed or planned transfers emit nothing. |
 | `expedition.preparation.supplies_changed` | Paid service-air target refresh: assigned crew/destination, resource `air`, numeric `previous`/`next`, reason `suit_refill_margin`. This changes the requested target, not inventory. |
 | `crew.recovery.cargo_set_down` | Blocked recovery physically moves a parcel from carry to its actual tile or an exclusive job source; includes crew entity, site, tile, recovery `kind`, cargo, exact `from`/`to`, and reason `recovery_blocked`. |
 | `freight.ordered` | Terminal job, resource request and `transfers: [{cargo, from, to}]` with exact `sources.INDEX` ownership slots. |
@@ -133,6 +189,8 @@ The new transport/care event families describe committed transitions:
 | `wreck.debris.exposure` | Actual wreck debris injury to a physically present crew member. |
 | `outpost.habitat.changed` | A committed tick changes measured readiness, distinct blocker codes or registered roster; previous/next summaries use reason `measured_conditions_changed`. |
 | `care.rescue.assigned` / `picked_up` / `delivered` / `interrupted` | Physical patient/helper/site/tile, with destination on assignment and completion/interruption reason. These names all use the `care.rescue.` prefix. |
+
+`inventory.transferred` currently covers ordinary hauling. Construction, freight and recovery retain their specialized events. Individual items also emit `item.moved` for the same transfer: use it for identity, and do not count the quantity twice. Observation and recording schema versions remain unchanged.
 
 Recovery handoff kinds are `air`, `temperature`, `meal` and `rest`. Job-bound parcels use `sources.INDEX` as their destination slot; ordinary parcels use the actual tile’s `drop`. Individual items also receive `item.moved`. The marker does not imply that the original carrier recovered or that another hauler is available.
 
@@ -155,3 +213,14 @@ Verification includes detached observations/catalogs, shared player/agent behavi
 Isolated Firefox verified entity/action labels, recording controls above an open inspector, player and agent actions, explicit stepping/pausing, rejection, local NDJSON export, save/reload and no scoped application errors. The recording menu screenshot was visually inspected. Its stacking order was corrected after QA found the open inspector intercepting menu clicks. Temporary QA processes were stopped.
 
 Dataset rewards, episode success criteria, observation/action batching for training, model training, partial observability, other transient event families and large-scale recording performance remain future work. Crafted possessions use individual item entities, shared ownership controls and named lifecycle events. [Water supply](water-supply.md) adds finite reserve fields, site supply summaries, extraction/depletion events and production start markers.
+
+
+### Manual suit oxygen release
+
+`crew.suit.release {crew, points}` uses the same dispatcher for players and agents. `points` is an integer from 1 to 100 percentage points of full suit reserve, with 0.1 oxygen units per point. It transfers that crew member's oxygen into their current sealed compartment, requiring a living mobile local actor, sufficient reserve and nominal gas capacity. No movement, job cancellation or target-room argument is provided.
+
+Each crew entity exposes detached `derived.suitRelease = {available, maxPoints, blockedCode, message, oxygenPerPoint, destination}`. Destination is null before a valid sealed room, otherwise `{site, tile, room}` using existing stable entity IDs. `maxPoints` uses the same prospective actual-gas-addition comparison as execution. It is a capacity/reserve limit, not a safe-composition or endurance forecast.
+
+Status codes are `unknown_crew`, `dead`, `immobile`, `in_transit`, `no_site`, `no_sealed_room`, `insufficient_suit_oxygen` and `room_full`; an available status has null reason/message. The direct operation also rejects `invalid_points`; public schema failures retain the dispatcher's existing argument codes. Requested suit shortage precedes room capacity when both fail.
+
+Success emits `crew.suit.released` with actor/entity crew ID, site ID, current tile `target`, canonical room ID, `points`, oxygen units, `suitBefore`/`suitAfter`, `from:{entity:crewID,slot:'oxygen'}` and `to:{entity:roomID,slot:'gas.oxygen'}`. Source suit values are percentage points; destination oxygen is gas units. Rejections emit no successful-release event, while control attempts retain normal recording. Room ingress updates `atmosphere.injected.oxygen`; no new save fields or observation version are introduced.

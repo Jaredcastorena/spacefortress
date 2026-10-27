@@ -7,6 +7,7 @@ import { validItemLots, takeItemLots } from './item-lots.js';
 import { foodLots, storeLots, takeFoodLots, planFoodSelection } from './food-lots.js';
 import { DEFAULT_CROP, DEFAULT_MEAL } from './food-data.js';
 import { RESOURCES, RECIPES } from './data.js';
+import { shipmentPosition } from './shipment-locations.js';
 export const CARRY_CAPACITY = 6;
 export const OUTPUT_CAPACITY = 12;
 
@@ -61,7 +62,7 @@ export function reserve(s, cost, eligible = () => true) {
   const sources = [];
   for (const [r, amount] of Object.entries(cost)) {
     let left = amount;
-    for (const t of depots) { const n = Math.min(left, t.stock[r] || 0); if (n) { const items = extract(t.stock, { [r]: n }); sources.push({ x: t.x, y: t.y, items }); } left -= n; }
+    for (const t of depots) { const n = Math.min(left, t.stock[r] || 0); if (n) { const items = extract(t.stock, { [r]: n }); sources.push({ ...shipmentPosition(t), items }); } left -= n; }
   }
   syncResources(s); return sources;
 }

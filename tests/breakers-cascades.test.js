@@ -36,7 +36,7 @@ function fixture(){
  const life=at(site,7,7),factory=at(site,13,10),wet=at(site,12,9);life.machine.enabled=true;factory.machine.enabled=true;
  const depot=at(site,8,10),hauler=s.crew[0];depot.stock.water=6;depot.stock.ore=1;
  // Tank refilling is an actual reserved pickup and walk, not a transfer into its buffer.
- hauler.labors.hauling=true;hauler.intent={type:'haul',source:'stock',target:[8,10],items:{water:6},destination:{kind:'input',target:[10,11]}};
+ hauler.labors.hauling=true;hauler.intent={type:'haul',source:'stock',target: { x: 8, y: 10, z: 0 },items:{water:6},destination:{kind:'input',target: { x: 10, y: 11, z: 0 }}};
  delivered(s,hauler);close(tank.machine.input.water,6);close(depot.stock.water||0,0);hauler.labors.hauling=false;
  setMachineEnabled(s,'surface',10,11,false);
  assert.ok(setWaterIntake(s,'surface',10,10,true,'n','inventory').ok);
@@ -71,7 +71,7 @@ test('a real water discharge trips its branch, preserves life support, and permi
  assert.ok(resetBreaker(s,'surface',10,8).ok);assert.equal(breaker.protection.enabled,false);assert.equal(factory.powered,false);
  assert.ok(setBreaker(s,'surface',10,8,true,'ne','wet_fault').ok);assert.equal(factory.powered,true);
  const c=f.hauler,alloy=totalResources(s).alloy;c.labors.hauling=true;
- c.intent={type:'haul',source:'stock',target:[8,10],items:{ore:1},destination:{kind:'input',target:[13,10]}};
+ c.intent={type:'haul',source:'stock',target: { x: 8, y: 10, z: 0 },items:{ore:1},destination:{kind:'input',target: { x: 13, y: 10, z: 0 }}};
  delivered(s,c);c.labors.hauling=false;close(factory.machine.input.ore,1);
  const worker=s.crew[1];worker.labors.production=true;until(s,()=>factory.machine.completed===1);
  close(factory.machine.output.alloy,2);close(totalResources(s).alloy,alloy+2);close(totalResources(s).ore,0);

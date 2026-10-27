@@ -1,7 +1,11 @@
 import { LIVESTOCK } from './livestock-data.js';
-export const VERSION = 46;
+export const VERSION = 57;
 export const RESOURCES = ['alloy', 'ore', 'components', 'food', 'water', 'fuel', 'cells', 'air', 'medicine', 'waste', 'fertilizer', 'keepsakes', 'ice'];
 export const BUILDINGS = {
+  powerRiser:{name:'Power riser',cost:{alloy:2},work:8,overlay:true,description:'Connect paid cables on this habitat floor and the floor directly above. Independent isolation; stair hatches do not interrupt power.'},
+  gasRiser:{name:'Gas riser',cost:{alloy:2},work:8,overlay:true,description:'Connect paid gas pipes on this habitat floor and the floor directly above. Uses finite pipe flow and mixing; both endpoint valves and riser isolation apply.'},
+  waterRiser:{name:'Water riser',cost:{alloy:2},work:8,overlay:true,description:'Connect paid water pipes on this habitat floor and the floor directly above. Equalizes stored water with the existing flow cap; isolated from floor spills and stair hatches.'},
+  stairwell:{name:'Stairwell and hatch',cost:{alloy:6,components:1},work:12,description:'Build from a clear habitat floor. Pays for a stairwell, hatch and the landing directly above. Further upper floors need paid material, a reachable builder and support below.'},
   airlockController:{name:'Airlock controller',cost:{alloy:4,components:1},work:8,demand:1,description:'Controls two pressure doors and an isolated gas recovery network. Uses 1 kW while enabled. Requires a habitat floor, wired power, a sealed chamber and separately built gas equipment. Retains real gas between measured pressure cycles.'},
   breaker:{name:'Branch breaker',cost:{alloy:4,components:1},work:8,description:'A two-terminal electrical contact with no side connection. Starts open in manual mode. Optional wet-fault protection latches open when its output branch has a supplied wet cable fault. External bypasses and local batteries can keep a branch powered. Requires habitat floor without cable; open before rotating or changing mode.'},
   waterPipe:{name:'Water pipe / valve',cost:{alloy:1},work:2,overlay:true,description:'A sealed two-unit water pipe with a manual isolation valve. Levels water with adjacent open pipes and reservoirs; stores its own finite contents. Can share tiles with gas pipes and cables. Damage below 50% leaks onto open floor.'},
@@ -47,7 +51,7 @@ export const BUILDINGS = {
   fabricator: { noise: 1, name: 'Parts fabricator', cost: { alloy: 8, components: 2 }, work: 12, demand: 4, description: 'Makes a component from three alloy. Needs a production operator, delivered inputs and power; output must be hauled away.' },
   advanced: { name: 'Advanced array', cost: { alloy: 8, components: 4 }, work: 12, output: 12, description: 'Recovered satellite technology. Produces 12 kW in daylight.' },
   stockpile: { name: 'Cargo depot', cost: { alloy: 2 }, work: 4, description: 'Stores 320 units including reserved supplies. Set accepted resources and hauling priority in the inspector.' },
-  trap: { name: 'Biofilter trap', cost: { alloy: 3 }, work: 5, description: 'Captures a tibble within 6 tiles every 10 seconds. Uses a small food lure.' },
+  trap: { name: 'Biofilter trap', cost: { alloy: 3 }, work: 5, description: 'An intact trap captures a tibble within 6 tiles every 10 seconds, spending 0.25 food from reachable depots within 6 tiles.' },
 };
 export const RECIPES = {
   gasTank:{input:{air:10},output:{},duration:1,automatic:true},

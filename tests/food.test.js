@@ -78,7 +78,7 @@ test('cancelling after source spoilage never refunds the lost food', () => {
 test('job cargo can spoil during recovery and its waste stays at the carrier location', () => {
   const f = fixture(), j = feedJob(f), carrier = f.s.crew[5]; f.depot.stock = {};
   const source = j.sources.find(source => source.items.food); carrier.carry = extract(source.items, { food: 1 }); carrier.carry._food = [{ amount: 1, age: FOOD_LIFETIME - 1 }];
-  carrier.x = 12; carrier.y = 10; carrier.delivery = { kind: 'job', job: j.id, target: [j.x, j.y] }; carrier.intent = { type: 'rest', target: null };
+  carrier.x = 12; carrier.y = 10; carrier.delivery = { kind: 'job', job: j.id, target: { x: j.x, y: j.y, z: 0 } }; carrier.intent = { type: 'rest', target: null };
   tickFood(f.s); assert.equal(carrier.carry, null); assert.equal(carrier.delivery, null); assert.equal(j.missingFood, 1); assert.equal(at(f.site, 12, 10).drop.waste, 1);
 });
 

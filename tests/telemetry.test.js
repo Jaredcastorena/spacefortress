@@ -21,7 +21,7 @@ test('observations give every entity a unique stable identity and detached state
 });
 
 test('recording captures small needs, memories, room conditions and physical inventories',()=>{
-  const s=createGame();s.crew[0].energy=10;s.crew[0].housing.bunk=[12,7];startRecording(s);step(s,12);
+  const s=createGame();s.crew[0].energy=10;s.crew[0].housing.bunk={ x: 12, y: 7, z: 0 };startRecording(s);step(s,12);
   const changes=records(s).flatMap(r=>r.changes||[]);for(const system of ['needs','memory','movement','atmosphere','temperature','production','inventory','intent'])assert.ok(changes.some(c=>c.system===system),system);
   assert.ok(changes.some(c=>c.path.includes('memories')&&c.entity==='crew-0'));
   assert.ok(records(s).some(r=>r.event?.id==='crew.memory.created'&&r.event.actor==='crew-0'));

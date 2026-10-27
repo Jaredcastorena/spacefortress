@@ -110,6 +110,6 @@ test('invalid needs, relationship peers, loss history and duplicate downtime pla
     s => { s.crew[0].relationships['crew-1'].affinity = 101; },
     s => { s.crew[0].relationships['crew-1'].lastInteraction = 999; },
     s => { s.crew[0].life.losses.push({ id: 'crew-1', tick: 0, strength: 10 }); },
-    s => { s.crew.slice(0, 2).forEach(c => c.intent = { type: 'leisure', target: [8, 8], started: 0, rested: 0 }); },
+    s => { s.crew.slice(0, 2).forEach(c => c.intent = { type: 'leisure', target: { x: 8, y: 8, z: 0 }, started: 0, rested: 0 }); },
   ]) { const s = createGame(); corrupt(s); assert.throws(() => deserialize(serialize(s))); }
 });

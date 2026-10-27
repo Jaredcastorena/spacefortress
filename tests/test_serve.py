@@ -40,7 +40,7 @@ class PreviewAssetTests(unittest.TestCase):
             **cls.assets,
             '.env': 'private test fixture',
             'README.md': 'non-game test fixture',
-            '.runtime-qa/profile.js': 'private test profile',
+            '.local-data/profile.js': 'private test profile',
             'src/.private.js': 'hidden source fixture',
             'src/settings.json': '{}',
         }.items():
@@ -99,7 +99,7 @@ class PreviewAssetTests(unittest.TestCase):
         self.assertEqual(self.request('HEAD', '/')[0], 200)
 
     def test_private_files_and_non_javascript_source_files_are_denied(self):
-        for path in ('/.env', '/README.md', '/.runtime-qa/profile.js',
+        for path in ('/.env', '/README.md', '/.local-data/profile.js',
                      '/src/.private.js', '/src/settings.json', '/missing.js'):
             self.assert_denied(path)
 

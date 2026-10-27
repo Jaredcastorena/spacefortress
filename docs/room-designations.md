@@ -1,5 +1,8 @@
 # Room purposes and colony behavior
 
+Local save54 stores deck ownership on each purpose marker. Room occupancy, residents, furniture, waste and comfort use that deck; shared player/agent commands accept optional z, defaulting to the landing deck. The current save boundary still allows only deck zero. Old hex saves migrate their existing assignments without changing gases, resources or progress.
+
+
 Implemented September 16, 2026. Designations use the actual atmosphere compartments; they do not create walls, supplies or room furnishings.
 
 ## Designating a compartment

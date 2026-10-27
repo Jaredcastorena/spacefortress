@@ -1,10 +1,3 @@
-# Private operator continuity and browser QA
-/.runtime-qa/
-/AGENTS.md
-/stigmergicmemory.md
-/stigmergicchat.md
-/docs/handoffs/
-
 # Exported player data (regression fixtures remain publishable)
 spacefortress-cycle-*.json
 spacefortress-unreadable-save.json

@@ -62,7 +62,7 @@ test('glazefoot care requires delivered fungal caps and harvest creates typed eg
 });
 
 test('wrong and prepared feed cannot complete care or mutate the animal',()=>{
-  const {s,site,a}=colony(),post=at(site,10,15);post.building='husbandryPost';a.husbandry.post=[10,15];
+  const {s,site,a}=colony(),post=at(site,10,15);post.building='husbandryPost';a.husbandry.post={x:10,y:15,z:0};
   const job={id:'job-999',kind:'animalCare',animal:a.id,x:10,y:15,foodKinds:{fungalcap:1}},before=structuredClone(a);
   for(const materials of [{food:1},typedFood('curd',1),{food:1,_food:[{amount:1,age:1,meal:{id:'meal-job-1',maker:'crew-3',quality:1,created:0}}]}]){
     assert.equal(completeAnimalJob(s,s.crew[3],{...job,materials}),false);assert.deepEqual(a,before);assert.equal(post.drop,null);
@@ -102,7 +102,7 @@ test('tame glazefoot transport physically crosses a latched gate and resumes aft
   until(s,()=>j.phase==='escort');
   const copy=check(s);step(s,3);step(copy,3);assert.deepEqual(s,copy);
   const old=[a.x,a.y];setLabor(s,j.worker,'husbandry',false);assert.equal(j.phase,'collect');assert.deepEqual([a.x,a.y],old);
-  until(s,()=>!s.jobs.includes(j));assert.deepEqual(a.husbandry.post,[6,19]);assert.equal(gate.gateMode,'latched');assert.ok(animalPasture(s,a).enclosed);assert.equal(observe(s).entities[a.id].derived.transport,null);check(s);
+  until(s,()=>!s.jobs.includes(j));assert.deepEqual(a.husbandry.post,{x:6,y:19,z:0});assert.equal(gate.gateMode,'latched');assert.ok(animalPasture(s,a).enclosed);assert.equal(observe(s).entities[a.id].derived.transport,null);check(s);
 });
 
 test('glazefoot care cancellation returns its exact staged fungal caps',()=>{

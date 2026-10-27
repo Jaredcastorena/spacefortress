@@ -106,7 +106,7 @@ test('deliveries to a demolished machine return to storage, including a replacem
 test('tibbles cannot eat food on the other side of a sealed wall', () => {
   const s = createGame(), site = s.sites.surface; at(site, 7, 9).machine.enabled = false;
   at(site, 10, 12).building = 'wall';
-  s.creatures.push({ id: 'outside-tibble', species: 'tibble', site: 'surface', x: 10, y: 14, health: 100, fed: 20, age: 0 });
+  s.creatures.push({ id: 'outside-tibble', species: 'tibble', site: 'surface', z: 0, x: 10, y: 14, health: 100, fed: 20, age: 0 });
   const food = s.resources.food; step(s, 60); assert.equal(s.resources.food, food);
   at(site, 10, 12).building = 'door'; step(s, 60); assert.ok(s.resources.food < food);
 });
@@ -145,7 +145,7 @@ test('malformed inventories, batches, deliveries and conflicting resource totals
   bad(s => refinery(s).machine.output.alloy = 13);
   bad(s => refinery(s).machine.input.fuel = 1);
   bad(s => s.resources.alloy++);
-  bad(s => { s.crew[0].carry = { ore: 3 }; s.crew[0].delivery = { kind: 'input', target: [100, 10] }; });
+  bad(s => { s.crew[0].carry = { ore: 3 }; s.crew[0].delivery = { kind: 'input', target: { x: 100, y: 10, z: 0 } }; });
 });
 
 test('several haulers reserve no more than two input batches even during a power outage', () => {
@@ -159,7 +159,7 @@ test('several haulers reserve no more than two input batches even during a power
 
 test('a carrier dying outside leaves recoverable cargo at their location', () => {
   const s = createGame(), c = s.crew[0];
-  c.carry = { components: 3 }; c.delivery = { kind: 'stock', target: [8, 10] };
+  c.carry = { components: 3 }; c.delivery = { kind: 'stock', target: { x: 8, y: 10, z: 0 } };
   c.x = 16; c.y = 11; c.oxygen = 0; c.health = .1;
   const before = totalResources(s).components; step(s);
   assert.equal(c.health, 0); assert.equal(c.carry, null); assert.equal(c.delivery, null);

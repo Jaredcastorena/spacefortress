@@ -1,3 +1,5 @@
+import { VERSION as CURRENT_SAVE_VERSION } from '../src/data.js';
+import { projectPreDecks } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, at, step, serialize, deserialize } from '../src/simulation.js';
@@ -13,7 +15,7 @@ const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-9,`${a} != ${b}`);
 const checked=s=>{const text=serialize(s);assert.equal(serialize(deserialize(text)),text);return s;};
 const rows=s=>exportRecording(s).trim().split('\n').map(JSON.parse);
 function legacy(s,version){
-  const old=structuredClone(s);old.version=version;
+  const old=projectPreDecks(s);old.version=version;
   for(const a of old.creatures){delete a.death;delete a.genetics;if(a.lifecycle?.brood)delete a.lifecycle.brood.inheritance;if(version<=42)delete a.condition;}
   if(version<=43){
     for(const site of Object.values(old.sites)){
@@ -65,7 +67,7 @@ test('schema46 founders and detached definitions persist without changing reprod
 test('all hex legacy migration stages add balanced genes and preserve complete physical state',()=>{
   for(const version of [40,41,42,43,44]){
     const old=legacy(createGame(903),version),text=serialize(old),physical=totalResources(old),loaded=deserialize(text);
-    assert.equal(loaded.version,46);assert.deepEqual(legacy(loaded,version),old);assert.deepEqual(totalResources(loaded),physical);assert.equal(serialize(old),text);
+    assert.equal(loaded.version,CURRENT_SAVE_VERSION);assert.deepEqual(legacy(loaded,version),old);assert.deepEqual(totalResources(loaded),physical);assert.equal(serialize(old),text);
     for(const a of loaded.creatures){assert.deepEqual(a.genetics,neutralGenome());const profile=animalTraits(a),def=livestockDef(a);assert.deepEqual(profile.temperatureRange,def.temperature);assert.equal(profile.productRate,def.productRate);assert.equal(profile.metabolism,def.metabolism);}
     checked(loaded);
   }
@@ -87,7 +89,7 @@ test('legacy schemas reject genetic and pending inheritance shadows before migra
 });
 
 test('current saves reject missing genes, malformed snapshots and parent genome drift without repair',()=>{
-  for(const mutate of [s=>delete s.creatures[0].genetics,s=>s.creatures[0].genetics.extra=true,s=>s.creatures[0].genetics.thermal=[1],s=>delete s.creatures[0].lifecycle.brood.inheritance,s=>s.creatures[0].lifecycle.brood.inheritance.parents.reverse(),s=>s.creatures[0].lifecycle.brood.inheritance.parents[0].genetics.pace[0]=99,s=>s.creatures[0].lifecycle.brood.inheritance.child.thermal=[99,99],s=>s.creatures.push({id:'pest-shadow',species:'tibble',site:'surface',x:0,y:0,health:100,fed:10,age:0,genetics:neutralGenome()})]){
+  for(const mutate of [s=>delete s.creatures[0].genetics,s=>s.creatures[0].genetics.extra=true,s=>s.creatures[0].genetics.thermal=[1],s=>delete s.creatures[0].lifecycle.brood.inheritance,s=>s.creatures[0].lifecycle.brood.inheritance.parents.reverse(),s=>s.creatures[0].lifecycle.brood.inheritance.parents[0].genetics.pace[0]=99,s=>s.creatures[0].lifecycle.brood.inheritance.child.thermal=[99,99],s=>s.creatures.push({id:'pest-shadow',species:'tibble',site:'surface',z:0,x:0,y:0,health:100,fed:10,age:0,genetics:neutralGenome()})]){
     const {s}=family();mutate(s);const text=serialize(s);assert.throws(()=>deserialize(text));assert.equal(serialize(s),text);
   }
 });

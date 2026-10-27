@@ -1,14 +1,15 @@
+import { sameCell, positionOf } from './spatial.js';
 import { SANITARY_CAPACITY, SANITARY_GRACE, exposedWaste, sanitaryBlock } from './sanitation.js';
 import { roomAt } from './atmosphere.js';
 const number = n => Number(n.toFixed(2));
 const esc = value => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export function sanitationRoomDetails(s, site, t) {
-  const room = roomAt(site, t.x, t.y), waste = exposedWaste(s, site, room, t);
+  const room = roomAt(site,t.x,t.y,t.z), waste = exposedWaste(s, site, room, t);
   return `<dt>Exposed waste${room ? ' in room' : ''}</dt><dd>${number(waste)} units${waste && room ? ' · haul to a separate waste depot or recycle' : ''}</dd>`;
 }
 export function sanitaryDetails(s, site, t) {
   if (t.building !== 'sanitary') return '';
-  const user = s.crew.find(c => c.health > 0 && c.site === site.id && c.intent?.type === 'sanitation' && c.intent.target?.[0] === t.x && c.intent.target?.[1] === t.y);
+  const user = s.crew.find(c => c.health > 0 && c.site === site.id && c.intent?.type === 'sanitation' && sameCell(c.intent.target,positionOf(t)));
   const block = sanitaryBlock(s, site, t, user);
   return `<hr><div class="eyebrow">SANITATION</div><p>${esc(block || (user ? `Reserved by ${user.name}` : 'Available'))}</p><dl><dt>Sealed tank</dt><dd>${number(t.sanitary.output.waste || 0)} / ${SANITARY_CAPACITY} waste</dd></dl><p class="crew-hint">Crew walk here for a private six-second visit. Haulers empty the tank into a depot accepting waste, then supply the nutrient recycler. Bulk waste in a depot exposes its compartment; keep waste storage separate from living spaces. A broken tank seal exposes its contents. This dry unit uses no water or electricity.</p>`;
 }

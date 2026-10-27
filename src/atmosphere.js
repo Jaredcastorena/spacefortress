@@ -1,4 +1,7 @@
 import { neighbors } from './geometry.js';
+import { stairDestination, touchStairHatch, stairLinks, stairOpen, STAIR } from './vertical.js';
+import { horizontalStep, tileAt, cellKey, positionOf } from './spatial.js';
+import { roomAtPosition, roomCellKey } from './room-locations.js';
 import { FIRE } from './fire.js';
 import { remapThermal } from './thermal.js';
 import { immobile, impaired } from './mobility.js';
@@ -12,7 +15,7 @@ export const gasAmount = gas => GASES.reduce((n, k) => n + gas[k], 0);
 export const mix = amount => ({ oxygen: amount * .21, inert: amount * .79, co2: 0 });
 const key = (x, y) => `${x},${y}`;
 const adjacent = neighbors;
-const at = (site, x, y) => x >= 0 && y >= 0 && x < site.size && y < site.size ? site.tiles[y * site.size + x] : null;
+const at = (site,x,y,z=0) => tileAt(site,{x,y,z});
 const addGas = (to, gas, factor = 1) => { for (const k of GASES) to[k] += gas[k] * factor; };
 export function initializeAtmosphere(site) {
   if (!site.atmosphere) site.atmosphere = { tick: 0, vented: emptyGas(), injected: emptyGas(), breathed: 0, refilled: 0 };
@@ -47,33 +50,37 @@ export function breathingStatus(r) {
   return { breathable: block === null, block, oxygenPressure: r ? r.gas.oxygen / (r.volume * GAS_PER_TILE) : null,
     minimumOxygenPressure: .16, maximumOxygenPressure: .3 };
 }
-export const roomAt = (site, x, y) => site.rooms.find(r => r.cells.includes(key(x, y)));
+export const roomAt = (site,x,y,z=0) => roomAtPosition(site,{x,y,z});
 export const doorOpen = (t, tick) => t.hp <= 0 || t.doorMode === 'open' || (t.doorMode !== 'closed' && t.doorUntil > tick);
 export function moveCrew(c, site, next) {
-  if (!airlockDoorPermit(site, c, [c.x,c.y], next)) return false;
+  const from=positionOf(c),destination=horizontalStep(site,c,next)||stairDestination(site,c,next);if(!destination)return false;
+  next=[destination.x,destination.y];
+  if (!airlockDoorPermit(site, c, {x:c.x,y:c.y,z:c.z??0}, destination)) return false;
   if (immobile(c) || ((impaired(c) || c.rescue?.carrying) && site.atmosphere.tick % 2 !== 0)) return false;
-  for (const [x, y] of [[c.x, c.y], next]) {
-    const t = at(site, x, y);
+  if(from.z!==destination.z&&!touchStairHatch(site,from,destination))return false;
+  for (const p of [from,destination]) {
+    const t = tileAt(site,p);
     if (t?.building === 'door' && t.doorMode !== 'closed' && t.doorMode !== 'open') t.doorUntil = site.atmosphere.tick + 3;
   }
-  [c.x, c.y] = next; return true;
+  [c.x, c.y] = next; c.z = destination.z; return true;
 }
-export function setDoorMode(s, siteId, x, y, mode) {
-  const site = s.sites[siteId], t = site && at(site, x, y);
+export function setDoorMode(s, siteId, x, y, mode,z=0) {
+  const site = s.sites[siteId], t = site && at(site, x, y, z);
   if (t?.building !== 'door' || !['auto', 'open', 'closed'].includes(mode)) return { ok: false, message: 'Select a pressure door.' };
   if (airlockControlOwner(site,t,'building')) return {ok:false,code:'airlock_controlled',message:'This door is controlled by its airlock. Pause, release one side, or unbind at the controller.'};
-  if (mode === 'closed' && s.crew.some(c => c.site === siteId && c.health > 0 && c.x === x && c.y === y)) return { ok: false, message: 'Wait for the crew member to clear the doorway.' };
+  if (mode === 'closed' && s.crew.some(c => c.site === siteId && c.health > 0 && c.x === x && c.y === y && positionOf(c).z === z)) return { ok: false, message: 'Wait for the crew member to clear the doorway.' };
   t.doorMode = mode; t.doorUntil = 0; refreshAtmosphere(site); return { ok: true };
 }
 
 // Compartments exclude door/wall tiles. Ports connect them without merging stored gas.
 function connections(site) {
   const roomsByCell = new Map();
-  site.rooms.forEach((r, i) => { r.leakArea = 0; r.sealed = true; r.cells.forEach(k => roomsByCell.set(k, i)); });
+  site.rooms.forEach((r, i) => { r.leakArea = 0; r.sealed = true; r.cells.forEach(k => roomsByCell.set(roomCellKey(r,k), i)); });
   const links = [], add = (a, b, conductance) => { if (a !== b && conductance > 0) links.push({ a, b, conductance }); };
   for (const [cell, a] of roomsByCell) {
-    for (const [x, y] of adjacent(...cell.split(',').map(Number))) {
-      const t = at(site, x, y);
+    const [cx,cy,z]=cell.split(',').map(Number);
+    for (const [x, y] of adjacent(cx,cy)) {
+      const t = at(site, x, y, z);
       if (!t || (!['wall', 'door'].includes(t.building) && t.terrain !== 'floor')) add(a, null, .25);
     }
   }
@@ -83,7 +90,7 @@ function connections(site) {
     if (!conductance) continue;
     const sides = new Set();
     for (const [x, y] of adjacent(t.x, t.y)) {
-      const n = at(site, x, y), r = roomsByCell.get(key(x, y));
+      const z=positionOf(t).z, n = at(site, x, y, z), r = roomsByCell.get(cellKey({x,y,z}));
       if (r !== undefined) sides.add(r);
       else if (!n || (!['wall', 'door'].includes(n.building) && n.terrain !== 'floor')) sides.add(null);
     }
@@ -92,6 +99,10 @@ function connections(site) {
       const left = ids[a] === null ? ids[b] : ids[a], right = ids[a] === null ? null : ids[b];
       add(left, right, conductance / Math.max(1, ids.length - 1));
     }
+  }
+  for(const link of stairLinks(site))if(stairOpen(site,link)){
+    const lower=roomsByCell.get(cellKey(link.lower))??null,upper=roomsByCell.get(cellKey(link.upper))??null;
+    add(lower===null?upper:lower,lower===null?null:upper,STAIR.gasConductance);
   }
   const exposed = new Set(links.filter(l => l.b === null).map(l => l.a));
   for (const l of links) if (l.b === null) site.rooms[l.a].leakArea += l.conductance;
@@ -109,22 +120,22 @@ export function updateRooms(site) {
   initializeAtmosphere(site);
   const old = site.rooms, seen = new Set(), rooms = [];
   for (const t of site.tiles) {
-    const start = key(t.x, t.y);
+    const z=positionOf(t).z, start = cellKey(positionOf(t));
     if (seen.has(start) || t.terrain !== 'floor' || ['wall', 'door'].includes(t.building)) continue;
     const queue = [[t.x, t.y]], cells = []; seen.add(start);
     for (let i = 0; i < queue.length; i++) {
       const [x, y] = queue[i]; cells.push(key(x, y));
       for (const [nx, ny] of adjacent(x, y)) {
-        const n = at(site, nx, ny), k = key(nx, ny);
+        const n = at(site, nx, ny, z), k = cellKey({x:nx,y:ny,z});
         if (n && n.terrain === 'floor' && !['wall', 'door'].includes(n.building) && !seen.has(k)) { seen.add(k); queue.push([nx, ny]); }
       }
     }
-    rooms.push({ cells, volume: cells.length, gas: emptyGas(), smoke:0, sealed: true, leakArea: 0, air: 0, pressure: 0, oxygenFraction: 0, co2Fraction: 0 });
+    rooms.push({ z, cells, volume: cells.length, gas: emptyGas(), smoke:0, sealed: true, leakArea: 0, air: 0, pressure: 0, oxygenFraction: 0, co2Fraction: 0 });
   }
-  const owners = new Map(); rooms.forEach((r, i) => r.cells.forEach(k => owners.set(k, i)));
+  const owners = new Map(); rooms.forEach((r, i) => r.cells.forEach(k => owners.set(roomCellKey(r,k), i)));
   for (const previous of old) {
     const overlap = new Map();
-    for (const k of previous.cells) if (owners.has(k)) { const i = owners.get(k); overlap.set(i, (overlap.get(i) || 0) + 1); }
+    for (const k of previous.cells) if (owners.has(roomCellKey(previous,k))) { const i = owners.get(roomCellKey(previous,k)); overlap.set(i, (overlap.get(i) || 0) + 1); }
     const retained = [...overlap.values()].reduce((n, v) => n + v, 0);
     if (!retained) {addGas(site.atmosphere.vented, previous.gas);if(site.fireSafety)site.fireSafety.smokeVented+=previous.smoke||0;}
     else for (const [i, count] of overlap) {addGas(rooms[i].gas, previous.gas, count / retained);rooms[i].smoke+=(previous.smoke||0)*count/retained;}
@@ -164,7 +175,7 @@ function flow(site, links) {
 function lifeSupport(site) {
   for (const t of site.tiles) {
     if (t.building !== 'scrubber' || !t.machine) continue;
-    const m = t.machine, r = roomAt(site, t.x, t.y);
+    const m = t.machine, r = roomAt(site, t.x, t.y, positionOf(t).z);
     if(t.fire){m.status='Fire at equipment';continue;}
     if (!m.enabled) { m.status = 'Paused by player'; continue; }
     if (!t.hp) { m.status = 'Needs repair'; continue; }
@@ -229,7 +240,7 @@ function shareOxygen(entries, field, budget, request) {
 }
 export function breatheBatch(site, crew) {
   const entries = crew.filter(c => c.site === site.id && c.site !== 'transit' && (c.health === undefined || c.health > 0))
-    .map(c => ({ c, room: roomAt(site, c.x, c.y), demand: c.site === 'solar' ? .018 : c.job ? .01 : .0075,
+    .map(c => ({ c, room: roomAt(site, c.x, c.y, positionOf(c).z), demand: c.site === 'solar' ? .018 : c.job ? .01 : .0075,
       result: { roomOxygen: 0, suitOxygen: 0, refillOxygen: 0, unmetOxygen: 0 } }))
     .sort((a, b) => a.c.id < b.c.id ? -1 : a.c.id > b.c.id ? 1 : 0);
   const groups = new Map();

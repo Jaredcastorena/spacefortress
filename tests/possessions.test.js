@@ -45,7 +45,7 @@ test('personal pickup walks to the source, prioritizes preference over quality a
 
 test('multiple crew claim different item IDs while a hauler respects their pickup buffer',()=>{
   const {s,site,c,depot}=fixture(),b=s.crew[1],hauler=s.crew[2];give(s,depot.stock);give(s,depot.stock);c.x=b.x=12;c.y=b.y=8;breaking(s,c);breaking(s,b);
-  collectPossession(s,c,site,pathTo);collectPossession(s,b,site,pathTo);assert.notEqual(c.intent.keepsake.id,b.intent.keepsake.id);setLabor(s,hauler.id,'hauling',true);haul(s,hauler,site,pathTo);assert.ok(!(hauler.intent?.type==='haul'&&hauler.intent.source==='stock'&&hauler.intent.target.join(',')==='8,10'));
+  collectPossession(s,c,site,pathTo);collectPossession(s,b,site,pathTo);assert.notEqual(c.intent.keepsake.id,b.intent.keepsake.id);setLabor(s,hauler.id,'hauling',true);haul(s,hauler,site,pathTo);assert.ok(!(hauler.intent?.type==='haul'&&hauler.intent.source==='stock'&&hauler.intent.target.x===8&&hauler.intent.target.y===10&&hauler.intent.target.z===0));
   until(s,()=>c.possessions.inventory.keepsakes&&b.possessions.inventory.keepsakes);assert.equal(totalResources(s).keepsakes,2);check(s);
 });
 

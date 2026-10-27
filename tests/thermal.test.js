@@ -122,7 +122,7 @@ test('thermal stress interrupts work, retains cargo and finds a reachable temper
   const { s, site } = fixture(), { a, b, door } = split(site);
   setTemp(site, a, 65); setTemp(site, b, 20); door.doorMode = 'auto'; refreshAtmosphere(site);
   const c = s.crew[0]; c.x = 8; c.y = 9; c.thermalStress = 50;
-  c.carry = { components: 2 }; c.delivery = { kind: 'stock', target: [8, 10] };
+  c.carry = { components: 2 }; c.delivery = { kind: 'stock', target: { x: 8, y: 10, z: 0 } };
   const supplies = totalResources(s).components;
   step(s); assert.equal(c.intent.type, 'temperature'); assert.deepEqual(c.carry, { components: 2 });
   for (let i = 0; i < 90 && c.intent?.type === 'temperature'; i++) { step(s); check(s); }
@@ -155,7 +155,7 @@ test('pressure suits protect ordinary exterior work and thermal strain recovers 
 
 test('unsafe temperatures invalidate medical cots instead of healing patients in danger', () => {
   const { s, site, r } = fixture(), c = s.crew[0], cot = at(site, 11, 9); cot.building = 'medicalCot';
-  injure(s, c, 10, 'test'); c.medical.bed = [11, 9]; c.intent = { type: 'medical', target: [11, 9] };
+  injure(s, c, 10, 'test'); c.medical.bed = { x: 11, y: 9, z: 0 }; c.intent = { type: 'medical', target: { x: 11, y: 9, z: 0 } };
   assert.equal(safeBed(site, c.medical.bed), true); setTemp(site, r, 60); assert.equal(safeBed(site, c.medical.bed), false);
   step(s); assert.equal(c.medical.bed, null); assert.equal(s.jobs.some(j => j.kind === 'treat'), false); check(s);
 });

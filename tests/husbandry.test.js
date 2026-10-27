@@ -20,7 +20,7 @@ const care=s=>s.jobs.find(j=>j.kind==='animalCare');
 
 test('a constructed post needs physical materials and assignment does not teleport or tame an animal',()=>{
  const {s,site,t,a,h}=colony({post:false}),before=totalResources(s);const j=order(s,'surface',10,15,'build','husbandryPost').job;assert.ok(j);until(s,()=>!s.jobs.includes(j));assert.equal(totalResources(s).alloy,before.alloy-4);assert.equal(t.building,'husbandryPost');
- const position=[a.x,a.y];assert.ok(setAnimalPost(s,a.id,10,15).ok);assert.deepEqual([a.x,a.y],position);assert.equal(h.trust,0);assert.deepEqual(h.post,[10,15]);check(s);
+ const position=[a.x,a.y];assert.ok(setAnimalPost(s,a.id,10,15).ok);assert.deepEqual([a.x,a.y],position);assert.equal(h.trust,0);assert.deepEqual(h.post,{x:10,y:15,z:0});check(s);
 });
 
 test('three supplied care visits build trust and produce a tame animal through real handler work',()=>{
@@ -47,7 +47,7 @@ test('an animal must walk to the post before any handler can finish the visit',(
 });
 
 test('a damaged post stops work without deleting staged food and resumes after repair',()=>{
- const {s,t,a,h}=colony();setAnimalPost(s,a.id,10,15);until(s,()=>!!care(s)?.materials.food);const before=totalResources(s);t.hp=0;step(s);assert.equal(care(s),undefined);assert.deepEqual(h.post,[10,15]);assert.equal(totalResources(s).food,before.food);assert.match(husbandryStatus(s,a,pathTo),/damaged/);t.hp=100;until(s,()=>h.trust>=40);check(s);
+ const {s,t,a,h}=colony();setAnimalPost(s,a.id,10,15);until(s,()=>!!care(s)?.materials.food);const before=totalResources(s);t.hp=0;step(s);assert.equal(care(s),undefined);assert.deepEqual(h.post,{x:10,y:15,z:0});assert.equal(totalResources(s).food,before.food);assert.match(husbandryStatus(s,a,pathTo),/damaged/);t.hp=100;until(s,()=>h.trust>=40);check(s);
 });
 
 test('tame healthy animals mature curd over time and handlers leave food and manure for hauling',()=>{
@@ -61,7 +61,7 @@ test('nutrition and health gate curd maturation and collection policy preserves 
 });
 
 test('post reassignment and release preserve trust, product and resource ownership',()=>{
- const {s,site,a,h}=colony();at(site,12,15).building='husbandryPost';setAnimalPost(s,a.id,10,15);until(s,()=>h.trust>=40);const before=totalResources(s),trust=h.trust;assert.ok(setAnimalPost(s,a.id,12,15).ok);assert.deepEqual(totalResources(s),before);assert.equal(h.trust,trust);assert.deepEqual(h.post,[12,15]);setAnimalPost(s,a.id,null,null);assert.equal(h.post,null);assert.equal(care(s),undefined);check(s);
+ const {s,site,a,h}=colony();at(site,12,15).building='husbandryPost';setAnimalPost(s,a.id,10,15);until(s,()=>h.trust>=40);const before=totalResources(s),trust=h.trust;assert.ok(setAnimalPost(s,a.id,12,15).ok);assert.deepEqual(totalResources(s),before);assert.equal(h.trust,trust);assert.deepEqual(h.post,{x:12,y:15,z:0});setAnimalPost(s,a.id,null,null);assert.equal(h.post,null);assert.equal(care(s),undefined);check(s);
 });
 
 test('dismantling the post releases its assignment without losing the animal',()=>{
@@ -87,7 +87,7 @@ test('pending deliveries and partially handled animals continue deterministicall
 
 test('invalid targets, duplicate post claims and malformed animal states are rejected',()=>{
  const {s,a}=colony();assert.equal(executeAction(s,'husbandry.assign',{creature:'missing',x:10,y:15}).code,'invalid_arguments');assert.equal(setAnimalPost(s,a.id,null,15).ok,false);assert.equal(setAnimalPost(s,a.id,8,10).ok,false);setAnimalPost(s,a.id,10,15);assert.equal(setAnimalPost(s,s.creatures[1].id,10,15).ok,false);
- for(const mutate of [s=>s.creatures[0].husbandry.product=101,s=>s.creatures[0].husbandry.trust=-1,s=>s.creatures[0].husbandry.post=[10,10],s=>s.creatures[1].husbandry.post=[10,15],s=>s.creatures[0].husbandry.retryAt=9999,s=>delete s.creatures[0].husbandry]){const f=colony();setAnimalPost(f.s,f.a.id,10,15);mutate(f.s);assert.throws(()=>check(f.s));}
+ for(const mutate of [s=>s.creatures[0].husbandry.product=101,s=>s.creatures[0].husbandry.trust=-1,s=>s.creatures[0].husbandry.post={x:10,y:10,z:0},s=>s.creatures[1].husbandry.post={x:10,y:15,z:0},s=>s.creatures[0].husbandry.retryAt=9999,s=>delete s.creatures[0].husbandry]){const f=colony();setAnimalPost(f.s,f.a.id,10,15);mutate(f.s);assert.throws(()=>check(f.s));}
 });
 
 test('stable animal actions and observations expose care, taming, ready product and collection events',()=>{

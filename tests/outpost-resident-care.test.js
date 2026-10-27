@@ -88,7 +88,7 @@ test('a prior resident is physically rescued for pickup while the resident helpe
   const { s, p, helper } = clinic({ state: field() });
   const arrivals = [...s.mission.crew], stayingArrival = s.crew.find(c => c.id === arrivals[1]);
   s.outposts.wreck.residents.push(stayingArrival.id); stayingArrival.x = 9; stayingArrival.y = 9;
-  p.x = 10; p.y = 10; helper.x = 9; helper.y = 10; injure(s, p, 65, 'test impact'); p.medical.bed = [10, 10];
+  p.x = 10; p.y = 10; helper.x = 9; helper.y = 10; injure(s, p, 65, 'test impact'); p.medical.bed = { x: 10, y: 10, z: 0 };
   assert.equal(arrivals.includes(p.id), false);
   assert.ok(setReturnCrew(s, [arrivals[0], p.id]).ok); assert.ok(s.outposts.wreck.residents.includes(p.id));
   startRecording(s); assert.ok(recall(s).ok);
@@ -181,9 +181,9 @@ test('local sanitary visits and pollution use the physical site inventory', () =
 test('cot claims are site qualified and remote care cannot bind a patient or worker on another site', () => {
   const { s, p, helper } = clinic(); const other = s.crew[1];
   at(s.sites.surface, 10, 10).building = 'medicalCot';
-  for (const c of [p, other]) { injure(s, c, 20, 'test impact'); c.medical.bed = [10, 10]; }
+  for (const c of [p, other]) { injure(s, c, 20, 'test impact'); c.medical.bed = { x: 10, y: 10, z: 0 }; }
   assert.doesNotThrow(() => validateMedicine(s));
-  p.x = 10; p.y = 10; p.intent = { type: 'medical', target: [10, 10] }; p.hunger = 20; p.sanitation.waste = .5;
+  p.x = 10; p.y = 10; p.intent = { type: 'medical', target: { x: 10, y: 10, z: 0 } }; p.hunger = 20; p.sanitation.waste = .5;
   const j = { site: 'wreck', patient: p.id, x: 10, y: 10 };
   assert.equal(treatmentPatient(s, j), p); assert.equal(feedPatient(s, j), p); assert.equal(hygienePatient(s, j), p);
   assert.equal(treatmentPatient(s, { ...j, site: 'surface' }), null);

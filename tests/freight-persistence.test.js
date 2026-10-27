@@ -20,9 +20,9 @@ const dock = (s, siteId = 'wreck') => s.sites[siteId].tiles.find(tile => tile.bu
 function freightJob(s, overrides = {}) {
   const terminal = surfaceTerminal(s);
   return {
-    id: 'job-900', site: 'surface', x: terminal.x, y: terminal.y,
+    id: 'job-900', site: 'surface', x: terminal.x, y: terminal.y, z: 0,
     kind: 'loadCargo', building: null, cost: { alloy: 1 },
-    sources: [{ x: 8, y: 10, kind: 'stock', items: { alloy: 1 } }],
+    sources: [{ x: 8, y: 10, z: 0, kind: 'stock', items: { alloy: 1 } }],
     materials: {}, work: FREIGHT_WORK, remaining: FREIGHT_WORK, worker: null,
     priority: 3, blockedReason: null, missingFood: 0, foodSpoiled: 0,
     ...overrides,
@@ -50,7 +50,7 @@ test('older schemas reject freight job and owner vocabulary without mutation', (
       const terminal = surfaceTerminal(s);
       s.jobs = [freightJob(s, {
         kind: 'build', building: 'floor', work: 5, remaining: 5,
-        sources: [{ x: terminal.x, y: terminal.y, kind: 'freight', items: { alloy: 1 } }],
+        sources: [{ x: terminal.x, y: terminal.y, z: 0, kind: 'freight', items: { alloy: 1 } }],
       })];
     },
   ]) {
@@ -173,7 +173,7 @@ test('canonical surface loading and unloading validate at the physical idle craf
   const terminal = surfaceTerminal(unloading);
   unloading.jobs = [freightJob(unloading, {
     kind: 'unloadCargo', cost: { alloy: 2 },
-    sources: [{ x: terminal.x, y: terminal.y, kind: 'freight', items: { alloy: 2 } }],
+    sources: [{ x: terminal.x, y: terminal.y, z: 0, kind: 'freight', items: { alloy: 2 } }],
   })];
   assert.doesNotThrow(() => validateFreightState(unloading));
 });
@@ -181,10 +181,10 @@ test('canonical surface loading and unloading validate at the physical idle craf
 test('remote unload accepts reserved freight and physical recovery or replacement sources', () => {
   const s = createGame(), terminal = dock(s);
   s.jobs = [remoteUnload(s, [
-    { x: terminal.x, y: terminal.y, kind: 'freight', items: { food: 1 } },
-    { x: 6, y: 11, kind: 'drop', items: { food: 1 } },
-    { x: 4, y: 11, kind: 'imports', items: { food: 1 } },
-    { x: 7, y: 7, kind: 'stock', items: { food: 1 } },
+    { x: terminal.x, y: terminal.y, z: 0, kind: 'freight', items: { food: 1 } },
+    { x: 6, y: 11, z: 0, kind: 'drop', items: { food: 1 } },
+    { x: 4, y: 11, z: 0, kind: 'imports', items: { food: 1 } },
+    { x: 7, y: 7, z: 0, kind: 'stock', items: { food: 1 } },
   ])];
   assert.doesNotThrow(() => validateFreightState(s));
 });
@@ -219,18 +219,18 @@ test('freight sources are unload-only and tied to the present terminal', () => {
   const cases = [
     s => {
       const job = freightJob(s, { kind: 'unloadCargo' });
-      job.sources = [{ x: job.x + 1, y: job.y, kind: 'freight', items: { alloy: 1 } }];
+      job.sources = [{ x: job.x + 1, y: job.y, z: 0, kind: 'freight', items: { alloy: 1 } }];
       s.jobs = [job];
     },
     s => {
       const job = freightJob(s, { kind: 'build', building: 'floor', work: 5, remaining: 5 });
-      job.sources = [{ x: job.x, y: job.y, kind: 'freight', items: { alloy: 1 } }];
+      job.sources = [{ x: job.x, y: job.y, z: 0, kind: 'freight', items: { alloy: 1 } }];
       s.jobs = [job];
     },
     s => {
       const terminal = dock(s);
       s.jobs = [remoteUnload(s, [
-        { x: terminal.x, y: terminal.y, kind: 'freight', items: { food: 4 } },
+        { x: terminal.x, y: terminal.y, z: 0, kind: 'freight', items: { food: 4 } },
       ])];
       s.mission.phase = 'boarding';
     },

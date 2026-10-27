@@ -17,7 +17,7 @@ function clinic() {
   const s=createGame(),site=s.sites.surface,p=s.crew[0],helper=s.crew[5],depot=at(site,8,10);
   for(const t of site.tiles) if(t.machine)setMachineEnabled(s,'surface',t.x,t.y,false);
   for(const c of s.crew)for(const labor of Object.keys(c.labors))setLabor(s,c.id,labor,false);
-  const cot=at(site,10,9);cot.building='medicalCot';p.x=10;p.y=9;injure(s,p,65,'debris');p.medical.bed=[10,9];p.sanitation.waste=.5;
+  const cot=at(site,10,9);cot.building='medicalCot';p.x=10;p.y=9;injure(s,p,65,'debris');p.medical.bed={ x: 10, y: 9, z: 0 };p.sanitation.waste=.5;
   return {s,site,p,helper,depot,cot};
 }
 

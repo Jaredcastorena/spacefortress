@@ -12,13 +12,13 @@ import { LIVESTOCK } from '../src/livestock-data.js';
 // rules. Integration owns actual crew traversal, deliveries and save migration.
 function fixture(species='bristleback'){
   const size=8,site={id:'surface',size,rooms:[],thermal:{ambient:20},tiles:Array.from({length:size*size},(_,i)=>({x:i%size,y:Math.floor(i/size),terrain:'ground',building:null,hp:100,drop:null}))};site.tiles[4*size+4].building='husbandryPost';
-  const a={id:'animal-0',species,site:'surface',x:2,y:2,health:100,fed:100,age:0,genetics:neutralGenome(),lifecycle:newLifecycle(null,[],species),husbandry:{post:[4,4],trust:100,product:40,care:true,harvest:true,retryAt:0,blocked:null}};initializeAnimalCondition(a);
+  const a={id:'animal-0',species,site:'surface',x:2,y:2,health:100,fed:100,age:0,genetics:neutralGenome(),lifecycle:newLifecycle(null,[],species),husbandry:{post:{x:4,y:4,z:0},trust:100,product:40,care:true,harvest:true,retryAt:0,blocked:null}};initializeAnimalCondition(a);
   const c={id:'crew-0',site:'surface',x:2,y:2,health:100,energy:100,morale:50,skills:{husbandry:{level:0,xp:0}},labors:{husbandry:true},job:null,carry:null,rescue:null,intent:null};
   const s={tick:0,nextId:1,seed:1728,rng:444,creatures:[a],crew:[c],jobs:[],log:[],sites:{surface:site}};initializeAnimalDeaths(s);return {s,a,c,site,t:site.tiles[4*size+4]};
 }
 function orderStub(s,site,x,y,kind,animal){const work=kind==='animalDispatch'?8:kind==='animalButcher'?20:4,j={id:`job-${s.nextId++}`,site,x,y,kind,animal,building:null,work,remaining:work,cost:{},materials:{},sources:[],worker:null,blockedReason:null,missingFood:0,foodSpoiled:0};if(kind==='animalButcher')j.phase='collect';s.jobs.push(j);if(carcassJob(j))s.creatures.find(a=>a.id===animal).death.reservedBy=j.id;return {ok:true,job:j};}
 const attach=(f,j)=>{j.worker=f.c.id;f.c.job=j.id;};
-const arrive=(s,c,site,goals)=>{[c.x,c.y]=goals[0];return 'arrived';};
+const arrive=(s,c,site,goals)=>{c.x=goals[0].x;c.y=goals[0].y;c.z=goals[0].z;return 'arrived';};
 const release=(s,c)=>{const j=s.jobs.find(j=>j.id===c.job);releaseCarcass(s,j,c);j.worker=null;c.job=null;};
 function butcherFixture(species='bristleback'){const f=fixture(species);registerAnimalDeath(f.s,f.a,'unknown');f.j=requestButchery(f.s,f.a.id,4,4,orderStub).job;attach(f,f.j);return f;}
 function stage(f){assert.equal(actCarcass(f.s,f.c,f.j,arrive,release),false);assert.equal(f.j.phase,'carry');assert.equal(actCarcass(f.s,f.c,f.j,arrive,release),false);assert.equal(f.j.phase,'process');}
@@ -35,7 +35,7 @@ test('legacy initialization rejects mortality/body shadows without assigning def
 });
 
 test('death registers exactly one body with frozen species/stage yield and no RNG or ID allocation',()=>{
-  for(const species of ['bristleback','glazefoot'])for(const juvenile of [false,true]){const {s,a}=fixture(species);if(juvenile)a.lifecycle=newLifecycle(0,['parent-a','parent-b'],species);const rng=s.rng,next=s.nextId,genetics=structuredClone(a.genetics),parents=[...a.lifecycle.parents];assert.equal(registerAnimalDeath(s,a,'unknown'),true);assert.equal(a.health,0);assert.equal(a.death.yield,juvenile?1:LIVESTOCK[species].meatYield);assert.equal(a.death.meatKind,LIVESTOCK[species].meatKind);assert.deepEqual(carcassPosition(s,a),{site:'surface',x:2,y:2});assert.equal(a.husbandry.post,null);assert.equal(a.lifecycle.enabled,false);const death=structuredClone(a.death);assert.equal(registerAnimalDeath(s,a,'fire'),false);assert.deepEqual(a.death,death);assert.equal(s.rng,rng);assert.equal(s.nextId,next);assert.deepEqual(a.genetics,genetics);assert.deepEqual(a.lifecycle.parents,parents);validateCarcasses(s);}
+  for(const species of ['bristleback','glazefoot'])for(const juvenile of [false,true]){const {s,a}=fixture(species);if(juvenile)a.lifecycle=newLifecycle(0,['parent-a','parent-b'],species);const rng=s.rng,next=s.nextId,genetics=structuredClone(a.genetics),parents=[...a.lifecycle.parents];assert.equal(registerAnimalDeath(s,a,'unknown'),true);assert.equal(a.health,0);assert.equal(a.death.yield,juvenile?1:LIVESTOCK[species].meatYield);assert.equal(a.death.meatKind,LIVESTOCK[species].meatKind);assert.deepEqual(carcassPosition(s,a),{site:'surface',x:2,y:2,z:0});assert.equal(a.husbandry.post,null);assert.equal(a.lifecycle.enabled,false);const death=structuredClone(a.death);assert.equal(registerAnimalDeath(s,a,'fire'),false);assert.deepEqual(a.death,death);assert.equal(s.rng,rng);assert.equal(s.nextId,next);assert.deepEqual(a.genetics,genetics);assert.deepEqual(a.lifecycle.parents,parents);validateCarcasses(s);}
 });
 
 test('fire, thermal and starvation terminal health paths create bodies without changing injury cause enums',()=>{
@@ -64,11 +64,11 @@ test('canceling partial dispatch leaves livestock alive and automatic care waits
 
 test('butchery/discard reject nonphysical, spoiled, reserved and occupied post targets without mutations',()=>{
   const f=fixture();assert.equal(butcheryEligibility(f.s,f.a,4,4).code,'no_body');registerAnimalDeath(f.s,f.a,'unknown');assert.equal(butcheryEligibility(f.s,f.a,4,4).ok,true);const original=structuredClone(f.s);assert.equal(requestButchery(f.s,f.a.id,-1,4,()=>assert.fail()).ok,false);assert.deepEqual(f.s,original);
-  const live={...structuredClone(f.a),id:'live',health:100,death:null,husbandry:{...f.a.husbandry,post:[4,4]}};f.s.creatures.push(live);assert.equal(butcheryEligibility(f.s,f.a,4,4).code,'busy');f.s.creatures.pop();f.a.death.age=FOOD_LIFETIME;f.a.death.disposition='spoiled';assert.equal(butcheryEligibility(f.s,f.a,4,4).code,'spoiled');assert.equal(discardEligibility(f.s,f.a).ok,true);
+  const live={...structuredClone(f.a),id:'live',health:100,death:null,husbandry:{...f.a.husbandry,post:{x:4,y:4,z:0}}};f.s.creatures.push(live);assert.equal(butcheryEligibility(f.s,f.a,4,4).code,'busy');f.s.creatures.pop();f.a.death.age=FOOD_LIFETIME;f.a.death.disposition='spoiled';assert.equal(butcheryEligibility(f.s,f.a,4,4).code,'spoiled');assert.equal(discardEligibility(f.s,f.a).ok,true);
 });
 
 test('collect/carry/process maintain exclusive physical ownership and produce no food or retrieval XP',()=>{
-  const f=butcherFixture(),rng=f.s.rng;validateCarcasses(f.s);const age=f.a.death.age;assert.equal(f.c.skills.husbandry.xp,0);assert.equal(f.t.drop,null);stage(f);assert.equal(f.c.skills.husbandry.xp,0);assert.equal(f.j.remaining,20);assert.deepEqual(f.a.death.owner,{kind:'job',job:f.j.id});assert.deepEqual(carcassPosition(f.s,f.a),{site:'surface',x:4,y:4});assert.equal(f.a.x,2);assert.equal(f.a.y,2);assert.equal(f.t.drop,null);assert.equal(f.a.death.age,age);assert.equal(f.s.rng,rng);validateCarcasses(f.s);
+  const f=butcherFixture(),rng=f.s.rng;validateCarcasses(f.s);const age=f.a.death.age;assert.equal(f.c.skills.husbandry.xp,0);assert.equal(f.t.drop,null);stage(f);assert.equal(f.c.skills.husbandry.xp,0);assert.equal(f.j.remaining,20);assert.deepEqual(f.a.death.owner,{kind:'job',job:f.j.id});assert.deepEqual(carcassPosition(f.s,f.a),{site:'surface',x:4,y:4,z:0});assert.equal(f.a.x,2);assert.equal(f.a.y,2);assert.equal(f.t.drop,null);assert.equal(f.a.death.age,age);assert.equal(f.s.rng,rng);validateCarcasses(f.s);
 });
 
 test('butchery completion is atomic single-use typed output retaining body age and fixed waste',()=>{
@@ -76,7 +76,7 @@ test('butchery completion is atomic single-use typed output retaining body age a
 });
 
 test('carry release drops at actual crew position while staged interruption keeps owner/work/age',()=>{
-  const f=butcherFixture();actCarcass(f.s,f.c,f.j,arrive,release);f.c.x=3;f.c.y=2;f.a.death.age=50;release(f.s,f.c);assert.deepEqual(f.a.death.owner,{kind:'tile',site:'surface',x:3,y:2});assert.equal(f.j.phase,'collect');assert.equal(f.a.death.reservedBy,f.j.id);attach(f,f.j);stage(f);actCarcass(f.s,f.c,f.j,arrive,release);const remaining=f.j.remaining;release(f.s,f.c);assert.equal(f.j.phase,'process');assert.deepEqual(f.a.death.owner,{kind:'job',job:f.j.id});assert.equal(f.j.remaining,remaining);assert.equal(f.a.death.age,50);validateCarcasses(f.s);
+  const f=butcherFixture();actCarcass(f.s,f.c,f.j,arrive,release);f.c.x=3;f.c.y=2;f.a.death.age=50;release(f.s,f.c);assert.deepEqual(f.a.death.owner,{kind:'tile',site:'surface',x:3,y:2,z:0});assert.equal(f.j.phase,'collect');assert.equal(f.a.death.reservedBy,f.j.id);attach(f,f.j);stage(f);actCarcass(f.s,f.c,f.j,arrive,release);const remaining=f.j.remaining;release(f.s,f.c);assert.equal(f.j.phase,'process');assert.deepEqual(f.a.death.owner,{kind:'job',job:f.j.id});assert.equal(f.j.remaining,remaining);assert.equal(f.a.death.age,50);validateCarcasses(f.s);
 });
 
 test('canceling each carcass phase releases its actual body and claim without output or freshness reset',()=>{

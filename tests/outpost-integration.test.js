@@ -79,7 +79,7 @@ function localRepairShipment() {
   act(s, 'crew.labor', { crew: 'crew-4', labor: 'engineering', enabled: false });
   act(s, 'crew.labor', { crew: resident.id, labor: 'engineering', enabled: true });
   const job = order(s, { site: 'wreck', x: 15, y: 10, kind: 'repair' }), id = job.id;
-  assert.deepEqual(job.sources, [{ x: dock.x, y: dock.y, kind: 'imports', items: { alloy: 1 } }]);
+  assert.deepEqual(job.sources, [{ x: dock.x, y: dock.y, z: 0, kind: 'imports', items: { alloy: 1 } }]);
   assert.deepEqual(dock.imports, { alloy: 1 });
   until(s, () => resident.carry?.alloy === 1 && resident.delivery?.job === id, 30, 'resident collects a local repair shipment');
   return { s, id, resident: person(s, resident.id) };
@@ -107,12 +107,12 @@ test('full save validation bounds remote sources and deliveries by their physica
   const { s, id, resident } = localRepairShipment(), text = serialize(s);
   for (const corrupt of [
     state => { state.jobs.find(j => j.id === id).sources[0].x = 20; },
-    state => { person(state, resident.id).delivery.target = [20, 10]; },
+    state => { person(state, resident.id).delivery.target = { x: 20, y: 10, z: 0 }; },
     state => { state.jobs.find(j => j.id === id).site = 'surface'; },
     state => { state.jobs.find(j => j.id === id).sources[0].kind = 'freight'; },
   ]) {
     const broken = JSON.parse(text); corrupt(broken);
-    assert.throws(() => deserialize(JSON.stringify(broken)), /reservation|shipment/);
+    assert.throws(() => deserialize(JSON.stringify(broken)), /reservation|shipment|material location/);
     assert.equal(serialize(s), text, 'rejected save never changes the live source state');
   }
 });

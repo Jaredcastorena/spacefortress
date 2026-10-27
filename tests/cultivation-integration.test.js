@@ -1,3 +1,5 @@
+import { VERSION as CURRENT_SAVE_VERSION } from '../src/data.js';
+import { projectPreDecks } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, at, step, serialize, deserialize } from '../src/simulation.js';
@@ -110,7 +112,7 @@ test('spoiled propagation food becomes waste and exact replacement must arrive b
 const siteLedger=f=>f.site.cultivation[f.species];
 
 function legacy(s,version){
-  const old=structuredClone(s);old.version=version;
+  const old=projectPreDecks(s);old.version=version;
   for(const a of old.creatures){delete a.death;delete a.genetics;if(a.lifecycle?.brood)delete a.lifecycle.brood.inheritance;}
   for(const site of Object.values(old.sites)){
     delete site.cultivation;delete site.liquids.absorbed;
@@ -126,7 +128,7 @@ function legacy(s,version){
 }
 test('schema40–43 migration adds only neutral cultivation state and preserves physical bytes after demotion',()=>{
   for(const version of [40,41,42,43]){
-    const old=legacy(createGame(822),version),text=serialize(old),before=totalResources(old),loaded=deserialize(text);assert.equal(loaded.version,46);assert.equal(serialize(old),text);assert.deepEqual(legacy(loaded,version),old);assert.deepEqual(totalResources(loaded),before);checked(loaded);
+    const old=legacy(createGame(822),version),text=serialize(old),before=totalResources(old),loaded=deserialize(text);assert.equal(loaded.version,CURRENT_SAVE_VERSION);assert.equal(serialize(old),text);assert.deepEqual(legacy(loaded,version),old);assert.deepEqual(totalResources(loaded),before);checked(loaded);
   }
   const s=createGame(823),site=s.sites.surface,t=site.tiles.find(tile=>tile.flora?.fungalcap?.biomass===100);for(const crew of s.crew)for(const labor of Object.keys(crew.labors))crew.labors[labor]=false;
   assert.ok(executeAction(s,'job.order',{site:'surface',x:t.x,y:t.y,kind:'gather',building:'fungalcap'},'test').ok);const old=legacy(s,43),loaded=deserialize(serialize(old));assert.equal(loaded.jobs[0].plantGeneration,'native');assert.deepEqual(legacy(loaded,43),old);checked(loaded);

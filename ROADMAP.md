@@ -1,8 +1,87 @@
 # SPACEFORTRESS roadmap
 
-**Release build: v0.1.4 · Save schema: 46.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
+## Current systems work
+
+- [x] Implement shared stair damage, paid repair and safe dismantling. Claim both endpoints, retain materials when closure is blocked, preserve cancellation and multi-floor save custody, and show the same job at both landings.
+- [x] Connect floors with paid power, gas and water risers, retaining independent utility isolation and finite contents.
+
+- [x] Connect the floor selector, upstairs map/inspection/build controls, crew navigation, stair artwork and hatch controls. Invalidate held clicks on view changes and identify floor-specific hazards. Verified with focused UI/control/render tests; the broader build-and-live acceptance remains incomplete.
+
+- [x] Build stairs through paid physical jobs, bootstrap only an empty upper grid and landing, enforce support beneath upper floor extension, and persist declared floors/links through schema55. Preserve legacy saves and cancellation custody. Animal traversal, upper airlocks and solar occlusion remain pending.
+
+- [x] Implement the shared stairwell connection core: routed crew/cargo/patient movement, hatch controls, finite gas/smoke/heat exchange and bounded downward water flow. A declared-link scenario carries inputs upstairs and finished output back down. Paid construction, multi-floor saves and the selector are covered by the later milestones above; animal traversal remains pending.
+
+- [x] Carry input and output through a staffed production cycle on a declared floor; record actual inventory owners. Extend paid medical treatment, bedside meals, hygiene and rescue to the same floor, preserving physical delivery and waste custody. Six bounded scenarios cover these interactions; later stair/save milestones above connect these floors.
+
+- [x] Run staffed production and basic crew needs within a declared floor: physical machine operation, meals, safe bunks, downtime and finite suit refills. Eight bounded synthetic scenarios cover the new behavior; later stair/save milestones above connect these floors.
+
+- [x] Run paid basic construction within a declared floor: reserve reachable local supplies, assign a worker, carry materials, complete the correct tile and preserve cancellation custody. Crew walking and automatic doors retain the floor. Vertical connections and multi-floor saves remain pending.
+
+- [x] Extend explicit deck targets to eleven production, storage, room, housing, maintenance and gate controls. Scope job cancellation/priority, haul claims and occupancy checks to the actual floor; retain committed materials. Staffed production and basic needs now also execute within a declared floor.
+
+- [x] Route sixteen equipment controls through explicit optional deck targets, preserving player bindings, device protections and ground defaults. Reject undeclared floors before mutation. Construction and living-space commands are now converted; airlock commands remain pending.
+
+- [x] Separate pastures, mating, birth occupancy, grazing, pest food searches and trap capture/payment by deck. Observation9 records full pasture cells and distinct upper plant/pasture IDs; extra floors still await shared controls, movement and presentation.
+
+- [x] Give room-purpose anchors deck ownership; keep occupants, residents, furniture, waste, comfort, shelter destinations and outpost diagnostics on their actual floor. Save54 migrates old assignments without changing physical state.
+
+- [x] Keep fire spread, reactor cooling and debris damage on their actual deck. Save53 preserves forecast/history positions; upper fire and maintenance jobs remain explicitly blocked until movement and shared commands support them.
+
+- [x] Keep gas pipes, water pipes, pumps, leaks, dismantling recovery and horizontal floor spills on their own deck, with scoped transfer records. Vertical fluid connections and gravity through openings remain pending.
+
+- [x] Separate cable networks, batteries, loads, breaker branches and wet-fault diagnostics by deck; preserve ground save identities. Paid vertical utility connections are implemented with explicit endpoint isolation.
+
+- [x] Separate stacked room reservoirs, horizontal gas/heat flow and rebuilding by deck; migrate old room ownership without changing stored gas or heat. Vertical openings and utilities remain pending.
+
+- [x] Persist full airlock positions and migrate active cycles, ownership and reservations without resetting gas, power or progress. Additional playable decks still depend on environment and command conversion.
+
+- [x] Return recovered extractor gas through a real passive refill path, preserving finite supplies and existing safety gates.
+- [x] Cover finite pocket transfers, closed idle/paused ports, all hex orientations and save continuation in 60 affected checks.
+- [x] Correct release pressure drift through existing finite transfer phases, refusing to seal an occupied doorway or split party.
+- [x] Complete two synthetic cargo roundtrips with native load/unload, finite oxygen makeup, physical supply delivery and healthy crew return.
+- [x] Replenish bound supply tanks through finite native deliveries, preserving recovery headroom and queued admission gates.
+- [x] Complete two finite cargo rounds after native exterior-tank replenishment, retaining singleton custody and the existing resource budget.
+- [x] Add a bounded one-batch production/delivery helper with finite payment, typed records and preserved partial work.
+- [x] Finish the actual ten-air delivery, survive finite night standby and restore daytime controls and balanced crew routines from the preserved stop.
+- [ ] Establish durable airlock makeup across repeated supplied cycles; the finite two-round check passes, while ongoing production/resupply remains pending.
+- [ ] Prepare a paid tank retrofit with ore refining, component fabrication and preservation of stored gas and production capacity.
+- [ ] Complete the ordinary finite cargo return with sufficient chamber oxygen and native cargo custody throughout. Paid loading/unloading passed; return stopped on habitat sanitation injury. Waste containment now removes exposure, while both parcels remain carried and medical recovery is pending.
+- [ ] Establish overnight thermal conditioning before claiming sustained airlock operation.
+
+
+**Release build: v0.1.5 · Colony save schema: 57.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
 
 See the [README](README.md) to play, [verification status](docs/verification-status.md) for evidence and limits, and the [180-system conversion inventory](docs/conversion-inventory.md) for the wider backlog. Completing a milestone below does not complete an entire inventory family or establish full Dwarf Fortress parity.
+
+## Current direction: strengthen shared simulation systems
+
+Ordinary hauling now has named quantity records for pickup, partial/full delivery and setdown, alongside existing item identity records. Five focused cases verify quantities, sanitary output, rejected pickup and save/recording parity. Broader inventory flows retain their specialized events; sustained supply and cargo acceptance below remain unfinished.
+
+Build future gameplay on reusable resource, job and simulation rules. Finite emergency suit resupply connects local physical storage to crew recovery when no safe room is reachable; it preserves gas accounting and shared movement rules. A manual suit-to-room valve now transfers finite personal oxygen into the occupied sealed compartment, with shared controls, capacity checks and typed ownership records. This gives emergency agency; it does not establish recovery of the stopped colony. Crew work assignment and structured observations now share one readiness function with stable blocker codes; current work eligibility includes all simultaneous constraints. Workstations also distinguish qualification from personal availability and preserve valid current operations. The simulation rules and thresholds are unchanged. Destroyed traps now respect building condition, and capture events expose their physical bait cost. Focused checks cover healthy and broken traps, insufficient bait, multiple traps and paid repair before capture resumes. The current local fixes preserve fresh food after an older portion is eaten and count delivered dock imports toward machine stock targets. Focused checks cover interrupted meals, save continuation, actual freight unloading and food recipe filtering. See [verification status](docs/verification-status.md) for the combined checks.
+
+The reviewed colony is at tick 2167 with the infestation cleared and two curd portions delivered through ordinary livestock work and hauling. The direct air-production route exceeds the sole available operator’s fatigue budget. Next: review a distinct recovery dependency before another attempt; home air and full suits remain unfinished. Paid ice/water processing has a real colony trace; sustained supply and the ordinary livestock/kitchen journey remain unfinished.
+
+A separate fresh-colony airlock trial now proves paid assembly: mining and manufacturing finished at tick 322, and all 22 placements were installed by tick 418. At assembly, commissioning was unfinished. The run stopped at tick 518 during crew return, with unsafe home air and insufficient packaged-air reserve. A finite suit-to-room release briefly restored breathable air, but the continuation stopped at tick 548 with one crew member on the inner door. All seven remain uninjured. The paid continuation subsequently completed sixteen replacement-air batches and returned all seven crew to safe home air at tick 1076. Before gas recovery began, debris damaged a chamber wall at tick 1200; all seven remained uninjured and the habitat stayed safe. One remaining ore was subsequently refined, and one alloy paid for the wall repair at tick 1245. The return trial stopped at tick 1292 with exhausted packaged air, unsafe habitat and chamber air, and one engineer still in the chamber; all seven remain uninjured. The reusable recovery helper then advanced that preserved state to tick 1372: two water paid for 20 air, all seven crew returned home uninjured, both rooms had safe air, ten air remained reachable and the battery held 120. The recorded run used 80 full ticks and 16 other commands; independent gas-family, water and energy accounting closed within 1e-8. The [bounded commissioning helper](tools/paid-airlock-commissioning.mjs) then recovered chamber gas and established the owned idle controller at tick 1400. All seven crew were healthy and home, the doors were closed and intact, the empty chamber was at vacuum, the predicted refill mixture was source-safe, ten air remained reachable and the battery held 120. Original crew labors, balanced routines, farm and scrubber were restored, with no jobs. This single run took 28 full ticks and 25 other commands; all 53 actions succeeded, 430 records were contiguous and independent gas-family/energy errors were zero. Next: verify the named parcel outward/return journey and its finite air/power needs. These results leave the separate tick-2167 colony's recovery unresolved. See [verification status](docs/verification-status.md) for exact limits.
+
+The [local construction example](tools/paid-airlock-example.mjs) now reproduces the paid build through shared commands and can export its colony. Its distinct command schedule reached assembly at tick 407 with breathable home air and all seven crew uninjured. The focused recorded check covers physical deliveries, typed work, finite reserves and save import. The separate preserved continuation completed replacement-air production, repaired debris damage and exhausted its air during crew return. The [offline recovery helper](tools/paid-air-recovery.mjs) subsequently restored its finite air supply and crew return; its 14 focused mechanics checks pass. The commissioning helper passes ten focused mechanics checks and established one ordinary commissioning checkpoint. Passage and endurance remain unfinished.
+
+## Latest local acceptance: paid component recovery
+
+The tick-951 colony completed one paid satellite salvage trip, returning three components to usable surface storage at tick 1127. The 176-tick, ten-command run preserved all original crew and animal health. Resource/gas accounting, recorded transitions and six exact reloads passed independent review. These parts make the existing ice processor affordable without removing the atmosphere processor.
+
+The stop has 16 alloy, three components, 6.5 water and 5.38 air mix aboard the shuttle. Home oxygen is below the breathable limit; suits remain 86.475–96.7% full. Next, verify paid construction, finite ice extraction, water production and air recovery. This accepts a material prerequisite, not an ongoing supply chain.
+
+## Latest supply-chain result: production passed, recovery incomplete
+
+The paid continuation from tick 1127 to 1927 completed construction, four ice extractions and twelve water-processing batches: 24 ice became 24 water, and twenty atmosphere batches consumed 20 water to make 200 air. Both machines ended paused with no unfinished batch; 10.5 water remains. The 800-tick, thirteen-command run stopped at its limit without meeting full recovery. No retry or rewind was performed.
+
+Home air was breathable for 101 measured ticks, then fell below the limit again. A debris strike at tick 1200 damaged wall 14,8, which remained at 65% condition and leaked. Tibbles consumed all thirteen stored food portions and produced six offspring. A subsequent paid repair restored wall 14,8 to full condition at tick 1942: one alloy, 15 ticks, everyone healthy, with exact reloads and reconstructed recording verified. A subsequent paid trap and two wild harvests cleared eight tibbles by tick 2080, but all four food portions were consumed (two for bait, two for pest feeding). The run stopped at its tick-2122 ceiling with no positive food reserve. A subsequent 45-tick livestock collection delivered two curd portions into storage at tick 2167, with everyone healthy. Next: check available crew and review a further paid water/air continuation. Full suit recovery, ongoing food supply and colony endurance remain unverified.
+
+## Earlier local acceptance: finite room and suit reserves
+
+The unchanged v0.1.4 runtime completed one reviewed 460→951 continuation: 491 ticks/four commands, 24 paid batches including the prior committed batch, 240 air from 24 water. Every end-of-tick check was breathable across both nights; all seven suits reached 100% and all seven crew/five animals remained fully healthy. Three exact reloads and conserved quantities passed independent review.
+
+At the stop, room pressure was 100% and pressure-adjusted oxygen 18.003%. Only 10.5 water and no packaged air remained; the processor was paused and empty. This accepts the measured finite room/suit reserve, not a universal 24-water recipe, sustained exterior readiness or indefinite endurance. The original tick-144 and tick-384 stops and tick-460 minimum-air checkpoint remain preserved below. The runtime and save version are unchanged.
 
 ## v0.1.4: explain air limits and recover finite supplies
 
@@ -28,7 +107,7 @@ See [butchery](docs/butchery.md) for controls, costs and scope.
 
 ### Next: habitat air and the ordinary livestock/kitchen journey
 
-Build a measured reserve beyond the minimum reached at tick 460, then verify suit recovery and finite exterior-work demand without losing safe habitat air. Sustained supply, paid airlock commissioning and a parcel roundtrip remain unverified. Continue only from reviewed physical state to prove ordinary taming, slaughter, body carrying, butchery, ingredient delivery, cooking and eating while keeping the colony safe. This precedes wider ecosystem expansion. The earlier supplied food and breeding trials and the new bounded air recovery do not replace that acceptance.
+Paid water production, wall repair and paid trap construction have ordinary traces through tick 2122. The current infestation is cleared; a subsequent ordinary livestock harvest delivered two curd portions into storage at tick 2167. Full home/suit air recovery remains. Complete that recovery, then verify finite exterior-work demand and air isolation without losing safe habitat conditions. Sustained supply, paid airlock commissioning and a parcel roundtrip remain unverified. Continue only from reviewed physical state to prove ordinary taming, slaughter, body carrying, butchery, ingredient delivery, cooking and eating while keeping the colony safe. This precedes wider ecosystem expansion. The earlier supplied food/breeding trials and the two-night indoor reserve do not replace that acceptance.
 
 ## Recent increment: inherited livestock traits
 
@@ -142,11 +221,13 @@ Join freight, construction and care into the first complete staffed-outpost jour
 
 ### 5. Pressure-cycling airlocks
 
-Experimental automatic cycling is implemented locally and has scoped physical and control coverage: admit a crew member, close the entry door, recover air into finite storage before exterior release, and refill before opening toward the habitat. It uses gas extractors, pumps, reservoirs, vents and actual electrical power. The [cycling-airlock design](docs/airlock-cycling-design.md) defines the broader acceptance checks; ordinary paid assembly and parcel traversal remain pending. The previous v0.1.2 build had manual doors and vestibules.
+Experimental automatic cycling is implemented locally and has scoped physical and control coverage: admit a crew member, close the entry door, recover air into finite storage before exterior release, and refill before opening toward the habitat. It uses gas extractors, pumps, reservoirs, vents and actual electrical power. The [cycling-airlock design](docs/airlock-cycling-design.md) defines the broader acceptance checks; ordinary paid assembly is verified; parcel traversal remains pending. The previous v0.1.2 build had manual doors and vestibules.
 
 **Acceptance:** an ordinary supplied colony builds the assembly and physically carries goods out and back. Doors interlock; gas species, smoke and energy retain actual owners across repeated cycles. A normal cycle wait preserves the crew’s task and parcel. Full storage, empty reserves, power loss, damage and a carried patient produce measured safe pauses or explicit manual recovery. Save during partial transfer and traversal, replay named transitions, and verify compact player controls.
 
 ### 6. Connected local vertical decks
+
+**Foundation started:** spatial addressing, declared deck order, horizontal/airlock position routing and primary deck-zero migration are implemented. Schema48 converts shipments; schema49 extends crew care/home/need locations; schema50 extends animal posts, handler transport and carcass ownership. Observation/recording4 exposes the changed fields. [Remaining dependencies](docs/spatial-location-inventory.md) include persisted controller references, pasture/birth and room/environmental topology, commands and multi-deck identities. Stairs and the level selector remain pending; there is still one playable deck.
 
 Implement the [local-level design](docs/vertical-slice-design.md): two decks in one settlement, constructed connections, level selection and complete spatial references. Local height and orbital travel remain separate systems.
 

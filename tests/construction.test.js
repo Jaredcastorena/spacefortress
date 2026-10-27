@@ -134,7 +134,7 @@ test('save validation rejects duplicated reservations, missing deliveries and ph
   reject(copy => copy.jobs[0].materials.alloy = 5);
   reject(copy => copy.jobs[0].remaining--);
   reject(copy => { const c = copy.crew.find(c => c.carry); c.delivery.job = 'job-9999'; });
-  reject(copy => { const c = copy.crew.find(c => c.carry); c.delivery.target = [1, 1]; });
+  reject(copy => { const c = copy.crew.find(c => c.carry); c.delivery.target = { x: 1, y: 1, z: 0 }; });
 });
 
 test('construction cannot bury loose supplies already reserved by another order', () => {
@@ -147,7 +147,7 @@ test('construction cannot bury loose supplies already reserved by another order'
 
 test('a hungry hauler can eat a carried ration even when no food store exists', () => {
   const s = colony(), depot = at(s.sites.surface, 8, 10), c = s.crew[0];
-  depot.stock = {}; c.carry = { food: 1 }; c.delivery = { kind: 'stock', target: [8, 10] };
+  depot.stock = {}; c.carry = { food: 1 }; c.delivery = { kind: 'stock', target: { x: 8, y: 10, z: 0 } };
   c.hunger = 20; syncResources(s); step(s);
   assert.equal(c.intent.type, 'meal'); assert.equal(c.carry, null); assert.equal(c.delivery, null);
   const copy = deserialize(serialize(s)); step(s, 10); step(copy, 10);

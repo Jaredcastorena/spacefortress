@@ -1,6 +1,8 @@
+import { roomTiles } from './room-locations.js';
+import { tileAt, positionOf, sameCell, cellKey } from './spatial.js';
 import { distance as hexDistance } from './geometry.js';
-import { crewPathTo } from './navigation.js';
-import { advanceCrewRoute, cancelCrewTraversal } from './crew-traversal.js';
+import { crewPathToPosition as crewPathTo } from './navigation.js';
+import { advanceCrewRoutePositions as advanceCrewRoute, cancelCrewTraversal } from './crew-traversal.js';
 import { releaseTransport } from './animal-transport.js';
 import { collectPossession, usePossession } from './possessions.js';
 import { roomComfort, experienceComfort } from './comfort.js';
@@ -41,22 +43,22 @@ export function prepareDowntime(s, release) {
     release(s, c); c.intent = { type: 'leisure', target: null, started: s.tick, rested: 0 };
   }
 }
-const commonsNear = (site, t) => site.tiles.some(other => other.building === 'commons' && other.hp > 0 && distance(t, other) <= 1 && roomAt(site,t.x,t.y) === roomAt(site,other.x,other.y));
+const commonsNear = (site, t) => site.tiles.some(other => other.building === 'commons' && other.hp > 0 && distance(t, other) <= 1 && roomAt(site,t.x,t.y,t.z) === roomAt(site,other.x,other.y,other.z));
 export function leisure(s, c, site, pathTo) {
   const intent = c.intent; if (intent?.type !== 'leisure') return false;
   if(collectPossession(s,c,site,pathTo))return true;
-  const safe = t => t && livingAllowed(site, t.x, t.y) && !['wall', 'door'].includes(t.building) && breathable(roomAt(site, t.x, t.y)) && thermalSafe(roomAt(site, t.x, t.y));
-  const claimed = new Set(s.crew.filter(other => other.id !== c.id && other.site === c.site && other.intent?.type === 'leisure' && other.intent.target).map(other => other.intent.target.join(',')));
-  let target = intent.target && site.tiles[intent.target[1] * site.size + intent.target[0]];
-  if (target && (!safe(target) || claimed.has(intent.target.join(',')) || crewPathTo(s, site, c, [intent.target]) === null)) { intent.target = null; target = null; }
+  const safe = t => t && livingAllowed(site, t.x, t.y, t.z) && !['wall', 'door'].includes(t.building) && breathable(roomAt(site,t.x,t.y,t.z)) && thermalSafe(roomAt(site,t.x,t.y,t.z));
+  const claimed = new Set(s.crew.filter(other => other.id !== c.id && other.site === c.site && other.intent?.type === 'leisure' && other.intent.target).map(other => cellKey(other.intent.target)));
+  let target = intent.target && tileAt(site,intent.target);
+  if (target && (!safe(target) || claimed.has(cellKey(intent.target)) || crewPathTo(s, site, c, [intent.target]) === null)) { intent.target = null; target = null; }
   if (!target) {
-    const candidates = site.rooms.filter(breathable).flatMap(r => r.cells.map(k => site.tiles[Number(k.split(',')[1]) * site.size + Number(k.split(',')[0])])).filter(t => safe(t) && !claimed.has(`${t.x},${t.y}`)).map(t => ({ t, route: crewPathTo(s, site, c, [[t.x, t.y]]) })).filter(o => o.route !== null);
+    const candidates = site.rooms.filter(breathable).flatMap(r => roomTiles(site,r)).filter(t => safe(t) && !claimed.has(cellKey(positionOf(t)))).map(t => ({ t, route: crewPathTo(s, site, c, [positionOf(t)]) })).filter(o => o.route !== null);
     const comfort = new Map(site.rooms.map(r=>[r,roomComfort(s,site,r,c).score]));
-    const appeal = t => 2*Number(commonsNear(site,t)) + (comfort.get(roomAt(site,t.x,t.y)) || 0);
+    const appeal = t => 2*Number(commonsNear(site,t)) + (comfort.get(roomAt(site,t.x,t.y,t.z)) || 0);
     candidates.sort((a, b) => appeal(b.t) - appeal(a.t) || a.route.length - b.route.length || a.t.y - b.t.y || a.t.x - b.t.x);
     target = candidates[0]?.t;
     if (!target) { c.activity = 'No reachable safe place for downtime'; if (c.life.policy !== 'rest') { c.intent = null; return false; } return true; }
-    intent.target = [target.x, target.y];
+    intent.target = positionOf(target);
   }
   const route = crewPathTo(s, site, c, [intent.target]);
   if (route.length) { advanceCrewRoute(s, c, site, [route.at(-1)]); c.activity = 'Going to a safe place for downtime'; return true; }
@@ -71,15 +73,15 @@ export function leisure(s, c, site, pathTo) {
   return true;
 }
 function socialReady(site, c) {
-  if (c.health <= 0 || c.job || c.carry || !breathable(roomAt(site, c.x, c.y))) return false;
-  return !c.intent || (c.intent.type === 'meal' && c.intent.servings > 0) || (c.intent.type === 'leisure' && c.intent.target?.[0] === c.x && c.intent.target?.[1] === c.y);
+  if (c.health <= 0 || c.job || c.carry || !breathable(roomAt(site,c.x,c.y,c.z))) return false;
+  return !c.intent || (c.intent.type === 'meal' && c.intent.servings > 0) || (c.intent.type === 'leisure' && sameCell(c.intent.target,positionOf(c)));
 }
 export function socialize(s) {
   if (s.tick % 30) return;
   const matched = new Set();
   for (const c of s.crew) {
     const site = s.sites[c.site]; if (!site || matched.has(c.id) || !socialReady(site, c)) continue;
-    const options = s.crew.filter(other => other.id !== c.id && other.site === c.site && !matched.has(other.id) && distance(c, other) <= 2 && roomAt(site, c.x, c.y) === roomAt(site, other.x, other.y) && socialReady(site, other));
+    const options = s.crew.filter(other => other.id !== c.id && other.site === c.site && !matched.has(other.id) && distance(c, other) <= 2 && roomAt(site,c.x,c.y,c.z) === roomAt(site,other.x,other.y,other.z) && socialReady(site, other));
     options.sort((a, b) => (c.relationships[a.id].lastInteraction ?? -1) - (c.relationships[b.id].lastInteraction ?? -1) || c.relationships[b.id].affinity - c.relationships[a.id].affinity || a.id.localeCompare(b.id));
     const other = options[0]; if (!other) continue;
     matched.add(c.id); matched.add(other.id);
@@ -96,7 +98,7 @@ export function socialize(s) {
 export function updateCrewLife(s) {
   for (const c of s.crew) {
     if (c.health <= 0 || c.site === 'transit') continue;
-    const life = c.life, safe = breathable(roomAt(s.sites[c.site], c.x, c.y)) && thermalSafe(roomAt(s.sites[c.site], c.x, c.y));
+    const life = c.life, safe = breathable(roomAt(s.sites[c.site],c.x,c.y,c.z)) && thermalSafe(roomAt(s.sites[c.site],c.x,c.y,c.z));
     life.leisure = clamp(life.leisure - (c.job || c.carry ? .035 : .01));
     life.company = clamp(life.company - (c.temperament === 'social' ? .03 : .015));
     const strain = (safe ? 0 : .14) + (c.hunger < 35 ? .1 : 0) + (c.energy < 25 ? .06 : 0) + (c.job ? .015 : 0) + (life.leisure < 25 || life.company < 25 ? .04 : 0);
@@ -119,7 +121,7 @@ export function validateCrewLife(s) {
     if (!c.relationships || Object.keys(c.relationships).length !== peers.length || peers.some(id => { const b = c.relationships[id]; return !b || !Number.isFinite(b.affinity) || Math.abs(b.affinity) > 100 || !Number.isSafeInteger(b.interactions) || b.interactions < 0 || (b.lastInteraction !== null && !time(b.lastInteraction)); })) throw new Error('Invalid crew relationships.');
     if (c.intent?.type === 'leisure') {
       if (!time(c.intent.started) || !Number.isSafeInteger(c.intent.rested) || c.intent.rested < 0 || c.intent.rested > s.tick - c.intent.started + 1 || c.carry) throw new Error('Invalid downtime activity.');
-      if (c.intent.target) { const seat = `${c.site}/${c.intent.target.join(',')}`; if (seats.has(seat)) throw new Error('Downtime place claimed twice.'); seats.add(seat); }
+      if (c.intent.target) { const seat = `${c.site}/${cellKey(c.intent.target)}`; if (seats.has(seat)) throw new Error('Downtime place claimed twice.'); seats.add(seat); }
     }
   }
 }

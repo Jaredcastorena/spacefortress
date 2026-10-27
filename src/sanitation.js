@@ -1,5 +1,7 @@
-import { crewPathTo } from './navigation.js';
-import { advanceCrewRoute } from './crew-traversal.js';
+import { roomContains } from './room-locations.js';
+import { tileAt as spatialTile, positionOf, sameCell, cellKey } from './spatial.js';
+import { crewPathToPosition as crewPathTo } from './navigation.js';
+import { advanceCrewRoutePositions as advanceCrewRoute } from './crew-traversal.js';
 import { spill, add } from './inventory.js';
 import { breathable, roomAt } from './atmosphere.js';
 import { thermalSafe } from './thermal.js';
@@ -10,7 +12,7 @@ import { injure } from './medicine.js';
 export const SANITARY_CAPACITY = 8;
 export const SANITARY_VISIT = 6;
 export const SANITARY_GRACE = 120;
-const tileAt = (site, c) => site.tiles[c.y * site.size + c.x];
+const tileAt = (site, c) => spatialTile(site,positionOf(c));
 export function initializeSanitation(s) {
   for (const c of s.crew) c.sanitation ??= { waste: 0, wait: 0, exposure: 0 };
 }
@@ -23,8 +25,7 @@ export function dropSanitation(s, c) {
 }
 // Derived directly from physical owners, so room edits and hauling cannot leave stale pollution.
 export function exposedWaste(s, site, room = null, tile = null) {
-  const cells = room ? new Set(room.cells) : null;
-  const includes = t => cells ? cells.has(`${t.x},${t.y}`) : tile && tile.x === t.x && tile.y === t.y;
+  const includes = t => room ? roomContains(room,t) : !!tile && sameCell(positionOf(tile),positionOf(t));
   let total = 0;
   for (const t of site.tiles) if (includes(t)) {
     total += (t.drop?.waste || 0) + (t.stock?.waste || 0) + (t.imports?.waste || 0);
@@ -41,7 +42,7 @@ export function updateSanitation(s) {
   for (const c of s.crew) {
     if (c.site === 'transit') continue;
     if (c.health <= 0) { dropSanitation(s, c); continue; }
-    const n = c.sanitation, site = s.sites[c.site], room = roomAt(site, c.x, c.y);
+    const n = c.sanitation, site = s.sites[c.site], room = roomAt(site,c.x,c.y,c.z);
     if (n.waste >= .5) {
       n.wait++;
       if (n.wait >= SANITARY_GRACE) {
@@ -64,25 +65,25 @@ export function updateSanitation(s) {
 export function sanitaryBlock(s, site, t, c = null) {
   if (t?.building !== 'sanitary' || !t.sanitary) return 'Sanitary unit no longer exists';
   if (!t.hp) return 'Needs repair; tank seal broken';
-  if (!breathable(roomAt(site, t.x, t.y)) || !thermalSafe(roomAt(site, t.x, t.y))) return 'Needs safe air and temperature';
-  if (s.jobs.some(j => j.site === site.id && j.x === t.x && j.y === t.y)) return 'Reserved for construction or service';
+  if (!breathable(roomAt(site,t.x,t.y,t.z)) || !thermalSafe(roomAt(site,t.x,t.y,t.z))) return 'Needs safe air and temperature';
+  if (s.jobs.some(j => j.site === site.id && sameCell(positionOf(j),positionOf(t)))) return 'Reserved for construction or service';
   if (SANITARY_CAPACITY - (t.sanitary.output.waste || 0) < (c?.sanitation.waste || .5)) return 'Tank full; needs hauling';
-  if (s.crew.some(other => other !== c && other.health > 0 && other.site === site.id && other.intent?.type === 'sanitation' && other.intent.target?.[0] === t.x && other.intent.target?.[1] === t.y)) return 'In use';
+  if (s.crew.some(other => other !== c && other.health > 0 && other.site === site.id && other.intent?.type === 'sanitation' && sameCell(other.intent.target,positionOf(t)))) return 'In use';
   return null;
 }
 export function useSanitation(s, c, site, pathTo, release) {
   if (c.site !== site.id || immobile(c) || c.medical.bed || c.rescue) return false;
   if (c.intent && !['sanitation', 'haul', 'leisure'].includes(c.intent.type)) return false;
   if (c.sanitation.waste < .5 && c.intent?.type !== 'sanitation') return false;
-  let target = c.intent?.type === 'sanitation' && c.intent.target ? site.tiles[c.intent.target[1] * site.size + c.intent.target[0]] : null;
-  if (target && (sanitaryBlock(s, site, target, c) || crewPathTo(s, site, c, [[target.x, target.y]]) === null)) { c.intent = null; target = null; }
+  let target = c.intent?.type === 'sanitation' && c.intent.target ? spatialTile(site,c.intent.target) : null;
+  if (target && (sanitaryBlock(s, site, target, c) || crewPathTo(s, site, c, [positionOf(target)]) === null)) { c.intent = null; target = null; }
   if (!target) {
-    const options = site.tiles.filter(t => t.building === 'sanitary' && !sanitaryBlock(s, site, t, c)).map(t => ({ t, route: crewPathTo(s, site, c, [[t.x, t.y]]) })).filter(o => o.route !== null).sort((a, b) => a.route.length - b.route.length);
+    const options = site.tiles.filter(t => t.building === 'sanitary' && !sanitaryBlock(s, site, t, c)).map(t => ({ t, route: crewPathTo(s, site, c, [positionOf(t)]) })).filter(o => o.route !== null).sort((a, b) => a.route.length - b.route.length);
     target = options[0]?.t;
     if (!target) return false; // Keep doing useful work until a facility becomes available.
-    release(s, c); c.intent = { type: 'sanitation', target: [target.x, target.y], remaining: SANITARY_VISIT };
+    release(s, c); c.intent = { type: 'sanitation', target: positionOf(target), remaining: SANITARY_VISIT };
   }
-  const route = crewPathTo(s, site, c, [[target.x, target.y]]);
+  const route = crewPathTo(s, site, c, [positionOf(target)]);
   if (route.length) { advanceCrewRoute(s, c, site, [route.at(-1)]); c.activity = 'Going to sanitary unit'; return true; }
   c.activity = 'Using sanitary unit';
   if (--c.intent.remaining === 0) {
@@ -97,7 +98,7 @@ export function validateSanitation(s) {
     const n = c.sanitation;
     if (!n || !Number.isFinite(n.waste) || n.waste < 0 || n.waste > 16 || !Number.isInteger(n.wait) || n.wait < 0 || n.wait >= SANITARY_GRACE || !Number.isFinite(n.exposure) || n.exposure < 0 || n.exposure > 100) throw new Error('Invalid crew sanitation.');
     if (c.intent?.type === 'sanitation') {
-      const i = c.intent, claim = `${c.site}/${i.target?.join(',')}`;
+      const i = c.intent, claim = `${c.site}/${i.target ? cellKey(i.target) : null}`;
       if (!i.target || !Number.isInteger(i.remaining) || i.remaining < 1 || i.remaining > SANITARY_VISIT || claims.has(claim)) throw new Error('Invalid sanitary reservation.');
       claims.add(claim);
     }

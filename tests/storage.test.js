@@ -85,7 +85,7 @@ test('filter edits invalidate pending pickups and reroute cargo already in hand'
 
 test('undeliverable held cargo is placed locally and hauling resumes when storage opens', () => {
   const { s, site, d, c } = setup(); d.stock.ore = DEPOT_CAPACITY;
-  c.carry = { components: 6 }; c.delivery = { kind: 'stock', target: [8, 10] }; c.x = 11; c.y = 10;
+  c.carry = { components: 6 }; c.delivery = { kind: 'stock', target: { x: 8, y: 10, z: 0 } }; c.x = 11; c.y = 10;
   const before = totalResources(s); tickHaul(s, [c]);
   assert.equal(c.carry, null); assert.equal(at(site, 11, 10).drop.components, 6);
   assert.deepEqual(totalResources(s), before); take(d.stock, { ore: 6 });
@@ -94,7 +94,7 @@ test('undeliverable held cargo is placed locally and hauling resumes when storag
 
 test('recovery keeps held cargo capacity reserved and deterministic across saves', () => {
   const { s, site, d, c } = setup(); d.stock.ore = DEPOT_CAPACITY - 6;
-  c.carry = { components: 6 }; c.delivery = { kind: 'stock', target: [8, 10] }; c.energy = 1;
+  c.carry = { components: 6 }; c.delivery = { kind: 'stock', target: { x: 8, y: 10, z: 0 } }; c.energy = 1;
   at(site, 11, 10).drop = { components: 6 }; syncResources(s); step(s);
   assert.equal(c.intent.type, 'rest'); assert.equal(depotUsage(s, 'surface', d).incoming, 6);
   const copy = deserialize(serialize(s)); step(s, 130); step(copy, 130);
@@ -127,13 +127,13 @@ test('storage congestion stops production at its output buffer; freeing space re
 
 test('depot loss preserves supplies and redirects pending cargo', () => {
   const { s, site, d, c } = setup(), second = depot(site, 12, 11);
-  d.stock.ore = 2; c.carry = { components: 6 }; c.delivery = { kind: 'stock', target: [8, 10] };
+  d.stock.ore = 2; c.carry = { components: 6 }; c.delivery = { kind: 'stock', target: { x: 8, y: 10, z: 0 } };
   const before = totalResources(s); spillStorage(d); d.building = null;
   deliver(s, () => second.stock.components === 6, [c]); assert.deepEqual(totalResources(s), before);
 });
 
 test('hex reload preserves overfull depots and in-flight shipments without granting space', () => {
-  const { s, d, c } = setup(); d.stock.ore = 400; c.carry = { components: 6 }; c.delivery = { kind: 'stock', target: [8, 10] };
+  const { s, d, c } = setup(); d.stock.ore = 400; c.carry = { components: 6 }; c.delivery = { kind: 'stock', target: { x: 8, y: 10, z: 0 } };
   syncResources(s); const before = totalResources(s), copy = deserialize(serialize(s));
   assert.equal(copy.version, VERSION); assert.deepEqual(totalResources(copy), before);
   assert.equal(depotUsage(copy, 'surface', at(copy.sites.surface, 8, 10)).free, 0);

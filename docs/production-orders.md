@@ -12,6 +12,10 @@ The Botanist and Technician founders begin with level 3 Production, the Engineer
 
 Repairs, engineering service and dismantling can interrupt an occupied workstation. Automatic maintenance can also schedule service while an operation exists. The unfinished raw batch remains in the machine; removing the machine spills it through the existing inventory system.
 
+## Current operator diagnostics
+
+Workstations distinguish qualification from personal availability. A qualified crew member has the local presence, Production duty and recipe skill; fatigue, recovery, low suit air or other personal constraints can still prevent a new assignment. Structured production readings expose each qualified member's existing work-readiness reasons and the IDs currently personally available. The recipe inspector explains when no qualified operator is ready. An already assigned operator remains valid while able to continue; no job rules, costs or recovery thresholds change. Routes and site-specific travel still require their own checks.
+
 ## Work orders
 
 Every staffed machine has an order, initially **Continuous / Low priority**:
@@ -40,8 +44,8 @@ Schema **16** supports versions 1–15. Version-12 migration adds enabled Produc
 
 ## Evidence and limits
 
-**252 tests pass**, including 16 staffing/order tests. They cover local operators and permissions, skill/training, interrupted work and replacement, exact finite batches, bounded deliveries, stock replenishment, shared targets, committed/transit inventory, revised orders, pause/cancel, engineering interruption, priorities, automatic life support, deterministic saves, migration and malformed state. Existing tests were updated where they assumed fixed-time automatic processing, zero background jobs or an idle crew member immediately after recovery; their recovery, material and interruption checks remain.
+Original staffing/order verification recorded **252 passing tests**, including 16 staffing/order tests. They cover local operators and permissions, skill/training, interrupted work and replacement, exact finite batches, bounded deliveries, stock replenishment, shared targets, committed/transit inventory, revised orders, pause/cancel, engineering interruption, priorities, automatic life support, deterministic saves, migration and malformed state. Existing tests were updated where they assumed fixed-time automatic processing, zero background jobs or an idle crew member immediately after recovery; their recovery, material and interruption checks remain.
 
-An isolated headless Firefox check verified the production inspector, an edit surviving periodic refresh, fixed/stock orders, priorities, pause/resume, saved values and the Production duty toggle. Screenshots were inspected and the scoped browser log had no runtime errors. The temporary server/browser were stopped; artifacts are in ignored `.runtime-qa/production-*`.
+An isolated headless Firefox check verified the production inspector, an edit surviving periodic refresh, fixed/stock orders, priorities, pause/resume, saved values and the Production duty toggle. Screenshots were inspected and the scoped browser log had no runtime errors. The temporary server/browser were stopped.
 
 Hydroponics and medical synthesis now have temperature limits that preserve interrupted batches; see [temperature and climate](temperature-and-climate.md). This remains one recipe per machine. Recipe queues, tools, quality, waste/byproducts, specialized industrial occupations and richer farming remain unfinished. Enabled idle machines still draw their rated power and accrue the existing powered-operation wear; explicit pause releases that load. Depot capacity, filters and hauling priorities now constrain output collection; see [depot storage](depot-storage.md). The wider conversion inventory is still active.

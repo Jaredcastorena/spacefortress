@@ -92,12 +92,12 @@ test('comfort affects actual sleep, stress and morale memories but not idle owne
 test('new downtime seeks reachable rooms that suit the person and keeps a settled place',()=>{
   const {s,site,c}=fixture();for(let y=7;y<=11;y++)place(site,10,y,'wall');const door=place(site,10,9,'door');door.doorMode='auto';door.doorUntil=0;
   place(site,12,9,'sculpture');updateRooms(site);c.x=8;c.y=8;setLifePolicy(s,c.id,'rest');c.life.leisure=10;step(s);
-  assert.ok(c.intent.target[0]>10);until(s,()=>c.intent.rested>0);const target=[...c.intent.target];at(site,12,9).hp=0;step(s);assert.deepEqual(c.intent.target,target);check(s);
+  assert.ok(c.intent.target.x>10);until(s,()=>c.intent.rested>0);const target={...c.intent.target};at(site,12,9).hp=0;step(s);assert.deepEqual(c.intent.target,target);check(s);
 });
 
 test('uncomfortable downtime remains restorative enough for balanced breaks to finish',()=>{
   const {s,site,c}=fixture();c.housing.preference='quiet';setMachineEnabled(s,'surface',13,10,true);refreshPower(s,site);
-  c.life.stress=35;c.life.leisure=80;c.intent={type:'leisure',target:[c.x,c.y],started:0,rested:0};
+  c.life.stress=35;c.life.leisure=80;c.intent={type:'leisure',target:{ x: c.x, y: c.y, z: 0 },started:0,rested:0};
   for(let i=0;i<200&&c.intent;i++){s.tick++;leisure(s,c,site,pathTo);}
   assert.equal(c.intent,null);assert.ok(c.life.stress<=30);assert.ok(c.memories.some(m=>m.kind==='uncomfortable-room'));
 });

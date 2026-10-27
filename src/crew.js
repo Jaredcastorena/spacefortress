@@ -20,8 +20,25 @@ export function initializeCrew(c, index) {
 }
 export const laborFor = job => ({ extinguish:'engineering',animalDispatch:'husbandry',animalButcher:'husbandry',animalDiscard:'husbandry',animalLead:'husbandry',animalTreat:'medicine',animalCare:'husbandry',animalHarvest:'husbandry',operate: 'production', gather:'production', plant:'production', waterPlant:'production', hygiene: 'medicine', feed: 'medicine', treat: 'medicine', mine: 'mining', build: 'construction', remove: 'construction', repair: 'engineering', service: 'engineering', refit: 'engineering', loadShuttle: 'hauling', unloadShuttle: 'hauling', loadCargo: 'hauling', unloadCargo: 'hauling', repairWaterPipe:'engineering',removeWaterPipe:'construction',repairPipe:'engineering',removePipe:'construction',repairCable: 'engineering', removeCable: 'construction' })[job.kind];
 export const airThreshold = c => c.temperament === 'cautious' ? 35 : 25;
+export function workReadiness(c) {
+  const blockers = [], minimumSuitOxygen = airThreshold(c);
+  if (!(c.health > 0)) blockers.push('dead');
+  if (!(Math.abs(c.thermalStress || 0) < 45)) blockers.push('thermal_stress');
+  if (immobile(c)) blockers.push('immobile');
+  if (c.rescue) blockers.push('rescuing');
+  if (c.medical?.bed) blockers.push('assigned_medical_cot');
+  if (c.life?.policy === 'rest') blockers.push('off_duty');
+  if (c.site === 'transit') blockers.push('in_transit');
+  if (c.intent) blockers.push('busy_intent');
+  if (c.carry) blockers.push('carrying');
+  if (c.job) blockers.push('assigned_job');
+  if (!(c.oxygen >= minimumSuitOxygen)) blockers.push('low_suit_oxygen');
+  if (!(c.hunger >= 35)) blockers.push('hungry');
+  if (!(c.energy >= 25)) blockers.push('fatigued');
+  return { available: blockers.length === 0, blockers, minimumSuitOxygen };
+}
 export function availableForWork(c) {
-  return c.health > 0 && Math.abs(c.thermalStress || 0) < 45 && !immobile(c) && !c.rescue && !c.medical?.bed && c.life?.policy !== 'rest' && c.site !== 'transit' && !c.intent && !c.carry && !c.job && c.oxygen >= airThreshold(c) && c.hunger >= 35 && c.energy >= 25;
+  return workReadiness(c).available;
 }
 export function workRate(c, labor) {
   return (1 - (c.sanitation?.exposure || 0) * .002) * (1 - Math.abs(c.thermalStress || 0) * .004) * (.8 + c.skills[labor].level * .28) * (.65 + c.health * .0035) * (.65 + c.energy * .0035) * (.8 + c.morale * .004);

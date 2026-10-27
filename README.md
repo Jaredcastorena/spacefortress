@@ -2,11 +2,61 @@
 
 An early playable space colony simulator inspired by Dwarf Fortress. Keep seven alien founders alive, build a planetary colony, and send supplied expeditions into orbit to recover material for its next expansion.
 
-**[Play online](https://jaredcastorena.github.io/spacefortress/)** · [Online elements lab](https://jaredcastorena.github.io/spacefortress/elements.html) · [Release v0.1.4](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.4) · [Roadmap](ROADMAP.md)
+**[Play online](https://jaredcastorena.github.io/spacefortress/)** · [Online elements lab](https://jaredcastorena.github.io/spacefortress/elements.html) · [Release v0.1.5](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.5) · [Roadmap](ROADMAP.md)
 
 ![Local SPACEFORTRESS hex colony with original alien crew, an isometric habitat and closed detail drawers](docs/images/spacefortress-hex.png)
 
-**The game is still in development.** The current build has one colony floor and fixed orbital destinations. Long-lived staffed outposts, connected vertical decks, a generated universe/history and much of the wider simulation remain unfinished. The [implementation status](docs/implementation-status.md) separates working systems from plans.
+**The game is still in development.** The published build has one colony floor and fixed orbital destinations. Local development now supports paid stair construction, supported upper-floor extension and multi-floor saves; the compact floor selector, upstairs inspection and build controls are available locally. Long-lived staffed outposts, complete vertical systems, a generated universe/history and much of the wider simulation remain unfinished. The [implementation status](docs/implementation-status.md) separates working systems from plans.
+
+## Agent entry briefing
+
+Start with [CASTOR.md](CASTOR.md) for the current architecture, version boundaries and focused entry points. The [file map](docs/FILE_MAP.md) provides per-file navigation; the [version ledger](docs/AGENT_VERSIONS.md) preserves release and compatibility distinctions.
+
+## v0.1.5: connected floors and utility systems
+
+Build paid stairs to expand upward, select installed floors with the floor menu or Page Up / Page Down, and carry supplies between them. Stair hatches, damage, repairs and safe removal use shared simulation rules.
+
+Power, gas and water risers now connect matching cables or pipes on adjacent floors. Build both endpoints first, then place the riser on the lower floor: each costs two alloy and eight work. Select either endpoint to isolate the connection, repair it for one alloy, or dismantle it and recover one alloy. Gas and water remain finite; closing a stair hatch does not isolate a riser.
+
+This release also includes accumulated crew-care, inventory, food, suit-supply and airlock recovery fixes. Animals crossing floors, upper-floor airlocks, solar occlusion and the complete upstairs build-and-live journey remain unfinished. See the [roadmap](ROADMAP.md).
+
+## Additional systems fixes in v0.1.5
+
+An [offline waste-containment helper](tools/contain-habitat-waste.mjs) now reproduces normal freight pickup with finite limits and explicit partial results. Its seven focused checks pass; see [usage and limits](docs/sanitation.md#offline-containment-helper).
+
+Ordinary hauling now exposes exact resource transfers in local recordings, including partial deliveries and cargo setdowns. Stable carrier and inventory addresses make these interactions inspectable by future local agents; recording preserves the same simulation results. See the [simulation interface](docs/simulation-interface.md).
+
+Crew can now deliberately release suit oxygen into the sealed room they occupy, through a collapsed **Emergency oxygen** control. The shared player/agent action spends a finite personal reserve, checks room capacity and records who transferred the gas. It can make air oxygen-rich, so the control explains that risk.
+
+Crew seeking air can now walk to local packaged mix when no breathable compartment is reachable, with finite suit refill and explicit supply records. Structured crew observations now report every personal work blocker through the same rules used by job assignment. Workstations distinguish qualified operators from those personally ready for work, with explicit reasons when nobody can start. This exposes fatigue, recovery intentions, low suit air and other constraints for local controllers. Focused suit-recovery checks and combined integration verification are recorded in the verification status. Destroyed biofilter traps now stop using bait and capturing pests until repaired. Capture records include the quarter-food cost. Opened meals now keep the freshness of their remaining food, including after interruptions and save/reload. Production targets also count goods already unloaded at a dock, so supplied outposts avoid unnecessary batches. See the [changelog](CHANGELOG.md) and [verification status](docs/verification-status.md) for details. The published build remains v0.1.4.
+
+Use the floor chip beside the site name, or Page Up / Page Down, to view installed floors. Build a stairwell on a clear habitat floor to reach the next floor; upstairs floor extensions need support directly below. Select either stair landing to control its hatch, repair it, or dismantle and seal it. Repairs cost1 alloy; dismantling costs1 alloy and returns3. Removal leaves both floors and requires clear landings and a remaining route for any crew upstairs. Switching views does not pause offscreen work.
+
+## Latest local evidence: paid supplies and recovery limits
+
+The paid airlock colony has now loaded and unloaded one alloy through ordinary freight work. Its return trial stopped when stored habitat waste caused minor crew injuries. A normal freight pickup subsequently contained all 3.5 waste, removing exposure at tick 1712; the waste and alloy remain physically carried. The return, medical recovery and sustained operation remain unfinished. See the [verification record](docs/verification-status.md) for the preserved failure and bounded containment.
+
+An ordinary orbital salvage trip returned **three components to colony storage**. A continuation then paid for an ice processor, mined **24 ice**, produced **24 water**, and converted **20 water into 200 air**. These runs use the same public controls and physical jobs as player commands.
+
+The second run reached its 800-tick limit with **10.5 water remaining**, but full air recovery failed. Debris had damaged a habitat wall, leaving a leak; tibbles consumed all 13 stored rations. A subsequent paid repair restored the damaged wall to full condition at tick 1942, using one alloy and 15 ticks with everyone healthy.
+
+A further 180-tick run built a paid trap and captured all eight tibbles, including one newborn. Its four harvested food portions were consumed by bait and pest feeding, leaving no food reserve at tick 2122.
+
+A subsequent ordinary livestock collection delivered two curd portions into storage at tick 2167 after 45 ticks, with the original collection policy restored and everyone healthy. Ongoing food supply and full air/suit recovery remain unfinished. See the [verification record](docs/verification-status.md) for evidence and limits. The published build remains v0.1.4.
+
+Recovered gas now stays usable across airlock cycles: refill opens the disabled extractor’s passive store, while extraction remains off. A [finite-pocket regression](tests/airlock-core.test.js) verifies actual gas transfers and closed idle valves. Sixty affected core, integration, hex and commissioning checks pass. The ordinary cargo return and overnight conditioning remain unfinished.
+
+Airlocks also correct release pressure drift caused by normal suit refilling: with everyone inside and both doorways clear, the controller reseals and rematches pressure using finite stored gas. Sixty-four affected checks pass. Two [synthetic cargo scenarios](tests/airlock-freight-integration.test.js) now return the same alloy parcel through outward and inward crossings, with all seven crew healthy and settings restored. The tighter reserve case uses a finite suit oxygen release and a real air delivery. These scenarios establish mechanics; the ordinary colony journey and sustained operation remain unverified.
+
+A bound airlock can now use a gas supply tank instead of a passive reservoir. Crew deliver breathing mix normally, and loading reserves space for recovered chamber gas. A request waiting for empty supply can replenish before the normal admission checks run again. In the [finite loading scenario](tests/airlock-core.test.js), 20 air units load and the request is admitted at tick 58, with all seven crew uninjured. Ninety-nine affected checks pass across focused and distinct integration runs. An additional [fixed-resource repeat check](tests/airlock-freight-integration.test.js) now completes two cargo roundtrips after four air units are natively delivered to the exterior tank: 220 ticks, seven healthy crew home and battery charge 119, with original settings restored. This reaches the first night tick; full-night operation, ongoing production/resupply and ordinary paid installation remain ahead.
+
+A separate paid airlock colony now has a verified finite recovery from tick 1292 to 1372. The [offline helper](tools/paid-air-recovery.mjs) used two water to make 20 air and returned all seven crew home uninjured, with safe habitat and chamber air, ten reachable air and a full battery. Its 14 focused checks pass. The same colony subsequently commissioned its airlock at tick 1400 through the [bounded helper](tools/paid-airlock-commissioning.mjs): 28 ticks and 53 successful actions, with ten air still reachable and the battery at 120. The named cargo journey and sustained habitation remain unfinished.
+
+## Earlier local evidence: finite room and suit reserves
+
+Using the unchanged published v0.1.4 runtime, one reviewed continuation ran **460→951: 491 ticks and four commands**. Twenty-four paid batches, including the previously committed batch, turned 24 water into 240 air. The habitat passed every end-of-tick breathing check through both nights. All seven suits reached 100%; all seven crew and five animals stayed fully healthy.
+
+The endpoint had 100% nominal pressure and **18.003% oxygen at that pressure**, but only **10.5 water and no packaged air** remained. This establishes a finite room/suit reserve under those conditions, not sustained exterior work or an ongoing supply chain. Water replenishment, paid airlock commissioning and the complete ordinary livestock-to-meal journey remain ahead. See [air recovery guidance](docs/atmosphere.md#player-guidance-recovering-finite-air) and the [verification record](docs/verification-status.md). No runtime or version change accompanies this local evidence.
 
 ## v0.1.4: clearer air warnings and bounded recovery
 
@@ -16,7 +66,7 @@ One full local run passed **1,282 checks, zero failures and one intentional skip
 
 A separate paid recovery first stopped at its tick-384 budget after producing ten air without reaching breathable conditions. A reviewed continuation then ran 384→460: 76 ticks and three commands, producing **40 air from four water** and keeping home breathable for 12 consecutive ticks. All seven crew and five animals stayed fully healthy; three checkpoints reopened exactly. The processor was paused with its next paid batch preserved.
 
-The final room held **exactly the minimum 56 oxygen units**, with suit reserves only 76.79–78.49%. This proves bounded recovery, not a durable reserve or sustained exterior work. The original tick-144 livestock stop and tick-384 recovery stop remain recorded; the full ordinary livestock/kitchen chain is still unverified. See [atmosphere](docs/atmosphere.md) and [verification status](docs/verification-status.md). The [v0.1.4 release record](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.4) tracks the final commit, required CI/Pages results and hosted checks; local evidence here does not establish deployment success.
+At the earlier tick-460 stop, the room held **exactly the minimum 56 oxygen units**, with suit reserves only 76.79–78.49%. This proves bounded recovery, not a durable reserve or sustained exterior work. The original tick-144 livestock stop and tick-384 recovery stop remain recorded; the full ordinary livestock/kitchen chain is still unverified. See [atmosphere](docs/atmosphere.md) and [verification status](docs/verification-status.md). The [v0.1.4 release record](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.5) tracks the final commit, required CI/Pages results and hosted checks; local evidence here does not establish deployment success.
 
 ## Published v0.1.3: hex colonies and deeper food chains
 
@@ -38,11 +88,11 @@ The preceding trait build passed **1,210 regression checks, zero failures and on
 
 The preceding cultivation increment completed a fresh-colony planting→watering→harvest cycle at tick 853 using six commands: one gathered fungal-cap portion and one water produced two cultivated portions. All seven crew and five animals stayed healthy, and 24 checkpoints reopened exactly. Its browser checks covered planting/watering cancellation, growing and mature beds, harvest availability and a narrow layout.
 
-Earlier ordinary play built a galley, gathered native caps and cooked two fungal-stew portions, with everyone healthy and four exact reloads. A preserved colony checkpoint has healthy founders, a repaired scrubber and two restored solar arrays. Paid airlock enclosure, commissioning, a parcel roundtrip and long-term food balance remain pending. See the [verification record](docs/verification-status.md) for exact scopes and remaining acceptance work.
+Earlier ordinary play built a galley, gathered native caps and cooked two fungal-stew portions, with everyone healthy and four exact reloads. A preserved colony checkpoint has healthy founders, a repaired scrubber and two restored solar arrays. A separate fresh-colony airlock trial completed paid assembly and sixteen replacement-air batches, returning everyone to safe home air. Debris then damaged the chamber wall. A paid repair restored it, but the crew-return trial exhausted its packaged air and stopped with one engineer still in the chamber; all seven remain uninjured. Commissioning, a parcel roundtrip and long-term food balance remain pending. See the [verification record](docs/verification-status.md) for exact scopes and remaining acceptance work.
 
 An early construction trial exposed air loss during hauling. A continuation delivered all mined ore, sealed the door and restored breathable air; both manufacturers resumed work and all seven crew stayed healthy. A saved continuation met the recovery reserve target. Crew now share breathing air before optional suit charging, with warnings when habitat breathing needs suit reserves. The complete airlock construction journey still needs play testing.
 
-Hex colonies now use save schema 46. Schema-40/41/42/43/44/45 hex saves have explicit migrations preserving existing plants, animals, food, health, ancestry and progress. Balanced livestock traits preserve current rates and temperature ranges; later offspring can inherit stronger expressions. Migration grants no plants, animals, medicine or healing and does not invent old wounds or turn old food into named ingredients. Animals already dead in older saves gain an exhausted legacy record, with no new body or meat. Square saves from schemas 1–39 cannot be loaded into this version; their original contents remain protected and exportable. Continue those colonies with the matching square version. The separate gravity-based elements lab keeps its square grid.
+Version 0.1.5 uses save schema 57; v0.1.4 used schema46. Schema-40/41/42/43/44/45/46/47/48/49/50/51/52/53/54/55/56 hex saves have explicit migrations preserving existing plants, animals, food, health, ancestry and progress. Schema47 adds an explicit landing deck and deck-zero coordinates to tiles, crew, jobs and creatures without changing their existing physical state. Schema48 adds explicit deck-zero shipment sources and pickup/delivery targets while preserving their physical owners and contents. Schema49 extends explicit positions to medical cots, home bunks, crew needs and personal pickup claims. Home ownership stays on the surface while a crew member travels. Schema50 extends positions to animal posts and carcasses on tiles; carried and staged bodies retain their single crew/job owner. Schema51 adds full positions to airlock equipment, chamber cells and traveler reservations without resetting in-progress cycles. Schema52 gives each room an explicit deck while retaining its local cell list. Horizontal gas and heat flow, breathing, equipment heating and room rebuilding distinguish stacked rooms. Schema53 adds deck coordinates to debris forecasts and damage history. Schema54 adds room-purpose anchor decks. Schema55 admits paid stairs and validated multi-floor layouts. Schema57 adds paid utility connections and endpoint ownership, migrating older colonies with empty connection lists and unchanged physical contents. Schema56 adds connection-owned stair repair/removal jobs and preserves upstairs job reservations. Observation/recording schema9 exposes these positions and outpost dock coordinates alongside room decks, and gives pasture regions explicit z and full-position cell lists. Room purpose, occupants, residents, furniture, waste and comfort stay on their actual floor; shelter destinations and outpost readings use full positions. Electrical graphs and breaker branches distinguish stacked decks; ground circuit and tile IDs remain unchanged. Gas pipes, plumbing, pumps, leaks and horizontal floor spills also retain their deck. Fire spread, reactor cooling and debris impacts now resolve the actual deck. Damage history and debris forecasts retain z; unsupported upper-deck fire and service requests report a block instead of issuing work downstairs. Pasture boundaries, mates, birth occupancy, grazing, pest feeding and trap capture/payment use the actual floor. Upper pasture and plant records have distinct IDs; existing ground IDs stay unchanged. Sixteen equipment commands now accept an explicit floor with shared player/agent validation, preserving the existing ground default and device protections. Eleven production, storage, room, housing, maintenance and gate controls also retain the selected floor, including their job/reservation side effects. A 28th action, job.order, now supports supplied basic construction, repair, service and dismantling within an existing declared floor. Workers physically collect and deliver materials on that floor; cancellation retains custody. This is verified in bounded synthetic scenarios. Other work families, animal traversal, upper airlocks, utility risers and solar occlusion remain unfinished. Balanced livestock traits preserve current rates and temperature ranges; later offspring can inherit stronger expressions. Migration grants no plants, animals, medicine or healing and does not invent old wounds or turn old food into named ingredients. Animals already dead in older saves gain an exhausted legacy record, with no new body or meat. Square saves from schemas 1–39 cannot be loaded into this version; their original contents remain protected and exportable. Continue those colonies with the matching square version. The separate gravity-based elements lab keeps its square grid.
 
 ## Earlier v0.1.2: freight and wreck settlement
 
@@ -62,7 +112,7 @@ The hosted game and separate elements lab use the links above. The first online 
 
 ## Play locally
 
-You need **Python 3** and a recent desktop browser with JavaScript and Canvas support. **Node.js 20 or newer** is needed only to run the tests. Linux development currently uses Python 3.12 and Node 20, with scoped Firefox and Chrome browser checks; wider platform/browser coverage is limited.
+You need **Python 3** and a recent desktop browser with JavaScript and Canvas support. **Node.js 20 or newer** is needed for optional simulation examples and tests. Linux development currently uses Python 3.12 and Node 20, with scoped Firefox and Chrome browser checks; wider platform/browser coverage is limited.
 
 Clone the public GitHub repository with:
 
@@ -141,6 +191,76 @@ Optional **Start recording / Export recording** controls export local NDJSON obs
 Use the [online elements lab](https://jaredcastorena.github.io/spacefortress/elements.html), or open **[http://127.0.0.1:8420/elements.html](http://127.0.0.1:8420/elements.html)** after starting the local server, for the separate air/water/fire/vacuum/electricity sandbox. It starts paused; choose a scenario or brush, then **Step** or **Run**. The reactor scenario includes finite fuel, waste heat, radiators and overheat recovery.
 
 The lab has its own state and does not change the colony save. Its cell simulation is separate from the colony's room simulation. [Lab rules and controls](docs/elements-lab.md) explain the differences.
+
+## Local construction example
+
+With Node.js 20 or newer, run a paid construction scenario through the same commands used by local agents:
+
+```sh
+node tools/paid-airlock-example.mjs
+```
+
+It prints a compact JSON result with material, crew, air and power readings. The recorded check built all 22 planned placements by tick 407 using actual mining, hauling and manufacturing; all seven crew remained uninjured. The example stops at construction. Airlock commissioning, passage and sustained habitation remain unfinished.
+
+To export the resulting colony for the game's save import control:
+
+```sh
+node tools/paid-airlock-example.mjs --save colony.json
+```
+
+The [callable example](tools/paid-airlock-example.mjs) also supports optional bounded local recording. Its [focused integration check](tests/paid-airlock-example.test.js) verifies delivered construction materials, typed work and recipes, exact save import, crew health and command ownership.
+
+## Recover air in an existing colony
+
+The [offline recovery helper](tools/paid-air-recovery.mjs) uses shared crew, production and hauling commands. It requires a canonical current save with seven healthy surface crew, the existing paused atmosphere processor at 13,9 with an empty committed batch, habitat at 10,11, chamber at 10,13 and battery at 13,7. Production and hauling need enabled, qualified crew. Use Node.js 20 or newer; no packages need installing.
+
+```sh
+node tools/paid-air-recovery.mjs --input existing-colony.json --save recovered-colony.json --record recovery.jsonl
+```
+
+The input, output and recording paths must be distinct. Default limits are 180 added ticks, 230 shared action attempts, 35 other commands and six new batches (at most six water into 60 air). Lower them with `--ticks`, `--attempts`, `--commands` or `--batches`. The helper orders one batch at a time and waits for physical delivery. Success restores its temporary crew routines and requires all seven healthy crew home, a clear chamber and boundary doors, safe habitat and chamber air, at least five reachable air units, the original battery exactly full, and a paused processor with an empty batch and no operating job.
+
+The callable API is `recoverPaidAir(state, { processor, habitat, chamber, bank, limits, record })`; geometry options are coordinate pairs. It returns `{ state, summary, actions, recording? }` and advances the supplied state through the shared dispatcher. Each action entry records the tick after its command finishes; the recording retains the request and resulting ticks. Recording is optional. CLI exit codes are 0 for recovery, 1 for a simulation stop and 2 for invalid input or CLI errors. A stopped run exports its exact state, including temporary crew routines; inspect its summary before resuming.
+
+The [14 focused checks](tests/paid-air-recovery.test.js) use labeled synthetic fixtures. Separately, one preserved colony recovered from tick 1292 to 1372 using two water to produce 20 air, with 96 successful actions including 80 full ticks. All seven crew returned home uninjured; ten air units remained reachable and the battery held 120. Independent gas-family, water and energy accounting closed within 1e-8. Airlock commissioning, cargo passage and sustained habitation remain pending; see [verification status](docs/verification-status.md).
+
+## Produce one finite air batch
+
+The [one-batch helper](tools/paid-air-batch.mjs) orders exactly one paid water-to-air batch and waits for native hauling. It targets the existing layout with seven healthy crew home, a paused empty processor, no pending batches/jobs/carry and an idle owned airlock with closed doors. A completed previous order is accepted. The chamber may remain at vacuum and the battery may finish below full.
+
+```sh
+node tools/paid-air-batch.mjs --input existing-colony.json --output-dir air-batch-run --ticks 30 --commands 20 --attempts 50
+```
+
+The output directory must be new. It receives the canonical input, exact endpoint, summary, action trace and local recording. Defaults allow at most 180 ticks, 35 commands and 230 attempts; limits can only be lowered. The callable is `runPaidAirBatch(state, { processor, delivery, habitat, chamber, bank, limits })`. Success requires ten air physically delivered, a paused empty processor, seven healthy crew home with no jobs, restored routines and the original assembly. A first stop preserves paid work, carried goods and temporary routines; inspect the summary and continue through ordinary controls. Exit codes are 0 for delivery, 1 for a simulation stop and 2 for a CLI error.
+
+[Six focused mechanics cases](tests/paid-air-batch.test.js) cover finite payment/delivery, an owned vacuum chamber, first stops, exhausted orders, canonical replay and CLI exports. One actual continuation from tick 1400 stopped at its 30-tick cap: one water produced ten air, with six carried and four still at the processor. All seven crew were healthy and home; battery charge was 14. The enabled farm also completed a one-water batch and retained another committed batch. Delivery, routine restoration and night management remain unfinished; see [verification status](docs/verification-status.md).
+
+## Finish paid delivery and recover through daylight
+
+The [night-recovery helper](tools/paid-night-recovery.mjs) finishes the existing ten-air shipment, rests the crew through finite night standby and restores daytime controls. It also accepts the exact supported daytime state with delivery complete, crew resting, farm and scrubber paused, and an enabled idle controller. Resuming that state reports zero newly delivered air. Native work-readiness and airlock admission thresholds stay unchanged.
+
+```sh
+node tools/paid-night-recovery.mjs --input existing-colony.json --output-dir daylight-run --ticks 150 --commands 20 --attempts 175
+```
+
+The helper stops at the first success or failure and preserves its canonical endpoint, shared actions and recording in a new directory. It restores the scrubber first and the farm last, preserving the committed farm batch. [Six focused cases](tests/paid-night-recovery.test.js) cover delivery, cold chambers, native rest, exact daytime continuation, rejected profiles, limits and CLI exports.
+
+The paid colony delivered all ten air at tick 1442 and survived the remaining night. Its first continuation stopped at tick 1565 when an off-duty crew member reached 24.99 energy; that exposed an overbroad helper fatigue check. After correcting the check's phase, one continuation from that exact save succeeded at tick 1620: 55 ticks and nine commands, seven healthy crew home, battery 120, breathable habitat and empty vacuum chamber at 5.010°C. Farm, scrubber and balanced routines were restored; 612 contiguous records reconstructed the final observation exactly. This establishes finite recovery; sustained overnight conditioning and ordinary cargo endurance remain unfinished.
+
+## Commission the existing paid airlock
+
+The local [commissioning helper](tools/paid-airlock-commissioning.mjs) targets the existing paid-example layout after crew and air recovery. It temporarily pauses the scrubber, isolates the empty chamber, captures its finite gas into the existing network, binds the controller, and restores crew labors/routines, the farm and scrubber through shared controls.
+
+```sh
+node tools/paid-airlock-commissioning.mjs --input existing-colony.json --save commissioned-colony.json --record commissioning.jsonl
+```
+
+Default caps are 47 full ticks, 90 shared action attempts, 35 other commands and 47 active gas ticks. `--ticks`, `--attempts`, `--commands` and `--gasTicks` can lower these limits. Input, output and recording paths must be distinct. The callable API is `commissionPaidAirlock(state, { limits, record })`; `commissioningStatus(state)` reports detached readiness without advancing the simulation.
+
+Success requires the configured, owned idle controller, closed intact doors, chamber pressure at most one, a source-safe refill mixture and habitat, seven healthy crew home, a clear chamber and boundary doors, at least five reachable air units, battery charge exactly 120, powered restored equipment/routines and no jobs. A first failure preserves the exact stopped state, including a paused scrubber or partially recovered gas; inspect the summary before resuming. Exit codes follow the recovery helper: 0 success, 1 simulation stop, 2 invalid input or CLI error.
+
+The [ten focused synthetic checks](tests/paid-airlock-commissioning.test.js) pass, including a normal wildlife birth during gas recovery. Separately, one preserved colony commissioned from tick 1372 to 1400 in 28 full ticks and 25 other commands. Its 430 recording entries are contiguous; independent gas-family and per-site energy accounting closed exactly, and the saved endpoint reloads without changes. All seven crew were healthy and home, ten air remained reachable, and the original battery held 120. Traveler passage, a cargo round trip and sustained habitation remain unproved.
 
 ## Development and tests
 

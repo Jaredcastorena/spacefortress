@@ -138,7 +138,7 @@ test('provisions count only reachable local unpromised owners, never remote stor
   assert.ok(codes(inspect(f)).includes('food_reserve_low')); assert.ok(codes(inspect(f)).includes('air_reserve_low'));
   f.dock.imports = { food: 4, air: 10 };
   assert.equal(inspect(f).ready, true);
-  f.crew[0].intent = { type: 'haul', source: 'imports', target: [4, 11], items: { food: 1 }, destination: { kind: 'stock', target: [7, 7] } };
+  f.crew[0].intent = { type: 'haul', source: 'imports', target: { x: 4, y: 11, z: 0 }, items: { food: 1 }, destination: { kind: 'stock', target: { x: 7, y: 7, z: 0 } } };
   assert.equal(inspect(f).provisions.available.food, 3);
   assert.ok(codes(inspect(f)).includes('food_reserve_low'));
   f.crew[0].intent = null; f.dock.imports.air = 5; f.scrubber.machine.input.air = 5;

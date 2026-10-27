@@ -4,14 +4,20 @@
 
 `Verified` means the stated scoped check has evidence. `Pending` means the release check has not yet been accepted. Historical results do not substitute for current release verification.
 
+## v0.1.5 — connected floors and utilities
+
+Release scope: accumulated systems fixes, paid stairs, floor selection, shared stair maintenance and finite power/gas/water risers. Save schema57 migrates hex schemas40–56. Focused utility and compatibility checks pass after documented repairs; the release workflow runs syntax, full Node and Python checks before deploying Pages. The release record links the final source commit, workflow and deployed manifest.
+
+The full upstairs build-and-live journey, animal traversal, upper airlocks, solar occlusion and ordinary outpost endurance remain pending. Publication does not establish those outcomes.
+
 ## v0.1.4 — air diagnostics and paused import
 
 Updated October 9, 2026. This patch release explains the first failed breathing limit, distinguishes oxygen concentration from oxygen at the room's pressure, and preserves the actual selected speed when importing a save. The warning uses the existing hidden inspector; local-agent observations expose the same derived status. Save schema 46, gas quantities, thresholds and breathing behavior are unchanged.
 
 | Release check | Status | Evidence / remaining work |
 | --- | --- | --- |
-| Local behavior and integration | Verified — scoped | Core 25 and seven initial panel checks passed. One full local Node run passed **1,282 checks, zero failures and one intentional historical skip**, with 242 held inputs stable (`a4ea5b39`). The later presentation-only change passed seven affected panel checks (`1984284b`); the full suite was not repeated for that change. |
-| Paused import and warning | Verified — bounded local browser | Importing the original tick-144 checkpoint while paused retained its 02:24 clock. The inspector showed 20.7% concentration, 15.85% oxygen at current pressure and the shared low-oxygen reason in a readable full-width explanation. Browser `31a67d6b`, screenshot `05ba8827`. |
+| Local behavior and integration | Verified — scoped | Core 25 and seven initial panel checks passed. One full local Node run passed **1,282 checks, zero failures and one intentional historical skip**, with 242 held inputs stable. The later presentation-only change passed seven affected panel checks; the full suite was not repeated for that change. |
+| Paused import and warning | Verified — bounded local browser | Importing the original tick-144 checkpoint while paused retained its 02:24 clock. The inspector showed 20.7% concentration, 15.85% oxygen at current pressure and the shared low-oxygen reason in a readable full-width explanation. |
 | Finite recovery | Verified — bounded only | Earlier tick-144 unsafe-home and tick-384 recovery-budget stops are preserved. The reviewed 384→460 continuation used 76 ticks/three commands, produced 40 air from four water and reached 12 consecutive breathable ticks. All seven crew/five animals stayed fully healthy; three reloads were exact. |
 | Remaining reserves and gameplay | Pending — endurance | Room oxygen ended at exactly its 56-unit minimum, suits at 76.79–78.49%, with the next paid processor batch preserved. Durable room/suit reserves, sustained exterior work, paid airlock commissioning/parcel travel and the complete ordinary livestock/kitchen chain remain unverified. |
 | Save and dependency scope | Unchanged | Schema 46 remains current; the patch adds no saved gas/resources, new gameplay action, dependency or runtime service. Square schemas 1–39 still require a matching older build, with original bytes protected for export. |

@@ -55,13 +55,13 @@ class PagesBuildTests(unittest.TestCase):
 
     def test_stages_only_public_allowlist_and_version(self):
         private_files = {
-            "AGENTS.md": "operator instructions",
-            "stigmergicmemory.md": "private continuity",
+            "PROJECT_NOTES.md": "non-game documentation",
+            "NOTES.md": "non-game notes",
             ".env": "SECRET=value",
             "README.md": "documentation",
             "tools/serve.py": "private tool",
             "tests/fixture.json": "private fixture",
-            "docs/handoffs/private.md": "private handoff",
+            "docs/internal/example.md": "non-game documentation",
             "src/settings.json": '{"private": true}',
             "src/.operator.js": "throw new Error('private')",
             "src/private.js": "export const privateValue = true;",

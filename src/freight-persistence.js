@@ -1,3 +1,4 @@
+import {tileAt} from './spatial.js';
 import { RESOURCES } from './data.js';
 import { validFoodLots } from './food-lots.js';
 import { validItemLots } from './item-lots.js';
@@ -8,11 +9,11 @@ export const FREIGHT_SOURCE_KIND = 'freight';
 export const FREIGHT_WORK = 3;
 
 const JOB_FIELDS = Object.freeze([
-  'id', 'site', 'x', 'y', 'kind', 'building', 'cost', 'sources',
+  'id', 'site', 'x', 'y', 'z', 'kind', 'building', 'cost', 'sources',
   'materials', 'work', 'remaining', 'worker', 'priority', 'blockedReason',
   'missingFood', 'foodSpoiled',
 ]);
-const SOURCE_FIELDS = Object.freeze(['x', 'y', 'kind', 'items']);
+const SOURCE_FIELDS = Object.freeze(['x', 'y', 'z', 'kind', 'items']);
 const record = value => value !== null && typeof value === 'object' &&
   [Object.prototype, null].includes(Object.getPrototypeOf(value));
 const exact = (value, fields) => record(value) && Object.keys(value).length === fields.length &&
@@ -81,13 +82,13 @@ function validateSources(state, job, terminal) {
     : new Set([FREIGHT_SOURCE_KIND, 'stock', 'imports', 'drop']);
   const site = state.sites?.[job.site];
   for (const source of job.sources) {
-    if (!exact(source, SOURCE_FIELDS) || !Number.isInteger(source.x) || !Number.isInteger(source.y) ||
+    if (!exact(source, SOURCE_FIELDS) || !tileAt(site,{x:source.x,y:source.y,z:source.z}) || !Number.isInteger(source.x) || !Number.isInteger(source.y) ||
         source.x < 0 || source.y < 0 || source.x >= site.size || source.y >= site.size ||
         !allowed.has(source.kind) || !inventory(source.items) || !Number.isFinite(inventoryQuantity(source.items))) {
       throw new Error('Invalid freight material source.');
     }
     if (source.kind === FREIGHT_SOURCE_KIND &&
-        (job.kind !== 'unloadCargo' || source.x !== terminal.x || source.y !== terminal.y)) {
+        (job.kind !== 'unloadCargo' || source.x !== terminal.x || source.y !== terminal.y || source.z !== (terminal.z??0))) {
       throw new Error('Reserved shuttle freight must belong to the unload terminal.');
     }
   }
@@ -107,7 +108,7 @@ export function validateFreightState(state) {
       }
       continue;
     }
-    if (!exact(job, JOB_FIELDS) || job.building !== null || job.work !== FREIGHT_WORK ||
+    if (!exact(job, JOB_FIELDS) || job.z !== 0 || job.building !== null || job.work !== FREIGHT_WORK ||
         !amount(job.remaining) || job.remaining > FREIGHT_WORK || !requestedResources(job.cost) ||
         !inventory(job.materials)) {
       throw new Error('Invalid freight work order.');

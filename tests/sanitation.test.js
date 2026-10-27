@@ -67,7 +67,7 @@ test('air emergencies interrupt sanitary visits without losing waste, and visits
 });
 
 test('a carried shipment survives the sanitary detour and is delivered afterward', () => {
-  const { s, c, depot, unit } = fixture(); c.sanitation.waste = .5; c.carry = { ore: 3 }; c.delivery = { kind: 'stock', target: [depot.x, depot.y] };
+  const { s, c, depot, unit } = fixture(); c.sanitation.waste = .5; c.carry = { ore: 3 }; c.delivery = { kind: 'stock', target: { x: depot.x, y: depot.y, z: 0 } };
   step(s); assert.equal(c.intent.type, 'sanitation'); assert.deepEqual(c.carry, { ore: 3 }); check(s);
   until(s, () => unit.sanitary.output.waste === .5); assert.deepEqual(c.carry, { ore: 3 }); until(s, () => !c.carry); assert.equal(depot.stock.ore, 3);
 });
@@ -97,7 +97,7 @@ test('room partitions isolate waste exposure; cleaning permits recovery but does
 });
 
 test('bulk waste becomes exposed after hauling while cargo in transit stays sealed', () => {
-  const { s, site, c, depot } = fixture(); c.carry={waste:2};c.delivery={kind:'stock',target:[8,10]};c.x=8;c.y=10;
+  const { s, site, c, depot } = fixture(); c.carry={waste:2};c.delivery={kind:'stock',target: { x: 8, y: 10, z: 0 }};c.x=8;c.y=10;
   const room=roomAt(site,8,10); assert.equal(exposedWaste(s,site,room),0); haul(s,c,site,pathTo); assert.equal(exposedWaste(s,site,room),2); assert.equal(depot.stock.waste,2);
   fillRoom(room,0);refreshAtmosphere(site);updateSanitation(s);assert.equal(c.sanitation.exposure,0); check(s);
 });
@@ -119,5 +119,5 @@ test('legacy square schema 17 is rejected before physical state migration',()=>{
 });
 
 test('invalid needs, tank owners, overfilled tanks and duplicate visits are rejected', () => {
-  for(const change of [f=>f.c.sanitation.waste=-1,f=>f.c.sanitation.wait=120,f=>f.c.sanitation.exposure=101,f=>f.unit.sanitary.output.waste=8.5,f=>f.unit.sanitary.output.food=1,f=>f.unit.building=null,f=>{for(const c of f.s.crew.slice(0,2))c.intent={type:'sanitation',target:[12,10],remaining:3};}]){const f=fixture();change(f);assert.throws(()=>check(f.s));}
+  for(const change of [f=>f.c.sanitation.waste=-1,f=>f.c.sanitation.wait=120,f=>f.c.sanitation.exposure=101,f=>f.unit.sanitary.output.waste=8.5,f=>f.unit.sanitary.output.food=1,f=>f.unit.building=null,f=>{for(const c of f.s.crew.slice(0,2))c.intent={type:'sanitation',target:{ x: 12, y: 10, z: 0 },remaining:3};}]){const f=fixture();change(f);assert.throws(()=>check(f.s));}
 });

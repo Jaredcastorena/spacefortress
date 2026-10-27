@@ -1,3 +1,4 @@
+import { positionOf } from './spatial.js';
 import { FLORA, CULTIVATION } from './flora-data.js';
 import { distance } from './geometry.js';
 import { temperatureAt } from './thermal.js';
@@ -13,10 +14,10 @@ const record = value => !!value&&typeof value==='object'&&!Array.isArray(value);
 const exactKeys = (value,keys) => record(value)&&Object.keys(value).length===keys.length&&keys.every(key=>Object.hasOwn(value,key));
 const close = (a,b) => Math.abs(a-b)<=1e-6+Math.max(Math.abs(a),Math.abs(b))*1e-9;
 const blankLedger = () => Object.fromEntries(ledgerFields.map(field=>[field,0]));
-export const floraId = (siteId,x,y,species) => `flora:${siteId}:${x}:${y}:${species}`;
+export const floraId = (siteId,x,y,species,z=0) => `flora:${siteId}:${x}:${y}:${species}${z===0?'':`:${z}`}`;
 export const floraBiomass = (tile,species='lichen') => tile?.flora?.[species]?.biomass ?? 0;
 export const floraStage = biomass => biomass===0?'bare':biomass<25?'sparse':biomass<70?'growing':biomass<100?'budding':'mature';
-const patchId = (site,tile,species) => floraId(site.id,tile.x,tile.y,species);
+const patchId = (site,tile,species) => floraId(site.id,tile.x,tile.y,species,positionOf(tile).z);
 const patchEntries = tile => Object.entries(tile.flora || {});
 function unsuitable(tile,species){
   if(tile.terrain!=='ground')return {code:'terrain',message:'Native plants need ground.'};
@@ -26,7 +27,7 @@ function unsuitable(tile,species){
 }
 function growthBlock(s,site,tile,species){
   const blocked=unsuitable(tile,species);if(blocked)return blocked;
-  const def=FLORA[species],temp=temperatureAt(site,tile.x,tile.y),[low,high]=def.temperature;
+  const def=FLORA[species],temp=temperatureAt(site,tile.x,tile.y,tile.z),[low,high]=def.temperature;
   if(temp<low||temp>high)return {code:'temperature',message:`Dormant at ${temp.toFixed(1)}°C; grows from ${low} to ${high}°C.`};
   if(def.daylight&&(site.id!=='surface'||s.tick%300>=220))return {code:'darkness',message:'Dormant until daylight.'};
   if(tile.flora?.[species]?.origin==='cultivated'&&tile.flora[species].moisture<=epsilon&&tile.flora[species].biomass<100)return {code:'dry',message:'Dry bed; deliver water to resume growth.'};
@@ -34,7 +35,7 @@ function growthBlock(s,site,tile,species){
 }
 function stageChanged(s,site,tile,species,before,reason,actor=null,job=null){
   const after=floraBiomass(tile,species),previous=floraStage(before),stage=floraStage(after);
-  if(previous!==stage)emitEvent(s,'flora.stage.changed',{entity:patchId(site,tile,species),target:tileEntityId(site.id,tile.x,tile.y),species,generation:tile.flora[species].generation,previous,stage,biomassBefore:before,biomassAfter:after,reason,...(actor?{actor}:{}),...(job?{job}:{})});
+  if(previous!==stage)emitEvent(s,'flora.stage.changed',{entity:patchId(site,tile,species),target:tileEntityId(site.id,tile.x,tile.y,positionOf(tile).z),species,generation:tile.flora[species].generation,previous,stage,biomassBefore:before,biomassAfter:after,reason,...(actor?{actor}:{}),...(job?{job}:{})});
 }
 // Coordinate hashing is independent of the simulation RNG. Distance ranks spread
 // three patches of each edible species near, midway and far from the habitat.
@@ -91,7 +92,7 @@ export function updateFlora(s){
     if(blocked){
       if(patch.origin==='cultivated'){const ledger=site.cultivation[species];ledger.destroyed+=patch.biomass;ledger.returned+=patch.moisture;spill(tile,{water:patch.moisture});}
       delete tile.flora[species];if(!Object.keys(tile.flora).length)delete tile.flora;
-      emitEvent(s,'flora.removed',{entity:patchId(site,tile,species),target:tileEntityId(site.id,tile.x,tile.y),species,generation:patch.generation,origin:patch.origin,biomass:patch.biomass,harvests:patch.harvests,waterReturned:patch.moisture??0,...(patch.origin==='cultivated'?{from:{entity:patchId(site,tile,species),slot:'moisture'},to:{entity:tileEntityId(site.id,tile.x,tile.y),slot:'drop'}}:{}),reason:blocked.code});continue;
+      emitEvent(s,'flora.removed',{entity:patchId(site,tile,species),target:tileEntityId(site.id,tile.x,tile.y,positionOf(tile).z),species,generation:patch.generation,origin:patch.origin,biomass:patch.biomass,harvests:patch.harvests,waterReturned:patch.moisture??0,...(patch.origin==='cultivated'?{from:{entity:patchId(site,tile,species),slot:'moisture'},to:{entity:tileEntityId(site.id,tile.x,tile.y,positionOf(tile).z),slot:'drop'}}:{}),reason:blocked.code});continue;
     }
     const def=FLORA[species];if(s.tick%def.growthEvery!==0||patch.biomass===100||growthBlock(s,site,tile,species))continue;
     const before=patch.biomass;
@@ -100,7 +101,7 @@ export function updateFlora(s){
       const grown=Math.abs(patch.moisture-needed)<1e-12?requested:Math.min(requested,patch.moisture/def.waterPerBiomass),used=grown*def.waterPerBiomass;
       patch.biomass=Math.min(100,before+grown);patch.moisture=Math.max(0,patch.moisture-used);
       const ledger=site.cultivation[species];ledger.grown+=grown;ledger.growthUsed+=used;
-      emitEvent(s,'flora.water.consumed',{entity:patchId(site,tile,species),target:tileEntityId(site.id,tile.x,tile.y),species,generation:patch.generation,amount:used,biomassGrown:grown,biomassBefore:before,biomassAfter:patch.biomass,from:{entity:patchId(site,tile,species),slot:'moisture'},to:'biological_growth'});
+      emitEvent(s,'flora.water.consumed',{entity:patchId(site,tile,species),target:tileEntityId(site.id,tile.x,tile.y,positionOf(tile).z),species,generation:patch.generation,amount:used,biomassGrown:grown,biomassBefore:before,biomassAfter:patch.biomass,from:{entity:patchId(site,tile,species),slot:'moisture'},to:'biological_growth'});
     }else patch.biomass=Math.min(100,before+def.growthAmount);
     stageChanged(s,site,tile,species,before,patch.origin==='cultivated'?'cultivated_growth':'natural_growth');
   }
@@ -141,7 +142,7 @@ export function completeGathering(s,c,j){
   spill(tile,typedFood(def.foodKind,def.yield));patch.biomass=def.harvestRemainder;patch.harvests++;
   if(patch.origin==='cultivated'){const ledger=site.cultivation[species];ledger.harvested+=before-patch.biomass;ledger.harvests++;ledger.foodProduced+=def.yield;}
   stageChanged(s,site,tile,species,before,'harvest',c.id,j.id);
-  emitEvent(s,'flora.harvested',{entity:patchId(site,tile,species),target:tileEntityId(site.id,tile.x,tile.y),species,generation:patch.generation,origin:patch.origin,actor:c.id,job:j.id,foodKind:def.foodKind,output:{food:def.yield},biomassBefore:before,biomassAfter:patch.biomass,harvestsBefore,harvestsAfter:patch.harvests});
+  emitEvent(s,'flora.harvested',{entity:patchId(site,tile,species),target:tileEntityId(site.id,tile.x,tile.y,positionOf(tile).z),species,generation:patch.generation,origin:patch.origin,actor:c.id,job:j.id,foodKind:def.foodKind,output:{food:def.yield},biomassBefore:before,biomassAfter:patch.biomass,harvestsBefore,harvestsAfter:patch.harvests});
   return {ok:true};
 }
 export function plantingEligibility(s,site,tile,species){
@@ -186,7 +187,7 @@ export function completePlanting(s,c,j){
   const {site,tile}=cultivationTarget(s,j),species=j.plantSpecies,ledger=site.cultivation[species];
   tile.flora??={};tile.flora[species]={biomass:CULTIVATION.initialBiomass,harvests:0,origin:'cultivated',generation:j.id,moisture:0};
   ledger.propagules++;ledger.planted+=CULTIVATION.initialBiomass;
-  emitEvent(s,'flora.planted',{entity:patchId(site,tile,species),target:tileEntityId(site.id,tile.x,tile.y),species,generation:j.id,origin:'cultivated',actor:c.id,job:j.id,propaguleFood:CULTIVATION.plantFood,foodKind:species,biomass:CULTIVATION.initialBiomass,moisture:0,from:{entity:j.id,slot:'materials'},to:{entity:patchId(site,tile,species),slot:'biomass'}});
+  emitEvent(s,'flora.planted',{entity:patchId(site,tile,species),target:tileEntityId(site.id,tile.x,tile.y,positionOf(tile).z),species,generation:j.id,origin:'cultivated',actor:c.id,job:j.id,propaguleFood:CULTIVATION.plantFood,foodKind:species,biomass:CULTIVATION.initialBiomass,moisture:0,from:{entity:j.id,slot:'materials'},to:{entity:patchId(site,tile,species),slot:'biomass'}});
   return {ok:true};
 }
 export function completeWatering(s,c,j){
@@ -195,7 +196,7 @@ export function completeWatering(s,c,j){
   const {site,tile}=cultivationTarget(s,j),species=j.plantSpecies,patch=tile.flora[species],ledger=site.cultivation[species];
   const transferred=Math.max(0,Math.min(CULTIVATION.waterDose,CULTIVATION.moistureCapacity-patch.moisture)),returned=CULTIVATION.waterDose-transferred;
   patch.moisture+=transferred;ledger.delivered+=CULTIVATION.waterDose;ledger.returned+=returned;spill(tile,{water:returned});
-  emitEvent(s,'flora.watered',{entity:patchId(site,tile,species),target:tileEntityId(site.id,tile.x,tile.y),species,generation:patch.generation,actor:c.id,job:j.id,paidWater:CULTIVATION.waterDose,amount:transferred,waterReturned:returned,moisture:patch.moisture,from:{entity:j.id,slot:'materials'},to:{entity:patchId(site,tile,species),slot:'moisture'},returnTo:{entity:tileEntityId(site.id,tile.x,tile.y),slot:'drop'}});
+  emitEvent(s,'flora.watered',{entity:patchId(site,tile,species),target:tileEntityId(site.id,tile.x,tile.y,positionOf(tile).z),species,generation:patch.generation,actor:c.id,job:j.id,paidWater:CULTIVATION.waterDose,amount:transferred,waterReturned:returned,moisture:patch.moisture,from:{entity:j.id,slot:'materials'},to:{entity:patchId(site,tile,species),slot:'moisture'},returnTo:{entity:tileEntityId(site.id,tile.x,tile.y,positionOf(tile).z),slot:'drop'}});
   return {ok:true,transferred,returned};
 }
 export function absorbCultivationWater(s,site,tile,maximum){
@@ -205,7 +206,7 @@ export function absorbCultivationWater(s,site,tile,maximum){
   const [species,patch]=entry;if(unsuitable(tile,species))return 0;
   const amount=Math.max(0,Math.min(maximum,tile.liquid||0,CULTIVATION.moistureCapacity-patch.moisture));if(amount<=epsilon)return 0;
   tile.liquid-=amount;patch.moisture+=amount;site.liquids.absorbed+=amount;site.cultivation[species].absorbed+=amount;
-  emitEvent(s,'flora.water.absorbed',{entity:patchId(site,tile,species),target:tileEntityId(site.id,tile.x,tile.y),species,generation:patch.generation,amount,moisture:patch.moisture,from:{entity:tileEntityId(site.id,tile.x,tile.y),slot:'liquid'},to:{entity:patchId(site,tile,species),slot:'moisture'}});
+  emitEvent(s,'flora.water.absorbed',{entity:patchId(site,tile,species),target:tileEntityId(site.id,tile.x,tile.y,positionOf(tile).z),species,generation:patch.generation,amount,moisture:patch.moisture,from:{entity:tileEntityId(site.id,tile.x,tile.y,positionOf(tile).z),slot:'liquid'},to:{entity:patchId(site,tile,species),slot:'moisture'}});
   return amount;
 }
 function validBiomass(species,patch){

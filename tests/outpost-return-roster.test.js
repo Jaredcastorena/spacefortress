@@ -85,7 +85,7 @@ test('one visitor can return only after the omitted visitor is resident; local j
   assert.deepEqual(s, original);
   station(s, [stay.id]);
   stay.job = 'job-700'; stay.carry = { alloy: 2 };
-  stay.delivery = { kind: 'job', job: stay.job, target: [9, 9] };
+  stay.delivery = { kind: 'job', job: stay.job, target: { x: 9, y: 9, z: 0 } };
   s.jobs.push({ id: stay.job, kind: 'build', site: 'wreck', worker: stay.id, materials: {}, sources: [] });
   const before = structuredClone({ person: stay, jobs: s.jobs, residents: s.outposts.wreck.residents });
   assert.equal(setReturnCrew(s, ['crew-4']).ok, true);
@@ -109,8 +109,8 @@ test('resident pickup accepts an injured physical passenger without changing res
 test('removed passengers cannot orphan shuttle cargo or pickup claims', () => {
   for (const carried of [false, true]) {
     const s = field(), stay = crew(s, 'crew-2'); station(s, [stay.id]);
-    if (carried) { stay.carry = { components: 2 }; stay.delivery = { kind: 'shuttle', target: [4, 11] }; }
-    else stay.intent = { type: 'salvage', target: [8, 8], items: { components: 2 } };
+    if (carried) { stay.carry = { components: 2 }; stay.delivery = { kind: 'shuttle', target: { x: 4, y: 11, z: 0 } }; }
+    else stay.intent = { type: 'salvage', target: { x: 8, y: 8, z: 0 }, items: { components: 2 } };
     const before = structuredClone(s);
     assert.equal(setReturnCrew(s, ['crew-4']).code, 'return_cargo_pending');
     assert.deepEqual(s, before);
@@ -142,7 +142,7 @@ test('boarding guards physical site, actual phase and selected passengers withou
   assert.equal(boardShuttle(s, stay, site, pathTo), false); assert.deepEqual(stay, before);
   before = structuredClone(returning);
   assert.equal(boardShuttle(s, returning, s.sites.solar, pathTo), false); assert.deepEqual(returning, before);
-  returning.carry = { alloy: 2 }; returning.delivery = { kind: 'job', job: 'job-700', target: [9, 9] };
+  returning.carry = { alloy: 2 }; returning.delivery = { kind: 'job', job: 'job-700', target: { x: 9, y: 9, z: 0 } };
   before = structuredClone(returning);
   assert.equal(boardShuttle(s, returning, site, pathTo), false);
   assert.equal(haulSalvage(s, returning, site, pathTo), false);
@@ -173,10 +173,10 @@ test('return-route estimates and resume use the return roster instead of needy r
 test('freight and shuttle claims share capacity while local material stays outside the hold', () => {
   const s = field(), first = crew(s), second = crew(s, 'crew-2');
   s.shuttle.freight = { water: 10 }; s.mission.cargo = { ore: 3 };
-  first.carry = { alloy: 4 }; first.delivery = { kind: 'job', job: 'job-700', target: [9, 9] };
-  second.intent = { type: 'salvage', target: [8, 8], items: { components: 2 } };
+  first.carry = { alloy: 4 }; first.delivery = { kind: 'job', job: 'job-700', target: { x: 9, y: 9, z: 0 } };
+  second.intent = { type: 'salvage', target: { x: 8, y: 8, z: 0 }, items: { components: 2 } };
   assert.equal(reservedCargo(s), 2); assert.equal(cargoFree(s), 3);
-  second.carry = { components: 2 }; second.delivery = { kind: 'shuttle', target: [4, 11] };
+  second.carry = { components: 2 }; second.delivery = { kind: 'shuttle', target: { x: 4, y: 11, z: 0 } };
   assert.equal(reservedCargo(s), 2, 'held material must not be added to its stale intent again');
   assert.equal(cargoFree(s), 3);
   const before = structuredClone(first);
@@ -188,7 +188,7 @@ test('local pickup claims and imports cannot be stolen by salvage hauling', () =
   const s = field(), c = crew(s), local = crew(s, 'crew-2'), site = s.sites.wreck;
   at(site, 4, 11).imports = { components: 8 };
   at(site, 6, 10).drop = { components: 2 };
-  local.intent = { type: 'haul', source: 'drop', target: [6, 10], items: { components: 2 }, destination: { kind: 'stock', target: [8, 8] } };
+  local.intent = { type: 'haul', source: 'drop', target: { x: 6, y: 10, z: 0 }, items: { components: 2 }, destination: { kind: 'stock', target: { x: 8, y: 8, z: 0 } } };
   const before = structuredClone(local);
   assert.equal(haulSalvage(s, c, site, pathTo), false);
   assert.equal(c.intent, null); assert.equal(c.carry, null);
@@ -200,7 +200,7 @@ test('local pickup claims and imports cannot be stolen by salvage hauling', () =
 
 test('dock delivery retains freight and physically spills any shipment overflow', () => {
   const s = field(), c = crew(s), site = s.sites.wreck, dock = at(site, 4, 11);
-  c.x = 4; c.y = 11; c.carry = { components: 3 }; c.delivery = { kind: 'shuttle', target: [4, 11] };
+  c.x = 4; c.y = 11; c.carry = { components: 3 }; c.delivery = { kind: 'shuttle', target: { x: 4, y: 11, z: 0 } };
   s.shuttle.freight = { water: 17 };
   const before = totalResources(s);
   assert.equal(haulSalvage(s, c, site, pathTo), true);

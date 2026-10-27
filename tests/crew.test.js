@@ -8,13 +8,13 @@ import { createGame, step, order, at, serialize, deserialize, setLabor, setJobPr
 test('exhausted crew keep their bunk until recovered instead of resuming at the first threshold', () => {
   const s = createGame(), c = s.crew[0]; c.energy = 20;
   step(s, 20); assert.equal(c.intent.type, 'rest'); assert.ok(c.energy > 25 && c.energy < 85); assert.equal(c.job, null);
-  assert.equal(at(s.sites.surface, ...c.intent.target).building, 'bunk');
+  assert.equal(at(s.sites.surface, c.intent.target.x, c.intent.target.y).building, 'bunk');
   step(s, 75); assert.equal(c.intent, null); assert.ok(c.energy >= 84); assert.ok(c.memories.some(m => m.kind === 'rested'));
 });
 test('seven exhausted crew compete for four bunks, then reuse bunks released by rested crew', () => {
   const s = createGame(); for (const c of s.crew) c.energy = 20;
   step(s, 10);
-  const beds = s.crew.filter(c => c.intent?.target).map(c => c.intent.target.join(','));
+  const beds = s.crew.filter(c => c.intent?.target).map(c => [c.intent.target.x, c.intent.target.y, c.intent.target.z].join(','));
   assert.equal(beds.length, 4); assert.equal(new Set(beds).size, 4);
   assert.equal(s.crew.filter(c => c.memories.some(m => m.kind === 'no-bunk')).length, 3);
   step(s, 180); assert.ok(s.crew.every(c => c.memories.some(m => m.kind === 'rested')));
@@ -24,6 +24,12 @@ test('breathing recovery continues until suit reserves are safe; failed shelter 
   step(s, 15); assert.equal(c.intent.type, 'air'); assert.ok(c.oxygen > 25 && c.oxygen < 90);
   step(s, 40); assert.notEqual(c.intent?.type, 'air'); assert.ok(c.oxygen >= 90);
   at(s.sites.surface, 9, 6).building = null; updateRooms(s.sites.surface); s.sites.surface.rooms.forEach(r => fillRoom(r, 0)); refreshAtmosphere(s.sites.surface); c.oxygen = 10;
+  for (const tile of s.sites.surface.tiles) {
+    if (tile.building === 'stockpile') tile.stock.air = 0;
+    if (tile.building === 'dock' && tile.imports) tile.imports.air = 0;
+  }
+  syncResources(s);
+  assert.ok(s.sites.surface.tiles.every(tile => !(tile.building === 'stockpile' && tile.stock?.air > 0) && !(tile.building === 'dock' && tile.hp > 0 && tile.imports?.air > 0)));
   step(s); assert.match(c.activity, /No reachable breathable shelter/);
 });
 test('a meal reserves one ration and finishes over time, without taking another on reload', () => {
@@ -84,7 +90,7 @@ test('current crew reloads, legacy schema labels and corrupt crew state are reje
  const s=createGame(),before=structuredClone(s),copy=deserialize(serialize(s));assert.deepEqual(copy,before);
  const forged=JSON.parse(serialize(s));forged.version=1;const original=JSON.stringify(forged);
  assert.throws(()=>deserialize(original),/Legacy square-grid saves/);assert.equal(JSON.stringify(forged),original);assert.deepEqual(s,before);
-  const bad = createGame(); bad.crew[0].intent = { type: 'rest', target: [900, 0] }; assert.throws(() => deserialize(serialize(bad)));
+  const bad = createGame(); bad.crew[0].intent = { type: 'rest', target: { x: 900, y: 0, z: 0 } }; assert.throws(() => deserialize(serialize(bad)));
   bad.crew[0].intent = null; bad.crew[0].labors.mining = 'yes'; assert.throws(() => deserialize(serialize(bad)));
 });
 test('exhausted crew are not silently conscripted into an expedition', () => {

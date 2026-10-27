@@ -1,6 +1,7 @@
-import { neighbors } from './geometry.js';
-import { crewPathTo, planCrewRoute } from './navigation.js';
-import { advanceCrewRoute } from './crew-traversal.js';
+import { crewPathToPosition as crewPathTo, planCrewRoutePositions as planCrewRoute } from './navigation.js';
+import { advanceCrewRoutePositions as advanceCrewRoute } from './crew-traversal.js';
+import { shipmentPosition } from './shipment-locations.js';
+import { tileAt, cellKey, horizontalNeighbors } from './spatial.js';
 import { freightReserved } from './freight.js';
 import { emitEvent, emitItemMovement, tileEntityId } from './telemetry.js';
 import { fitAmount, validItemLots, itemOwners } from './item-lots.js';
@@ -22,7 +23,7 @@ export function initializeShuttle(s) {
 export const routeTime = (s, siteId) => SITES[siteId].travel + SHUTTLE_FITS[s.mission?.site === siteId ? s.mission.fit : s.shuttle.fit].travel;
 export const routeFuel = (s, siteId) => Math.max(1, SITES[siteId].fuel + SHUTTLE_FITS[s.shuttle.fit].fuel);
 export const dockAt = site => site.tiles.find(t => t.building === 'dock' && t.hp > 0);
-const xy = t => [t.x, t.y];
+const xy = shipmentPosition;
 // Call only when creating a mission or deliberately migrating an older save.
 // Current-schema validation never repairs a missing roster.
 export function initializeReturnCrew(m) {
@@ -113,10 +114,10 @@ export function haulSalvage(s, c, site, pathTo) {
     }
   }
   if (c.intent?.type !== 'salvage') return false;
-  const intent = c.intent, tile = site.tiles[intent.target[1] * site.size + intent.target[0]];
+  const intent = c.intent, tile = tileAt(site,intent.target);
   if (!tile.drop || !contains(tile.drop, intent.items)) { c.intent = null; return true; }
   const result = move(s, c, site, intent.target, pathTo); c.activity = 'Collecting salvage for shuttle';
-  if (result === 'arrived') { c.carry = extract(tile.drop, intent.items);emitItemMovement(s,c.carry,c.id,{entity:tileEntityId(site.id,...intent.target),slot:'drop'},{entity:c.id,slot:'carry'});emitEvent(s,'expedition.salvage.picked_up',{...context(s),actor:c.id,cargo:c.carry,from:{entity:tileEntityId(site.id,...intent.target),slot:'drop'},to:{entity:c.id,slot:'carry'},reason:'reserved_pickup'}); c.delivery = { kind: 'shuttle', target: xy(dock) }; c.intent = null; if (!quantity(tile.drop)) tile.drop = null; }
+  if (result === 'arrived') { c.carry = extract(tile.drop, intent.items);emitItemMovement(s,c.carry,c.id,{entity:tileEntityId(site.id,intent.target.x,intent.target.y),slot:'drop'},{entity:c.id,slot:'carry'});emitEvent(s,'expedition.salvage.picked_up',{...context(s),actor:c.id,cargo:c.carry,from:{entity:tileEntityId(site.id,intent.target.x,intent.target.y),slot:'drop'},to:{entity:c.id,slot:'carry'},reason:'reserved_pickup'}); c.delivery = { kind: 'shuttle', target: xy(dock) }; c.intent = null; if (!quantity(tile.drop)) tile.drop = null; }
   else if (result === 'blocked') { c.intent = null; c.activity = 'Salvage route blocked'; }
   return true;
 }
@@ -142,7 +143,7 @@ export function returnWalk(s, pathTo) {
     if (!immobile(c)) return distance * (impaired(c) || c.rescue?.carrying ? 2 : 1);
     if (!distance) return 0;
     const helpers = team.filter(other => other.id !== c.id && !impaired(other) && other.labors.medicine);
-    const approach = Math.min(Infinity, ...helpers.map(other => planCrewRoute(s, site, other, neighbors(c.x, c.y))?.cost ?? Infinity));
+    const approach = Math.min(Infinity, ...helpers.map(other => planCrewRoute(s, site, other, horizontalNeighbors(shipmentPosition(c)))?.cost ?? Infinity));
     return approach + distance * 2 + 3;
   }));
 }
@@ -166,7 +167,7 @@ export function validateShuttle(s) {
   for (const j of s.jobs) if (j.kind === 'refit' && (j.site !== 'surface' || s.sites.surface.tiles[j.y * s.sites.surface.size + j.x].building !== 'shuttle' || !fits.includes(j.building) || j.building === shuttle.fit || s.mission || s.departure || quantity(freight) > SHUTTLE_FITS[j.building].capacity + 1e-8)) throw new Error('Invalid shuttle fitting order.');
   const claimed = new Set();
   for (const c of s.crew) if (c.intent?.type === 'salvage') {
-    const tile = s.sites[c.site].tiles[c.intent.target[1] * s.sites[c.site].size + c.intent.target[0]], id = `${c.site}/${c.intent.target.join(',')}`;
+    const tile = tileAt(s.sites[c.site],c.intent.target), id = `${c.site}/${cellKey(c.intent.target)}`;
     if (claimed.has(id) || !tile.drop || !contains(tile.drop, c.intent.items)) throw new Error('Invalid or duplicate salvage reservation.');
     claimed.add(id);
   }

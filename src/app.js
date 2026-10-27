@@ -1,3 +1,6 @@
+import {utilityDetails} from './utility-links.js';
+import { createDeckView, stairDetails, floorWarnings } from './deck-view.js';
+import { sameCell, positionOf } from './spatial.js';
 import { freightDetails, residentDetails, returnManifestDetails, residenceLabel, outpostGuide, outpostWarning, localDepotStock } from './outpost-panels.js';
 import { residentIds } from './outposts.js';
 import { expeditionCandidates } from './expedition-readiness.js';
@@ -30,7 +33,8 @@ import { thermalDetails, climateDetails } from './thermal-panels.js';
 
 import { BUILDINGS, SITES, RESOURCES, SPECIES } from './data.js';
 import { createGame, step, deserialize, at, inside, roomAt, isDay, pathTo } from './simulation.js';
-import { crewDetails, jobDetails } from './crew-panels.js';
+import { crewDetails, jobDetails, suitReleaseDetails, suitReleaseFormAction, createSuitReleaseView } from './crew-panels.js';
+import { suitReleaseStatus } from './suit-release-status.js';
 import { constructionResources, reservedAt, siteWorkAllowed } from './construction.js';
 import { quantity } from './inventory.js';
 import { storageDetails, inventoryText } from './industry-panels.js';
@@ -57,8 +61,21 @@ const { loadFreight, unloadFreight, setReturnCrew, setOutpostResidents, setBreak
 window.spacefortress = createAgentInterface(()=>state,()=>setSpeed(0),()=>refresh());
 const renderer = new Renderer($('world')); renderer.center();
 let toastTimer, inspectorKey = null, inspectorPress = null, warningPress = null;
+let inspectorView = null;
+const deckView = createDeckView(() => state.sites[siteId], () => {
+  selected = null; renderer.selection = null; renderer.hover = null; pointer = null;
+  inspectorPress = null; inspectorKey = null;
+  if ($('inspector').contains(document.activeElement)) document.activeElement.blur();
+});
+function setFloor(z) { if (deckView.select(z)) { $('floor-menu').open = false; refresh(); } }
+$('floor-list').onclick = e => { const button=e.target.closest('[data-floor]'); if(button)setFloor(Number(button.dataset.floor)); };
+function inspectTile(site, x, y, z=0) {
+  setSite(site); if(!deckView.select(z))return;
+  selected={site,x,y,z}; renderer.selection=selected; openDrawer('right','inspect'); refresh();
+}
 const airlockDrafts = new Map();
-const airlockDraftKey = () => selected && !selected.crew ? tileEntityId(siteId,selected.x,selected.y) : null;
+const suitReleaseView = createSuitReleaseView();
+const airlockDraftKey = () => selected && !selected.crew ? tileEntityId(siteId,selected.x,selected.y,selected.z) : null;
 // Keep a pressed control alive until its click dispatches, even if a tick refreshes the UI.
 $('inspector').addEventListener('pointerdown', e => {
   if(e.button===0&&e.target.closest?.('button, input, select, summary'))inspectorPress={pointerId:e.pointerId};
@@ -72,7 +89,7 @@ window.addEventListener('pointerup',finishInspectorPress);
 window.addEventListener('pointercancel',finishInspectorPress);
 window.addEventListener('blur',finishInspectorPress);
 $('environment').addEventListener('pointerdown', e => {
-  if(e.button===0&&e.target.closest?.('[data-outpost-warning]')) warningPress={pointerId:e.pointerId};
+  if(e.button===0&&e.target.closest?.('[data-outpost-warning], [data-inspect-tile]')) warningPress={pointerId:e.pointerId};
 });
 function finishWarningPress(e) {
   const press=warningPress; if(!press||(e.pointerId!==undefined&&e.pointerId!==press.pointerId)) return;
@@ -109,7 +126,7 @@ $('close-left').onclick = () => closeDrawer('left');
 $('close-right').onclick = () => closeDrawer('right');
 $('events-menu').onclick = () => { const open = $('event-log').classList.toggle('open'); $('events-menu').classList.toggle('active', open); $('events-menu').setAttribute('aria-expanded', open); };
 $('settings-menu').onclick = () => document.querySelector('.file-actions').classList.toggle('open');
-function setMode(value, type = null) { mode = value; building = type; document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === value)); document.querySelectorAll('[data-building]').forEach(b => b.classList.toggle('active', b.dataset.building === type)); $('map-tip').textContent = value === 'build' ? `${BUILDINGS[type].name}: click a tile to designate · Esc to inspect` : value === 'inspect' ? 'Select a tile to inspect · Drag to pan · Scroll to zoom' : `Click a tile to ${value === 'mine' ? 'extract material' : value === 'remove' ? 'dismantle' : 'repair'} · Esc to inspect`; }
+function setMode(value, type = null) { mode = value; building = type; document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === value)); document.querySelectorAll('[data-building]').forEach(b => b.classList.toggle('active', b.dataset.building === type)); $('map-tip').textContent = value === 'build' ? `${BUILDINGS[type].name}: click a tile to designate · Esc to inspect` : value === 'inspect' ? 'Select a tile · Page Up / Down: floor · Drag to pan · Scroll to zoom' : `Click a tile to ${value === 'mine' ? 'extract material' : value === 'remove' ? 'dismantle' : 'repair'} · Esc to inspect`; }
 let manifestState=null;const manifestDrafts=new Map();
 function manifestDraft(destination){
   if(manifestState!==state){manifestDrafts.clear();manifestState=state;}
@@ -131,9 +148,9 @@ function returnDraft() {
   return returnDraftIds;
 }
 function inspectSite(id) { setSite(id); openDrawer('right', 'inspect'); refresh(); }
-$('environment').addEventListener('click', e => { const warning = e.target.closest('[data-outpost-warning]'); if (warning) inspectSite(warning.dataset.outpostWarning); });
-function setSite(id) { siteId = id; selected = null; renderer.selection = null; renderer.hover = null; renderer.center(); setMode('inspect'); closeDrawer('left'); closeDrawer('right'); if (!['surface', 'universe'].includes(id) && !(id === 'wreck' && state.outposts.wreck.established)) openDrawer('right', 'inspect'); refresh(); }
-const icons = { airlockController:'⇄', breaker:'⊣', waterPipe:'╪',waterReservoir:'▰',waterPump:'➜',waterIntake:'↧',waterOutlet:'↥', gasExtractor:'⇣',gasReservoir:'▰',gasPipe:'╋',gasTank:'◉',gasPump:'➜',gasVent:'≋', waterTank:'◒',bilgePump:'↥', reactor:'◉',radiator:'▤', fence: '▥', pastureGate: '▯', husbandryPost: '♧', galley: '♨', iceProcessor: '❄', artisan: '⚒', sculpture: '◇', holo: '✧', sanitary: '▣', recycler: '♲', medicalCot: '▱', medlab: '⚕', commons: '♧', cable: '⌁', floor: '◇', wall: '▥', door: '▣', bunk: '▰', solar: '▦', battery: '▤', scrubber: '▥', farm: '♧', refinery: '▧', advanced: '✧', stockpile: '▨', trap: '◈' };
+$('environment').addEventListener('click', e => { const tile=e.target.closest('[data-inspect-tile]'); if(tile){inspectTile(tile.dataset.site,+tile.dataset.x,+tile.dataset.y,+tile.dataset.z);return;} const warning = e.target.closest('[data-outpost-warning], [data-inspect-tile]'); if (warning) inspectSite(warning.dataset.outpostWarning); });
+function setSite(id) { siteId = id; deckView.reset(); $('floor-menu').open=false; selected = null; renderer.selection = null; renderer.hover = null; renderer.center(); setMode('inspect'); closeDrawer('left'); closeDrawer('right'); if (!['surface', 'universe'].includes(id) && !(id === 'wreck' && state.outposts.wreck.established)) openDrawer('right', 'inspect'); refresh(); }
+const icons = { powerRiser:'↯',gasRiser:'↟',waterRiser:'↥',stairwell:'⇧', airlockController:'⇄', breaker:'⊣', waterPipe:'╪',waterReservoir:'▰',waterPump:'➜',waterIntake:'↧',waterOutlet:'↥', gasExtractor:'⇣',gasReservoir:'▰',gasPipe:'╋',gasTank:'◉',gasPump:'➜',gasVent:'≋', waterTank:'◒',bilgePump:'↥', reactor:'◉',radiator:'▤', fence: '▥', pastureGate: '▯', husbandryPost: '♧', galley: '♨', iceProcessor: '❄', artisan: '⚒', sculpture: '◇', holo: '✧', sanitary: '▣', recycler: '♲', medicalCot: '▱', medlab: '⚕', commons: '♧', cable: '⌁', floor: '◇', wall: '▥', door: '▣', bunk: '▰', solar: '▦', battery: '▤', scrubber: '▥', farm: '♧', refinery: '▧', advanced: '✧', stockpile: '▨', trap: '◈' };
 $('build-menu').innerHTML = Object.entries(BUILDINGS).map(([id, b]) => `<button class="build-option" data-building="${id}" title="${esc(b.description)}"><span class="build-icon">${icons[id] || '⚙'}</span><span><span class="build-name">${b.name}</span><small>${Object.entries(b.cost).map(([r, n]) => `${n} ${r}`).join(' · ')}</small></span></button>`).join('');
 function buildBlock() {
   if (!['surface','wreck'].includes(siteId)) return 'Choose the surface or Relay K-07 for construction.';
@@ -175,15 +192,17 @@ let importSpeed = speed;
 $('import').onclick = () => { importSpeed = speed; setSpeed(0); $('save-file').click(); };
 $('save-file').addEventListener('cancel', () => setSpeed(importSpeed));
 $('save-file').onchange = async e => { const restoreSpeed = importSpeed, file = e.target.files[0]; if (!file) { setSpeed(restoreSpeed); return; } try { if (file.size > 5_000_000) throw new Error('Save is too large.'); const imported = deserialize(await file.text()); state = imported; lastSave = state.tick; accumulator = 0; setSite('surface'); if (save(true, true)) toast('Colony restored.'); } catch (error) { toast(`Could not import: ${error.message}`, true); } finally { e.target.value = ''; setSpeed(restoreSpeed); } };
-$('crew-list').onclick = e => { const row = e.target.closest('[data-crew]'); if (!row) return; const c = state.crew.find(c => c.id === row.dataset.crew); setMode('inspect'); if (c.site !== 'transit' && c.site !== siteId) setSite(c.site); selected = { crew: c.id }; renderer.selection = selected; openDrawer('right', 'inspect'); refresh(); };
+$('crew-list').onclick = e => { const row = e.target.closest('[data-crew]'); if (!row) return; const c = state.crew.find(c => c.id === row.dataset.crew); setMode('inspect'); if (c.site !== 'transit') { if(c.site !== siteId)setSite(c.site); deckView.select(c.z ?? 0); } selected = { crew: c.id }; renderer.selection = selected; openDrawer('right', 'inspect'); refresh(); };
+$('inspector').addEventListener('focusin', () => suitReleaseView.remember($('inspector'), document.activeElement));
 $('inspector').addEventListener('input', e => {
+  if (e.target.closest('[data-suit-release-form]')) { suitReleaseView.remember($('inspector'), document.activeElement); return; }
   const airlockForm=e.target.closest('[data-airlock-form]');
   if(airlockForm) {
     const key=airlockDraftKey(),draft=airlockDrafts.get(key)||{};
     for(const field of airlockForm.elements)if(field.name)draft[field.name]=field.type==='checkbox'?field.checked:field.value;
     airlockDrafts.set(key,draft);
     if(airlockForm.dataset.airlockForm==='release') {
-      const a=airlockStatus(state,state.sites[siteId],at(state.sites[siteId],selected.x,selected.y)),opposite=a?.doors[draft.side==='inner'?'outer':'inner'];
+      const a=airlockStatus(state,state.sites[siteId],at(state.sites[siteId],selected.x,selected.y,selected.z)),opposite=a?.doors[draft.side==='inner'?'outer':'inner'];
       const guarded=!opposite?.intact||opposite.open;
       airlockForm.querySelector('button[type="submit"]').disabled=guarded;
       const hint=airlockForm.querySelector('[data-airlock-release-guard]');if(hint)hint.hidden=!guarded;
@@ -195,6 +214,16 @@ $('inspector').addEventListener('input', e => {
   draft.resource = form.elements['freight-resource'].value; draft.amount = form.elements['freight-amount'].value;
 });
 $('inspector').onsubmit = e => {
+  if (!deckView.matches(inspectorView) || !$('inspector').contains(e.target)) { e.preventDefault(); return; }
+  const suitForm = e.target.closest('[data-suit-release-form]');
+  if (suitForm) {
+    e.preventDefault();
+    suitReleaseView.remember($('inspector'), document.activeElement);
+    const request = suitReleaseFormAction(suitForm.dataset.crew, suitForm.elements.points.value);
+    if (!request) { toast('Enter a whole number of suit points from 1 to 100.', true); return; }
+    const r = executeAction(state, request.id, request.args, 'player');
+    result(r, 'Suit oxygen released into the current room.'); return;
+  }
   const airlockForm=e.target.closest('[data-airlock-form]');
   if(airlockForm&&selected&&!selected.crew) {
     e.preventDefault(); const values={};
@@ -215,36 +244,40 @@ $('inspector').onsubmit = e => {
     document.activeElement.blur(); refresh(); return;
   }
   const gasForm=e.target.closest('[data-gas-form]');
-  if(gasForm&&selected){e.preventDefault();const target=Number(gasForm.elements['gas-target'].value),t=at(state.sites[siteId],selected.x,selected.y);document.activeElement.blur();result(t.building==='gasExtractor'?setGasExtractor(state,siteId,t.x,t.y,t.gasDevice.enabled,t.gasDevice.mode,target):setGasDevice(state,siteId,t.x,t.y,t.gasDevice.enabled,'ne',target),'Pressure target updated.');return;}
+  if(gasForm&&selected){e.preventDefault();const target=Number(gasForm.elements['gas-target'].value),t=at(state.sites[siteId],selected.x,selected.y,selected.z);document.activeElement.blur();result(t.building==='gasExtractor'?setGasExtractor(state,siteId,t.x,t.y,t.gasDevice.enabled,t.gasDevice.mode,target, selected.z):setGasDevice(state,siteId,t.x,t.y,t.gasDevice.enabled,'ne',target, selected.z),'Pressure target updated.');return;}
   const reactorForm=e.target.closest('[data-reactor-form]');
-  if(reactorForm&&selected){e.preventDefault();const percent=Number(reactorForm.elements['reactor-output'].value),t=at(state.sites[siteId],selected.x,selected.y);document.activeElement.blur();result(setReactor(state,siteId,t.x,t.y,percent,t.machine.enabled),'Reactor output updated.');return;}
+  if(reactorForm&&selected){e.preventDefault();const percent=Number(reactorForm.elements['reactor-output'].value),t=at(state.sites[siteId],selected.x,selected.y,selected.z);document.activeElement.blur();result(setReactor(state,siteId,t.x,t.y,percent,t.machine.enabled, selected.z),'Reactor output updated.');return;}
   const climateForm = e.target.closest('[data-climate-form]');
-  if (climateForm && selected) { e.preventDefault(); const target = Number(climateForm.elements['climate-target'].value), t = at(state.sites[siteId], selected.x, selected.y); document.activeElement.blur(); result(setClimate(state, siteId, t.x, t.y, target, t.climate.enabled), 'Temperature target updated.'); return; }
+  if (climateForm && selected) { e.preventDefault(); const target = Number(climateForm.elements['climate-target'].value), t = at(state.sites[siteId], selected.x, selected.y, selected.z); document.activeElement.blur(); result(setClimate(state, siteId, t.x, t.y, target, t.climate.enabled, selected.z), 'Temperature target updated.'); return; }
   const recipeForm=e.target.closest('[data-recipe-form]');
-  if(recipeForm&&selected&&!selected.crew){e.preventDefault();const recipe=recipeForm.elements['production-recipe'].value;document.activeElement.blur();result(setProductionRecipe(state,siteId,selected.x,selected.y,recipe),'Next production recipe updated.');return;}
+  if(recipeForm&&selected&&!selected.crew){e.preventDefault();const recipe=recipeForm.elements['production-recipe'].value;document.activeElement.blur();result(setProductionRecipe(state,siteId,selected.x,selected.y,recipe, selected.z),'Next production recipe updated.');return;}
   const form = e.target.closest('[data-production-form]'); if (!form || !selected) return;
   e.preventDefault(); const mode = form.elements['production-mode'].value, limit = Number(form.elements['production-limit'].value);
-  document.activeElement.blur(); result(setProductionOrder(state, siteId, selected.x, selected.y, mode, limit), 'Production order updated.');
+  document.activeElement.blur(); result(setProductionOrder(state, siteId, selected.x, selected.y, mode, limit, selected.z), 'Production order updated.');
 };
 $('inspector').onclick = e => {
-  const button = e.target.closest('[data-action]'); if (!button) return;
+  const button = e.target.closest('[data-action]'); if (!button || !$('inspector').contains(button) || !deckView.matches(inspectorView)) return;
   const action = button.dataset.action;
+  if(['stair-repair','stair-remove'].includes(action)&&selected&&!selected.crew){result(order(state,siteId,selected.x,selected.y,action==='stair-repair'?'repair':'remove',null,selected.z),'Stairwell work designated.');return;}
+  if(action==='utility-toggle'){result(executeAction(state,'utility.configure',{site:siteId,connection:button.dataset.connection,enabled:button.dataset.enabled==='true'},'player'));return;}
+  if(['utility-repair','utility-remove'].includes(action)&&selected&&!selected.crew){result(order(state,siteId,selected.x,selected.y,action==='utility-repair'?'repair':'remove',button.dataset.building,selected.z),'Riser work designated.');return;}
+  if(action==='stair-hatch'){result(executeAction(state,'vertical.hatch',{site:siteId,connection:button.dataset.connection,mode:button.dataset.hatchMode},'player'));return;}
   if(action==='animal-treat'){result(setAnimalTreatment(state,button.dataset.animal),'Veterinary treatment ordered. A medic must deliver medicine and work at the post.');return;}
   if(['animal-dispatch','animal-butcher','animal-discard'].includes(action)){
     const id=({'animal-dispatch':'husbandry.dispatch','animal-butcher':'husbandry.butcher','animal-discard':'husbandry.discard'})[action],args={creature:button.dataset.animal};
     if(action==='animal-butcher'){args.x=Number(button.dataset.x);args.y=Number(button.dataset.y);}
     result(executeAction(state,id,args,'player'),action==='animal-dispatch'?'Slaughter ordered. A handler must finish physical work before this animal dies.':action==='animal-butcher'?'Butchery ordered. A handler must retrieve, carry and process the body.':'Disposal ordered. A handler must work at the spoiled body.');return;
   }
-  if(action==='gather'&&selected&&!selected.crew){result(order(state,siteId,selected.x,selected.y,'gather',button.dataset.species),'Gathering designated. A worker must reach and harvest the plant.');return;}
-  if(['plant','waterPlant'].includes(action)&&selected&&!selected.crew){result(order(state,siteId,selected.x,selected.y,action,button.dataset.species),action==='plant'?'Planting designated. A Production worker must deliver matching raw food and plant the bed.':'Watering designated. A Production worker must deliver water and tend the bed.');return;}
+  if(action==='gather'&&selected&&!selected.crew){result(order(state,siteId,selected.x,selected.y,'gather',button.dataset.species, selected.z),'Gathering designated. A worker must reach and harvest the plant.');return;}
+  if(['plant','waterPlant'].includes(action)&&selected&&!selected.crew){result(order(state,siteId,selected.x,selected.y,action,button.dataset.species, selected.z),action==='plant'?'Planting designated. A Production worker must deliver matching raw food and plant the bed.':'Watering designated. A Production worker must deliver water and tend the bed.');return;}
   if(['airlock-enable','airlock-cancel','airlock-unbind'].includes(action)&&selected&&!selected.crew) {
-    const target={site:siteId,x:selected.x,y:selected.y},t=at(state.sites[siteId],selected.x,selected.y);
+    const target={site:siteId,x:selected.x,y:selected.y},t=at(state.sites[siteId],selected.x,selected.y,selected.z);
     const args=action==='airlock-enable'?{...target,enabled:!t.airlock?.enabled}:action==='airlock-cancel'?{...target,crew:button.dataset.crew}:target;
     const r=executeAction(state,action.replace('airlock-','airlock.'),args,'player');
     if(r.ok&&action==='airlock-unbind')airlockDrafts.delete(airlockDraftKey());
     result(r);return;
   }
-  if (action === 'inspect-outpost-tile') { setSite(button.dataset.site); selected={site:siteId,x:Number(button.dataset.x),y:Number(button.dataset.y)}; renderer.selection=selected; openDrawer('right','inspect'); refresh(); return; }
+  if (action === 'inspect-outpost-tile') { inspectTile(button.dataset.site,+button.dataset.x,+button.dataset.y,Number(button.dataset.z||0)); return; }
   if (action === 'inspect-site') { inspectSite(button.dataset.site); return; }
   if (action === 'freight-draft-remove') { delete freightDraft(button.dataset.site,button.dataset.operation).items[button.dataset.resource]; refresh(); return; }
   if (action === 'freight-load' || action === 'freight-unload') {
@@ -264,34 +297,34 @@ $('inspector').onclick = e => {
     const r = setOutpostResidents(state,button.dataset.site,ids.includes(crew) ? ids.filter(id=>id!==crew) : [...ids,crew]);
     if (r.ok) returnDraftDirty = false; result(r,'Residence updated. Check the return team before recall.'); return;
   }
-  if(['breaker-toggle','breaker-direction','breaker-mode'].includes(action)&&selected){const t=at(state.sites[siteId],selected.x,selected.y),p=t.protection;result(setBreaker(state,siteId,t.x,t.y,action==='breaker-toggle'?!p.enabled:false,action==='breaker-direction'?button.dataset.direction:p.direction,action==='breaker-mode'?button.dataset.breakerMode:p.mode));}
-  if(action==='breaker-reset'&&selected)result(resetBreaker(state,siteId,selected.x,selected.y));
-  if(action==='plumbing-valve'&&selected){const t=at(state.sites[siteId],selected.x,selected.y);result(setWaterValve(state,siteId,t.x,t.y,!waterNode(t).open));}
-  if(['plumbing-toggle','plumbing-direction','plumbing-mode'].includes(action)&&selected){const t=at(state.sites[siteId],selected.x,selected.y),d=t.waterDevice,enabled=action==='plumbing-toggle'?!d.enabled:d.enabled,direction=action==='plumbing-direction'?button.dataset.direction:d.direction,mode=action==='plumbing-mode'?button.dataset.waterMode:d.mode;const configure=t.building==='waterPump'?setWaterPump:t.building==='waterIntake'?setWaterIntake:setWaterOutlet;result(configure(state,siteId,t.x,t.y,enabled,direction,mode));}
-  if(['repairWaterPipe','removeWaterPipe'].includes(action)&&selected)result(order(state,siteId,selected.x,selected.y,action),'Water pipe work designated.');
-  if(action==='gas-valve'&&selected){const t=at(state.sites[siteId],selected.x,selected.y);result(setGasValve(state,siteId,t.x,t.y,!gasNode(t).open));}
-  if(['gas-toggle','gas-direction'].includes(action)&&selected){const t=at(state.sites[siteId],selected.x,selected.y),d=t.gasDevice;result(setGasDevice(state,siteId,t.x,t.y,action==='gas-toggle'?!d.enabled:d.enabled,action==='gas-direction'?button.dataset.direction:(d.direction||'ne'),d.target??100));}
-  if(['gas-extractor-toggle','gas-extractor-mode'].includes(action)&&selected){const t=at(state.sites[siteId],selected.x,selected.y),d=t.gasDevice;result(setGasExtractor(state,siteId,t.x,t.y,action==='gas-extractor-toggle'?!d.enabled:d.enabled,action==='gas-extractor-mode'?button.dataset.mode:d.mode,d.target));}
-  if(['repairPipe','removePipe'].includes(action)&&selected)result(order(state,siteId,selected.x,selected.y,action),'Pipe work designated.');
+  if(['breaker-toggle','breaker-direction','breaker-mode'].includes(action)&&selected){const t=at(state.sites[siteId],selected.x,selected.y,selected.z),p=t.protection;result(setBreaker(state,siteId,t.x,t.y,action==='breaker-toggle'?!p.enabled:false,action==='breaker-direction'?button.dataset.direction:p.direction,action==='breaker-mode'?button.dataset.breakerMode:p.mode, selected.z));}
+  if(action==='breaker-reset'&&selected)result(resetBreaker(state,siteId,selected.x,selected.y, selected.z));
+  if(action==='plumbing-valve'&&selected){const t=at(state.sites[siteId],selected.x,selected.y,selected.z);result(setWaterValve(state,siteId,t.x,t.y,!waterNode(t).open, selected.z));}
+  if(['plumbing-toggle','plumbing-direction','plumbing-mode'].includes(action)&&selected){const t=at(state.sites[siteId],selected.x,selected.y,selected.z),d=t.waterDevice,enabled=action==='plumbing-toggle'?!d.enabled:d.enabled,direction=action==='plumbing-direction'?button.dataset.direction:d.direction,mode=action==='plumbing-mode'?button.dataset.waterMode:d.mode;const configure=t.building==='waterPump'?setWaterPump:t.building==='waterIntake'?setWaterIntake:setWaterOutlet;result(t.building==='waterPump'?setWaterPump(state,siteId,t.x,t.y,enabled,direction,selected.z):configure(state,siteId,t.x,t.y,enabled,direction,mode,selected.z));}
+  if(['repairWaterPipe','removeWaterPipe'].includes(action)&&selected)result(order(state,siteId,selected.x,selected.y,action, undefined, selected.z),'Water pipe work designated.');
+  if(action==='gas-valve'&&selected){const t=at(state.sites[siteId],selected.x,selected.y,selected.z);result(setGasValve(state,siteId,t.x,t.y,!gasNode(t).open, selected.z));}
+  if(['gas-toggle','gas-direction'].includes(action)&&selected){const t=at(state.sites[siteId],selected.x,selected.y,selected.z),d=t.gasDevice;result(setGasDevice(state,siteId,t.x,t.y,action==='gas-toggle'?!d.enabled:d.enabled,action==='gas-direction'?button.dataset.direction:(d.direction||'ne'),d.target??100, selected.z));}
+  if(['gas-extractor-toggle','gas-extractor-mode'].includes(action)&&selected){const t=at(state.sites[siteId],selected.x,selected.y,selected.z),d=t.gasDevice;result(setGasExtractor(state,siteId,t.x,t.y,action==='gas-extractor-toggle'?!d.enabled:d.enabled,action==='gas-extractor-mode'?button.dataset.mode:d.mode,d.target, selected.z));}
+  if(['repairPipe','removePipe'].includes(action)&&selected)result(order(state,siteId,selected.x,selected.y,action, undefined, selected.z),'Pipe work designated.');
   if(action==='animal-assign')result(setAnimalPost(state,button.dataset.animal,Number(button.dataset.x),Number(button.dataset.y)));
   if(action==='animal-release')result(setAnimalPost(state,button.dataset.animal,null,null));
   if(action==='fire-response'){const current=state.sites[button.dataset.site];result(setFireResponse(state,current.id,!current.fireSafety.automatic));}
-  if(action==='fire-suppress'&&selected)result(order(state,siteId,selected.x,selected.y,'extinguish'));
+  if(action==='fire-suppress'&&selected)result(order(state,siteId,selected.x,selected.y,'extinguish', undefined, selected.z));
   if(action==='animal-transport')result(transportAnimalToPost(state,button.dataset.animal,+button.dataset.x,+button.dataset.y));
   if(action==='animal-breed'){const a=state.creatures.find(a=>a.id===button.dataset.animal);result(setBreeding(state,a.id,!a.lifecycle.enabled));}
   if(action==='animal-policy'){const a=state.creatures.find(a=>a.id===button.dataset.animal);result(setAnimalPolicy(state,a.id,button.dataset.policy,!a.husbandry[button.dataset.policy]));}
   if(action==='possession-policy'){const c=state.crew.find(c=>c.id===button.dataset.crew);result(setPossessionCollection(state,c.id,!c.possessions.collect));}
   if(action==='possession-release')result(releasePossession(state,button.dataset.crew));
-  if (action === 'bunk-owner' && selected) result(setBunkOwner(state, siteId, selected.x, selected.y, button.dataset.owner || null));
-  if (action === 'room-role' && selected) result(setRoomDesignation(state, siteId, selected.x, selected.y, button.dataset.role));
-  if(['tank-fill','tank-drain'].includes(action)&&selected){const t=at(state.sites[siteId],selected.x,selected.y);result(setTank(state,siteId,t.x,t.y,action==='tank-fill'?!t.machine.enabled:t.machine.enabled,action==='tank-drain'?!t.tank.drain:t.tank.drain));}
-  if(action==='reactor-toggle'&&selected){const t=at(state.sites[siteId],selected.x,selected.y);result(setReactor(state,siteId,t.x,t.y,t.reactor.output,!t.machine.enabled));}
-  if(action==='reactor-reset'&&selected)result(resetReactor(state,siteId,selected.x,selected.y));
-  if(action==='radiator-toggle'&&selected){const t=at(state.sites[siteId],selected.x,selected.y);result(setRadiator(state,siteId,t.x,t.y,!t.radiator.enabled));}
-  if (action === 'climate-toggle' && selected) { const t = at(state.sites[siteId], selected.x, selected.y); result(setClimate(state, siteId, t.x, t.y, t.climate.target, !t.climate.enabled)); }
-  if (action === 'depot-filter' && selected) { const t = at(state.sites[siteId], selected.x, selected.y); result(setDepotAccepted(state, siteId, t.x, t.y, button.dataset.resource, !t.storage.accepted.includes(button.dataset.resource))); }
-  if (action === 'depot-priority' && selected) result(setDepotPriority(state, siteId, selected.x, selected.y, Number(button.dataset.priority)));
-  if (action === 'production-priority' && selected) result(setProductionPriority(state, siteId, selected.x, selected.y, Number(button.dataset.priority)));
+  if (action === 'bunk-owner' && selected) result(setBunkOwner(state, siteId, selected.x, selected.y, button.dataset.owner || null, selected.z));
+  if (action === 'room-role' && selected) result(setRoomDesignation(state, siteId, selected.x, selected.y, button.dataset.role, selected.z));
+  if(['tank-fill','tank-drain'].includes(action)&&selected){const t=at(state.sites[siteId],selected.x,selected.y,selected.z);result(setTank(state,siteId,t.x,t.y,action==='tank-fill'?!t.machine.enabled:t.machine.enabled,action==='tank-drain'?!t.tank.drain:t.tank.drain, selected.z));}
+  if(action==='reactor-toggle'&&selected){const t=at(state.sites[siteId],selected.x,selected.y,selected.z);result(setReactor(state,siteId,t.x,t.y,t.reactor.output,!t.machine.enabled, selected.z));}
+  if(action==='reactor-reset'&&selected)result(resetReactor(state,siteId,selected.x,selected.y, selected.z));
+  if(action==='radiator-toggle'&&selected){const t=at(state.sites[siteId],selected.x,selected.y,selected.z);result(setRadiator(state,siteId,t.x,t.y,!t.radiator.enabled, selected.z));}
+  if (action === 'climate-toggle' && selected) { const t = at(state.sites[siteId], selected.x, selected.y, selected.z); result(setClimate(state, siteId, t.x, t.y, t.climate.target, !t.climate.enabled, selected.z)); }
+  if (action === 'depot-filter' && selected) { const t = at(state.sites[siteId], selected.x, selected.y, selected.z); result(setDepotAccepted(state, siteId, t.x, t.y, button.dataset.resource, !t.storage.accepted.includes(button.dataset.resource), selected.z)); }
+  if (action === 'depot-priority' && selected) result(setDepotPriority(state, siteId, selected.x, selected.y, Number(button.dataset.priority), selected.z));
+  if (action === 'production-priority' && selected) result(setProductionPriority(state, siteId, selected.x, selected.y, Number(button.dataset.priority), selected.z));
   if(action==='expedition-crew'&&!state.departure&&!state.mission){const ids=manifestDraft(siteId),id=button.dataset.crew,index=ids.indexOf(id);if(index>=0)ids.splice(index,1);else if(ids.length<2&&expeditionCandidates(state).some(c=>c.id===id&&c.eligible))ids.push(id);refresh();}
   if (action === 'launch') result(launch(state, siteId, [...manifestDraft(siteId)]), 'Departure planned. Haulers will load supplies, then crew will board.');
   if (action === 'recall') result(recall(state), 'Recall ordered. Crew will return to the shuttle before departure.');
@@ -301,37 +334,37 @@ $('inspector').onclick = e => {
   if (action === 'refit') result(order(state, 'surface', 16, 11, 'refit', button.dataset.fit), 'Shuttle refit designated. Engineers will deliver its materials.');
   if (action === 'resume-expedition') result(resumeExpedition(state), 'Field work resumed. Watch crew safety margins.');
   if (action === 'cargo-policy') result(setCargoAccepted(state, button.dataset.resource, !state.shuttle.accepted.includes(button.dataset.resource)));
-  if (action === 'auto-service' && selected) { const t = at(state.sites[siteId], selected.x, selected.y); result(setAutoService(state, siteId, t.x, t.y, !t.maintenance.auto)); }
-  if (['service', 'repair-structure'].includes(action) && selected) result(order(state, siteId, selected.x, selected.y, action === 'service' ? 'service' : 'repair'), 'Engineering work designated.');
-  if (action === 'inspect-maintenance') { setSite('surface'); selected = { x: Number(button.dataset.x), y: Number(button.dataset.y), site: 'surface' }; renderer.selection = selected; openDrawer('right', 'inspect'); refresh(); }
-  if (action === 'bank-cell' && selected && siteId === 'surface') result(dischargeCell(state, selected.x, selected.y), 'Power cell loaded into this bank.');
-  if (action === 'power-priority' && selected) result(setPowerPriority(state, siteId, selected.x, selected.y, Number(button.dataset.priority)));
-  if (action === 'cable-toggle' && selected) { const t = at(state.sites[siteId], selected.x, selected.y); result(setCableEnabled(state, siteId, t.x, t.y, !t.cable.enabled)); }
-  if (['repairCable', 'removeCable'].includes(action) && selected) result(order(state, siteId, selected.x, selected.y, action), 'Cable work designated.');
+  if (action === 'auto-service' && selected) { const t = at(state.sites[siteId], selected.x, selected.y, selected.z); result(setAutoService(state, siteId, t.x, t.y, !t.maintenance.auto, selected.z)); }
+  if (['service', 'repair-structure'].includes(action) && selected) result(order(state, siteId, selected.x, selected.y, action === 'service' ? 'service' : 'repair', undefined, selected.z), 'Engineering work designated.');
+  if (action === 'inspect-maintenance') { inspectTile('surface',+button.dataset.x,+button.dataset.y,Number(button.dataset.z||0)); return; }
+  if (action === 'bank-cell' && selected && siteId === 'surface' && selected.z === 0) result(dischargeCell(state, selected.x, selected.y), 'Power cell loaded into this bank.');
+  if (action === 'power-priority' && selected) result(setPowerPriority(state, siteId, selected.x, selected.y, Number(button.dataset.priority), selected.z));
+  if (action === 'cable-toggle' && selected) { const t = at(state.sites[siteId], selected.x, selected.y, selected.z); result(setCableEnabled(state, siteId, t.x, t.y, !t.cable.enabled, selected.z)); }
+  if (['repairCable', 'removeCable'].includes(action) && selected) result(order(state, siteId, selected.x, selected.y, action, undefined, selected.z), 'Cable work designated.');
   if (action === 'decode' || action === 'isolate') result(resolveSignal(state, action === 'decode'), 'Signal report recorded.');
   if (action === 'cancel') { cancelJob(state, button.dataset.job); toast('Order cancelled. Supplies remain at their current locations.'); refresh(); }
   if (action === 'life-policy') result(setLifePolicy(state, button.dataset.crew, button.dataset.policy));
   if (action === 'labor') { const c = state.crew.find(c => c.id === button.dataset.crew); result(setLabor(state, c.id, button.dataset.labor, !c.labors[button.dataset.labor])); }
   if (action === 'priority') result(setJobPriority(state, button.dataset.job, Number(button.dataset.priority)));
-  if (action === 'pasture-gate' && selected) result(setPastureGate(state, siteId, selected.x, selected.y, button.dataset.gateMode));
-  if (action === 'door' && selected) result(setDoorMode(state, siteId, selected.x, selected.y, button.dataset.doorMode));
-  if (action === 'machine' && selected) { const t = at(state.sites[siteId], selected.x, selected.y); result(setMachineEnabled(state, siteId, t.x, t.y, !t.machine.enabled)); }
+  if (action === 'pasture-gate' && selected) result(setPastureGate(state, siteId, selected.x, selected.y, button.dataset.gateMode, selected.z));
+  if (action === 'door' && selected) result(setDoorMode(state, siteId, selected.x, selected.y, button.dataset.doorMode, selected.z));
+  if (action === 'machine' && selected) { const t = at(state.sites[siteId], selected.x, selected.y, selected.z); result(setMachineEnabled(state, siteId, t.x, t.y, !t.machine.enabled, selected.z)); }
   if (action === 'clear') { selected = null; renderer.selection = null; if (siteId === 'surface') closeDrawer('right'); refresh(); }
-  if (action === 'extract') result(order(state, siteId, selected.x, selected.y, 'mine'), 'Extraction designated.');
+  if (action === 'extract') result(order(state, siteId, selected.x, selected.y, 'mine', undefined, selected.z), 'Extraction designated.');
 };
 let pointer = null;
-$('world').addEventListener('pointerdown', e => { $('world').focus(); pointer = { x: e.offsetX, y: e.offsetY, lastX: e.offsetX, lastY: e.offsetY, moved: false, button: e.button }; $('world').setPointerCapture(e.pointerId); });
+$('world').addEventListener('pointerdown', e => { $('world').focus(); pointer = { x: e.offsetX, y: e.offsetY, lastX: e.offsetX, lastY: e.offsetY, moved: false, button: e.button, view: deckView.capture() }; $('world').setPointerCapture(e.pointerId); });
 $('world').addEventListener('pointermove', e => {
   if (pointer) { const dx = e.offsetX - pointer.lastX, dy = e.offsetY - pointer.lastY; if (Math.abs(e.offsetX - pointer.x) + Math.abs(e.offsetY - pointer.y) > 5) pointer.moved = true; if (pointer.moved) { renderer.pan.x += dx; renderer.pan.y += dy; } pointer.lastX = e.offsetX; pointer.lastY = e.offsetY; }
-  if (siteId !== 'universe') renderer.hover = renderer.screenToTile(e.offsetX, e.offsetY, state.sites[siteId]);
+  if (siteId !== 'universe') renderer.hover = renderer.screenToTile(e.offsetX, e.offsetY, state.sites[siteId], deckView.z);
 });
 $('world').addEventListener('pointerup', e => {
-  if (!pointer) return; const click = !pointer.moved && pointer.button === 0; pointer = null;
+  if (!pointer) return; const click = !pointer.moved && pointer.button === 0 && deckView.matches(pointer.view); pointer = null;
   if (!click) return;
   if (siteId === 'universe') { const n = renderer.regionNodes().find(n => Math.hypot(n.x - e.offsetX, n.y - e.offsetY) < 65); if (n) setSite(n.id); return; }
-  const pos = renderer.screenToTile(e.offsetX, e.offsetY, state.sites[siteId]); if (!pos) return;
+  const pos = renderer.screenToTile(e.offsetX, e.offsetY, state.sites[siteId], deckView.z); if (!pos) return;
   selected = { ...pos, site: siteId }; renderer.selection = selected;
-  if (mode !== 'inspect') result(order(state, siteId, pos.x, pos.y, mode, building), 'Work designated.');
+  if (mode !== 'inspect') result(order(state, siteId, pos.x, pos.y, mode, building, pos.z), 'Work designated.');
   else openDrawer('right', 'inspect');
   refresh();
 });
@@ -342,8 +375,9 @@ $('world').addEventListener('wheel', e => { e.preventDefault(); renderer.zoom = 
 document.addEventListener('keydown', e => {
   if (document.querySelector('dialog[open]') || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
   if (e.code === 'Space' && document.activeElement.tagName !== 'BUTTON') { e.preventDefault(); setSpeed(speed ? 0 : previousSpeed); }
-  if (e.key === 'Escape') { selected = null; renderer.selection = null; setMode('inspect'); closeDrawer('left'); closeDrawer('right'); $('event-log').classList.remove('open'); document.querySelector('.file-actions').classList.remove('open'); refresh(); }
+  if (e.key === 'Escape') { selected = null; renderer.selection = null; setMode('inspect'); closeDrawer('left'); closeDrawer('right'); $('event-log').classList.remove('open'); document.querySelector('.file-actions').classList.remove('open'); $('floor-menu').open=false; refresh(); }
   if (['1', '2', '3', '4'].includes(e.key)) setMode({ 1: 'inspect', 2: 'mine', 3: 'repair', 4: 'remove' }[e.key]);
+  if (e.key === 'PageUp' || e.key === 'PageDown') { e.preventDefault(); if(deckView.step(e.key==='PageUp'?1:-1)) { $('floor-menu').open=false; refresh(); } }
   if (e.key === 'Home') { e.preventDefault(); renderer.center(); }
   const pan = { ArrowUp: [0, 30], ArrowDown: [0, -30], ArrowLeft: [30, 0], ArrowRight: [-30, 0] }[e.key];
   if (pan) { e.preventDefault(); renderer.pan.x += pan[0]; renderer.pan.y += pan[1]; }
@@ -353,34 +387,43 @@ function meter(value, label) { return `<div class="stat-card"><strong class="${v
 function inspector() {
   if (selected?.crew) {
     const c = state.crew.find(c => c.id === selected.crew);
-    return crewDetails(c, SITES[c.site]?.name || 'In transit', state.crew, c.site === 'transit' ? 20 : temperatureAt(state.sites[c.site], c.x, c.y), state.jobs.filter(j => j.patient === c.id), state.tick, residenceLabel(state,c)+crewHousingDetails(state, c, pathTo)+possessionDetails(c,state.crew)+foodDetails(c.medical.openedFood,c.site==='transit'?20:temperatureAt(state.sites[c.site],c.x,c.y),'Bedside ration')+foodDetails(c.intent?.openedFood,c.site==='transit'?20:temperatureAt(state.sites[c.site],c.x,c.y),'Opened ration')+state.creatures.filter(a=>a.death?.owner?.kind==='crew'&&a.death.owner.crew===c.id).map(a=>animalButcheryDetails(state,a)).join(''), c.site === 'surface' || c.site === 'wreck' && residentIds(state,'wreck').includes(c.id));
+    return crewDetails(c, SITES[c.site]?.name || 'In transit', state.crew, c.site === 'transit' ? 20 : temperatureAt(state.sites[c.site],c.x,c.y,c.z), state.jobs.filter(j => j.patient === c.id), state.tick, residenceLabel(state,c)+crewHousingDetails(state, c, pathTo)+possessionDetails(c,state.crew)+foodDetails(c.medical.openedFood,c.site==='transit'?20:temperatureAt(state.sites[c.site],c.x,c.y,c.z),'Bedside ration')+foodDetails(c.intent?.openedFood,c.site==='transit'?20:temperatureAt(state.sites[c.site],c.x,c.y,c.z),'Opened ration')+state.creatures.filter(a=>a.death?.owner?.kind==='crew'&&a.death.owner.crew===c.id).map(a=>animalButcheryDetails(state,a)).join(''), c.site === 'surface' || c.site === 'wreck' && residentIds(state,'wreck').includes(c.id), suitReleaseDetails(c, suitReleaseStatus(state, c.id), suitReleaseView.draft(c.id)));
   }
   if (mode === 'build') {
-    const b = BUILDINGS[building], supplies = constructionResources(state,siteId); return `<div class="eyebrow">${esc(SITES[siteId].name)} · CONSTRUCTION ORDER</div><h2>${b.name}</h2><p>${b.description}</p><dl>${Object.entries(b.cost).map(([r, n]) => `<dt>${r}</dt><dd>${n} / ${Math.floor(supplies[r])} in stock or loose</dd>`).join('')}</dl><p>${building === 'cable' ? 'Cables can run beneath existing structures.' : ['gasPipe','waterPipe'].includes(building) ? 'Pipes can run beneath existing structures and beside cables. Pipe equipment has its own ports and occupies a clear tile.' : 'Click a clear tile.'} Crew reserve reachable supplies, carry them to the site, then build.</p>`;
+    const b = BUILDINGS[building], supplies = constructionResources(state,siteId); return `<div class="eyebrow">${esc(SITES[siteId].name)} · FLOOR ${deckView.z} · CONSTRUCTION ORDER</div><h2>${b.name}</h2><p>${b.description}</p><dl>${Object.entries(b.cost).map(([r, n]) => `<dt>${r}</dt><dd>${n} / ${Math.floor(supplies[r])} in stock or loose</dd>`).join('')}</dl><p>${building === 'cable' ? 'Cables can run beneath existing structures.' : ['gasPipe','waterPipe'].includes(building) ? 'Pipes can run beneath existing structures and beside cables. Pipe equipment has its own ports and occupies a clear tile.' : 'Click a clear tile.'} Crew reserve reachable supplies, carry them to the site, then build.</p>`;
   }
   if (selected && selected.site === siteId) {
-    const t = at(state.sites[siteId], selected.x, selected.y), jobs = state.jobs.filter(j => j.site === siteId && j.x === t.x && j.y === t.y), room = roomAt(state.sites[siteId], t.x, t.y);
+    const t = at(state.sites[siteId], selected.x, selected.y, selected.z), jobs = state.jobs.filter(j => j.site === siteId && (sameCell(positionOf(j),positionOf(t)) || t.verticalLink && j.connection===t.verticalLink || j.utilityConnection && Object.values(t.risers||{}).includes(j.utilityConnection))), room = roomAt(state.sites[siteId],t.x,t.y,t.z);
     const plants=floraDetails(state,state.sites[siteId],t);
-    const remains=state.creatures.filter(a=>a.health<=0&&a.death?.owner&&(()=>{const p=carcassPosition(state,a);return p?.site===siteId&&p.x===t.x&&p.y===t.y;})()).map(a=>animalButcheryDetails(state,a)).join('');
-    const creature = state.creatures.find(c => c.site === siteId && c.x === t.x && c.y === t.y && (c.health>0||!isLivestock(c)));
+    const remains=state.creatures.filter(a=>a.health<=0&&a.death?.owner&&(()=>{const p=carcassPosition(state,a);return p?.site===siteId&&sameCell(p,positionOf(t));})()).map(a=>animalButcheryDetails(state,a)).join('');
+    const creature = state.creatures.find(c => c.site === siteId && sameCell(positionOf(c),positionOf(t)) && (c.health>0||!isLivestock(c)));
     if (creature && !((renderer.gasOverlay&&(gasNode(t)||t.gasDevice))||(renderer.waterOverlay&&(waterNode(t)||t.waterDevice))) && !['husbandryPost','pastureGate','fence'].includes(t.building)) return `<div class="eyebrow">FRONTIER LIFE / ${creature.species === 'tibble' ? 'BIOMASS PEST' : isLivestock(creature)?'LIVESTOCK':'WILDLIFE'}</div><h2>${esc((livestockDef(creature)||SPECIES[creature.species]).name)}</h2><p>${esc((livestockDef(creature)||SPECIES[creature.species]).description)}</p>${creature.husbandry?'':`<dl><dt>Condition</dt><dd>${creature.health}%</dd><dt>Fed</dt><dd>${Math.round(creature.fed)}%</dd></dl>`}${animalDetails(state,creature,pathTo)}${plants}${remains}<button data-action="clear">Back to region</button>`;
-    const name = BUILDINGS[t.building]?.name || (iceAvailable(t) ? 'Exposed ice seam' : null) || ({ salvage: 'Satellite components', volatile: 'Volatile deposit', collector: 'Solar collector', dock: 'Shuttle berth', shuttle: 'Surface shuttle berth', ore: 'Metal-bearing rock', rock: 'Basalt outcrop', ground: 'Regolith', floor: 'Habitat floor', deck: 'Station deck', ice: 'Comet ice', void: 'Open space' }[t.building || t.terrain]);
+    const name = (t.verticalLink ? 'Stairwell landing' : null) || BUILDINGS[t.building]?.name || (iceAvailable(t) ? 'Exposed ice seam' : null) || ({ salvage: 'Satellite components', volatile: 'Volatile deposit', collector: 'Solar collector', dock: 'Shuttle berth', shuttle: 'Surface shuttle berth', ore: 'Metal-bearing rock', rock: 'Basalt outcrop', ground: 'Regolith', floor: 'Habitat floor', deck: 'Station deck', ice: 'Comet ice', void: 'Open space' }[t.building || t.terrain]);
     const extractable = iceAvailable(t) || ['rock', 'ore'].includes(t.terrain) || ['salvage', 'volatile'].includes(t.building);
-    return `<div class="eyebrow">TILE ${t.x} / ${t.y}</div><h2>${name}</h2><p>${BUILDINGS[t.building]?.description || (extractable ? 'Recover material with an extraction order.' : 'Part of our small foothold in the universe.')}</p><dl>${atmosphereDetails(room)}${thermalDetails(state.sites[siteId], t)}${sanitationRoomDetails(state, state.sites[siteId], t)}${t.building ? `<dt>Condition</dt><dd>${Math.round(t.hp)}%</dd>` : ''}${BUILDINGS[t.building]?.demand ? `<dt>Power</dt><dd>${t.powered ? 'Online' : 'Offline'}</dd>` : ''}${t.drop ? `<dt>Awaiting haul</dt><dd>${esc(inventoryText(t.drop))}</dd>` : ''}</dl>${fireDetails(state,state.sites[siteId],t)}${gasDetails(state.sites[siteId],t)}${airlockDetails(state,state.sites[siteId],t,airlockDrafts.get(airlockDraftKey()))}${plumbingDetails(state,state.sites[siteId],t)}${liquidDetails(t)}${reactorDetails(state.sites[siteId],t)}${plants}${remains}${pastureDetails(state,t)}${postDetails(state,t,pathTo)}${depositDetails(t)}${shuttleDetails(state, t)}${['shuttle','dock'].includes(t.building) ? freightDetails(state,siteId,siteFreightDrafts(siteId)) : ''}${maintenanceDetails(state, state.sites[siteId], t)}${breakerDetails(state,state.sites[siteId],t)}${powerDetails(state.sites[siteId], t)}${doorDetails(t, state.tick, state.sites[siteId])}${foodDetails(t.drop, temperatureAt(state.sites[siteId], t.x, t.y), "Loose food")}${bunkDetails(state, state.sites[siteId], t)}${itemsDetails(t.drop)}${roomDetails(state, state.sites[siteId], t)}${comfortDetails(state, state.sites[siteId], t)}${climateDetails(t)}${sanitaryDetails(state, state.sites[siteId], t)}${storageDetails(t, state, siteId)}${quantity(reservedAt(state, siteId, t.x, t.y)) ? `<p>Reserved here: ${esc(inventoryText(reservedAt(state, siteId, t.x, t.y)))}</p>` : ''}${jobs.length ? jobs.filter(j => !['operate','gather','plant','waterPlant'].includes(j.kind)).filter(j=>!['animalDispatch','animalButcher','animalDiscard'].includes(j.kind)).map(jobDetails).join('<hr>') : extractable ? '<button data-action="extract">Designate extraction</button>' : ''}<button data-action="clear">Back to region</button>`;
+    return `<div class="eyebrow">TILE ${t.x} / ${t.y} / ${t.z}</div><h2>${name}</h2><p>${BUILDINGS[t.building]?.description || (extractable ? 'Recover material with an extraction order.' : 'Part of our small foothold in the universe.')}</p><dl>${atmosphereDetails(room)}${thermalDetails(state.sites[siteId], t)}${sanitationRoomDetails(state, state.sites[siteId], t)}${t.building ? `<dt>Condition</dt><dd>${Math.round(t.hp)}%</dd>` : ''}${BUILDINGS[t.building]?.demand ? `<dt>Power</dt><dd>${t.powered ? 'Online' : 'Offline'}</dd>` : ''}${t.drop ? `<dt>Awaiting haul</dt><dd>${esc(inventoryText(t.drop))}</dd>` : ''}</dl>${stairDetails(state.sites[siteId],t)}${utilityDetails(state.sites[siteId],t)}${fireDetails(state,state.sites[siteId],t)}${gasDetails(state.sites[siteId],t)}${airlockDetails(state,state.sites[siteId],t,airlockDrafts.get(airlockDraftKey()))}${plumbingDetails(state,state.sites[siteId],t)}${liquidDetails(t)}${reactorDetails(state.sites[siteId],t)}${plants}${remains}${pastureDetails(state,t)}${postDetails(state,t,pathTo)}${depositDetails(t)}${shuttleDetails(state, t)}${['shuttle','dock'].includes(t.building) ? freightDetails(state,siteId,siteFreightDrafts(siteId)) : ''}${maintenanceDetails(state, state.sites[siteId], t)}${breakerDetails(state,state.sites[siteId],t)}${powerDetails(state.sites[siteId], t)}${doorDetails(t, state.tick, state.sites[siteId])}${foodDetails(t.drop, temperatureAt(state.sites[siteId],t.x,t.y,t.z), "Loose food")}${bunkDetails(state, state.sites[siteId], t)}${itemsDetails(t.drop)}${roomDetails(state, state.sites[siteId], t)}${comfortDetails(state, state.sites[siteId], t)}${climateDetails(t)}${sanitaryDetails(state, state.sites[siteId], t)}${storageDetails(t, state, siteId)}${quantity(reservedAt(state, siteId, t.x, t.y, t.z)) ? `<p>Reserved here: ${esc(inventoryText(reservedAt(state, siteId, t.x, t.y, t.z)))}</p>` : ''}${jobs.length ? jobs.filter(j => !['operate','gather','plant','waterPlant'].includes(j.kind)).filter(j=>!['animalDispatch','animalButcher','animalDiscard'].includes(j.kind)).map(jobDetails).join('<hr>') : extractable ? '<button data-action="extract">Designate extraction</button>' : ''}<button data-action="clear">Back to region</button>`;
   }
-  if (siteId === 'surface' || siteId === 'universe') return `<div class="eyebrow">${state.mission ? 'EXPEDITION ACTIVE' : 'YOUR FIRST FOOTHOLD'}</div><h2>${state.mission ? SITES[state.mission.site].name : 'Make a home out here.'}</h2><p>${state.mission ? `${missionStatus(state.mission)}` : 'Build a colony, recover forgotten technology, and push farther into the unknown.'}</p><dl><dt>Power supply</dt><dd>${state.sites.surface.power.output.toFixed(0)} / ${state.sites.surface.power.demand} kW</dd><dt>Circuits short of power</dt><dd>${state.sites.surface.power.brownouts} / ${state.sites.surface.power.networks}</dd><dt>Battery</dt><dd>${Math.floor(state.sites.surface.power.battery)} / ${state.sites.surface.power.capacity} kJ</dd><dt>Breathing mix stored</dt><dd>${state.resources.air.toFixed(1)} units</dd><dt>Medicine in storage</dt><dd>${Math.floor(state.resources.medicine)} units</dd><dt>Injured crew</dt><dd>${state.crew.filter(c => c.health > 0 && c.medical.injury > 0).length}</dd><dt>Work orders</dt><dd>${state.jobs.length} pending</dd><dt>Tibbles detected</dt><dd>${state.creatures.filter(c => c.species === 'tibble').length}</dd></dl>${state.mission ? '<button data-action="recall">Recall expedition</button>' : '<p>Select Relay K-07 to launch your first salvage expedition.</p>'}${fireOverview(state.sites.surface)}${waterSupplyDetails(state)}${preflightDetails(state)}${freightDetails(state,'surface',siteFreightDrafts('surface'))}<button data-action="inspect-site" data-ui-action="site.inspect" data-site="wreck">Inspect Relay K-07</button>${maintenanceOverview(state)}${state.resources.cells > 0 ? '<button data-action="cell">Discharge a power cell</button>' : ''}${state.anomaly && !state.anomaly.resolved ? `<hr><div class="eyebrow">UNREGISTERED SIGNAL</div><h2>${esc(state.anomaly.title)}</h2><p>${esc(state.anomaly.description)}</p><button data-action="decode">Decode · 1 component</button><button data-action="isolate">Isolate channel</button>` : ''}`;
+  if (siteId === 'surface' || siteId === 'universe') return `<div class="eyebrow">${state.mission ? 'EXPEDITION ACTIVE' : 'YOUR FIRST FOOTHOLD'}</div><h2>${state.mission ? SITES[state.mission.site].name : 'Make a home out here.'}</h2><p>${state.mission ? `${missionStatus(state.mission)}` : 'Build a colony, recover forgotten technology, and push farther into the unknown.'}</p><dl><dt>Power supply · all floors</dt><dd>${state.sites.surface.power.output.toFixed(0)} / ${state.sites.surface.power.demand} kW</dd><dt>Circuits short of power</dt><dd>${state.sites.surface.power.brownouts} / ${state.sites.surface.power.networks}</dd><dt>Battery</dt><dd>${Math.floor(state.sites.surface.power.battery)} / ${state.sites.surface.power.capacity} kJ</dd><dt>Breathing mix stored</dt><dd>${state.resources.air.toFixed(1)} units</dd><dt>Medicine in storage</dt><dd>${Math.floor(state.resources.medicine)} units</dd><dt>Injured crew</dt><dd>${state.crew.filter(c => c.health > 0 && c.medical.injury > 0).length}</dd><dt>Work orders</dt><dd>${state.jobs.length} pending</dd><dt>Tibbles detected</dt><dd>${state.creatures.filter(c => c.species === 'tibble').length}</dd></dl>${state.mission ? '<button data-action="recall">Recall expedition</button>' : '<p>Select Relay K-07 to launch your first salvage expedition.</p>'}${fireOverview(state.sites.surface)}${waterSupplyDetails(state)}${preflightDetails(state)}${freightDetails(state,'surface',siteFreightDrafts('surface'))}<button data-action="inspect-site" data-ui-action="site.inspect" data-site="wreck">Inspect Relay K-07</button>${maintenanceOverview(state)}${state.resources.cells > 0 ? '<button data-action="cell">Discharge a power cell</button>' : ''}${state.anomaly && !state.anomaly.resolved ? `<hr><div class="eyebrow">UNREGISTERED SIGNAL</div><h2>${esc(state.anomaly.title)}</h2><p>${esc(state.anomaly.description)}</p><button data-action="decode">Decode · 1 component</button><button data-action="isolate">Isolate channel</button>` : ''}`;
   return expeditionDetails(state, siteId, manifestDraft(siteId)) + freightDetails(state,siteId,siteFreightDrafts(siteId)) + residentDetails(state,siteId) + returnManifestDetails(state,siteId,returnDraft()) + (siteId === 'wreck' ? outpostGuide() : '');
 }
 function refresh() {
+  const followed=selected?.crew&&state.crew.find(c=>c.id===selected.crew);
+  if(followed?.site===siteId&&followed.z!==deckView.z){const selection=selected;deckView.select(followed.z);selected=selection;renderer.selection=selection;}
+  $('floor-menu').hidden=siteId==='universe';
+  $('floor-label').textContent=`Floor ${deckView.z}`;
+  const levels=deckView.levels(),floorList=JSON.stringify([levels,deckView.z]);
+  if($('floor-list').dataset.layout!==floorList){
+    $('floor-list').innerHTML=levels.map(level=>`<button data-floor="${level.z}" aria-pressed="${level.z===deckView.z}">Floor ${level.z} · ${esc(level.name)}</button>`).join('');
+    $('floor-list').dataset.layout=floorList;
+  }
   const recording=recordingStatus(state);
   $('record-simulation').textContent=recording.active?'Stop recording':recording.reason==='not_started'?'Start recording':'New recording';
   $('record-simulation').title=recording.reason==='not_started'?'Capture local actions and simulation outcomes':recording.active?'Stop and retain this recording':'Replaces this session recording. Export it first to keep it.';
   $('recording-status').textContent=recording.reason==='not_started'?'Recording off':`${recording.records} records · ${recording.active?'recording':recording.reason.replaceAll('_',' ')}`;
   $('export-recording').disabled=recording.reason==='not_started';
-  $('inspector').dataset.entity=selected?.crew || (selected?.x!==undefined?tileEntityId(siteId,selected.x,selected.y):`site:${siteId}`);
+  $('inspector').dataset.entity=selected?.crew || (selected?.x!==undefined?tileEntityId(siteId,selected.x,selected.y,selected.z):`site:${siteId}`);
   const resourceSite = state.sites[siteId] ? siteId : 'surface', localStock = localDepotStock(state,resourceSite);
-  $('resources').setAttribute('aria-label', `${SITES[resourceSite].name} depot stock`);
-  $('resources').innerHTML = RESOURCES.filter(r => !['air', 'medicine', 'waste', 'fertilizer', 'keepsakes', 'ice'].includes(r)).map(r => `<div class="resource ${localStock[r] < 3 ? 'low' : ''}" title="${esc(SITES[resourceSite].name)} depot stock · ${r === 'alloy' ? 'Construction material. Refine mined ore.' : r === 'components' ? 'Advanced parts from the fabricator or orbital wrecks. Counts depot stock; some may be reserved.' : r === 'cells' ? 'Energy harvested at Helios Reach. Discharge into surface batteries.' : r}"><span class="value">${Math.floor(localStock[r] || 0)}</span><span class="label">${r}</span></div>`).join('');
+  $('resources').setAttribute('aria-label', `${SITES[resourceSite].name} depot stock · all floors`);
+  $('resources').innerHTML = RESOURCES.filter(r => !['air', 'medicine', 'waste', 'fertilizer', 'keepsakes', 'ice'].includes(r)).map(r => `<div class="resource ${localStock[r] < 3 ? 'low' : ''}" title="${esc(SITES[resourceSite].name)} depot stock · all floors · ${r === 'alloy' ? 'Construction material. Refine mined ore.' : r === 'components' ? 'Advanced parts from the fabricator or orbital wrecks. Counts depot stock; some may be reserved.' : r === 'cells' ? 'Energy harvested at Helios Reach. Discharge into surface batteries.' : r}"><span class="value">${Math.floor(localStock[r] || 0)}</span><span class="label">${r}</span></div>`).join('');
   $('destinations').innerHTML = `<button data-site="universe" class="${siteId === 'universe' ? 'active' : ''}" style="--dot:#b2c3ca">System overview<small>THE KEPLER FRONTIER</small></button>` + Object.entries(SITES).map(([id, d]) => `<button data-site="${id}" class="${siteId === id ? 'active' : ''}" style="--dot:${d.color}">${d.name}<small>${id === 'surface' ? 'PLANETARY COLONY' : id === 'wreck' ? state.outposts.wreck.established ? `${residentIds(state,'wreck').length} REGISTERED RESIDENTS` : 'SATELLITE SALVAGE' : id === 'comet' ? state.tick < state.comet.arrives ? `ARRIVES IN ${state.comet.arrives - state.tick}s` : `DEPARTS IN ${state.comet.leaves - state.tick}s` : 'ADVANCED SOLAR SITE'}</small></button>`).join('');
   $('build-site').textContent = SITES[siteId]?.name || 'Choose a site';
   const canBuild = !buildBlock();
@@ -389,20 +432,22 @@ function refresh() {
   const def = SITES[siteId]; $('site-label').textContent = def?.label || '00 / SYSTEM OVERVIEW'; $('site-name').textContent = def?.name || 'The Kepler frontier'; $('site-subtitle').textContent = def?.sub || 'One colony. An entire sky of possibilities.';
   const statusSite = state.sites[siteId] || state.sites.surface, p = statusSite.power;
   if (!warningPress) {
-  $('environment').innerHTML = siteId === 'surface' ? `<span class="env-chip">${isDay(state) ? '☀ Daylight' : '☾ Night'} · ${isDay(state) ? 220 - state.tick % 300 : 300 - state.tick % 300}s</span><span class="env-chip ${p.output < p.demand ? 'warn' : ''}">${p.output.toFixed(0)} kW generation / ${p.demand} demand</span><span class="env-chip optional">${state.sites.surface.thermal.ambient}°C exterior</span>${state.sites.surface.tiles.some(t=>t.fire)?`<span class="env-chip warn">${state.sites.surface.tiles.filter(t=>t.fire).length} active fires</span>`:''}${state.sites.surface.tiles.some(t=>t.wetShort)?`<span class="env-chip warn">Wet cable short · isolate power</span>`:''}${state.sites.surface.tiles.some(t=>t.reactor?.tripped)?`<span class="env-chip warn">Reactor shutdown · inspect to reset</span>`:''}${state.debris.target ? `<span class="env-chip warn">Debris at ${state.debris.target.x}/${state.debris.target.y} in ${state.debris.next - state.tick}s</span>` : ''}` : siteId === 'universe' ? '<span class="env-chip">Click a destination to inspect</span>' : `<span class="env-chip">Exterior vacuum · suits required</span><span class="env-chip">${state.mission?.site === siteId ? state.mission.phase : 'Remote survey'}</span>${siteId === 'solar' ? `<span class="env-chip warn">${state.tick % 120 >= 90 ? 'Solar squall active' : `Next squall in ${90 - state.tick % 120}s`}</span>` : ''}`;
-  $('environment').insertAdjacentHTML('beforeend',outpostWarning(state,siteId));
+  $('environment').innerHTML = siteId === 'surface' ? `<span class="env-chip">${isDay(state) ? '☀ Daylight' : '☾ Night'} · ${isDay(state) ? 220 - state.tick % 300 : 300 - state.tick % 300}s</span><span class="env-chip ${p.output < p.demand ? 'warn' : ''}">${p.output.toFixed(0)} kW generation / ${p.demand} demand · all floors</span><span class="env-chip optional">${state.sites.surface.thermal.ambient}°C exterior</span>${floorWarnings(state,state.sites.surface)}` : siteId === 'universe' ? '<span class="env-chip">Click a destination to inspect</span>' : `<span class="env-chip">Exterior vacuum · suits required</span><span class="env-chip">${state.mission?.site === siteId ? state.mission.phase : 'Remote survey'}</span>${siteId === 'solar' ? `<span class="env-chip warn">${state.tick % 120 >= 90 ? 'Solar squall active' : `Next squall in ${90 - state.tick % 120}s`}</span>` : ''}`;
+  $('environment').insertAdjacentHTML('beforeend',outpostWarning(state,siteId)+(!['surface','universe'].includes(siteId)?floorWarnings(state,statusSite):''));
   }
   $('crew-count').textContent = `${state.crew.filter(c => c.health > 0).length} ALIVE`;
-  $('health-summary').innerHTML = meter(statusSite.air, `${SITES[statusSite.id].name} AIR`) + meter(p.capacity ? p.battery / p.capacity * 100 : 0, 'BATTERY RESERVE');
-  const nextInspectorKey = JSON.stringify([siteId, mode, building, selected]);
+  $('health-summary').innerHTML = meter(statusSite.air, `${SITES[statusSite.id].name} AIR · ALL FLOORS`) + meter(p.capacity ? p.battery / p.capacity * 100 : 0, 'BATTERY · ALL FLOORS');
+  const suitReleaseFocused = suitReleaseView.remember($('inspector'), document.activeElement);
+  const nextInspectorKey = JSON.stringify([siteId, deckView.z, mode, building, selected]);
   if (!inspectorPress && (nextInspectorKey !== inspectorKey || !document.activeElement.closest?.('[data-recipe-form], [data-production-form], [data-climate-form], [data-reactor-form], [data-gas-form], [data-freight-form], [data-airlock-form]'))) {
     const airlockFocus=nextInspectorKey===inspectorKey?document.activeElement.dataset?.airlockFocus:null;
     const assigningBunk = nextInspectorKey === inspectorKey && $('inspector').querySelector('[data-bunk-assignment]')?.open;
     const openItems=nextInspectorKey===inspectorKey?[...$('inspector').querySelectorAll('[data-item-list], [data-gas-composition], [data-plumbing-endpoints], [data-breaker-diagnostics], [data-expedition-roster], .animal-breeding, .animal-transport')].map(d=>d.open):[];
-    const openPanels = nextInspectorKey === inspectorKey ? new Map([...$('inspector').querySelectorAll('[data-panel-key]')].map(d=>[d.dataset.panelKey,d.open])) : new Map();
-    $('inspector').innerHTML = inspector();
-    for (const details of $('inspector').querySelectorAll('[data-panel-key]')) details.open = openPanels.get(details.dataset.panelKey) || false;
+    const openPanels = nextInspectorKey === inspectorKey ? new Map([...$('inspector').querySelectorAll('[data-panel-key]:not([data-suit-release-panel])')].map(d=>[d.dataset.panelKey,d.open])) : new Map();
+    $('inspector').innerHTML = inspector(); inspectorView=deckView.capture();
+    for (const details of $('inspector').querySelectorAll('[data-panel-key]:not([data-suit-release-panel])')) details.open = openPanels.get(details.dataset.panelKey) || false;
     [...$('inspector').querySelectorAll('[data-item-list], [data-gas-composition], [data-plumbing-endpoints], [data-breaker-diagnostics], [data-expedition-roster], .animal-breeding, .animal-transport')].forEach((d,i)=>d.open=!!openItems[i]);
+    suitReleaseView.restore($('inspector'), nextInspectorKey !== inspectorKey || suitReleaseFocused);
     if(airlockFocus)[...$('inspector').querySelectorAll('[data-airlock-focus]')].find(el=>el.dataset.airlockFocus===airlockFocus)?.focus({preventScroll:true});
     if (assigningBunk) { const details = $('inspector').querySelector('[data-bunk-assignment]'); if (details) details.open = true; }
   }
@@ -412,9 +457,9 @@ function refresh() {
   }
   const actionIds={ 'freight-load':'freight.load','freight-unload':'freight.unload','freight-unload-all':'freight.unload','return-crew-apply':'expedition.return_crew','resident-toggle':'outpost.residents', 'breaker-toggle':'power.breaker','breaker-direction':'power.breaker','breaker-mode':'power.breaker','breaker-reset':'power.breaker.reset', 'plumbing-valve':'plumbing.valve',repairWaterPipe:'job.order',removeWaterPipe:'job.order', 'gas-extractor-toggle':'gas.extractor','gas-extractor-mode':'gas.extractor','gas-valve':'gas.valve','gas-toggle':'gas.device','gas-direction':'gas.device',repairPipe:'job.order',removePipe:'job.order', 'tank-fill':'water.tank','tank-drain':'water.tank', 'reactor-toggle':'reactor.configure','reactor-reset':'reactor.reset','radiator-toggle':'radiator.configure', 'fire-response':'fire.response','fire-suppress':'job.order', 'animal-transport':'husbandry.transport', 'animal-breed':'husbandry.breed', 'pasture-gate':'pasture.gate', 'animal-assign':'husbandry.assign','animal-release':'husbandry.assign','animal-policy':'husbandry.policy','animal-treat':'husbandry.treat','animal-dispatch':'husbandry.dispatch','animal-butcher':'husbandry.butcher','animal-discard':'husbandry.discard', 'possession-policy':'crew.possessions.collect','possession-release':'crew.possessions.release', 'bunk-owner':'housing.assign','room-role':'room.designate','climate-toggle':'climate.configure','depot-filter':'depot.accept','depot-priority':'depot.priority','production-priority':'production.priority',launch:'expedition.launch',recall:'expedition.recall',cell:'power.discharge_cell','bank-cell':'power.discharge_cell','cancel-departure':'expedition.cancel_departure','resume-expedition':'expedition.resume','cargo-policy':'expedition.cargo','auto-service':'maintenance.auto','power-priority':'power.priority','cable-toggle':'power.cable',decode:'signal.resolve',isolate:'signal.resolve',cancel:'job.cancel','life-policy':'crew.routine',labor:'crew.labor',priority:'job.priority',door:'door.mode',machine:'production.enable',gather:'job.order',plant:'job.order',waterPlant:'job.order',extract:'job.order',service:'job.order','repair-structure':'job.order',repairCable:'job.order',removeCable:'job.order',refit:'job.order','unload-shuttle':'job.order' };
   for(const button of $('inspector').querySelectorAll('[data-action]'))if(actionIds[button.dataset.action])button.dataset.simulationAction=actionIds[button.dataset.action];
-  if(selected&&!selected.crew&&state.sites[siteId]&&Number.isInteger(selected.x)&&Number.isInteger(selected.y)){const t=at(state.sites[siteId],selected.x,selected.y),id=({waterPump:'plumbing.pump',waterIntake:'plumbing.intake',waterOutlet:'plumbing.outlet'})[t?.building];for(const button of $('inspector').querySelectorAll('[data-action="plumbing-toggle"], [data-action="plumbing-direction"], [data-action="plumbing-mode"]'))button.dataset.simulationAction=id;}
-  for(const form of $('inspector').querySelectorAll('form:not([data-freight-form]):not([data-airlock-form])'))form.dataset.simulationAction=form.hasAttribute('data-gas-extractor-form')?'gas.extractor':form.hasAttribute('data-gas-form')?'gas.device':form.hasAttribute('data-reactor-form')?'reactor.configure':form.hasAttribute('data-recipe-form')?'production.recipe':form.hasAttribute('data-production-form')?'production.order':'climate.configure';
-  $('crew-list').innerHTML = state.crew.map(c => `<button data-entity="${c.id}" class="crew-row ${selected?.crew === c.id ? 'active' : ''}" data-crew="${c.id}"><img class="crew-portrait" src="${crewSprite(c.color, ANATOMIES[Number(c.id.split('-')[1]) % ANATOMIES.length]).toDataURL()}" alt=""><span class="crew-text"><strong>${esc(c.name)}</strong><small>${esc(SITES[c.site]?.name || 'In transit')}${residentIds(state,'wreck').includes(c.id) ? ' · Resident' : ''} · ${esc(c.activity)}</small></span><span class="crew-health">${Math.round(c.health)}%</span></button>`).join('');
+  if(selected&&!selected.crew&&state.sites[siteId]&&Number.isInteger(selected.x)&&Number.isInteger(selected.y)){const t=at(state.sites[siteId],selected.x,selected.y,selected.z),id=({waterPump:'plumbing.pump',waterIntake:'plumbing.intake',waterOutlet:'plumbing.outlet'})[t?.building];for(const button of $('inspector').querySelectorAll('[data-action="plumbing-toggle"], [data-action="plumbing-direction"], [data-action="plumbing-mode"]'))button.dataset.simulationAction=id;}
+  for(const form of $('inspector').querySelectorAll('form:not([data-freight-form]):not([data-airlock-form]):not([data-suit-release-form])'))form.dataset.simulationAction=form.hasAttribute('data-gas-extractor-form')?'gas.extractor':form.hasAttribute('data-gas-form')?'gas.device':form.hasAttribute('data-reactor-form')?'reactor.configure':form.hasAttribute('data-recipe-form')?'production.recipe':form.hasAttribute('data-production-form')?'production.order':'climate.configure';
+  $('crew-list').innerHTML = state.crew.map(c => `<button data-entity="${c.id}" class="crew-row ${selected?.crew === c.id ? 'active' : ''}" data-crew="${c.id}"><img class="crew-portrait" src="${crewSprite(c.color, ANATOMIES[Number(c.id.split('-')[1]) % ANATOMIES.length]).toDataURL()}" alt=""><span class="crew-text"><strong>${esc(c.name)}</strong><small>${esc(SITES[c.site]?.name || 'In transit')}${c.site==='transit'?'':` · Floor ${c.z??0}`}${residentIds(state,'wreck').includes(c.id) ? ' · Resident' : ''} · ${esc(c.activity)}</small></span><span class="crew-health">${Math.round(c.health)}%</span></button>`).join('');
   const tasks = [['build', 'Build your first structure'], ['extract', 'Extract frontier materials'], ['salvage', 'Bring satellite components home'], ['advanced', 'Build an advanced solar array'], ['solar', 'Return with solar energy cells']];
   $('objectives').innerHTML = tasks.map(([id, text]) => `<div class="objective ${state.objectives[id] ? 'done' : ''}"><span class="check">${state.objectives[id] ? '✓' : ''}</span>${text}</div>`).join('');
   $('objective-count').textContent = `${tasks.filter(([id]) => state.objectives[id]).length} / 5`;
@@ -429,11 +474,11 @@ function frame(now) {
   while (accumulator >= 1) { step(state); accumulator--; updated = true; }
   if (updated || now - lastUI > 500) { refresh(); lastUI = now; }
   if (state.tick - lastSave >= 30) { save(true); lastSave = state.tick; }
-  renderer.draw(state, siteId, mode, building); requestAnimationFrame(frame);
+  renderer.draw(state, siteId, mode, building, deckView.z); requestAnimationFrame(frame);
 }
 document.addEventListener('visibilitychange', () => { previousTime = performance.now(); if (document.hidden) save(true); });
 window.addEventListener('beforeunload', () => save(true));
-refresh(); renderer.draw(state, siteId, mode, building); requestAnimationFrame(frame);
+refresh(); renderer.draw(state, siteId, mode, building, deckView.z); requestAnimationFrame(frame);
 if (saveSession.error) { setSpeed(0); $('save').disabled = true; $('save').title = 'Original save protected. Export it or choose New colony.'; if (saveSession.original !== null) $('export').textContent = 'Export previous save'; toast('Could not load the saved colony. Your original is preserved. Use the ⋯ menu to export it, import a save, or start a new colony.', true); }
 else if (new URLSearchParams(location.search).has('preview')) setSpeed(0);
 else if (fresh) openGuide();

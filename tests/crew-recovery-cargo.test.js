@@ -29,7 +29,7 @@ function courier({ unsafe = true } = {}) {
   c.carry = extract(depot.stock, { air: 6 });
   // Scarcity is deliberately seeded for this boundary: no second air source.
   delete depot.stock.air;
-  c.delivery = { kind: 'input', target: [7, 7] }; c.energy = 1;
+  c.delivery = { kind: 'input', target: { x: 7, y: 7, z: 0 } }; c.energy = 1;
   c.intent = { type: 'rest', target: null }; c.x = 8; c.y = 9;
   if (unsafe) { fillRoom(site.rooms[0], 76.15); refreshAtmosphere(site); }
   refreshPower(s, site);
@@ -81,7 +81,7 @@ function metadata(s, inventory) {
 test('ordinary parcel handoff preserves prepared-food age and physical item identity with one movement label', () => {
   const { s, site, c, depot } = courier(); add(depot.stock, c.carry);
   const { meal, item } = metadata(s, depot.stock);
-  c.carry = extract(depot.stock, { food: 2, keepsakes: 1 }); c.delivery = { kind: 'stock', target: [8, 10] };
+  c.carry = extract(depot.stock, { food: 2, keepsakes: 1 }); c.delivery = { kind: 'stock', target: { x: 8, y: 10, z: 0 } };
   const initial = structuredClone(c.carry), before = totalResources(s); startRecording(s); tick(s);
   const pile = at(site, c.x, c.y).drop;
   assert.equal(pile.food, 2); assert.equal(pile.keepsakes, 1); assert.deepEqual(pile._items, [item]);
@@ -127,7 +127,7 @@ test('blocked construction courier leaves an exclusive local source claim which 
   fillRoom(site.rooms[0], 76.15); refreshAtmosphere(site); c.energy = 1; tick(s);
   const j = s.jobs.find(j => j.id === id);
   assert.equal(c.carry, null); assert.equal(c.job, null); assert.equal(j.worker, null);
-  assert.deepEqual(j.sources.filter(source => source.items.alloy), [{ x: position[0], y: position[1], kind: 'drop', items: { alloy: 5 } }]);
+  assert.deepEqual(j.sources.filter(source => source.items.alloy), [{ x: position[0], y: position[1], z: 0, kind: 'drop', items: { alloy: 5 } }]);
   assert.equal(j.remaining, j.work); assert.equal(at(site, ...position).drop, null); assert.equal(totalResources(s).alloy, total);
   assert.deepEqual(saved(s), s);
 });
@@ -158,7 +158,7 @@ test('a hungry freight courier sets reserved food down without eating or freeing
   assert.equal(c.carry, null); assert.equal(c.delivery, null); assert.equal(c.job, null);
   assert.equal(c.intent.type, 'meal'); assert.equal(c.intent.servings, 0); assert.ok(c.hunger < 5);
   assert.deepEqual([c.x, c.y], position); assert.equal(job.worker, null);
-  assert.deepEqual(source, { x: position[0], y: position[1], kind: 'drop', items: {
+  assert.deepEqual(source, { x: position[0], y: position[1], z: 0, kind: 'drop', items: {
     food: 2, _food: [{ amount: 2, age: age + 1, meal }], keepsakes: 1, _items: [item]
   } });
   assert.equal(at(site, ...position).drop, null); assert.deepEqual(s.shuttle.freight, {});

@@ -200,3 +200,12 @@ test('pipe work saves validate the target, kind, cost and overlay construction c
  }
  const {s,site}=base();assert.ok(order(s,'surface',11,9,'build','gasPipe').ok);check(s);install(s,'gasTank',11,9);refreshPower(s,site);assert.throws(()=>check(s));
 });
+
+
+test('raw orphan ownership cannot fall through to ordinary tank autoload',()=>{
+ const {s,site}=base(),tank=install(s,'gasTank',11,9);buffer(s,tank,3);setGasValve(s,'surface',11,9,false);
+ tank.airlockOwner={controller:'tile:surface:0:0',binding:'airlock-missing'};
+ const before=structuredClone(tank.machine.input);updateGasNetworks(s);
+ assert.deepEqual(tank.machine.input,before);close(gasAmount(tank.gasStore.gas),0);assert.match(tank.machine.status,/reserved/i);
+ delete tank.airlockOwner;updateGasNetworks(s);close(gasAmount(tank.gasStore.gas),2);close(tank.machine.input.air,1);check(s);
+});

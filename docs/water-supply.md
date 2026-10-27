@@ -31,6 +31,10 @@ Existing consumption recipes remain unchanged: hydroponics and medical/atmospher
 
 Power loss, pause, worker recovery and maintenance preserve committed ingredients and progress. Rejected or full depots can prevent ice pickup or leave processed water in output. Full output halts new processing. Dismantling returns unfinished ice and completed water as loose supplies. The machine adds industrial hum, room heat and maintenance demand through existing definitions, and is incompatible with designated living, care and crop rooms.
 
+## Ending a finite production run
+
+Use a fixed batch order to bound water or air production. Changing its count to zero lets an already started batch finish; **Pause production** stops work immediately and preserves that batch. When planning a final water reserve, include those unfinished transformations: an active ice batch will produce two water, while an active atmosphere batch has committed one water that will be consumed. Check the actual remaining supplies after the batches finish. See [production orders](production-orders.md) for the shared controls.
+
 ## Inspection and future agents
 
 The hidden tile inspector shows seam quantity and next extraction yield. The hidden Colony inspector shows depot water, depot ice, remaining surface reserve and intact processor count. These counts describe current stores and structures; they are not an estimate of time until depletion or a guarantee of accessible supply. The main resource bar has no new ice entry.

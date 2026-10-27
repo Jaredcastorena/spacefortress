@@ -1,6 +1,6 @@
 # Pressure-cycling airlocks
 
-**Implemented locally, October 8, 2026; ordinary construction acceptance pending.** The user requested a chamber with doors on two sides: close the doors, recover its air before opening outside, and refill it before opening toward the habitat. The controller, shared actions, physical cycles and persistence now have scoped synthetic coverage on the hex grid. This design records their intended requirements; see [verification status](verification-status.md) for measured scope and unfinished acceptance. The build is not published.
+**Included in v0.1.3 and later; ordinary construction acceptance pending.** The user requested a chamber with doors on two sides: close the doors, recover its air before opening outside, and refill it before opening toward the habitat. The controller, shared actions, physical cycles and persistence have scoped synthetic coverage on the hex grid. This design records their intended requirements; see [verification status](verification-status.md) for measured scope and unfinished acceptance.
 
 ## Existing parts and constraints
 

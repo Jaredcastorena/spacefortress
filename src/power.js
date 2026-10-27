@@ -3,18 +3,19 @@ import { initializeReactorTile, tripReactor, reactorBlock, reactorOutput, genera
 import { initializeClimate } from './thermal.js';
 import { initializeMaintenance } from './maintenance.js';
 import { BUILDINGS } from './data.js';
-import { buildPowerTopology, breakerTerminals, breakerContactClosed, branchForBreaker } from './power-topology.js';
+import { buildPowerTopology, powerTileKey, breakerTerminals, breakerContactClosed, branchForBreaker } from './power-topology.js';
 import { initializeBreakerTile, tripBreaker } from './breakers.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
-import { neighbors as hexNeighbors, tileAt } from './geometry.js';
+import { tileAt } from './geometry.js';
+import { horizontalNeighbors, tileAt as tileAtPosition, positionOf } from './spatial.js';
 
 export const BATTERY_CAPACITY = 120;
 export const BATTERY_RATE = 20;
 export const isDay = s => s.tick % 300 < 220;
 export const electrical = t => !!(BUILDINGS[t.building]?.output || BUILDINGS[t.building]?.demand || t.building === 'battery' || t.building === 'breaker');
-export const key = t => `${t.x},${t.y}`;
+export const key = powerTileKey;
 const at = tileAt;
-const neighbors = (site, t) => hexNeighbors(t.x, t.y).map(([x, y]) => at(site, x, y)).filter(Boolean);
+const neighbors = (site, t) => horizontalNeighbors(positionOf(t)).map(p => tileAtPosition(site,p)).filter(Boolean);
 export function initializeElectrical(t) {
   initializeMaintenance(t); initializeClimate(t); initializeReactorTile(t); initializeBreakerTile(t);
   t.cable ??= null;
@@ -72,10 +73,10 @@ export function breakerConditions(s, site, t, plan = previewPower(s, site)) {
   if (t.building !== 'breaker') return null;
   const terminals = breakerTerminals(t), branch = branchForBreaker(site, t, plan.topology), protection = t.protection;
   const byPosition = (a, b) => a.y - b.y || a.x - b.x;
-  const faultEntities = branch.tiles.filter(tile => plan.suppliedFaults.has(tile)).sort(byPosition).map(tile => tileEntityId(site.id, tile.x, tile.y));
+  const faultEntities = branch.tiles.filter(tile => plan.suppliedFaults.has(tile)).sort(byPosition).map(tile => tileEntityId(site.id, tile.x, tile.y, positionOf(tile).z));
   const available = new Set();
   for (const network of plan.networks) for (const [tile, output] of network.sources) if (output > 0) available.add(tile);
-  const sourceEntities = branch.sources.filter(tile => tile.hp > 0 && (tile.building === 'battery' ? tile.charge > 0 : available.has(tile))).sort(byPosition).map(tile => tileEntityId(site.id, tile.x, tile.y));
+  const sourceEntities = branch.sources.filter(tile => tile.hp > 0 && (tile.building === 'battery' ? tile.charge > 0 : available.has(tile))).sort(byPosition).map(tile => tileEntityId(site.id, tile.x, tile.y, positionOf(tile).z));
   const connected = breakerContactClosed(t), bypassed = branch.bypassed;
   const wouldTrip = connected && protection.mode === 'wet_fault' && !bypassed && faultEntities.length > 0;
   const blocked = t.hp <= 0 ? 'damaged' : protection.tripped ? 'tripped' : !protection.enabled ? 'open' : bypassed ? 'bypassed' : protection.mode === 'manual' ? 'manual' : wouldTrip ? 'wet_fault' : 'clear';
@@ -148,8 +149,10 @@ export function updatePower(s, site) { return calculate(s, site, true); }
 export function seedPowerNetwork(site) {
   site.tiles.forEach(t => { t.cable = null; initializeElectrical(t); });
   const equipment = site.tiles.filter(t => electrical(t) && t.building !== 'breaker');
-  const connected = new Set();
+  const decks = new Map();
   for (const device of equipment) {
+    const z=positionOf(device).z;if(!decks.has(z))decks.set(z,new Set());
+    const connected=decks.get(z);
     if (!connected.size) { device.cable = { hp: 100, enabled: true }; connected.add(key(device)); continue; }
     const queue = [device], previous = new Map([[key(device), null]]); let endpoint = null;
     for (let i = 0; i < queue.length; i++) {
@@ -170,17 +173,17 @@ export function initializePower(s, site, charge = 0) {
   site.energy = { initial: charge, generated: 0, consumed: 0, curtailed: 0, discarded: charge - perBank * banks.length, injected: 0 };
   refreshPower(s, site);
 }
-export function setCableEnabled(s, siteId, x, y, enabled) {
-  const site = s.sites[siteId], t = site && at(site, x, y);
+export function setCableEnabled(s, siteId, x, y, enabled,z=0) {
+  const site = s.sites[siteId], t = site && at(site, x, y, z);
   if (!t?.cable || typeof enabled !== 'boolean') return { ok: false, message: 'Select an installed cable.' };
   if (!t.cable.hp) return { ok: false, message: 'Repair the damaged cable first.' };
   const previous = t.cable.enabled;
   t.cable.enabled = enabled;
-  if (previous !== enabled) emitEvent(s, 'power.cable.changed', { entity: tileEntityId(siteId, x, y), previous, enabled });
+  if (previous !== enabled) emitEvent(s, 'power.cable.changed', { entity: tileEntityId(siteId, x, y, z), previous, enabled });
   refreshPower(s, site); return { ok: true };
 }
-export function setPowerPriority(s, siteId, x, y, priority) {
-  const site = s.sites[siteId], t = site && at(site, x, y);
+export function setPowerPriority(s, siteId, x, y, priority,z=0) {
+  const site = s.sites[siteId], t = site && at(site, x, y, z);
   if (!BUILDINGS[t?.building]?.demand || ![1, 3, 5].includes(priority)) return { ok: false, message: 'Select a powered machine and a valid priority.' };
   t.powerPriority = priority; refreshPower(s, site); return { ok: true };
 }

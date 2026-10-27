@@ -53,7 +53,7 @@ Named events include `water.tank.changed`, `water.released`, `water.flowed`, `wa
 
 At the water release, **552 tests passed**, including sixteen liquid cases: supplied construction, hauling, valves/leaks, conservative leveling, door timing, drainage/space losses, powered bounded recovery/hauling, blocked pumps, fault energy/battery brownouts, quenching/job cleanup, demolition, stable records, save continuation, migration and malformed-state rejection. All 536 earlier tests also passed. After refining the combined drain/damage event label, all sixteen targeted cases passed again.
 
-Isolated Firefox verified hidden drawers, original tank/pump/puddle/spark drawings, player fill/drain/pause/isolation controls, fault warning, physical recovery quantities, stable labels and wet schema-32 save/reload, with no scoped application errors. Artifacts: `.runtime-qa/liquids-check.mjs`, `liquids-leak.png`, `liquids-pump.png`.
+Isolated Firefox verified hidden drawers, original tank/pump/puddle/spark drawings, player fill/drain/pause/isolation controls, fault warning, physical recovery quantities, stable labels and wet schema-32 save/reload, with no scoped application errors.
 
 This is horizontal floor flow on the current single-level colony map. No vertical falls, hydrostatic forces, gas-volume displacement, swimming/drowning, freezing, boiling/steam, fluid-temperature transport or contamination is modeled yet. Quenching consumes water into an explicit sink; recovered water uses the existing abstract water resource, with no purity or potability claim. Finite pipes and plumbed production are implemented and verified in schema35; see the linked plumbing guide for exact scope. No new packages, remote services or downloaded art were required.
 

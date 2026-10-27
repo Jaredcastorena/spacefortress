@@ -50,14 +50,14 @@ test('quarters readiness follows real bunks, space, machinery, occupants and exp
 });
 
 test('sleepers prefer ready quarters and recover faster while their requirements hold',()=>{
-  const {s,site,c}=fixture();clear(at(site,13,10));setRoomDesignation(s,'surface',12,8,'quarters');c.energy=10;step(s);assert.ok([11,12].includes(c.intent.target[0]));
-  c.x=c.intent.target[0];c.y=c.intent.target[1];const before=c.energy;step(s);assert.ok(c.energy-before>1);
+  const {s,site,c}=fixture();clear(at(site,13,10));setRoomDesignation(s,'surface',12,8,'quarters');c.energy=10;step(s);assert.ok([11,12].includes(c.intent.target.x));
+  c.x=c.intent.target.x;c.y=c.intent.target.y;const before=c.energy;step(s);assert.ok(c.energy-before>1);
   at(site,12,8).drop={waste:.5};const dirty=c.energy;step(s);assert.ok(c.energy-dirty<.9);assert.ok(c.energy>dirty);check(s);
 });
 
 test('patients prefer ready infirmaries and treated injuries recover faster there',()=>{
-  const {s,site,c}=fixture();clear(at(site,13,10));at(site,8,9).building='medicalCot';at(site,12,9).building='medicalCot';setRoomDesignation(s,'surface',12,8,'infirmary');injure(s,c,20,'test');step(s);assert.deepEqual(c.medical.bed,[12,9]);
-  c.x=12;c.y=9;c.intent={type:'medical',target:[12,9]};c.medical.treated=5;const health=c.health;medicalRest(s,c,site,pathTo);assert.ok(Math.abs(c.health-health-.15)<1e-8);
+  const {s,site,c}=fixture();clear(at(site,13,10));at(site,8,9).building='medicalCot';at(site,12,9).building='medicalCot';setRoomDesignation(s,'surface',12,8,'infirmary');injure(s,c,20,'test');step(s);assert.deepEqual(c.medical.bed,{ x: 12, y: 9, z: 0 });
+  c.x=12;c.y=9;c.intent={type:'medical',target:{ x: 12, y: 9, z: 0 }};c.medical.treated=5;const health=c.health;medicalRest(s,c,site,pathTo);assert.ok(Math.abs(c.health-health-.15)<1e-8);
   at(site,12,8).drop={waste:.5};const second=c.health;medicalRest(s,c,site,pathTo);assert.ok(Math.abs(c.health-second-.12)<1e-8);
 });
 
@@ -75,12 +75,12 @@ test('room storage rules preserve filters and existing stock while rejected wast
 });
 
 test('in-flight supplies reroute when the receiving room changes purpose',()=>{
-  const {s,site,c,depot}=fixture();const other=at(site,12,10);other.building='stockpile';initializeStorage(other);c.carry={waste:1};c.delivery={kind:'stock',target:[8,10]};
-  setRoomDesignation(s,'surface',8,8,'infirmary');haul(s,c,site,pathTo);assert.deepEqual(c.delivery.target,[12,10]);assert.equal(depot.stock.waste||0,0);until(s,()=>!c.carry);assert.equal(other.stock.waste,1);check(s);
+  const {s,site,c,depot}=fixture();const other=at(site,12,10);other.building='stockpile';initializeStorage(other);c.carry={waste:1};c.delivery={kind:'stock',target: { x: 8, y: 10, z: 0 }};
+  setRoomDesignation(s,'surface',8,8,'infirmary');haul(s,c,site,pathTo);assert.deepEqual(c.delivery.target,{x:12,y:10,z:0});assert.equal(depot.stock.waste||0,0);until(s,()=>!c.carry);assert.equal(other.stock.waste,1);check(s);
 });
 
 test('waste storage excludes beds and crop work and sends floor sleepers to living space',()=>{
-  const {s,site,c}=fixture();setRoomDesignation(s,'surface',8,8,'waste');c.energy=10;step(s);assert.ok(c.intent.target[0]>10);
+  const {s,site,c}=fixture();setRoomDesignation(s,'surface',8,8,'waste');c.energy=10;step(s);assert.ok(c.intent.target.x>10);
   const farm=at(site,7,9);setMachineEnabled(s,'surface',7,9,true);farm.machine.input={water:1,fertilizer:.25};step(s);assert.match(farm.machine.status,/waste storage/);assert.equal(farm.machine.progress,0);
   for(const t of site.tiles)if(t.building==='bunk')t.hp=0;c.intent={type:'rest',target:null};c.x=8;c.y=8;until(s,()=>c.x>10);assert.notEqual(c.activity,'Resting on the floor; needs a bunk');check(s);
 });
@@ -103,7 +103,7 @@ test('invalid purposes, coordinates and duplicate markers are rejected',()=>{
 
 
 test('converting an occupied cot room to waste storage relocates care without a manual-cancel delay',()=>{
-  const {s,site,c}=fixture();at(site,8,9).building='medicalCot';at(site,12,9).building='medicalCot';injure(s,c,20,'test');step(s);assert.deepEqual(c.medical.bed,[8,9]);
+  const {s,site,c}=fixture();at(site,8,9).building='medicalCot';at(site,12,9).building='medicalCot';injure(s,c,20,'test');step(s);assert.deepEqual(c.medical.bed,{ x: 8, y: 9, z: 0 });
   const before=totalResources(s).medicine;setRoomDesignation(s,'surface',8,8,'waste');step(s);
-  assert.deepEqual(c.medical.bed,[12,9]);assert.equal(c.medical.retryAt,0);assert.equal(totalResources(s).medicine,before);check(s);
+  assert.deepEqual(c.medical.bed,{ x: 12, y: 9, z: 0 });assert.equal(c.medical.retryAt,0);assert.equal(totalResources(s).medicine,before);check(s);
 });
