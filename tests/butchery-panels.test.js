@@ -104,9 +104,9 @@ test('actual player slaughter, butchery and disposal clicks each use one shared 
     ['animal-discard','husbandry.discard',true,true,'animalDiscard']
   ]) {
     const {s,a,post}=fixture('bristleback',dead);if(spoiled){a.death.age=FOOD_LIFETIME;a.death.disposition='spoiled';}
-    const inspector={},calls=[],results=[],food=totalResources(s).food,health=a.health;
+    const inspector={contains:()=>true},calls=[],results=[],food=totalResources(s).food,health=a.health;
     const source=app.slice(app.indexOf("$('inspector').onclick ="),app.indexOf('let pointer = null;'));
-    vm.runInNewContext(source,{$:()=>inspector,state:s,executeAction:(state,actionId,args,origin)=>{calls.push({actionId,args:structuredClone(args),origin});return executeAction(state,actionId,args,origin);},result:r=>results.push(r)});
+    vm.runInNewContext(source,{$:()=>inspector,deckView:{matches:()=>true},inspectorView:{},state:s,executeAction:(state,actionId,args,origin)=>{calls.push({actionId,args:structuredClone(args),origin});return executeAction(state,actionId,args,origin);},result:r=>results.push(r)});
     inspector.onclick({target:{closest:()=>({dataset:{action,animal:a.id,x:String(post.x),y:String(post.y)}})}});
     assert.equal(calls.length,1);assert.equal(calls[0].actionId,id);assert.equal(calls[0].origin,'player');assert.equal(calls[0].args.creature,a.id);
     if(action==='animal-butcher'){assert.equal(calls[0].args.x,post.x);assert.equal(calls[0].args.y,post.y);}

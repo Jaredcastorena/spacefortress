@@ -81,10 +81,10 @@ test('simultaneous feeding and treatment remain visible with distinct cancel con
 });
 
 test('actual Treat click invokes one shared husbandry.treat action and cannot grant immediate healing',()=>{
-  const {s,a,bindings}=fixture(),inspector={},results=[],before=structuredClone(a.condition),health=a.health;let calls=0;
+  const {s,a,bindings}=fixture(),inspector={contains:()=>true},results=[],before=structuredClone(a.condition),health=a.health;let calls=0;
   const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
   const source=app.slice(app.indexOf("$('inspector').onclick ="),app.indexOf('let pointer = null;'));
-  vm.runInNewContext(source,{$:()=>inspector,state:s,setAnimalTreatment:(...args)=>{calls++;return bindings.setAnimalTreatment(...args);},result:r=>results.push(r)});
+  vm.runInNewContext(source,{$:()=>inspector,deckView:{matches:()=>true},inspectorView:{},state:s,setAnimalTreatment:(...args)=>{calls++;return bindings.setAnimalTreatment(...args);},result:r=>results.push(r)});
   inspector.onclick({target:{closest:()=>({dataset:{action:'animal-treat',animal:a.id}})}});
   assert.equal(calls,1);assert.equal(results[0].ok,true);
   const job=s.jobs.find(j=>j.id===results[0].job);assert.equal(job.kind,'animalTreat');

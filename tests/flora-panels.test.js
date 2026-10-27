@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import {sameCell,positionOf} from '../src/spatial.js';
 import { createGame, at, roomAt, pathTo } from '../src/simulation.js';
 import { floraStatus, gatheringEligibility } from '../src/flora.js';
 import { floraDetails } from '../src/flora-panels.js';
@@ -114,9 +115,9 @@ test('cultivation offers clear supply and reachability reasons through a read-on
 
 test('actual cultivation clicks send one shared job order and wait for delivery and work',()=>{
   for(const [action,bed] of [['plant',false],['waterPlant',true]]) {
-    const {s,site,t}=cultivationFixture('fungalcap',bed),inspector={},bindings=controlBindings(()=>s),results=[];let calls=0;
+    const {s,site,t}=cultivationFixture('fungalcap',bed),inspector={contains:()=>true},bindings=controlBindings(()=>s),results=[];let calls=0;
     const source=app.slice(app.indexOf("$('inspector').onclick ="),app.indexOf('let pointer = null;')),before=JSON.stringify(t),water=totalResources(s).water;
-    vm.runInNewContext(source,{$:()=>inspector,state:s,siteId:site.id,selected:{site:site.id,x:t.x,y:t.y},order:(...args)=>{calls++;return bindings.order(...args);},result:r=>results.push(r)});
+    vm.runInNewContext(source,{$:()=>inspector,deckView:{matches:()=>true},inspectorView:{},state:s,siteId:site.id,selected:{site:site.id,x:t.x,y:t.y},order:(...args)=>{calls++;return bindings.order(...args);},result:r=>results.push(r)});
     inspector.onclick({target:{closest:()=>({dataset:{action,species:'fungalcap'}})}});
     assert.equal(calls,1);assert.equal(results[0].ok,true);assert.equal(s.jobs.filter(j=>j.kind===action).length,1);
     const job=s.jobs.find(j=>j.kind===action);assert.equal(job.plantSpecies,'fungalcap');assert.equal(job.remaining,job.work);
@@ -139,17 +140,17 @@ test('pending gathering displays real job progress and cancellation with escaped
 test('actual inspector preserves flora information when a livestock animal shares its tile',()=>{
   const {s,site,t}=fixture(),a=s.creatures.find(a=>isLivestock(a));a.site=site.id;a.x=t.x;a.y=t.y;
   const source=app.slice(app.indexOf('function inspector() {'),app.indexOf('function refresh() {'));
-  const context={state:s,siteId:site.id,selected:{site:site.id,x:t.x,y:t.y},mode:'inspect',at,roomAt,floraDetails,renderer:{},isLivestock,livestockDef,SPECIES,animalDetails:()=>'<p>Animal care controls</p>',pathTo,esc};
+  const context={state:s,siteId:site.id,selected:{site:site.id,x:t.x,y:t.y},mode:'inspect',at,sameCell,positionOf,roomAt,floraDetails,renderer:{},isLivestock,livestockDef,SPECIES,animalDetails:()=>'<p>Animal care controls</p>',pathTo,esc};
   vm.runInNewContext(source,context);const html=context.inspector();
   assert.match(html,/Animal care controls/);assert.match(html,/WILD FLORA/);assert.match(html,/data-action="gather"/);
   assert.match(app,/activeElement\.closest\?\.\('\[data-recipe-form\]/);
 });
 
 test('actual Gather click sends exactly one shared job.order and produces no food at designation',()=>{
-  const {s,site,t}=fixture(),inspector={},bindings=controlBindings(()=>s),results=[];let calls=0;
+  const {s,site,t}=fixture(),inspector={contains:()=>true},bindings=controlBindings(()=>s),results=[];let calls=0;
   const source=app.slice(app.indexOf("$('inspector').onclick ="),app.indexOf('let pointer = null;'));
   const before=JSON.stringify(t);
-  vm.runInNewContext(source,{$:()=>inspector,state:s,siteId:site.id,selected:{site:site.id,x:t.x,y:t.y},order:(...args)=>{calls++;return bindings.order(...args);},result:r=>results.push(r)});
+  vm.runInNewContext(source,{$:()=>inspector,deckView:{matches:()=>true},inspectorView:{},state:s,siteId:site.id,selected:{site:site.id,x:t.x,y:t.y},order:(...args)=>{calls++;return bindings.order(...args);},result:r=>results.push(r)});
   inspector.onclick({target:{closest:()=>({dataset:{action:'gather',species:'fungalcap'}})}});
   assert.equal(calls,1);assert.equal(results[0].ok,true);assert.equal(s.jobs.filter(j=>j.kind==='gather').length,1);
   assert.equal(s.jobs.find(j=>j.kind==='gather').plantSpecies,'fungalcap');assert.equal(JSON.stringify(t),before);

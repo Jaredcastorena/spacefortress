@@ -92,11 +92,11 @@ test('species panels expose glazefoot feed, eggs and juvenile limits alongside b
 });
 
 test('actual inspector submission dispatches one shared recipe action and retains the production order',()=>{
-  const f=workstation(),inspector={},app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+  const f=workstation(),inspector={contains:()=>true},app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
   const source=app.slice(app.indexOf("$('inspector').onsubmit ="),app.indexOf("$('inspector').onclick ="));
   const bindings=controlBindings(()=>f.s),order=JSON.stringify(f.m.order),results=[];
   let calls=0,prevented=0,blurred=0;
-  vm.runInNewContext(source,{$:()=>inspector,state:f.s,siteId:'surface',selected:{x:f.t.x,y:f.t.y},document:{activeElement:{blur:()=>blurred++}},setProductionRecipe:(...args)=>{calls++;return bindings.setProductionRecipe(...args);},result:r=>results.push(r)});
+  vm.runInNewContext(source,{$:()=>inspector,deckView:{matches:()=>true},inspectorView:{},state:f.s,siteId:'surface',selected:{x:f.t.x,y:f.t.y},document:{activeElement:{blur:()=>blurred++}},setProductionRecipe:(...args)=>{calls++;return bindings.setProductionRecipe(...args);},result:r=>results.push(r)});
   const form={elements:{'production-recipe':{value:'curd_bake'}}};
   inspector.onsubmit({target:{closest:selector=>selector==='[data-recipe-form]'?form:null},preventDefault:()=>prevented++});
   assert.equal(calls,1);assert.equal(prevented,1);assert.equal(blurred,1);assert.equal(results[0].ok,true);
