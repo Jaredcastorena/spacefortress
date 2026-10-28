@@ -1,7 +1,8 @@
 import { positionOf, cellKey, horizontalNeighbors, tileAt, sameCell } from './spatial.js';
 import { isLivestock } from './livestock-data.js';
-import { groundStep } from './spatial.js';
-import { animalPassablePosition } from './navigation.js';
+import { horizontalStep } from './spatial.js';
+import { walkingNeighbors, stairDestination, touchStairHatch } from './vertical.js';
+import { animalPassablePosition, passablePosition } from './navigation.js';
 import { floraBiomass } from './flora.js';
 import { emitEvent, recordingStatus, tileEntityId } from './telemetry.js';
 // Derived animal-access regions. Neither regions nor observations own supplies or RNG.
@@ -15,7 +16,7 @@ export function pastureRegions(site) {
     for(let i=0;i<queue.length;i++){
       const t=queue[i];r.cells.push(positionOf(t));if(t.terrain==='ground'&&(!t.building||['fence','pastureGate','husbandryPost'].includes(t.building)))r.lichen+=floraBiomass(t);
       if(t.x===0||t.y===0||t.x===site.size-1||t.y===site.size-1)r.enclosed=false;
-      for(const p of horizontalNeighbors(positionOf(t)))if(animalPassablePosition(site,p)&&!byCell.has(cellKey(p))){byCell.set(cellKey(p),r);queue.push(tileAt(site,p));}
+      for(const p of walkingNeighbors(site,positionOf(t)))if(animalPassablePosition(site,p)&&!byCell.has(cellKey(p))){byCell.set(cellKey(p),r);queue.push(tileAt(site,p));}
     }
     regions.push(r);
   }
@@ -41,10 +42,12 @@ export function recordPastureChanges(s,before) {
   }
 }
 export function moveAnimal(s,a,next,reason) {
-  const destination=groundStep(s.sites[a.site],a,next);if(!destination)return false;
-  next=[destination.x,destination.y];
-  const from=tileEntityId(a.site,a.x,a.y);[a.x,a.y]=next;
-  emitEvent(s,'animal.moved',{entity:a.id,from,to:tileEntityId(a.site,a.x,a.y),reason});return true;
+  const site=s.sites[a.site],from=positionOf(a),destination=horizontalStep(site,a,next)||stairDestination(site,a,next);
+  if(!destination||!walkingNeighbors(site,from).some(p=>sameCell(p,destination)))return false;
+  const passable=reason==='handler_escort'?passablePosition(site,destination):animalPassablePosition(site,destination,a.species);
+  if(!passable||from.z!==destination.z&&!touchStairHatch(site,from,destination))return false;
+  Object.assign(a,destination);
+  emitEvent(s,'animal.moved',{entity:a.id,from:tileEntityId(a.site,from.x,from.y,from.z),to:tileEntityId(a.site,a.x,a.y,a.z),reason});return true;
 }
 export function setPastureGate(s,siteId,x,y,mode,z=0) {
   const site=s.sites[siteId],t=tileAt(site,{x,y,z});

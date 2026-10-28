@@ -34,7 +34,7 @@ function birthTile(s,a,r,regions){
  const site=s.sites.surface;
  return horizontalNeighbors(positionOf(a)).find(p=>{
   const t=tileAt(site,p),occupied=o=>o.site==='surface'&&sameCell(positionOf(o),p);
-  return t&&t.terrain==='ground'&&!t.building&&regions.byCell.get(cellKey(p))===r&&!s.creatures.some(o=>o.health>0&&occupied(o))&&!s.crew.some(c=>c.health>0&&occupied(c))&&!s.jobs.some(occupied);
+  return t&&['ground','floor'].includes(t.terrain)&&!t.building&&regions.byCell.get(cellKey(p))===r&&!s.creatures.some(o=>o.health>0&&occupied(o))&&!s.crew.some(c=>c.health>0&&occupied(c))&&!s.jobs.some(occupied);
  });
 }
 export function breedingStatus(s,a,regions=pastureRegions(s.sites.surface)){

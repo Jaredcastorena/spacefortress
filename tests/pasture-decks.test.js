@@ -33,14 +33,14 @@ test('pasture topology, post routes and recorded cells distinguish overlapping d
 test('same horizontal coordinates do not create mates or let upper animals obstruct ground gates',()=>{
  const {s,site,a,b}=stacked();b.z=7;assert.equal(breedingStatus(s,a).reason,'no_compatible_mate');assert.equal(breedingStatus(s,b).reason,'no_compatible_mate');updateBreeding(s);assert.equal(a.lifecycle.brood,null);assert.equal(b.lifecycle.brood,null);
  Object.assign(b,{x:6,y:15,z:7});at(site,6,15).gateMode='open';assert.equal(setPastureGate(s,'surface',6,15,'latched').ok,true);
- const before=positionOf(b);assert.equal(moveAnimal(s,b,{x:6,y:16,z:7},'test'),false);assert.deepEqual(positionOf(b),before);
+ assert.equal(moveAnimal(s,b,{x:6,y:16,z:7},'test'),true);assert.deepEqual(positionOf(b),{x:6,y:16,z:7});assert.equal(a.z,0);
 });
 
 test('births honor full occupancy, pause without spending nutrition and emerge on the parent deck',()=>{
- const {s,a,b}=stacked();a.z=b.z=7;startRecording(s);updateBreeding(s);assert.ok(a.lifecycle.brood);a.lifecycle.brood.progress=BREEDING.gestation;
+ const {s,site,a,b}=stacked();a.z=b.z=7;startRecording(s);updateBreeding(s);assert.ok(a.lifecycle.brood);a.lifecycle.brood.progress=BREEDING.gestation;
  const cells=horizontalNeighbors(positionOf(a));s.jobs=cells.map((p,i)=>({id:`block-${i}`,site:'surface',materials:{},sources:[],...p}));const nutrition=a.fed;
  updateBreeding(s);assert.ok(a.lifecycle.brood);assert.equal(a.fed,nutrition);assert.equal(breedingStatus(s,a).reason,'birth_tile_blocked');
- const free=cells.find(p=>p.x!==b.x||p.y!==b.y);s.jobs=s.jobs.filter(j=>cellKey(j)!==cellKey(free));
+ const free=cells.find(p=>p.x!==b.x||p.y!==b.y);tileAt(site,free).terrain='floor';delete tileAt(site,free).flora;s.jobs=s.jobs.filter(j=>cellKey(j)!==cellKey(free));
  // These owners overlap horizontally but are on another floor/site.
  s.jobs.push({id:'downstairs',site:'surface',materials:{},sources:[],...free,z:0},{id:'offsite',site:'wreck',materials:{},sources:[],...free});Object.assign(s.crew[0],{site:'surface',...free,z:0});
  updateBreeding(s);const child=s.creatures.find(c=>c.lifecycle?.born!==null&&c.lifecycle);assert.ok(child);assert.deepEqual(positionOf(child),free);assert.equal(a.fed,nutrition-20);assert.equal(a.lifecycle.brood,null);assert.deepEqual(child.lifecycle.parents,[a.id,b.id]);

@@ -47,7 +47,7 @@ export function validateDeckState(state, { legacy = false } = {}) {
     for(const site of Object.values(state.sites))for(const t of site.tiles)if(tileAt(site,t)!==t)throw new Error('Invalid tile deck ownership.');
     for(const c of state.crew)if(c.site==='transit'?c.z!==0:!tileAt(state.sites[c.site],c))throw new Error('Invalid crew deck.');
     for(const j of state.jobs)if(!tileAt(state.sites[j.site],j))throw new Error('Invalid job deck.');
-    for(const a of state.creatures)if(a.z!==0)throw new Error('Animal execution currently requires deck zero.');
+    for(const a of state.creatures)if(state.version<58?a.z!==0:!tileAt(state.sites[a.site],a))throw new Error('Animal execution currently requires deck zero.');
     for(const site of Object.values(state.sites))for(const t of site.tiles)if(t.z!==0&&t.building==='airlockController')throw new Error('Upper airlock execution is not supported.');
   }
 }

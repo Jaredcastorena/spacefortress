@@ -64,7 +64,7 @@ test('cancelling a stair before completion creates no upper grid and preserves m
 
 test('current saves reject inconsistent decks, links and located references',()=>{
  const f=completeStairs(),saved=serialize(f.s);
- const changes=[s=>s.sites.surface.levels[1].z=7,s=>s.sites.surface.tiles.pop(),s=>s.sites.surface.tiles.at(-1).z=0,s=>delete tileAt(s.sites.surface,s.sites.surface.verticalLinks[0].upper).verticalLink,s=>s.sites.surface.verticalLinks.push(structuredClone(s.sites.surface.verticalLinks[0])),s=>s.sites.surface.verticalLinks[0].upper.z=2,s=>tileAt(s.sites.surface,s.sites.surface.verticalLinks[0].upper).terrain='void',s=>s.sites.surface.verticalLinks[0].openUntil=s.tick+4,s=>s.nextId=1,s=>s.crew[0].z=2,s=>s.creatures[0].z=1,s=>s.sites.surface.rooms[0].z=2];
+ const changes=[s=>s.sites.surface.levels[1].z=7,s=>s.sites.surface.tiles.pop(),s=>s.sites.surface.tiles.at(-1).z=0,s=>delete tileAt(s.sites.surface,s.sites.surface.verticalLinks[0].upper).verticalLink,s=>s.sites.surface.verticalLinks.push(structuredClone(s.sites.surface.verticalLinks[0])),s=>s.sites.surface.verticalLinks[0].upper.z=2,s=>tileAt(s.sites.surface,s.sites.surface.verticalLinks[0].upper).terrain='void',s=>s.sites.surface.verticalLinks[0].openUntil=s.tick+4,s=>s.nextId=1,s=>s.crew[0].z=2,s=>s.creatures[0].z=2,s=>s.sites.surface.rooms[0].z=2];
  for(const change of changes){const s=JSON.parse(saved);change(s);assert.throws(()=>deserialize(JSON.stringify(s)));}
  const old=JSON.parse(saved);old.version=54;assert.throws(()=>deserialize(JSON.stringify(old)));
 });

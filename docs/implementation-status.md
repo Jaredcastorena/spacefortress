@@ -2,6 +2,14 @@
 
 Updated October 27, 2026.
 
+## Local animal floors after v0.1.5
+
+Livestock can now walk or be escorted through usable stairs to upper-floor posts. Ordinary animal movement respects closed or damaged stairs, fences and pressure doors; handlers retain their existing escort access. Pasture regions follow actual stair connections, and automatic hatches open during crossing.
+
+Feeding, medicine delivery, product collection, slaughter, carcass handling and their events retain the actual floor. Births can use clear constructed floors; corpses age at their actual position. Stair dismantling protects upstairs animals as well as crew. Assignment, escort and butchery buttons identify the destination floor and use the same commands as local agents.
+
+Save schema58 admits validated animal positions and migrates genuine schema57 without changing physical state. Nine new scenarios and203 existing cases are covered, with five final affected checks passing after two obsolete ground-only expectations were updated. The final79-case movement/husbandry gate passed, including free roaming on constructed floors. These are bounded fixtures with paid stairs, upper floors and a husbandry post; they do not establish ordinary colony endurance.
+
 ## v0.1.5 vertical systems
 
 Power, gas and water risers now connect existing endpoint cables/pipes on adjacent floors. Each build costs two alloy/eight work; repair costs one alloy/six work; dismantling requires five work and returns one alloy. Both endpoints are claimed during work. Isolation and shared damage affect only the connection; endpoint controls and finite contents retain their existing ownership. Water uses the existing capped equalization flow; gas preserves species and smoke. Schema57 adds validated connections, endpoint references and maintenance identity, with a genuine schema56 migration fixture. Twelve new cases and229 compatibility cases are covered after one floor-release event fix and fixture/projection corrections. The focused repair gate passed98 cases. Full release CI and website deployment are recorded on GitHub; ordinary upstairs endurance remains unverified.
@@ -12,7 +20,7 @@ Stair repairs now use one delivered alloy and eight work to restore the shared c
 
 A compact floor menu and Page Up / Page Down now select installed floors. Map picking, tile inspection, build orders and equipment controls retain the selected floor. Crew selection follows the crew member’s floor; stair landings have artwork and shared hatch controls. Floor changes invalidate held map clicks and stale inspector actions. Warnings and maintenance links navigate to the correct floor; resource and power totals are labeled as all-floor summaries. Viewing a floor does not change simulation state. Focused checks cover52 enabled cases after correcting one test assertion about bunk ownership. The local browser menu opened correctly and the static export passed. No full-suite rerun or ordinary colony continuation was performed for this interface change.
 
-Paid stair jobs reserve and carry six alloy plus one component, then create an empty upper grid and its landing. Upper floor extension requires paid material, a reachable builder and support immediately below. Schema55 admits up to eight contiguous declared floors, validates link/landing ownership and named references, and migrates genuine schema54 without changing physical state. Animals, upper airlocks and solar occlusion remain pending. The preceding paid-stair checkpoint’s full JavaScript gate and focused repairs covered1612 enabled cases; one historical capture-only test remains skipped. These changes are included in v0.1.5. The sections below record earlier checkpoints.
+Paid stair jobs reserve and carry six alloy plus one component, then create an empty upper grid and its landing. Upper floor extension requires paid material, a reachable builder and support immediately below. Schema55 admits up to eight contiguous declared floors, validates link/landing ownership and named references, and migrates genuine schema54 without changing physical state. Upper airlocks and solar occlusion remain pending. The preceding paid-stair checkpoint’s full JavaScript gate and focused repairs covered1612 enabled cases; one historical capture-only test remains skipped. These changes are included in v0.1.5. The sections below record earlier checkpoints.
 
 ## v0.1.3: hex colonies and food development
 

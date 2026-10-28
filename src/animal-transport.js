@@ -13,19 +13,19 @@ export const transportAnimal=(s,j)=>s.creatures.find(a=>a.id===j.animal&&isLives
 const target=(s,j)=>tileAt(s.sites.surface,positionOf(j));
 const same=(a,b)=>a.site===b.site&&sameCell(positionOf(a),positionOf(b));
 export const postReserved=(s,x,y,animal,z=0)=>s.jobs.some(j=>transportJob(j)&&j.site==='surface'&&sameCell(positionOf(j),{x,y,z})&&j.animal!==animal);
-export function requestTransport(s,id,x,y,cancelJob){
+export function requestTransport(s,id,x,y,cancelJob,z=0){
  const a=s.creatures.find(a=>a.id===id&&isLivestock(a)&&a.health>0&&a.husbandry.trust===100),site=s.sites.surface;
  if(!a)return {ok:false,message:'Transport requires living, tame livestock.'};
  if(!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=site.size||y>=site.size)return {ok:false,message:'Choose a husbandry post.'};
- const t=tileAt(site,{x,y,z:0});
- if(t.building!=='husbandryPost'||t.hp<=0)return {ok:false,message:'Choose a working husbandry post.'};
+ const t=tileAt(site,{x,y,z});
+ if(t?.building!=='husbandryPost'||t.hp<=0)return {ok:false,message:'Choose a working husbandry post.'};
  if(transportFor(s,a))return {ok:false,message:'This animal already has a transport order.'};
- if(s.creatures.some(o=>o!==a&&o.health>0&&sameCell(o.husbandry?.post,{x,y,z:0}))||postReserved(s,x,y,id))return {ok:false,message:'This post is assigned or reserved.'};
- if(s.jobs.some(j=>j.site==='surface'&&sameCell(positionOf(j),{x,y,z:0})&&!(j.animal===id&&['animalCare','animalHarvest','animalTreat'].includes(j.kind))))return {ok:false,message:'Finish or cancel the work at this post first.'};
- if(pathTo(site,{...a,...positionOf(a)},[{x,y,z:0}])===null||!s.crew.some(c=>c.site==='surface'&&c.health>0&&pathTo(site,{...c,...positionOf(c)},[positionOf(a)])!==null))return {ok:false,message:'A handler needs a route to the animal and its destination.'};
+ if(s.creatures.some(o=>o!==a&&o.health>0&&sameCell(o.husbandry?.post,{x,y,z}))||postReserved(s,x,y,id,z))return {ok:false,message:'This post is assigned or reserved.'};
+ if(s.jobs.some(j=>j.site==='surface'&&sameCell(positionOf(j),{x,y,z})&&!(j.animal===id&&['animalCare','animalHarvest','animalTreat'].includes(j.kind))))return {ok:false,message:'Finish or cancel the work at this post first.'};
+ if(pathTo(site,{...a,...positionOf(a)},[{x,y,z}])===null||!s.crew.some(c=>c.site==='surface'&&c.health>0&&pathTo(site,{...c,...positionOf(c)},[positionOf(a)])!==null))return {ok:false,message:'A handler needs a route to the animal and its destination.'};
  for(const j of [...s.jobs])if(j.animal===id)cancelJob(s,j.id,true);
- const j={id:`job-${s.nextId++}`,site:'surface',x,y,z:0,kind:'animalLead',animal:id,building:null,cost:{},sources:[],materials:{},work:TRANSPORT_WORK,remaining:TRANSPORT_WORK,phase:'collect',worker:null,priority:3,blockedReason:null,missingFood:0,foodSpoiled:0};
- s.jobs.push(j);emitEvent(s,'job.created',{entity:j.id,kind:j.kind,target:tileEntityId('surface',x,y),animal:id,cost:{}});emitEvent(s,'animal.transport.ordered',{entity:id,job:j.id,target:tileEntityId('surface',x,y)});return {ok:true,job:j};
+ const j={id:`job-${s.nextId++}`,site:'surface',x,y,z,kind:'animalLead',animal:id,building:null,cost:{},sources:[],materials:{},work:TRANSPORT_WORK,remaining:TRANSPORT_WORK,phase:'collect',worker:null,priority:3,blockedReason:null,missingFood:0,foodSpoiled:0};
+ s.jobs.push(j);emitEvent(s,'job.created',{entity:j.id,kind:j.kind,target:tileEntityId('surface',x,y,z),animal:id,cost:{}});emitEvent(s,'animal.transport.ordered',{entity:id,job:j.id,target:tileEntityId('surface',x,y,z)});return {ok:true,job:j};
 }
 export function transportRoute(s,j,c){
  const a=transportAnimal(s,j),t=target(s,j),site=s.sites.surface;
@@ -59,7 +59,7 @@ export function actTransport(s,c,j,release){
   c.activity=`Collecting a tame ${livestockDef(a).name.toLowerCase()}`;
   if(route.length){moveCrew(c,site,route[0]);return false;}
   const effort=Math.min(j.remaining,workRate(c,'husbandry'));j.remaining-=effort;gainExperience(c,'husbandry',effort);
-  if(j.remaining<=0){j.phase='escort';emitEvent(s,'animal.transport.attached',{entity:a.id,actor:c.id,job:j.id,target:tileEntityId('surface',a.x,a.y)});}return false;
+  if(j.remaining<=0){j.phase='escort';emitEvent(s,'animal.transport.attached',{entity:a.id,actor:c.id,job:j.id,target:tileEntityId('surface',a.x,a.y,a.z)});}return false;
  }
  c.activity=`Escorting a ${livestockDef(a).name.toLowerCase()}`;
  if(!route.length)return true;
@@ -68,10 +68,10 @@ export function actTransport(s,c,j,release){
 }
 export function completeTransport(s,c,j){
  const a=transportAnimal(s,j);a.husbandry.post=positionOf(j);a.husbandry.retryAt=0;a.husbandry.blocked=null;
- emitEvent(s,'animal.post.assigned',{entity:a.id,target:tileEntityId('surface',j.x,j.y)});
- emitEvent(s,'animal.transport.delivered',{entity:a.id,actor:c.id,job:j.id,target:tileEntityId('surface',j.x,j.y)});
+ emitEvent(s,'animal.post.assigned',{entity:a.id,target:tileEntityId('surface',j.x,j.y,j.z)});
+ emitEvent(s,'animal.transport.delivered',{entity:a.id,actor:c.id,job:j.id,target:tileEntityId('surface',j.x,j.y,j.z)});
 }
-export function transportStatus(s,a){const j=transportFor(s,a);return j?{job:j.id,phase:j.phase,worker:j.worker,destination:tileEntityId('surface',j.x,j.y),blocked:j.blockedReason}:null;}
+export function transportStatus(s,a){const j=transportFor(s,a);return j?{job:j.id,phase:j.phase,worker:j.worker,destination:tileEntityId('surface',j.x,j.y,j.z),blocked:j.blockedReason}:null;}
 export function validateTransport(s){
  const animals=new Set(),posts=new Set();
  for(const j of s.jobs.filter(transportJob)){

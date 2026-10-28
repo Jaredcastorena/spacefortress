@@ -370,3 +370,9 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 | --- | --- |
 | [src/utility-links.js](../src/utility-links.js) | Paid adjacent-floor power/gas/water connections, endpoint claims, isolation, shared maintenance and save validation. |
 | [tests/utility-risers.test.js](../tests/utility-risers.test.js) | Paid work, finite transfers, player/agent parity and schema56 migration. |
+
+## Animal floors
+
+| File | Purpose |
+| --- | --- |
+| [tests/animal-floors.test.js](../tests/animal-floors.test.js) | Paid upstairs post, actual movement/escort/care/carcass jobs, shared controls and genuine schema57 migration. |

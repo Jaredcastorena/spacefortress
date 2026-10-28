@@ -90,7 +90,7 @@ export function animalTreatmentReady(s,j){
 export function completeAnimalTreatment(s,c,j){
   if(!animalTreatmentReady(s,j)||(j.materials?.medicine||0)<VETERINARY.medicine||!c||c.site!==j.site||positionOf(c).z!==positionOf(j).z||distance([c.x,c.y],[j.x,j.y])>1)return false;
   const a=treatmentAnimal(s,j),dose=Math.min(j.dose,untreated(a));a.condition.treated+=dose;
-  emitEvent(s,'animal.treatment.completed',{entity:a.id,actor:c.id,job:j.id,target:tileEntityId(j.site,j.x,j.y),medicine:VETERINARY.medicine,dose,credit:a.condition.treated});
+  emitEvent(s,'animal.treatment.completed',{entity:a.id,actor:c.id,job:j.id,target:tileEntityId(j.site,j.x,j.y,j.z),medicine:VETERINARY.medicine,dose,credit:a.condition.treated});
   updateRecoveryState(s,a);return true;
 }
 export function validateAnimalHealth(s){

@@ -2,6 +2,12 @@
 
 SPACEFORTRESS is an early playable colony simulator. Release entries describe completed changes within their stated scope.
 
+## Unreleased
+
+- Allow animals and handler escorts to use stairs and upper-floor pastures. Preserve floor ownership through supplied care, collection, medicine, slaughter, carcass processing and disposal.
+- Admit births on clear constructed floors and prevent stair dismantling from stranding upstairs animals.
+- Add floor arguments and labels to animal assignment, escort and butchery controls. Save schema58 migrates genuine schema57 without changing existing physical state.
+
 ## v0.1.5 — 2026-10-27
 
 - Connect adjacent floors with paid power, gas and water risers. Endpoint cables/pipes own the finite contents; independent isolation, shared damage, supplied repair and dismantling preserve them.

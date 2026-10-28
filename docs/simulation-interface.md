@@ -35,6 +35,12 @@ Action parameter objects reject unknown fields, invalid types, missing arguments
 
 For Node-based local experiments, import `createGame` from `src/simulation.js`, `executeAction` from `src/controls.js` and recording helpers from `src/telemetry.js`. Use this dispatcher for external decisions; direct state edits are marked `external` and do not contain a player/agent intent.
 
+## Animals on connected floors
+
+`husbandry.assign`, `husbandry.transport` and `husbandry.butcher` accept optional `z` (0–7, default0). The destination must exist on the surface colony; assignment preserves ordinary animal access, while escort uses a handler's path and keeps both actors together. No command moves an animal instantly.
+
+`husbandry.treat`, `husbandry.dispatch` and `husbandry.discard` derive the actual post or carcass floor. Care and collection jobs reserve and deliver their original finite supplies there. Animal movement, post, transport, treatment, product and carcass events identify the actual floor. Save schema58 validates these positions; older schemas still reject future upper-animal state before migration.
+
 ## Utility connections between floors
 
 Use `job.order` with `kind: "build"`, `building: "powerRiser" | "gasRiser" | "waterRiser"` and the lower endpoint's `site`, `x`, `y`, `z`. Both adjacent habitat floors and matching cable/pipe endpoints must already exist. Construction costs two alloy/eight work and claims both endpoints; blocked completion retains its material.

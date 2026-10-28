@@ -41,7 +41,7 @@ export function registerAnimalDeath(s,a,cause){
   if(a.husbandry){a.husbandry.post=null;a.husbandry.harvest=false;}
   if(a.condition)a.condition.recovery='none';
   emitEvent(s,'animal.died',{entity:a.id,cause,carcass:id(a)});
-  emitEvent(s,'carcass.created',{entity:id(a),animal:a.id,cause,stage,meatKind:a.death.meatKind,yield:a.death.yield,age:0,owner:structuredClone(a.death.owner),target:tileEntityId(a.site,a.x,a.y)});return true;
+  emitEvent(s,'carcass.created',{entity:id(a),animal:a.id,cause,stage,meatKind:a.death.meatKind,yield:a.death.yield,age:0,owner:structuredClone(a.death.owner),target:tileEntityId(a.site,a.x,a.y,a.z)});return true;
 }
 export function carcassPosition(s,a){
   const d=a?.death;if(!physical(d))return null;const o=d.owner;
@@ -63,13 +63,13 @@ function dispatchCheck(s,a,exclude=null){
 }
 export const dispatchEligibility=(s,a)=>dispatchCheck(s,a);
 export function dispatchJobValid(s,j){const a=animal(s,j);return dispatchJob(j)&&j.site==='surface'&&!!a&&sameCell(a.husbandry?.post,positionOf(j))&&dispatchCheck(s,a,j).ok;}
-export function butcheryEligibility(s,a,x,y){
+export function butcheryEligibility(s,a,x,y,z=0){
   if(!isLivestock(a)||a.health>0||!physical(a.death))return result(false,'no_body','Choose an unprocessed livestock carcass.');
   const d=a.death;if(d.disposition!=='fresh'||d.age>=FOOD_LIFETIME||d.yield<=0)return result(false,'spoiled','This carcass cannot supply edible meat.');
   if(d.reservedBy!==null||d.owner?.kind!=='tile')return result(false,'reserved','This carcass is already reserved.');
-  const site=s.sites.surface;if(!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=site.size||y>=site.size||!workingPost(s,x,y))return result(false,'needs_post','Choose a working surface husbandry post.');
-  if(post(s,x,y).fire)return result(false,'fire','Suppress the fire at the post.');
-  if(s.creatures.some(o=>o.health>0&&sameCell(o.husbandry?.post,{x,y,z:0}))||s.jobs.some(j=>j.animal===a.id||j.site==='surface'&&sameCell(positionOf(j),{x,y,z:0})))return result(false,'busy','This animal or post already has work or an assignment.');
+  const site=s.sites.surface;if(!Number.isInteger(x)||!Number.isInteger(y)||x<0||y<0||x>=site.size||y>=site.size||!workingPost(s,x,y,z))return result(false,'needs_post','Choose a working surface husbandry post.');
+  if(post(s,x,y,z).fire)return result(false,'fire','Suppress the fire at the post.');
+  if(s.creatures.some(o=>o.health>0&&sameCell(o.husbandry?.post,{x,y,z}))||s.jobs.some(j=>j.animal===a.id||j.site==='surface'&&sameCell(positionOf(j),{x,y,z})))return result(false,'busy','This animal or post already has work or an assignment.');
   return result(true,'ready','Ready to retrieve and butcher this carcass.');
 }
 export function discardEligibility(s,a){
@@ -77,15 +77,15 @@ export function discardEligibility(s,a){
   if(a.death.reservedBy!==null||s.jobs.some(j=>j.animal===a.id))return result(false,'reserved','This carcass is already reserved.');
   return result(true,'ready','Ready to discard this spoiled carcass.');
 }
-export function requestDispatch(s,animalId,order){const a=s.creatures.find(a=>a.id===animalId),eligibility=dispatchEligibility(s,a);if(!eligibility.ok)return eligibility;const r=order(s,'surface',a.husbandry.post.x,a.husbandry.post.y,'animalDispatch',animalId);if(r.ok)emitEvent(s,'animal.dispatch.ordered',{entity:a.id,job:r.job.id,target:tileEntityId('surface',a.husbandry.post.x,a.husbandry.post.y)});return r;}
-export function requestButchery(s,animalId,x,y,order){const a=s.creatures.find(a=>a.id===animalId),eligibility=butcheryEligibility(s,a,x,y);if(!eligibility.ok)return eligibility;const r=order(s,'surface',x,y,'animalButcher',animalId);if(r.ok)emitEvent(s,'carcass.reserved',{entity:id(a),animal:a.id,job:r.job.id,kind:'animalButcher',owner:structuredClone(a.death.owner),age:a.death.age,target:tileEntityId('surface',x,y)});return r;}
-export function requestDiscard(s,animalId,order){const a=s.creatures.find(a=>a.id===animalId),eligibility=discardEligibility(s,a);if(!eligibility.ok)return eligibility;const p=carcassPosition(s,a),r=order(s,p.site,p.x,p.y,'animalDiscard',animalId);if(r.ok)emitEvent(s,'carcass.reserved',{entity:id(a),animal:a.id,job:r.job.id,kind:'animalDiscard',owner:structuredClone(a.death.owner),age:a.death.age,target:tileEntityId(p.site,p.x,p.y)});return r;}
+export function requestDispatch(s,animalId,order){const a=s.creatures.find(a=>a.id===animalId),eligibility=dispatchEligibility(s,a);if(!eligibility.ok)return eligibility;const r=order(s,'surface',a.husbandry.post.x,a.husbandry.post.y,'animalDispatch',animalId,a.husbandry.post.z);if(r.ok)emitEvent(s,'animal.dispatch.ordered',{entity:a.id,job:r.job.id,target:tileEntityId('surface',a.husbandry.post.x,a.husbandry.post.y,a.husbandry.post.z)});return r;}
+export function requestButchery(s,animalId,x,y,order,z=0){const a=s.creatures.find(a=>a.id===animalId),eligibility=butcheryEligibility(s,a,x,y,z);if(!eligibility.ok)return eligibility;const r=order(s,'surface',x,y,'animalButcher',animalId,z);if(r.ok)emitEvent(s,'carcass.reserved',{entity:id(a),animal:a.id,job:r.job.id,kind:'animalButcher',owner:structuredClone(a.death.owner),age:a.death.age,target:tileEntityId('surface',x,y,z)});return r;}
+export function requestDiscard(s,animalId,order){const a=s.creatures.find(a=>a.id===animalId),eligibility=discardEligibility(s,a);if(!eligibility.ok)return eligibility;const p=carcassPosition(s,a),r=order(s,p.site,p.x,p.y,'animalDiscard',animalId,p.z);if(r.ok)emitEvent(s,'carcass.reserved',{entity:id(a),animal:a.id,job:r.job.id,kind:'animalDiscard',owner:structuredClone(a.death.owner),age:a.death.age,target:tileEntityId(p.site,p.x,p.y,p.z)});return r;}
 export function releaseCarcass(s,j,c,reason='handler_unavailable'){
   if(!carcassJob(j))return;const a=animal(s,j),d=a?.death;if(!physical(d)||d.reservedBy!==j.id)return;
   const cancel=['cancelled','destination_lost','worker_died','immobile','spoiled','invalidated'].includes(reason);
   if(d.owner.kind==='crew'||cancel&&d.owner.kind==='job'){
     const p=carcassPosition(s,a)||c&&{site:c.site,...positionOf(c)}||{site:j.site,...positionOf(j)};d.owner={kind:'tile',...p};
-    emitEvent(s,'carcass.dropped',{entity:id(a),animal:a.id,job:j.id,actor:c?.id||j.worker,reason,owner:structuredClone(d.owner),age:d.age,target:tileEntityId(p.site,p.x,p.y)});
+    emitEvent(s,'carcass.dropped',{entity:id(a),animal:a.id,job:j.id,actor:c?.id||j.worker,reason,owner:structuredClone(d.owner),age:d.age,target:tileEntityId(p.site,p.x,p.y,p.z)});
     if(j.kind==='animalButcher')j.phase='collect';
   }
   if(cancel)d.reservedBy=null;
@@ -105,7 +105,7 @@ export function reconcileCarcasses(s,cancelJob){
 }
 export function updateCarcasses(s){
   for(const a of s.creatures)if(physical(a.death)){
-    const d=a.death,p=carcassPosition(s,a);if(!p||p.z!==0)continue;d.age+=decayRate(temperatureAt(s.sites[p.site],p.x,p.y,p.z));
+    const d=a.death,p=carcassPosition(s,a);if(!p)continue;d.age+=decayRate(temperatureAt(s.sites[p.site],p.x,p.y,p.z));
     if(d.disposition==='fresh'&&d.age>=FOOD_LIFETIME){d.disposition='spoiled';emitEvent(s,'carcass.spoiled',{entity:id(a),animal:a.id,age:d.age,owner:structuredClone(d.owner),reservedBy:d.reservedBy});}
   }
 }
@@ -122,7 +122,7 @@ export function actCarcass(s,c,j,move,release){
     if(d.owner.kind!=='tile'||!same(c,source))return false;d.owner={kind:'crew',crew:c.id};j.phase='carry';emitEvent(s,'carcass.picked_up',{entity:id(a),animal:a.id,job:j.id,actor:c.id,age:d.age,owner:structuredClone(d.owner),target:tileEntityId(c.site,c.x,c.y)});return false;
   }
   if(j.kind==='animalButcher'&&j.phase==='carry'){
-    if(d.owner.kind!=='crew'||d.owner.crew!==c.id||!same(c,target))return false;d.owner={kind:'job',job:j.id};j.phase='process';emitEvent(s,'carcass.staged',{entity:id(a),animal:a.id,job:j.id,actor:c.id,age:d.age,owner:structuredClone(d.owner),target:tileEntityId(j.site,j.x,j.y)});return false;
+    if(d.owner.kind!=='crew'||d.owner.crew!==c.id||!same(c,target))return false;d.owner={kind:'job',job:j.id};j.phase='process';emitEvent(s,'carcass.staged',{entity:id(a),animal:a.id,job:j.id,actor:c.id,age:d.age,owner:structuredClone(d.owner),target:tileEntityId(j.site,j.x,j.y,j.z)});return false;
   }
   if(tile(s,j.site,j.x,j.y,positionOf(j).z)?.fire){j.blockedReason='Waiting for fire suppression';return false;}
   if(j.kind==='animalButcher'&&(j.phase!=='process'||d.owner.kind!=='job'||d.owner.job!==j.id)||j.kind==='animalDiscard'&&(d.owner.kind!=='tile'||!same(c,source)))return false;
@@ -130,7 +130,7 @@ export function actCarcass(s,c,j,move,release){
 }
 export function completeDispatch(s,c,j){
   const a=animal(s,j);if(!dispatchJobValid(s,j)||j.work!==BUTCHERY.dispatchWork||j.remaining!==0||!availableWorker(c)||!same(a,{site:j.site,...positionOf(j)})||c.site!==j.site||positionOf(c).z!==positionOf(j).z||distance([c.x,c.y],[j.x,j.y])>1)return false;
-  if(!registerAnimalDeath(s,a,'dispatch'))return false;emitEvent(s,'animal.dispatch.completed',{entity:a.id,carcass:id(a),actor:c.id,job:j.id,target:tileEntityId(j.site,j.x,j.y)});return true;
+  if(!registerAnimalDeath(s,a,'dispatch'))return false;emitEvent(s,'animal.dispatch.completed',{entity:a.id,carcass:id(a),actor:c.id,job:j.id,target:tileEntityId(j.site,j.x,j.y,j.z)});return true;
 }
 export function completeCarcass(s,c,j){
   const a=animal(s,j),d=a?.death;if(!carcassJob(j)||!availableWorker(c)||!physical(d)||d.reservedBy!==j.id||j.remaining!==0)return false;
@@ -138,9 +138,9 @@ export function completeCarcass(s,c,j){
   if(j.kind==='animalButcher'){
     if(d.disposition!=='fresh'||d.age>=FOOD_LIFETIME||j.phase!=='process'||d.owner.kind!=='job'||d.owner.job!==j.id||!workingPost(s,j.x,j.y,positionOf(j).z)||post(s,j.x,j.y,positionOf(j).z).fire)return false;
     const output={...typedFood(d.meatKind,d.yield,d.age),waste:BUTCHERY.waste};spill(post(s,j.x,j.y,positionOf(j).z),output);d.disposition='butchered';d.owner=null;d.reservedBy=null;
-    const details={entity:id(a),animal:a.id,job:j.id,actor:c.id,target:tileEntityId(j.site,j.x,j.y),age:d.age,meatKind:d.meatKind,output:structuredClone(output)};emitEvent(s,'carcass.butchered',details);emitEvent(s,'animal.butchered',{...details,entity:a.id,carcass:id(a)});return true;
+    const details={entity:id(a),animal:a.id,job:j.id,actor:c.id,target:tileEntityId(j.site,j.x,j.y,j.z),age:d.age,meatKind:d.meatKind,output:structuredClone(output)};emitEvent(s,'carcass.butchered',details);emitEvent(s,'animal.butchered',{...details,entity:a.id,carcass:id(a)});return true;
   }
-  if(j.kind==='animalDiscard'&&d.disposition==='spoiled'&&d.owner.kind==='tile'&&!tile(s,p.site,p.x,p.y,p.z).fire){spill(tile(s,p.site,p.x,p.y,p.z),{waste:BUTCHERY.waste});d.disposition='discarded';d.owner=null;d.reservedBy=null;emitEvent(s,'carcass.discarded',{entity:id(a),animal:a.id,job:j.id,actor:c.id,target:tileEntityId(p.site,p.x,p.y),age:d.age,output:{waste:BUTCHERY.waste}});return true;}return false;
+  if(j.kind==='animalDiscard'&&d.disposition==='spoiled'&&d.owner.kind==='tile'&&!tile(s,p.site,p.x,p.y,p.z).fire){spill(tile(s,p.site,p.x,p.y,p.z),{waste:BUTCHERY.waste});d.disposition='discarded';d.owner=null;d.reservedBy=null;emitEvent(s,'carcass.discarded',{entity:id(a),animal:a.id,job:j.id,actor:c.id,target:tileEntityId(p.site,p.x,p.y,p.z),age:d.age,output:{waste:BUTCHERY.waste}});return true;}return false;
 }
 export function carcassStatus(s,a){
   const d=a?.death;if(!d)return null;const j=s.jobs.find(j=>j.id===d.reservedBy);
@@ -156,7 +156,7 @@ export function validateCarcasses(s){
     if(d.disposition==='legacy'?(d.cause!=='legacy'||d.age!==0):d.cause==='legacy')throw new Error('Invalid legacy mortality.');
     if(physical(d)){
       if(d.disposition==='fresh'?d.age>=FOOD_LIFETIME:d.age<FOOD_LIFETIME)throw new Error('Invalid carcass freshness.');
-      const o=d.owner,p=carcassPosition(s,a);if(!p||p.site!=='surface'||p.z!==0||!tileAt(s.sites.surface,p))throw new Error('Invalid carcass location.');
+      const o=d.owner,p=carcassPosition(s,a);if(!p||p.site!=='surface'||!tileAt(s.sites.surface,p))throw new Error('Invalid carcass location.');
       if(o.kind==='tile'?!exact(o,['kind','site','x','y','z']):o.kind==='crew'?!exact(o,['kind','crew']):o.kind==='job'?!exact(o,['kind','job']):true)throw new Error('Invalid carcass owner.');
       const j=s.jobs.find(j=>j.id===d.reservedBy);if(d.reservedBy!==null&&(!j||!carcassJob(j)||j.animal!==a.id||reserved.has(j.id)))throw new Error('Invalid carcass reservation.');if(j)reserved.add(j.id);
       if(o.kind==='crew'){const c=s.crew.find(c=>c.id===o.crew);if(!j||j.kind!=='animalButcher'||j.phase!=='carry'||j.worker!==c?.id||c.job!==j.id||!availableWorker(c)||carriers.has(c.id))throw new Error('Invalid carcass carrier.');carriers.add(c.id);}

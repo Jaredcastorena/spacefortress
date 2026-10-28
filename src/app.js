@@ -265,7 +265,7 @@ $('inspector').onclick = e => {
   if(action==='animal-treat'){result(setAnimalTreatment(state,button.dataset.animal),'Veterinary treatment ordered. A medic must deliver medicine and work at the post.');return;}
   if(['animal-dispatch','animal-butcher','animal-discard'].includes(action)){
     const id=({'animal-dispatch':'husbandry.dispatch','animal-butcher':'husbandry.butcher','animal-discard':'husbandry.discard'})[action],args={creature:button.dataset.animal};
-    if(action==='animal-butcher'){args.x=Number(button.dataset.x);args.y=Number(button.dataset.y);}
+    if(action==='animal-butcher'){args.x=Number(button.dataset.x);args.y=Number(button.dataset.y);args.z=Number(button.dataset.z??0);}
     result(executeAction(state,id,args,'player'),action==='animal-dispatch'?'Slaughter ordered. A handler must finish physical work before this animal dies.':action==='animal-butcher'?'Butchery ordered. A handler must retrieve, carry and process the body.':'Disposal ordered. A handler must work at the spoiled body.');return;
   }
   if(action==='gather'&&selected&&!selected.crew){result(order(state,siteId,selected.x,selected.y,'gather',button.dataset.species, selected.z),'Gathering designated. A worker must reach and harvest the plant.');return;}
@@ -306,11 +306,11 @@ $('inspector').onclick = e => {
   if(['gas-toggle','gas-direction'].includes(action)&&selected){const t=at(state.sites[siteId],selected.x,selected.y,selected.z),d=t.gasDevice;result(setGasDevice(state,siteId,t.x,t.y,action==='gas-toggle'?!d.enabled:d.enabled,action==='gas-direction'?button.dataset.direction:(d.direction||'ne'),d.target??100, selected.z));}
   if(['gas-extractor-toggle','gas-extractor-mode'].includes(action)&&selected){const t=at(state.sites[siteId],selected.x,selected.y,selected.z),d=t.gasDevice;result(setGasExtractor(state,siteId,t.x,t.y,action==='gas-extractor-toggle'?!d.enabled:d.enabled,action==='gas-extractor-mode'?button.dataset.mode:d.mode,d.target, selected.z));}
   if(['repairPipe','removePipe'].includes(action)&&selected)result(order(state,siteId,selected.x,selected.y,action, undefined, selected.z),'Pipe work designated.');
-  if(action==='animal-assign')result(setAnimalPost(state,button.dataset.animal,Number(button.dataset.x),Number(button.dataset.y)));
+  if(action==='animal-assign')result(setAnimalPost(state,button.dataset.animal,Number(button.dataset.x),Number(button.dataset.y),Number(button.dataset.z??0)));
   if(action==='animal-release')result(setAnimalPost(state,button.dataset.animal,null,null));
   if(action==='fire-response'){const current=state.sites[button.dataset.site];result(setFireResponse(state,current.id,!current.fireSafety.automatic));}
   if(action==='fire-suppress'&&selected)result(order(state,siteId,selected.x,selected.y,'extinguish', undefined, selected.z));
-  if(action==='animal-transport')result(transportAnimalToPost(state,button.dataset.animal,+button.dataset.x,+button.dataset.y));
+  if(action==='animal-transport')result(transportAnimalToPost(state,button.dataset.animal,+button.dataset.x,+button.dataset.y,Number(button.dataset.z??0)));
   if(action==='animal-breed'){const a=state.creatures.find(a=>a.id===button.dataset.animal);result(setBreeding(state,a.id,!a.lifecycle.enabled));}
   if(action==='animal-policy'){const a=state.creatures.find(a=>a.id===button.dataset.animal);result(setAnimalPolicy(state,a.id,button.dataset.policy,!a.husbandry[button.dataset.policy]));}
   if(action==='possession-policy'){const c=state.crew.find(c=>c.id===button.dataset.crew);result(setPossessionCollection(state,c.id,!c.possessions.collect));}

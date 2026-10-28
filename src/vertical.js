@@ -90,7 +90,7 @@ export function stairWorkBlock(s,site,link,kind,ignoreJob=null,canLeave=()=>fals
  if([link.lower,link.upper].some(p=>tileAt(site,p)?.fire))return rejectWork('burning_stairwell','Suppress the fire at both stair landings first.');
  const occupied=[...s.crew,...s.creatures].some(c=>c.health>0&&c.site===site.id&&[link.lower,link.upper].some(p=>sameCell(positionOf(c),p)));
  if((kind==='remove'||link.mode==='closed')&&occupied)return rejectWork('occupied_stairwell','Clear both stair landings before sealing the hatch.');
- if(kind==='remove'&&!canLeave(link))return rejectWork('stranded_stairwell','Bring upstairs crew down or provide another usable route to floor 0 before dismantling.');
+ if(kind==='remove'&&!canLeave(link))return rejectWork('stranded_stairwell','Bring upstairs crew and animals down or provide another usable route to floor 0 before dismantling.');
  return {ok:true};
 }
 export function completeStairWork(s,site,job,canLeave){

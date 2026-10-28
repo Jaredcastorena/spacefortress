@@ -44,7 +44,7 @@ export function pathToPosition(site, from, goals, canEnter=passablePosition, nei
   }
   return null;
 }
-export const animalPathToPosition=(site,from,goals)=>pathToPosition(site,from,goals,(current,p)=>animalPassablePosition(current,p,from.species),(_,p)=>horizontalNeighbors(p));
+export const animalPathToPosition=(site,from,goals)=>pathToPosition(site,from,goals,(current,p)=>animalPassablePosition(current,p,from.species),walkingNeighbors);
 
 // Pair-valued callers are deliberately restricted to the landing deck. They
 // cannot erase an explicit actor level or silently truncate a third coordinate.

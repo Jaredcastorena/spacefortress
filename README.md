@@ -12,6 +12,10 @@ An early playable space colony simulator inspired by Dwarf Fortress. Keep seven 
 
 Start with [CASTOR.md](CASTOR.md) for the current architecture, version boundaries and focused entry points. The [file map](docs/FILE_MAP.md) provides per-file navigation; the [version ledger](docs/AGENT_VERSIONS.md) preserves release and compatibility distinctions.
 
+## Local work after v0.1.5
+
+Livestock can now use stairs and upper-floor posts, including supplied feeding, veterinary care, product collection and carcass work. Pastures follow usable stair connections, and births can use clear constructed floors. This local checkpoint uses save schema58, with migration from validated hex schemas40–57. The published v0.1.5 build below remains schema57.
+
 ## v0.1.5: connected floors and utility systems
 
 Build paid stairs to expand upward, select installed floors with the floor menu or Page Up / Page Down, and carry supplies between them. Stair hatches, damage, repairs and safe removal use shared simulation rules.
