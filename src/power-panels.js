@@ -1,10 +1,12 @@
 import { BUILDINGS } from './data.js';
+import {solarExposure} from './solar.js';
 import { electrical, BATTERY_CAPACITY } from './power.js';
 
 export function powerDetails(site, t) {
   if (t.building==='breaker' || (!t.cable && !electrical(t))) return '';
-  const circuit = site.circuits.find(c => c.id === t.circuit);
+  const circuit = site.circuits.find(c => c.id === t.circuit),sunlight=t.building==='solar'?solarExposure(site,t):null;
   return `<hr><div class="eyebrow">ELECTRICAL CIRCUIT</div>${t.powerStatus ? `<p>${t.powerStatus}</p>` : ''}
+    ${sunlight?`<dl><dt>Sunlight path</dt><dd>${sunlight.exposed?'Clear above':`Blocked at floor ${sunlight.blockedBy.z}`}</dd></dl><p class="crew-hint">Generation needs daylight and open space above the panel.</p>`:''}
     ${circuit ? `<dl><dt>Generation / load</dt><dd>${circuit.output.toFixed(1)} / ${circuit.demand} kW</dd><dt>Delivered</dt><dd>${circuit.used} kW</dd><dt>Stored on circuit</dt><dd>${circuit.battery.toFixed(1)} / ${circuit.capacity} kJ</dd><dt>Unused generation</dt><dd>${circuit.curtailed.toFixed(1)} kW</dd></dl>` : ''}
     ${BUILDINGS[t.building]?.demand ? `<p>Power priority</p><div class="job-priority">${[[1, 'Low'], [3, 'Normal'], [5, 'Critical']].map(([priority, label]) => `<button data-action="power-priority" data-priority="${priority}" aria-pressed="${t.powerPriority === priority}" class="${t.powerPriority === priority ? 'active' : ''}">${label}</button>`).join('')}</div>` : ''}
     ${t.building === 'battery' ? `<p>This bank: ${t.charge.toFixed(1)} / ${BATTERY_CAPACITY} kJ</p><button ${t.z?'hidden':''} data-action="bank-cell" ${t.hp <= 0 || BATTERY_CAPACITY - t.charge < 100 ? 'disabled' : ''}>Load power cell · 100 kJ</button>` : ''}

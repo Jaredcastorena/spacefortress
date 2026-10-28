@@ -3,6 +3,8 @@ import { initializeReactorTile, tripReactor, reactorBlock, reactorOutput, genera
 import { initializeClimate } from './thermal.js';
 import { initializeMaintenance } from './maintenance.js';
 import { BUILDINGS } from './data.js';
+import {isDay,solarStatus} from './solar.js';
+export {isDay} from './solar.js';
 import { buildPowerTopology, powerTileKey, breakerTerminals, breakerContactClosed, branchForBreaker } from './power-topology.js';
 import { initializeBreakerTile, tripBreaker } from './breakers.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
@@ -11,7 +13,6 @@ import { horizontalNeighbors, tileAt as tileAtPosition, positionOf } from './spa
 
 export const BATTERY_CAPACITY = 120;
 export const BATTERY_RATE = 20;
-export const isDay = s => s.tick % 300 < 220;
 export const electrical = t => !!(BUILDINGS[t.building]?.output || BUILDINGS[t.building]?.demand || t.building === 'battery' || t.building === 'breaker');
 export const key = powerTileKey;
 const at = tileAt;
@@ -34,7 +35,7 @@ export function previewPower(s, site) {
   for (const network of topology.circuits) {
     const { tiles, id } = network;
     const banks = tiles.filter(t => t.building === 'battery' && t.hp > 0).sort((a, b) => a.y - b.y || a.x - b.x);
-    const sources = new Map(tiles.map(t => [t, t.building === 'reactor' ? reactorOutput(site, t) : isDay(s) ? (BUILDINGS[t.building]?.output || 0) * t.hp / 100 : 0]));
+    const sources = new Map(tiles.map(t => [t, t.building === 'reactor' ? reactorOutput(site, t) : t.building === 'solar' && !(s.version<59) ? solarStatus(s,site,t).output : isDay(s) ? (BUILDINGS[t.building]?.output || 0) * t.hp / 100 : 0]));
     const output = [...sources.values()].reduce((a, b) => a + b, 0);
     const consumers = tiles.filter(t => BUILDINGS[t.building]?.demand && t.hp > 0 && t.machine?.enabled !== false && t.climate?.enabled !== false && t.gasDevice?.enabled !== false && t.waterDevice?.enabled !== false && (t.building !== 'airlockController' || t.airlock?.enabled === true));
     consumers.sort((a, b) => b.powerPriority - a.powerPriority || (b.building === 'scrubber' ? 1 : 0) - (a.building === 'scrubber' ? 1 : 0) || a.y - b.y || a.x - b.x);
@@ -104,7 +105,8 @@ function protectedPlan(s, site, advance) {
   return plan;
 }
 
-function calculate(s, site, advance) {
+function calculate(s, site, advance, recordEvents=true) {
+  const previousSolar=new Map(site.tiles.filter(t=>t.building==='solar').map(t=>[t,t.powerStatus??null]));
   for (const t of site.tiles) { initializeElectrical(t); t.powered = false; t.circuit = null; t.powerStatus = null; t.wetShort = false; }
   if (advance) for (const t of site.tiles) if (t.building === 'reactor') tripReactor(s, site, t);
   const plan = protectedPlan(s, site, advance), networks = [], operating = new Set();
@@ -140,9 +142,10 @@ function calculate(s, site, advance) {
     for (const metric of ['output', 'demand', 'used', 'battery', 'capacity', 'curtailed']) site.power[metric] += circuit[metric];
     if (circuit.used < circuit.demand) site.power.brownouts++;
   }
+  if(!(s.version<59))for(const [t,previous] of previousSolar){const status=solarStatus(s,site,t),p=status.blockedBy;t.powerStatus=status.status;if(recordEvents&&previous!==t.powerStatus)emitEvent(s,'power.solar.availability.changed',{entity:tileEntityId(site.id,t.x,t.y,t.z),previous,status:t.powerStatus,reason:status.reason,blockedBy:p?tileEntityId(site.id,p.x,p.y,p.z):null,availableOutput:status.output});}
   return operating;
 }
-export function refreshPower(s, site) { calculate(s, site, false); }
+export function refreshPower(s, site, recordEvents=true) { calculate(s, site, false,recordEvents); }
 export function updatePower(s, site) { return calculate(s, site, true); }
 
 // Commission only initial/legacy equipment. New construction needs player-installed routes.
@@ -198,7 +201,7 @@ export function validatePower(s, site) {
     if (t.building === 'battery' ? !amount(t.charge) || t.charge > BATTERY_CAPACITY : t.charge !== undefined) throw new Error('Invalid battery charge.');
     if (BUILDINGS[t.building]?.demand && ![1, 3, 5].includes(t.powerPriority)) throw new Error('Invalid power priority.');
   }
-  const expected = { ...site, tiles: site.tiles.map(t => ({ ...t, ...(t.protection ? { protection: { ...t.protection } } : {}) })) }; refreshPower(s, expected);
+  const expected = { ...site, tiles: site.tiles.map(t => ({ ...t, ...(t.protection ? { protection: { ...t.protection } } : {}) })) }; refreshPower(s, expected,false);
   if (!Object.keys(expected.power).every(k => close(site.power[k], expected.power[k]))) throw new Error('Power totals do not match the connected circuits.');
   if (site.circuits.length !== expected.circuits.length) throw new Error('Invalid circuit count.');
   for (let i = 0; i < expected.circuits.length; i++) {

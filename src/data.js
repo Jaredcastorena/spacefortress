@@ -1,5 +1,5 @@
 import { LIVESTOCK } from './livestock-data.js';
-export const VERSION = 58;
+export const VERSION = 59;
 export const RESOURCES = ['alloy', 'ore', 'components', 'food', 'water', 'fuel', 'cells', 'air', 'medicine', 'waste', 'fertilizer', 'keepsakes', 'ice'];
 export const BUILDINGS = {
   powerRiser:{name:'Power riser',cost:{alloy:2},work:8,overlay:true,description:'Connect paid cables on this habitat floor and the floor directly above. Independent isolation; stair hatches do not interrupt power.'},
@@ -41,7 +41,7 @@ export const BUILDINGS = {
   wall: { name: 'Hull wall', cost: { alloy: 2 }, work: 5, description: 'Seals a room. Blocks movement.' },
   door: { name: 'Pressure door', cost: { alloy: 3 }, work: 5, description: 'Opens briefly for passing crew. Gas flows while open. Can be held open or sealed shut.' },
   bunk: { name: 'Crew bunk', cost: { alloy: 3 }, work: 6, description: 'Crew recover energy here. Place inside a sealed habitat.' },
-  solar: { name: 'Solar array', cost: { alloy: 5 }, work: 8, output: 4, description: 'Produces 4 kW in daylight. No fuel consumption.' },
+  solar: { name: 'Solar array', cost: { alloy: 5 }, work: 8, output: 4, description: 'Produces up to 4 kW in daylight with clear space above. Floors and solid structures block sunlight.' },
   battery: { name: 'Battery bank', cost: { alloy: 4, components: 1 }, work: 8, description: 'Stores 120 kJ on its own circuit. New banks start empty; charge them from generation or a recovered power cell.' },
   scrubber: { name: 'Life support', cost: { alloy: 5, components: 1 }, work: 9, demand: 3, description: 'Recycles exhaled gas. Delivered breathing mix replaces lost gas and refills the habitat.' },
   atmosphere: { noise: 1, name: 'Atmosphere processor', cost: { alloy: 8, components: 2 }, work: 12, demand: 4, description: 'Crew use water and local volatiles to make breathing mix. Haulers supply life support with its output.' },

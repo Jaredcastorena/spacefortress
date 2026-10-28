@@ -376,3 +376,8 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 | File | Purpose |
 | --- | --- |
 | [tests/animal-floors.test.js](../tests/animal-floors.test.js) | Paid upstairs post, actual movement/escort/care/carcass jobs, shared controls and genuine schema57 migration. |
+
+## Solar exposure additions
+
+- [src/solar.js](../src/solar.js): pure daylight, overhead-column exposure and panel availability shared by power and observations.
+- [tests/solar-occlusion.test.js](../tests/solar-occlusion.test.js): paid rooftop construction, finite energy, legacy migration and player/agent diagnostic parity.

@@ -1,8 +1,12 @@
 # Implementation status and next depth pass
 
-Updated October 27, 2026.
+Updated October 28, 2026.
 
-## Local animal floors after v0.1.5
+## v0.1.6 solar exposure
+
+Solar arrays now need daylight and a clear vertical column above them. Higher terrain and intact structures block generation; empty space and bare utility overlays do not. The inspector identifies the blocking floor, and structured observations expose the same reason. Batteries still supply only their stored energy. Save schema59 validates older power accounting before recalculating sunlight availability, preserving physical resources, battery charge and the energy ledger. The model is a deterministic vertical column, without angled sunlight, transparent materials or orbital lighting. Nine new solar cases and141 compatibility cases are covered. One obsolete unshaded-source expectation was corrected; the final55-case affected gate passed. Full release CI and deployment are recorded in the release record. Ordinary upstairs endurance remains unverified.
+
+## v0.1.6 animal floors
 
 Livestock can now walk or be escorted through usable stairs to upper-floor posts. Ordinary animal movement respects closed or damaged stairs, fences and pressure doors; handlers retain their existing escort access. Pasture regions follow actual stair connections, and automatic hatches open during crossing.
 
@@ -20,7 +24,7 @@ Stair repairs now use one delivered alloy and eight work to restore the shared c
 
 A compact floor menu and Page Up / Page Down now select installed floors. Map picking, tile inspection, build orders and equipment controls retain the selected floor. Crew selection follows the crew member’s floor; stair landings have artwork and shared hatch controls. Floor changes invalidate held map clicks and stale inspector actions. Warnings and maintenance links navigate to the correct floor; resource and power totals are labeled as all-floor summaries. Viewing a floor does not change simulation state. Focused checks cover52 enabled cases after correcting one test assertion about bunk ownership. The local browser menu opened correctly and the static export passed. No full-suite rerun or ordinary colony continuation was performed for this interface change.
 
-Paid stair jobs reserve and carry six alloy plus one component, then create an empty upper grid and its landing. Upper floor extension requires paid material, a reachable builder and support immediately below. Schema55 admits up to eight contiguous declared floors, validates link/landing ownership and named references, and migrates genuine schema54 without changing physical state. Upper airlocks and solar occlusion remain pending. The preceding paid-stair checkpoint’s full JavaScript gate and focused repairs covered1612 enabled cases; one historical capture-only test remains skipped. These changes are included in v0.1.5. The sections below record earlier checkpoints.
+Paid stair jobs reserve and carry six alloy plus one component, then create an empty upper grid and its landing. Upper floor extension requires paid material, a reachable builder and support immediately below. Schema55 admits up to eight contiguous declared floors, validates link/landing ownership and named references, and migrates genuine schema54 without changing physical state. Upper airlocks remain pending; solar occlusion is implemented in v0.1.6. The preceding paid-stair checkpoint’s full JavaScript gate and focused repairs covered1612 enabled cases; one historical capture-only test remains skipped. These changes are included in v0.1.5. The sections below record earlier checkpoints.
 
 ## v0.1.3: hex colonies and food development
 

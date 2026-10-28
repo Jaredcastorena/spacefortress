@@ -4,11 +4,17 @@
 
 `Verified` means the stated scoped check has evidence. `Pending` means the release check has not yet been accepted. Historical results do not substitute for current release verification.
 
+## v0.1.6 — upstairs livestock and sunlight
+
+Release scope: livestock stairs and upper-floor care, safe animal-aware stair removal, solar column occlusion and matching player/agent diagnostics. Save schema59 migrates validated hex schemas40–58 without resetting physical resources or stored energy. The animal checkpoint passed its79-case final movement/husbandry gate; the solar checkpoint passed its55-case final affected gate, including nine new solar cases.
+
+The required full Node/Python and server checks run in GitHub Actions before Pages deploys. See the [release record](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.6) for their actual outcome and hosted manifest verification. Upper airlocks and ordinary upstairs endurance remain unfinished.
+
 ## v0.1.5 — connected floors and utilities
 
 Release scope: accumulated systems fixes, paid stairs, floor selection, shared stair maintenance and finite power/gas/water risers. Save schema57 migrates hex schemas40–56. Focused utility and compatibility checks pass after documented repairs. The complete Node suite passed1,639 active cases with one intentional historical skip, and29 Python checks passed locally. The hosted job hit its ten-minute limit as the Node suite finished; its allowance is now twenty minutes so packaging and server checks can complete before Pages deploys. The release record links the final source commit, workflow and deployed manifest.
 
-The full upstairs build-and-live journey, animal traversal, upper airlocks, solar occlusion and ordinary outpost endurance remain pending. Publication does not establish those outcomes.
+At v0.1.5, animal traversal and solar occlusion were pending; v0.1.6 implements them. The full upstairs build-and-live journey, upper airlocks and ordinary outpost endurance remain pending.
 
 ## v0.1.4 — air diagnostics and paused import
 

@@ -96,6 +96,7 @@
     "src/sanitation.js",
     "src/shipment-locations.js",
     "src/simulation.js",
+    "src/solar.js",
     "src/spatial.js",
     "src/spoilage.js",
     "src/sprites.js",

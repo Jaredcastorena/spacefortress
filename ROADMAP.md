@@ -2,6 +2,10 @@
 
 ## Current systems work
 
+- [x] Make solar generation respect overhead terrain and structures; expose the blocking floor to players and agents, preserve finite battery accounting, and migrate older saves through schema59.
+- [ ] Extend airlock construction, admission, cycling and recovery to upper floors.
+- [ ] Complete the ordinary upstairs build-and-live journey, including supplied care and operation through a full night.
+
 - [x] Enable animal movement and handler escorts through stairs, upper-floor post assignment and supplied care/collection, floor-aware carcasses and births, safe stair removal, and schema58 persistence. Bounded checks pass; ordinary upstairs living remains unverified.
 
 - [x] Implement shared stair damage, paid repair and safe dismantling. Claim both endpoints, retain materials when closure is blocked, preserve cancellation and multi-floor save custody, and show the same job at both landings.
@@ -9,7 +13,7 @@
 
 - [x] Connect the floor selector, upstairs map/inspection/build controls, crew navigation, stair artwork and hatch controls. Invalidate held clicks on view changes and identify floor-specific hazards. Verified with focused UI/control/render tests; the broader build-and-live acceptance remains incomplete.
 
-- [x] Build stairs through paid physical jobs, bootstrap only an empty upper grid and landing, enforce support beneath upper floor extension, and persist declared floors/links through schema55. Preserve legacy saves and cancellation custody. Upper airlocks and solar occlusion remain pending.
+- [x] Build stairs through paid physical jobs, bootstrap only an empty upper grid and landing, enforce support beneath upper floor extension, and persist declared floors/links through schema55. Preserve legacy saves and cancellation custody. Upper airlocks remain pending; solar occlusion is implemented above.
 
 - [x] Implement the shared stairwell connection core: routed crew/cargo/patient movement, hatch controls, finite gas/smoke/heat exchange and bounded downward water flow. A declared-link scenario carries inputs upstairs and finished output back down. Paid construction, multi-floor saves and the selector are covered by the later milestones above; animal traversal is covered by the later checkpoint above.
 
@@ -51,7 +55,7 @@
 - [ ] Establish overnight thermal conditioning before claiming sustained airlock operation.
 
 
-**Release build: v0.1.5 / schema57 · Local build: schema58.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
+**Release build: v0.1.6 / schema59.** SPACEFORTRESS is an early playable colony simulator growing from a planetary foothold into orbit and farther space. This roadmap orders the next playable increments; it promises no dates.
 
 See the [README](README.md) to play, [verification status](docs/verification-status.md) for evidence and limits, and the [180-system conversion inventory](docs/conversion-inventory.md) for the wider backlog. Completing a milestone below does not complete an entire inventory family or establish full Dwarf Fortress parity.
 

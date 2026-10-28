@@ -67,12 +67,14 @@ test('ground electrical identities retain their exact format while upper identit
   assert.equal(tileEntityId('surface',2,3),'tile:surface:2:3');assert.equal(tileEntityId('surface',2,3,0),'tile:surface:2:3');assert.equal(tileEntityId('surface',2,3,7),'tile:surface:2:3:7');
 });
 
-test('downstream generation diagnostics identify their actual deck',()=>{
+test('downstream generation diagnostics exclude shaded sources and identify their actual deck',()=>{
   const {s,site}=stacked(),lower=relayLine(site,0),upper=relayLine(site,7);
   for(const line of [lower,upper])device(site,line.output.x,line.output.y,line.output.z,'solar');
   const plan=previewPower(s,site);
   const a=breakerConditions(s,site,lower.relay,plan),b=breakerConditions(s,site,upper.relay,plan);
-  assert.deepEqual(a.sourceEntities,[tileEntityId(site.id,lower.output.x,lower.output.y)]);
+  assert.deepEqual(a.sourceEntities,[],'the upper floor shades the lower source');
   assert.deepEqual(b.sourceEntities,[tileEntityId(site.id,upper.output.x,upper.output.y,7)]);
   assert.notDeepEqual(a.sourceEntities,b.sourceEntities);
+  Object.assign(upper.output,{terrain:'void',building:null,cable:null});
+  assert.deepEqual(breakerConditions(s,site,lower.relay).sourceEntities,[tileEntityId(site.id,lower.output.x,lower.output.y)]);
 });
