@@ -4,7 +4,7 @@ Implemented September 16, 2026, following the user's request to clearly mark sma
 
 ## Solar observations and availability
 
-Solar tile `derived.solar` reports `daylight`, `exposed`, `blockedBy` (a full position or null), `reason`, `output` and `status`. Reasons are `damaged`, `cable_damaged`, `cable_off`, `night`, `blocked` and `generating`, in that precedence. Player inspection uses the same exposure rules. Observation/recording schema9 remains unchanged; this is an additive field.
+Solar tile `derived.solar` reports `daylight`, `exposed`, `blockedBy` (a full position or null), `reason`, `output` and `status`. Reasons are `damaged`, `cable_damaged`, `cable_off`, `night`, `blocked` and `generating`, in that precedence. `output` describes generation within the panel’s own circuit. A disabled or broken cable isolates that circuit; its generation is curtailed, without supplying neighboring equipment. Cable status does not erase generated/curtailed energy. Player inspection uses the same exposure rules. Observation/recording schema9 remains unchanged; this is an additive field.
 
 `power.solar.availability.changed` records a status transition with the panel entity, previous/current status, reason, blocking tile entity or null, and `availableOutput`. It describes available generation, not energy produced. Preview, refresh, save migration and validation cannot add generated energy. Save schema59 validates the old power model before recalculating derived availability for older saves.
 

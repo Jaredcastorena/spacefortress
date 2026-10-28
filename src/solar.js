@@ -18,5 +18,7 @@ export function solarStatus(s,site,tile) {
   const exposure=solarExposure(site,tile),daylight=isDay(s);
   const reason=tile.hp<=0?'damaged':tile.cable&&tile.cable.hp<=0?'cable_damaged':tile.cable&&!tile.cable.enabled?'cable_off':!daylight?'night':!exposure.exposed?'blocked':'generating';
   const status=reason==='damaged'?'Needs repair':reason==='cable_damaged'?'Needs cable repair':reason==='cable_off'?'Cable switched off':reason==='night'?'No sunlight':reason==='blocked'?`Blocked above · floor ${exposure.blockedBy.z}`:'Generating';
-  return {daylight,...exposure,reason,output:reason==='generating'?BUILDINGS.solar.output*tile.hp/100:0,status};
+  // Cable isolation disconnects the panel from neighbors; the existing allocator
+  // still accounts for its local generation as curtailed energy.
+  return {daylight,...exposure,reason,output:tile.hp>0&&daylight&&exposure.exposed?BUILDINGS.solar.output*tile.hp/100:0,status};
 }

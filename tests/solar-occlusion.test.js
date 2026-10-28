@@ -58,8 +58,11 @@ test('availability changes are recorded once and power preview, refresh and vali
  const changed=events(s).filter(e=>e.id==='power.solar.availability.changed');assert.equal(changed.length,1);assert.equal(changed[0].entity,tileEntityId('surface',lower.x,lower.y,0));assert.equal(changed[0].reason,'generating');assert.equal(changed[0].blockedBy,null);assert.equal(changed[0].availableOutput,4);assert.equal(panel.powerStatus,'Generating');
 });
 
-test('solar diagnostics agree with an isolated or damaged cable and recover when it is usable',()=>{
- const f=column();f.panel.cable={hp:100,enabled:false};refreshPower(f.s,f.site);assert.equal(solarStatus(f.s,f.site,f.panel).reason,'cable_off');assert.equal(f.panel.powerStatus,'Cable switched off');assert.equal(f.site.power.output,0);
- f.panel.cable.enabled=true;f.panel.cable.hp=0;refreshPower(f.s,f.site);assert.equal(solarStatus(f.s,f.site,f.panel).reason,'cable_damaged');assert.equal(f.panel.powerStatus,'Needs cable repair');assert.equal(f.site.power.output,0);
- f.panel.cable.hp=100;refreshPower(f.s,f.site);assert.equal(f.panel.powerStatus,'Generating');assert.equal(f.site.power.output,solarStatus(f.s,f.site,f.panel).output);assert.equal(f.site.power.output,4);
+test('isolated solar generation is curtailed without supplying neighbors, with matching cable diagnostics',()=>{
+ const f=column(),[x,y]=hexStep(3,3,'ne'),load=device(f.site,{x,y,z:0},'holo');f.panel.cable={hp:100,enabled:false};
+ refreshPower(f.s,f.site);assert.equal(solarStatus(f.s,f.site,f.panel).reason,'cable_off');assert.equal(f.panel.powerStatus,'Cable switched off');assert.equal(f.site.power.output,4);assert.equal(load.powered,false);
+ updatePower(f.s,f.site);assert.equal(f.site.energy.generated,4);assert.equal(f.site.energy.curtailed,4);assert.equal(f.site.energy.consumed,0);validatePower(f.s,f.site);
+ f.panel.cable.enabled=true;f.panel.cable.hp=0;refreshPower(f.s,f.site);assert.equal(solarStatus(f.s,f.site,f.panel).reason,'cable_damaged');assert.equal(f.panel.powerStatus,'Needs cable repair');assert.equal(f.site.power.output,4);assert.equal(load.powered,false);
+ f.panel.cable.hp=100;refreshPower(f.s,f.site);assert.equal(f.panel.powerStatus,'Generating');assert.equal(f.site.power.output,solarStatus(f.s,f.site,f.panel).output);assert.equal(f.site.power.output,4);assert.equal(load.powered,true);
+ tileAt(f.site,{x:3,y:3,z:1}).terrain='floor';refreshPower(f.s,f.site);assert.equal(f.site.power.output,0);assert.equal(load.powered,false);validatePower(f.s,f.site);
 });

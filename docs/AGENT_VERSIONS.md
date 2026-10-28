@@ -63,7 +63,7 @@ The current hex loader rejects square schemas1–39. Historical compressed squar
 
 ## Reviewed source identity
 
-Current v0.1.6: source/build input set **118 files**, SHA-256 fingerprint `f43189515fce930365cf621d1914340b06839afcbcb21bd809f1204aaa46b8e1`. Nine new solar cases and141 compatibility cases covered; one obsolete shaded-source assertion was corrected and the final55-case affected gate passed. Full release verification is recorded on GitHub. No ordinary endurance claim.
+Current v0.1.6: source/build input set **118 files**, SHA-256 fingerprint `becaaea16aa1cb68727b220ebbbb698aa98f723e661daec75f15679d7e36df7b`. Nine new solar cases and141 compatibility cases covered; one obsolete shaded-source assertion was corrected and the final55-case affected gate passed. Release CI then found two disabled-cable accounting regressions (1,655 passes, two failures, one historical skip). Restored isolated generation and curtailment accounting; all65 affected checks passed, including both unchanged breaker cases. Full release verification is recorded on GitHub. No ordinary endurance claim.
 
 Previous animal-floor checkpoint: source/build input set **117 files**, SHA-256 fingerprint `18013f19b32993f91928a4b00a28801996f3188b5689d5a616d843282a19a838`. Nine new cases and203 compatibility cases covered. The compatibility run passed201 and identified two obsolete ground-only assertions; five affected follow-up cases pass, including constructed-floor birth and upper slaughter/disposal. The final79-case movement/husbandry gate passed, including all9 new scenarios and free roaming on constructed floors. Static export passed. No ordinary endurance run.
 

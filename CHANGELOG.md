@@ -5,7 +5,7 @@ SPACEFORTRESS is an early playable colony simulator. Release entries describe co
 ## v0.1.6 — 2026-10-28
 
 - Block solar generation beneath upper terrain or intact structures. Identify the nearest blocking floor in player inspection and structured observations.
-- Record solar availability changes without generating energy during inspection, validation or power refresh. Preserve cable, damage and night restrictions.
+- Record solar availability changes without generating energy during inspection, validation or power refresh. Preserve damage and night restrictions, and retain isolated generation/curtailment accounting when a cable is disabled or broken.
 - Migrate validated hex saves40–58 to schema59, checking historical power totals before applying the new sunlight rules. Preserve stored energy, resources and cumulative accounting.
 
 - Allow animals and handler escorts to use stairs and upper-floor pastures. Preserve floor ownership through supplied care, collection, medicine, slaughter, carcass processing and disposal.

@@ -8,7 +8,7 @@
 
 Release scope: livestock stairs and upper-floor care, safe animal-aware stair removal, solar column occlusion and matching player/agent diagnostics. Save schema59 migrates validated hex schemas40–58 without resetting physical resources or stored energy. The animal checkpoint passed its79-case final movement/husbandry gate; the solar checkpoint passed its55-case final affected gate, including nine new solar cases.
 
-The required full Node/Python and server checks run in GitHub Actions before Pages deploys. See the [release record](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.6) for their actual outcome and hosted manifest verification. Upper airlocks and ordinary upstairs endurance remain unfinished.
+The first full release gate passed1,655 cases and found two cable-isolation accounting regressions, with one historical skip. Restoring the existing generated/curtailed accounting passed all65 affected checks, including both unchanged breaker tests. The required full Node/Python and server checks run in GitHub Actions before Pages deploys. See the [release record](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.6) for their actual outcome and hosted manifest verification. Upper airlocks and ordinary upstairs endurance remain unfinished.
 
 ## v0.1.5 — connected floors and utilities
 
