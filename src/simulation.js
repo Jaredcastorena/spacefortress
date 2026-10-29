@@ -550,7 +550,7 @@ function act(s, c, air) {
   const thermalDamage = thermalExposure(c, site, !breathable(room));
   if (thermalDamage) injure(s, c, thermalDamage, c.thermalStress < 0 ? 'cold exposure' : 'heat exposure');
   if (c.medical.servings > 0) { c.hunger = Math.min(100, c.hunger + 10); c.medical.servings--; digestPortion(c); eatPortion(s,c,c.medical); }
-  const flame=at(site,c.x,c.y).fire;if(flame){injure(s,c,.2+flame.intensity*.01,'fire exposure');emitEvent(s,'fire.exposure',{entity:flame.id,actor:c.id});}
+  const flame=shipmentTile(site,positionOf(c)).fire;if(flame){injure(s,c,.2+flame.intensity*.01,'fire exposure');emitEvent(s,'fire.exposure',{entity:flame.id,actor:c.id,target:tileEntityId(c.site,c.x,c.y,c.z)});}
   if (air.unmetOxygen > 0 || c.hunger <= 0) injure(s, c, .5, air.unmetOxygen > 0 ? 'oxygen deprivation' : 'starvation');
   else if (breathable(room) && thermalSafe(room) && room.air > 60 && c.hunger > 40) c.health = Math.min(100 - c.medical.injury, c.health + .03);
   if (c.health <= 0) { dropPossession(s,c); dropOpenedMeals(s, c); dropSanitation(s, c); release(s, c); c.intent = null; dropCarriedMaterials(s, c); c.activity = 'Deceased'; log(s, `${c.name} has died.`, 'danger'); return; }
@@ -662,14 +662,14 @@ function updateWreckHazards(s) {
   const site = s.sites.wreck, presence = shuttlePresence(s, 'wreck');
   let exposed = 0;
   for (const c of s.crew.filter(c => c.site === 'wreck' && c.health > 0)) {
-    const room = roomAt(site,c.x,c.y,c.z), tile = at(site, c.x, c.y);
+    const room = roomAt(site,c.x,c.y,c.z), tile = shipmentTile(site,positionOf(c));
     const sheltered = tile.terrain === 'floor' && room?.sealed && room.leakArea <= 1e-8;
-    const docked = presence.usable && c.x === presence.terminal.x && c.y === presence.terminal.y;
+    const docked = presence.usable && sameCell(positionOf(c),positionOf(presence.terminal));
     if (sheltered || docked) continue;
     const shield = presence.present && returnCrewIds(s).includes(c.id) ? SHUTTLE_FITS[s.mission.fit].damage : 1;
     const damage = 4 * shield;
     injure(s, c, damage, 'debris impact'); exposed++;
-    emitEvent(s, 'wreck.debris.exposure', { entity: c.id, site: 'site:wreck', target: tileEntityId('wreck', c.x, c.y), damage, reason: 'outside_shelter' });
+    emitEvent(s, 'wreck.debris.exposure', { entity: c.id, site: 'site:wreck', target: tileEntityId('wreck', c.x, c.y, c.z), damage, reason: 'outside_shelter' });
   }
   if (exposed) log(s, 'Debris impact at Relay K-07. Exposed crew need shelter.', 'danger');
 }
@@ -828,7 +828,7 @@ function updateEcology(s) {
     creature.age++; creature.fed = Math.max(0, creature.fed - (traits?(adult(creature)?traits.metabolism:traits.juvenileMetabolism):.015));
     if(def){updateAnimalHealth(s,creature);if(creature.health<=0)continue;}
     const flame=shipmentTile(site,positionOf(creature)).fire;
-    if(flame){const damage=.2+flame.intensity*.01;if(def)injureAnimal(s,creature,damage,'fire');else creature.health=Math.max(0,creature.health-damage);emitEvent(s,'fire.exposure',{entity:flame.id,actor:creature.id});if(creature.health<=0){if(!def)emitEvent(s,'animal.died',{entity:creature.id,cause:'fire'});}else {const route=animalPathToPosition(site,creature,horizontalNeighbors(positionOf(creature)));if(route?.length)moveAnimal(s,creature,route[0],'fire_escape');}continue;}
+    if(flame){const damage=.2+flame.intensity*.01;if(def)injureAnimal(s,creature,damage,'fire');else creature.health=Math.max(0,creature.health-damage);emitEvent(s,'fire.exposure',{entity:flame.id,actor:creature.id,target:tileEntityId(creature.site,creature.x,creature.y,creature.z)});if(creature.health<=0){if(!def)emitEvent(s,'animal.died',{entity:creature.id,cause:'fire'});}else {const route=animalPathToPosition(site,creature,horizontalNeighbors(positionOf(creature)));if(route?.length)moveAnimal(s,creature,route[0],'fire_escape');}continue;}
     if(def){animalCondition(s,creature);if(creature.health<=0)continue;if(heldForTransport(s,creature))continue;if(moveAssignedAnimal(s,creature,animalPath,roamPasture))continue;}
     if (s.tick % (def?.movementTicks || 5) !== 0) continue;
     if (def) {

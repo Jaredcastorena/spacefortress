@@ -2,7 +2,15 @@
 
 Updated October 29, 2026.
 
-## Local development after v0.1.8: stair fire containment
+## Local development after v0.1.9: crew hazard positions
+
+Crew fire exposure now reads their actual floor. Wreck-debris shelter uses that floor’s terrain and room, and shuttle terminal protection requires the same full position. Exposure events preserve the affected tile for both crew and animals. Five synthetic boundary cases pass, including exact save continuation; ordinary upstairs/night endurance remains incomplete.
+
+## v0.1.9: manufactured mining tools
+
+A finite extraction/refining/fabrication/workshop chain now produces alloy/composite tools. Crew walk to collect them; material and quality affect actual mining speed, condition wears with completed work, and repair consumes delivered alloy while preserving item identity. Tools and keepsakes have separate slots. Schema64 preserves prior hex saves and explicit depot filters; older colonies must enable Tools in depot filters. [Release CI and deployment](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.9) passed 1,743 JavaScript and15 Python tests with zero failures and one historical skip. This verifies bounded chains and compatibility, not indefinite colony endurance.
+
+## v0.1.9: stair fire containment
 
 Open or damaged stair hatches now let a mature fire ignite a combustible fitting immediately beside the opposite landing. Both directions use the existing oxygen, wetness and fuel checks. Intact closed hatches and solid ceilings contain this spread; sealed utility risers do not carry flames. A source still creates at most one new fire per thirty-tick spread interval, with horizontal spread taking priority. New fires begin burning on the following tick. Existing shared suppression orders handle the resulting fire on its actual floor. Twelve new synthetic boundary cases and fifty-five affected compatibility checks pass. These are not an ordinary upstairs endurance run. Save schema63 and observation9 remain unchanged.
 

@@ -12,6 +12,10 @@ An early playable space colony simulator inspired by Dwarf Fortress. Keep seven 
 
 Start with [CASTOR.md](CASTOR.md) for the current architecture, version boundaries and focused entry points. The [file map](docs/FILE_MAP.md) provides per-file navigation; the [version ledger](docs/AGENT_VERSIONS.md) preserves release and compatibility distinctions.
 
+## Local development after v0.1.9: floor-specific exposure
+
+Crew fire injuries now follow the tile they occupy. Wreck-debris shelter uses the current floor, and a docked shuttle protects only occupants at its actual terminal position. Fire and debris exposure events identify the affected floor. Five new synthetic boundary cases cover stacked occupants, shelter, terminal protection and exact save continuation; ordinary upstairs endurance remains unfinished.
+
 ## v0.1.9: manufactured mining tools
 
 Build a tool workshop on a supplied habitat floor. Alloy tools consume two alloy and one component; composite tools use two of each and need a production operator at skill level three. Materials and operator skill affect mining speed, and tools wear only while doing actual mining work. Broken tools leave hand mining available.

@@ -70,3 +70,7 @@ Ice/impact reserves, natural terrain and salvage use shared source rules on the 
 ## Personal item and prepared-meal custody checkpoint
 
 Personal item release and death now resolve the actual crew tile. Pickup planning, ownership/release and meal-preparation events retain z. Shared inventory-owner enumeration uses canonical full-floor tile IDs, so both discrete items and split meal batches report their actual owners. Ground IDs remain stable; saves and observation schema are unchanged. Native stair pickup, closed-hatch cancellation/recovery, release, death and subsequent hauling pass bounded checks.
+
+## Crew exposure checkpoint
+
+Crew fire injury reads the occupied deck, while wreck-debris shelter checks that deck’s terrain and sealed room. Docked protection requires the crew and usable terminal to share the full position. Crew/animal fire events and wreck-debris exposure events identify the actual tile. Five synthetic boundary cases cover both directions of stacked fire isolation, upper shelter over empty ground, terminal-floor isolation and deterministic reload; this does not complete ordinary upstairs endurance.

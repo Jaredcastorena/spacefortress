@@ -2,6 +2,10 @@
 
 Implemented September 16, 2026, following the user's request to clearly mark small simulation interactions for eventual AI training. This is a local environment interface and recorder. No model, training service, network endpoint or external dependency is involved.
 
+## Crew hazard positions
+
+`fire.exposure` adds `target`, the actual-floor tile ID, for both crew and animals. `wreck.debris.exposure.target` now also includes a nonzero floor. Crew fire injury, sealed-room protection and docked-shuttle immunity use the occupant’s full position. Ground tile IDs and damage formulas retain their existing form; save64 and observation/recording9 are unchanged.
+
 ## Mining tools
 
 `crew.tools.equip` accepts `crew`, `source` (`stock`, `drop`, or `output`) and physical `item` ID. It reserves the item and creates a native walking request; no inventory moves until arrival. `crew.tools.cancel` releases a pending claim; `crew.tools.release` puts the equipped tool on its owner’s actual floor. A crew member can hold one tool and one keepsake.

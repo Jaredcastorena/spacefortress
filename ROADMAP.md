@@ -4,6 +4,7 @@
 
 Release v0.1.9 adds manufactured mining tools, material-dependent speed and wear, routed equipment pickup and supplied repair. It also includes stair fire containment and actual-floor item custody. Next checkpoints remain bounded upstairs habitation and broader orbital logistics.
 
+- [x] Resolve crew fire exposure, wreck shelter and docked-shuttle protection on the actual floor; identify exposure tiles consistently for crew and animals.
 - [x] Manufacture alloy/composite mining tools from delivered materials; preserve item identity through native pickup, actual mining wear, repair and schema64 saves. Keep player controls and structured actions aligned.
 - [x] Make solar generation respect overhead terrain and structures; expose the blocking floor to players and agents, preserve finite battery accounting, and migrate older saves through schema59.
 - [x] Extend paid airlock-controller construction, admission, cycling, recovery, rescue passage, controls and persistence to upper floors. Keep per-floor assemblies isolated, validate exposed-walkway pressure and reject unowned stair/gas-riser bypasses. Bounded checks pass; ordinary upstairs endurance remains incomplete.
@@ -241,7 +242,7 @@ Experimental automatic cycling is implemented locally and has scoped physical an
 
 ### 6. Connected local vertical decks
 
-**Foundation started:** spatial addressing, declared deck order, horizontal/airlock position routing and primary deck-zero migration are implemented. Schema48 converts shipments; schema49 extends crew care/home/need locations; schema50 extends animal posts, handler transport and carcass ownership. Observation/recording4 exposes the changed fields. [Remaining dependencies](docs/spatial-location-inventory.md) include persisted controller references, pasture/birth and room/environmental topology, commands and multi-deck identities. Stairs and the level selector remain pending; there is still one playable deck.
+**Implemented foundation:** paid stairs, declared floors, floor selection, utility risers, airlocks, production, hauling, care, cultivation and livestock work now retain actual-floor positions. Floor-specific crew fire exposure, wreck shelter and terminal protection are corrected in local development. The ordinary supplied upstairs build-and-live journey through a full night remains incomplete.
 
 Implement the [local-level design](docs/vertical-slice-design.md): two decks in one settlement, constructed connections, level selection and complete spatial references. Local height and orbital travel remain separate systems.
 
@@ -255,7 +256,7 @@ Expand the [upward/outward progression](docs/orbital-progression.md) into genera
 
 ### 8. Materials, tools and deeper production
 
-The existing physical-item foundation now preserves upstairs pickup, release, death and hauling, with actual-floor item and meal identities. This fixes custody for future equipment; manufactured tools, material properties and tool condition are still pending.
+**First chain implemented in v0.1.9:** finite extraction, refining, fabrication and workshop manufacture produce alloy/composite tools. Routed pickup, material/quality speed, actual-work wear, same-identity repair and schema64 saves are verified in a bounded staffed scenario. General material properties, additional equipment families and deeper industry remain future work.
 
 Introduce reusable material properties, distinct manufactured items and tools, then expand recipes, equipment condition and repair around them. Track the remaining industry families in the [conversion inventory](docs/conversion-inventory.md).
 

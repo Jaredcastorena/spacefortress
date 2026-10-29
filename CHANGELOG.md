@@ -2,6 +2,12 @@
 
 SPACEFORTRESS is an early playable colony simulator. Release entries describe completed changes within their stated scope.
 
+## Unreleased
+
+- Apply crew fire exposure on the occupied floor. A fire below no longer injures a stacked upstairs crew member, and an upstairs fire is no longer missed.
+- Resolve wreck-debris shelter and docked-shuttle protection by full position; an upper room can shelter crew above empty space, while a terminal below cannot grant upstairs immunity.
+- Add actual-floor targets to crew/animal fire exposure events and correct wreck-debris event targets. Save64 and observation9 remain unchanged.
+
 ## v0.1.9 — 2026-10-29
 
 - Add a supplied tool workshop with alloy/composite mining tools and repair recipes. Material and quality affect mining speed; condition wears only during actual work, and broken tools retain baseline hand mining.

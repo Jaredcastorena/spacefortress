@@ -199,6 +199,7 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 | [tests/expedition-selection.test.js](../tests/expedition-selection.test.js) | Static regression test source for expedition selection |
 | [tests/expedition-terminal.test.js](../tests/expedition-terminal.test.js) | Static regression test source for expedition terminal |
 | [tests/expedition.test.js](../tests/expedition.test.js) | Static regression test source for expedition |
+| [tests/crew-hazard-floors.test.js](../tests/crew-hazard-floors.test.js) | Crew fire exposure, wreck shelter and dock protection on stacked floors. |
 | [tests/fire.test.js](../tests/fire.test.js) | Static regression test source for fire |
 | [tests/fixtures/breakers-schema35-owned-provenance.json](../tests/fixtures/breakers-schema35-owned-provenance.json) | Fixture provenance metadata |
 | [tests/fixtures/breakers-schema35-owned.json.gz](../tests/fixtures/breakers-schema35-owned.json.gz) | Compressed saved-state migration fixture |
