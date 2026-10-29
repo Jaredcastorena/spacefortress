@@ -2,11 +2,19 @@
 
 Updated October 29, 2026.
 
-## Local work after v0.1.7: upstairs gardening
+## v0.1.8: recoverable impact material
+
+Debris impacts now bring three ore units to the floor they hit. A reserve holds at most twelve units; overflow or a collision with an ice reserve leaves loose ore without replacing the ice. Empty space retains none. Mining transfers a finite batch into a pile on that floor and preserves the structure underneath. Crew can haul it through existing stairs to a depot and refinery.
+
+A shared extraction module handles ice, impact ore, natural rock/ore and salvage. The normal mining command accepts a floor, stale orders cancel when their source disappears, and covered natural terrain cannot be mined through a structure. Incoming ore pauses affected construction without consuming its staged supplies; cancel or resolve the work before resuming. Inspection and structured observations show source, yield and required work, while arrival/extraction/depletion events identify the actual floor and physical output.
+
+Release v0.1.8 uses save schema63 and preserves genuine schema62 mining and construction state. Constructed upper grids still begin empty. Upper natural-geology cases use explicit test conditions; recoverable impacts are available in normal play. Ordinary upstairs endurance remains unverified.
+
+## v0.1.8: upstairs gardening
 
 Build a planter bed on a constructed floor for two alloy and one fertilizer. Production workers carry matching raw fungalcap or sunberry food to plant it, deliver water in half-unit doses, and gather mature crops on the actual floor. Stair routes, food age, reservations, cancellation and output hauling use the existing physical systems. Planters retain finite moisture and can absorb available floor water; a destroyed or dismantled bed returns its retained water at that location. Sunberries now share the solar system's overhead-obstruction check, while fungalcap keeps its existing temperature and darkness tolerance.
 
-The collapsed plant controls use actual-floor supplies, routes and job ownership. The canvas renderer shows the bed and its growing crop. Local saves use schema62 and migrate genuine schema61 gathering without resetting physical state; published v0.1.7 remains schema61. Focused checks separate native paid work from synthetic crop maturity/ecology conditions. Ordinary upstairs endurance remains unverified.
+The collapsed plant controls use actual-floor supplies, routes and job ownership. The canvas renderer shows the bed and its growing crop. Release v0.1.8 includes the schema62 cultivation migration in its schema63 saves, preserving genuine schema61 gathering without resetting physical state. Focused checks separate native paid work from synthetic crop maturity/ecology conditions. Ordinary upstairs endurance remains unverified.
 
 ## v0.1.7 upper-floor hazard response
 

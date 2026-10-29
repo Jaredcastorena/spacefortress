@@ -4,6 +4,8 @@ import { tileAt, positionOf, sameCell } from './spatial.js';
 import { validHazardPosition } from './hazard-locations.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
 import { BUILDINGS } from './data.js';
+import { depositImpactOre, IMPACT_ORE_AMOUNT } from './extraction.js';
+import { spill } from './inventory.js';
 
 export const SERVICE_INTERVAL = 1200;
 export const WEAR_PERIOD = 30;
@@ -62,14 +64,16 @@ export function updateDebris(s) {
     const candidates = site.tiles.filter(t => (t.verticalLink&&stairAt(site,t)?.upper.z===t.z&&!site.rooms.some(room=>room.z===t.z&&room.sealed&&room.cells.includes(`${t.x},${t.y}`))) || (t.terrain !== 'floor' && (t.waterPipe || t.pipe || t.cable || BUILDINGS[t.building]?.output)) || t.building === 'wall');
     if (candidates.length) {
       const chosen = candidates[((s.seed >>> 0) + Math.imul(h.count + 1, 7919) >>> 0) % candidates.length]; h.target = positionOf(chosen);
-      emit(s, `Debris tracked toward ${chosen.x}/${chosen.y}. Impact in ${Math.max(0, h.next - s.tick)}s. Inspect the forecast tile and prepare repair supplies.`);
+      emit(s, `Debris tracked toward ${chosen.x}/${chosen.y} · floor ${positionOf(chosen).z}. Impact in ${Math.max(0, h.next - s.tick)}s. Inspect the forecast tile and prepare repair supplies.`);
     }
   }
   if (s.tick < h.next) return;
   if (h.target) {
     const t = tileAt(site,h.target);
     damage(s, site, t, 'structure', 35, 'debris'); damage(s, site, t, 'cable', 60, 'debris'); damage(s,site,t,'pipe',60,'debris'); damage(s,site,t,'waterPipe',60,'debris');
-    emit(s, `Debris passed the surface at ${t.x}/${t.y}. Check equipment and hull seals.`, 'info');
+    const ore=depositImpactOre(t);if(ore.loose)spill(t,{ore:ore.loose});
+    emitEvent(s,'deposit.arrived',{entity:tileEntityId(site.id,t.x,t.y,positionOf(t).z),resource:'ore',source:'orbital_debris',impact:h.count+1,amount:IMPACT_ORE_AMOUNT,...ore});
+    emit(s, `Debris passed the surface at ${t.x}/${t.y} · floor ${positionOf(t).z}. Check equipment and hull seals.${ore.retained?' Mine the remaining impact ore.':ore.loose?' Loose ore is ready for hauling.':''}`, 'info');
   }
   h.count++; h.next = s.tick + DEBRIS_INTERVAL; h.target = null;
 }

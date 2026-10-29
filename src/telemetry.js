@@ -1,3 +1,4 @@
+import {extractionStatus} from './extraction.js';
 import {solarStatus} from './solar.js';
 import { floraStatus, plantingEligibility, wateringEligibility } from './flora.js';
 import { FLORA } from './flora-data.js';
@@ -60,7 +61,7 @@ export function observe(s) {
     for(const t of tiles) {
       const gas=(t.pipe||t.gasStore||t.gasDevice)?gasStatus(site,t):null;
       const plumbing=(t.waterPipe||t.waterStore||t.waterDevice)?plumbingStatus(s,site,t):null;
-      const electrical=t.protection?breakerConditions(s,site,t):null,solar=solarStatus(s,site,t);
+      const electrical=t.protection?breakerConditions(s,site,t):null,solar=solarStatus(s,site,t),extraction=extractionStatus(t);
       const previousDerived=t.reactor?{reactorTemperature:reactorTemperature(site,t),...(gas?{gasNetwork:gas}:{})}:t.radiator?{blocked:radiatorBlock(site,t),targets:radiatorTargets(site,t).map(r=>tileEntityId(site.id,r.x,r.y)),...(gas?{gasNetwork:gas}:{})}:gas;
       // Preserve established reactor/radiator and gas shapes. Independent
       // network diagnostics never overwrite another system's derived status.
@@ -69,8 +70,8 @@ export function observe(s) {
       const owned=ownership.building||ownership.pipe;
       const production=t.machine?productionEligibility(s,site,t):null;
       const flora=t.flora?floraStatus(s,site,t):null;
-      const cultivation=t.terrain==='ground'||flora?Object.fromEntries(Object.values(FLORA).filter(def=>def.foodKind).map(def=>[def.id,{planting:plantingEligibility(s,site,t,def.id),watering:wateringEligibility(s,site,t,def.id)}])):null;
-      const derived=solar||plumbing||electrical||airlock||owned||production||flora||cultivation?{...previousDerived,...(solar?{solar}:{}),...(flora?{flora}:{}),...(cultivation?{cultivation}:{}),...(production?{production}:{}),...(plumbing?{plumbing}:{}),...(electrical?{electrical}:{}),...(airlock?{airlock}:{}),...(owned?{airlockOwnership:ownership}:{})}:previousDerived;
+      const cultivation=t.terrain==='ground'||t.building==='planter'||flora?Object.fromEntries(Object.values(FLORA).filter(def=>def.foodKind).map(def=>[def.id,{planting:plantingEligibility(s,site,t,def.id),watering:wateringEligibility(s,site,t,def.id)}])):null;
+      const derived=extraction||solar||plumbing||electrical||airlock||owned||production||flora||cultivation?{...previousDerived,...(extraction?{extraction}:{}),...(solar?{solar}:{}),...(flora?{flora}:{}),...(cultivation?{cultivation}:{}),...(production?{production}:{}),...(plumbing?{plumbing}:{}),...(electrical?{electrical}:{}),...(airlock?{airlock}:{}),...(owned?{airlockOwnership:ownership}:{})}:previousDerived;
       entities[tileEntityId(site.id,t.x,t.y,t.z)]={type:'tile',site:site.id,...t,...(derived?{derived}:{})};
     }
     for(const r of rooms) {
@@ -97,6 +98,7 @@ export function systemFor(type,path) {
   const root=path[0];
   if(root==='airlock'||root==='airlockOwner'||root==='airlockTraversal'||root==='pipe'&&path[1]==='airlockOwner')return 'airlocks';
   if(type==='tile'&&root==='derived'&&path[1]==='solar')return 'power';
+  if(type==='tile'&&root==='derived'&&path[1]==='extraction')return 'geology';
   if(root==='derived')return 'derived_conditions';
   if(type==='colony'&&root==='shuttle'&&path[1]==='freight')return 'inventory';
   if(type==='item')return 'possessions';

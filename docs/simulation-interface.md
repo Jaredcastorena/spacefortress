@@ -2,6 +2,12 @@
 
 Implemented September 16, 2026, following the user's request to clearly mark small simulation interactions for eventual AI training. This is a local environment interface and recorder. No model, training service, network endpoint or external dependency is involved.
 
+## Extraction on declared floors
+
+`job.order` with `kind: "mine"` accepts optional `z`. Omission targets ground. The tile's optional `derived.extraction` reports `source`, `kind`, `work`, `output` and (for reserves) `remaining`, without changing state. Shared player controls use the same source rules. `no_extractable_material` rejects an empty or covered source; route and labor requirements remain physical.
+
+`deposit.arrived` identifies the tile, orbital-debris source, impact number, resource, incoming amount, retained reserve, loose overflow and lost material. `resource.extracted` identifies the worker, job, output and source kind; `deposit.depleted` names the resource. Ore is a finite unmined reserve until extraction produces haulable inventory. Observation/recording9 remains unchanged; fields are additive. Schema63 admits impact ore and upper mining. Schema62 migration preserves existing physical state.
+
 ## Plant work on declared floors
 
 `job.order` now accepts `plant`, `waterPlant` and `gather` with optional `z`; omitted `z` stays ground. Build `planter` through the same command on an existing habitat floor for two alloy and one fertilizer. Planting consumes one matching raw food portion and requires Production work; watering transfers half a water unit into finite bed moisture. Prepared meals cannot propagate crops. Supply reservations, saved generations, job events, harvest output and player diagnostics retain the actual floor. Upper plant IDs use the existing floor suffix, including `job.created.plant`.

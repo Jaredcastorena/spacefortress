@@ -36,6 +36,8 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 
 ## Runtime modules
 
+[Extraction source rules](../src/extraction.js) own finite ice/impact reserves, terrain/salvage yields and reserve validation.
+
 95 files.
 
 | File | Role |
@@ -384,6 +386,7 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 
 ## Upper-floor airlock verification
 
+- [tests/extraction-floors.test.js](../tests/extraction-floors.test.js): native impact recovery and stair hauling, source custody, construction interruption, floor isolation, observations and genuine schema62 migration.
 - [tests/cultivation-floors.test.js](../tests/cultivation-floors.test.js): paid upper planters, seed/water delivery, crop work and custody, floor-aware UI, finite irrigation/sunlight, destruction and genuine schema61 migration.
 - [tests/hazard-response-floors.test.js](../tests/hazard-response-floors.test.js): upper suppression/maintenance delivery, exact-floor labels, blocked routes/supplies, cancellation custody and genuine schema60 migration.
 - [tests/airlock-floors.test.js](../tests/airlock-floors.test.js): upper pressure cycles, stair approaches, rescue/cargo custody, interruption, player/agent parity, save migration and paid controller work.

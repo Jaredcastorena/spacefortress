@@ -18,6 +18,10 @@ Automatic service defaults off. It creates a service job when the interval expir
 
 Cancelling an automatically generated maintenance order turns off that equipment's automatic policy and returns supplies through normal cancellation handling. Turning off the policy directly prevents future jobs but leaves an existing order available to finish or cancel. Equipment may keep operating while supplies are delivered and work is performed; lockout procedures and tools are future work.
 
+## Recoverable material (schema63)
+
+Each actual surface strike contributes three ore units on its target floor. Up to twelve remain in a finite impact reserve; overflow and material landing on an ice reserve become loose ore, preserving the ice. Void loses incoming material. `deposit.arrived` records the split. Mining recovers three units per job without removing the structure underneath; repair and recovery remain separate jobs. Terrain shielding and impact trajectories are still outside this event model.
+
 ## Forecast debris
 
 The initial surface debris interval is **1,200 seconds**. Ninety seconds before impact, a deterministic forecast selects a tile containing exposed wiring, an exterior array or a hull wall. The threatened tile receives an on-map marker and a countdown. The Colony drawer links to it so the player can inspect equipment and prepare alloy, engineers and redundant circuits.

@@ -34,6 +34,7 @@
     "src/expedition-panels.js",
     "src/expedition-readiness.js",
     "src/expedition.js",
+    "src/extraction.js",
     "src/fire-panels.js",
     "src/fire.js",
     "src/flora-data.js",

@@ -62,3 +62,7 @@ Schema56 stair-maintenance jobs own a connection ID and claim both landings. Rep
 ## Cultivation checkpoint (schema62)
 
 Planting, watering and gathering now resolve full positions through validation, completion, reservations and event identities. Paid planter beds make these jobs usable on constructed floors. Plant panels use actual-floor crew routes, supplies and designation ownership; ground and stacked panel keys remain distinct. Finite irrigation and moisture returns retain the bed location. Terrain extraction and terminal-specific upper work remain pending.
+
+## Extraction checkpoint (schema63)
+
+Ice/impact reserves, natural terrain and salvage use shared source rules on the requested floor. Work, cancellation, completion, deposits, loose piles and event identities use full positions. Debris damage and retained material share the impact location. Native stair hauling carries recovered ore to storage. Construction blocks on active reserves at ordering and execution. Current fixed shuttle/expedition terminals remain on their existing floors.

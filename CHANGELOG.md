@@ -4,6 +4,12 @@ SPACEFORTRESS is an early playable colony simulator. Release entries describe co
 
 ## Unreleased
 
+## v0.1.8 — 2026-10-29
+
+- Add recoverable impact ore: three units per strike, a twelve-unit reserve cap, explicit loose overflow and loss in empty space. Preserve ice reserves and the structure beneath recovered debris.
+- Unify finite reserve, terrain and salvage extraction; enable floor-targeted Mining and cancel stale orders before they can create material. Pause construction when incoming ore obstructs its target, preserving staged inputs.
+- Add extraction observations, impact/depletion events, floor labels and reserve rendering. Empty planter observations now expose cultivation readiness. Schema63 preserves genuine in-flight62 state and rejects legacy claims for impact ore or upper mining.
+
 - Add paid planter beds on habitat floors and enable upper planting, watering and gathering through shared physical work. Preserve food age, actual-floor reservations, cancellation custody and typed event identities.
 - Let beds absorb finite floor water and return retained moisture when destroyed or dismantled. Sunberries respect overhead terrain/structures through the shared solar exposure model.
 - Make plant controls and crop rendering follow the selected floor. Save schema62 preserves genuine schema61 gathering; older schemas reject newly supported planters and upper plant jobs.

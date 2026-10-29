@@ -37,9 +37,9 @@ test('upper construction cannot borrow downstairs supplies or a downstairs worke
  f.store.stock={alloy:4};f.c.z=0;syncResources(f.s);before=serialize(f.s);assert.equal(order(f.s).ok,false);assert.equal(serialize(f.s),before);
 });
 
-test('player and agent construction calls agree while unsupported work and floor jumps reject',()=>{
+test('player and agent construction calls agree while empty extraction and floor jumps reject',()=>{
  const f=fixture(),copy=structuredClone(f.s),a=order(f.s),b=controlBindings(()=>copy).order(copy,'surface',6,4,'build','floor',1);assert.equal(a.ok,true);assert.equal(b.ok,true);assert.equal(serialize(f.s),serialize(copy));
- const clean=fixture(),before=serialize(clean.s);assert.equal(order(clean.s,'mine',null).reason,'unsupported_deck_work');assert.equal(serialize(clean.s),before);
+ const clean=fixture(),before=serialize(clean.s);assert.equal(order(clean.s,'mine',null).reason,'no_extractable_material');assert.equal(serialize(clean.s),before);
  assert.equal(order(clean.s,'build','floor',8).code,'invalid_arguments');assert.equal(serialize(clean.s),before);
  assert.equal(horizontalStep(clean.site,clean.c,{x:3,y:4,z:0}),null);assert.equal(advanceCrewRoutePositions(clean.s,clean.c,clean.site,[{x:3,y:4,z:0}]).status,'blocked');assert.equal(serialize(clean.s),before);
 });

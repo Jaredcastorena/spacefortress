@@ -2,13 +2,14 @@
 
 ## Current systems work
 
-Release v0.1.7 includes upper-floor airlocks and supplied hazard response. The local cultivation checkpoint below extends upstairs food growing. Next checkpoints are terrain extraction and the bounded upstairs build-and-live journey.
+Release v0.1.8 adds upstairs food growing and finite recoverable impact material to the upper-floor airlocks and supplied hazard response introduced in v0.1.7. Next checkpoints are the bounded upstairs build-and-live journey and broader orbital logistics.
 
 - [x] Make solar generation respect overhead terrain and structures; expose the blocking floor to players and agents, preserve finite battery accounting, and migrate older saves through schema59.
 - [x] Extend paid airlock-controller construction, admission, cycling, recovery, rescue passage, controls and persistence to upper floors. Keep per-floor assemblies isolated, validate exposed-walkway pressure and reject unowned stair/gas-riser bypasses. Bounded checks pass; ordinary upstairs endurance remains incomplete.
 - [x] Enable upper-floor fire suppression and automatic repair/service using the existing finite water/alloy delivery, crew duties, stair routes, cancellation and save rules.
 - [x] Add paid planter beds and upper-floor planting, watering and gathering through actual stair routes, finite propagules/moisture, floor-aware controls and schema62 saves. Preserve water on bed destruction; use overhead sunlight checks for sunberries.
-- [ ] Convert remaining upper-floor terrain extraction and terminal-specific work where the world model supports those destinations.
+- [x] Recover finite impact ore and declared natural resources/salvage on actual floors, with native Mining work, stair hauling, capped reserves, source revalidation, construction interruption and schema63 persistence.
+- [ ] Extend terminal-specific work when broader orbital logistics introduces destinations beyond the current fixed ground terminals.
 - [ ] Complete the ordinary upstairs build-and-live journey, including supplied care and operation through a full night.
 
 - [x] Enable animal movement and handler escorts through stairs, upper-floor post assignment and supplied care/collection, floor-aware carcasses and births, safe stair removal, and schema58 persistence. Bounded checks pass; ordinary upstairs living remains unverified.
