@@ -2,7 +2,7 @@
 
 SPACEFORTRESS is an early playable colony simulator. Release entries describe completed changes within their stated scope.
 
-## Unreleased
+## v0.1.12 — 2026-10-29
 
 - Generate three planets and eight physical sites in new colonies. Group frontier landings and derelicts under stable planet identities, with finite resources, distinct hazards and canonical home-origin routes.
 - Add planet-level map selection, grouped collapsible destination controls, planet-specific surveys and safe transit rendering when another planet is being viewed.

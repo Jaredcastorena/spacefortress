@@ -2,23 +2,23 @@
 
 An early playable space colony simulator inspired by Dwarf Fortress. Keep seven alien founders alive, build a planetary colony, and send supplied expeditions into orbit to recover material for its next expansion.
 
-**[Play online](https://jaredcastorena.github.io/spacefortress/)** · [Online elements lab](https://jaredcastorena.github.io/spacefortress/elements.html) · [Release v0.1.11](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.11) · [Roadmap](ROADMAP.md)
+**[Play online](https://jaredcastorena.github.io/spacefortress/)** · [Online elements lab](https://jaredcastorena.github.io/spacefortress/elements.html) · [Release v0.1.12](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.12) · [Roadmap](ROADMAP.md)
 
 ![Local SPACEFORTRESS hex colony with original alien crew, an isometric habitat and closed detail drawers](docs/images/spacefortress-hex.png)
 
-**The game is still in development.** Build across connected floors using paid stairs, supported upper-floor extensions and a compact floor selector. Published v0.1.11 adds two seeded orbital destinations alongside the four starter sites; the local planetary expansion below adds a wider new-world catalog. Long-lived staffed outposts, complete vertical systems, a generated universe/history and much of the wider simulation remain unfinished. The [implementation status](docs/implementation-status.md) separates working systems from plans.
+**The game is still in development.** Build across connected floors using paid stairs, supported upper-floor extensions and a compact floor selector. Version 0.1.12 adds engineering kits and a seeded system with three planets and eight sites for new colonies. Long-lived staffed outposts, complete vertical systems, a generated universe/history and much of the wider simulation remain unfinished. The [implementation status](docs/implementation-status.md) separates working systems from plans.
 
-## Local development after v0.1.11: planetary regions
+## v0.1.12: planetary regions
 
 New colonies now start in a seeded system with **three planets and eight sites**. Each frontier planet has a finite resource landing and an orbital derelict, with its own route costs, travel time, debris exposure and extractable reserves. Open **Regions → System overview**, select a planet, then inspect one of its destinations. The drawer groups destinations under collapsible planet names.
 
-Existing colonies keep their original four- or six-site worlds. Loading a save does not add terrain, supplies or residents. Local save schema68 preserves earlier region catalogs; new worlds use region schema2. Travel still departs from the home colony and returns there. Direct travel between remote sites, large-scale discovery/history and sustained outpost habitation remain unfinished. This planetary expansion is local and is not in the published v0.1.11 build.
+Existing colonies keep their original four- or six-site worlds. Loading a save does not add terrain, supplies or residents. Save schema68 preserves earlier region catalogs; new worlds use region schema2. Travel still departs from the home colony and returns there. Direct travel between remote sites, large-scale discovery/history and sustained outpost habitation remain unfinished.
 
-## Local development after v0.1.11: engineering kits
+## v0.1.12: engineering kits
 
 The tool workshop can now manufacture alloy/composite engineering kits alongside mining tools. Equip a kit through the existing crew controls to improve construction, dismantling and maintenance. Wear follows completed matching work; mining, medical care and unrelated duties do not consume the kit. Broken kits retain normal hand-work speed.
 
-Kits use the existing physical tool slot, stairs, hauling and workshop repair process. Stock targets distinguish tool family and material, including committed repairs. Local save schema67 preserves prior colonies and existing tool identities without additional stock. These changes are not yet part of the published v0.1.11 build.
+Kits use the existing physical tool slot, stairs, hauling and workshop repair process. Stock targets distinguish tool family and material, including committed repairs. The schema67 equipment migration, retained in schema68, preserves prior colonies and existing tool identities without additional stock.
 
 ## v0.1.11: structural materials
 

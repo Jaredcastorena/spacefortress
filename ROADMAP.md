@@ -2,10 +2,10 @@
 
 ## Current systems work
 
-Release v0.1.11 adds reusable alloy/composite properties to paid floors, walls and doors, material-aware repairs and finite slab heat conduction. The seeded orbital frontier from v0.1.10 remains available. Local follow-up adds engineering kits and a three-planet, eight-site system with hierarchical navigation. Next checkpoints include wider industry, bounded upstairs habitation and sustained outpost supply.
+Release v0.1.12 adds engineering kits and a three-planet, eight-site system with hierarchical navigation. It builds on the paid material choices, repairs and finite slab heat conduction from v0.1.11, while retaining existing colony worlds. Next checkpoints include wider industry, bounded upstairs habitation and sustained outpost supply.
 
-- [x] Local after v0.1.11: generate multiple planets with distinct finite landing/derelict sites and a hierarchical map. Preserve existing world catalogs through schema68; verify native return/revisit on every generated destination.
-- [x] Local after v0.1.11: manufacture and equip engineering kits for native construction/maintenance; preserve finite wear, actual-floor transport, supplied same-identity repairs and family/material stock targets through schema67.
+- [x] v0.1.12: generate multiple planets with distinct finite landing/derelict sites and a hierarchical map. Preserve existing world catalogs through schema68; verify native return/revisit on every generated destination.
+- [x] v0.1.12: manufacture and equip engineering kits for native construction/maintenance; preserve finite wear, actual-floor transport, supplied same-identity repairs and family/material stock targets through schema67.
 - [x] Use shared alloy/composite material definitions for tools and paid habitat parts. Preserve floor/structure ownership, physical costs, supplied repairs, cancellation, rounded refunds, thermal paths and schema66 saves.
 - [x] Generate two playable orbital sites per new colony, with finite resources, paid visits, saved construction/depletion, separate residents and initial surveys. Preserve old four-site colonies through schema65.
 - [x] Resolve crew fire exposure, wreck shelter and docked-shuttle protection on the actual floor; identify exposure tiles consistently for crew and animals.
@@ -256,7 +256,7 @@ Implement the [local-level design](docs/vertical-slice-design.md): two decks in 
 
 **First region implemented in v0.1.10:** one stable home planet groups the original sites plus a seeded outcrop and derelict. Finite deposits, route times/costs and debris differ. Both sites complete bounded supplied extraction, construction, return and revisit checks; focused synthetic cases cover independent residence and local work without the shuttle. Survey and action catalogs discover actual sites. Existing saves retain four sites without regenerated stores.
 
-**Planet grouping implemented locally after v0.1.11:** new worlds contain three planets and eight sites, including a resource landing and derelict at each frontier planet. Every generated destination passes bounded native supplied extraction, paid construction, return and persistent-revisit checks. Planet/site navigation is view-only, and prior four-/six-site worlds remain exact under schema68.
+**Planet grouping in v0.1.12:** new worlds contain three planets and eight sites, including a resource landing and derelict at each frontier planet. Every generated destination passes bounded native supplied extraction, paid construction, return and persistent-revisit checks. Planet/site navigation is view-only, and prior four-/six-site worlds remain exact under schema68.
 
 **Still pending:** a larger discovery/history system, travel between remote destinations and sustained ordinary habitation. The bounded route check pauses production to retain starter air for travel; it does not prove a self-sustaining colony.
 
@@ -270,7 +270,7 @@ Expand the [upward/outward progression](docs/orbital-progression.md) into genera
 
 **Structural materials implemented in v0.1.11:** alloy and composite now share definitions across tools and supplied habitat parts. Floors and structures retain separate owners; composite changes physical construction/repair costs, solid conductivity and wall/door damage. Finite slab heat exchange, native upstairs delivery, cancellation and genuine schema65 migration pass focused checks. Floor collapse and exterior slab radiation remain future work.
 
-**Engineering equipment implemented locally after v0.1.11:** paid alloy/composite kits improve matching construction and maintenance work, wear only on that work, and use existing physical pickup, stairs, storage and same-identity repair. Stock targets distinguish family/material and committed repairs. Native paid manufacture→pickup→construction→wall repair→kit repair is covered; wider equipment families remain unfinished.
+**Engineering equipment in v0.1.12:** paid alloy/composite kits improve matching construction and maintenance work, wear only on that work, and use existing physical pickup, stairs, storage and same-identity repair. Stock targets distinguish family/material and committed repairs. Native paid manufacture→pickup→construction→wall repair→kit repair is covered; wider equipment families remain unfinished.
 
 Expand material properties, distinct manufactured items, recipes, equipment condition and repair from this shared foundation. Track the remaining industry families in the [conversion inventory](docs/conversion-inventory.md).
 
