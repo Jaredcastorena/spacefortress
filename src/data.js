@@ -1,6 +1,6 @@
 import { LIVESTOCK } from './livestock-data.js';
 import { TOOL_RECIPES } from './tool-data.js';
-export const VERSION = 67;
+export const VERSION = 68;
 export const RESOURCES = ['alloy', 'ore', 'components', 'food', 'water', 'fuel', 'cells', 'air', 'medicine', 'waste', 'fertilizer', 'keepsakes', 'ice', 'tools'];
 export const BUILDINGS = {
   toolbench:{name:'Tool workshop',cost:{alloy:6,components:1},work:10,demand:2,noise:1,description:'Manufacture mining tools and engineering kits from delivered alloy and components, or repair a worn tool with alloy. An operator, safe air and wired power are required.'},

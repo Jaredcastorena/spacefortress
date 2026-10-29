@@ -30,13 +30,13 @@ test('genuine schema64 migration keeps four physical sites and all prior state w
 
 test('dynamic commands, observations and compact route panels expose all persistent destinations',()=>{
  const s=createGame(74219),api=createAgentInterface(()=>s),before=serialize(s),catalog=api.actions();
- assert.equal(Object.keys(s.sites).length,6);assert.equal(outpostSiteIds(s).length,3);
+ assert.equal(Object.keys(s.sites).length,8);assert.equal(outpostSiteIds(s).length,5);
  for(const def of generated(s)){
   assert.ok(catalog.find(a=>a.id==='expedition.launch').parameters.properties.site.enum.includes(def.id));
   assert.ok(catalog.find(a=>a.id==='outpost.residents').parameters.properties.site.enum.includes(def.id));
-  assert.equal(api.definitions().sites[def.id].planetId,s.region.sites.surface.planetId);
+  assert.equal(api.definitions().sites[def.id].planetId,def.planetId);assert.notEqual(def.planetId,s.region.sites.surface.planetId);
   const view=observe(s);assert.ok(view.entities[`site:${def.id}`]);assert.ok(view.entities.colony.region.routes[routeDefinition(s,def.id).id]);
-  assert.match(regionOverview(s),new RegExp(def.id));assert.match(siteSurvey(s,def.id),/Initial orbital survey/);
+  assert.match(regionOverview(s,def.planetId),new RegExp(def.id));assert.match(siteSurvey(s,def.id),/Initial orbital survey/);
  }
  assert.equal(serialize(s),before);assert.equal(executeAction(s,'expedition.launch',{site:'unknown-region'}).ok,false);assert.equal(serialize(s),before);check(s);
 });
@@ -49,8 +49,8 @@ test('generated site metadata, routes and cross-settlement resident aliases reje
  const duplicate=structuredClone(good);for(const id of ids){duplicate.outposts[id].established=true;duplicate.outposts[id].residents=['crew-0'];}assert.throws(()=>deserialize(JSON.stringify(duplicate)),/multiple outpost residences/);
 });
 
-function travelFixture(template){
- const s=createGame(74219),definition=generated(s).find(d=>d.template===template),ids=['crew-2','crew-4'];
+function travelFixture(destination){
+ const s=createGame(74219),definition=generated(s).find(d=>d.id===destination),ids=['crew-2','crew-4'];
  // Ordinary finite starter stores; only shared labor, routine and machine
  // commands configure the run. No supplies, health or positions are edited.
  for(const site of Object.values(s.sites))for(const t of site.tiles)if(t.machine)action(s,'production.enable',{site:site.id,...positionOf(t),enabled:false});
@@ -58,9 +58,9 @@ function travelFixture(template){
  action(s,'crew.labor',{crew:ids[0],labor:'mining',enabled:true});action(s,'crew.labor',{crew:ids[1],labor:'construction',enabled:true});
  return {s,definition,ids,site:s.sites[definition.id]};
 }
-for(const template of ['outcrop','derelict'])test(`native supplied visit, extraction, construction, return and persistent revisit at generated ${template}`,()=>{
- const {s,definition,ids,site}=travelFixture(template),fuel=totalResources(s).fuel;
- const untouched=generated(s).find(d=>d.id!==definition.id),otherBefore=JSON.stringify(s.sites[untouched.id].tiles.map(t=>({terrain:t.terrain,building:t.building,deposit:t.deposit})));
+for(const {id:destination,template} of Object.values(makeRegion(74219).sites).filter(d=>d.template))test(`native supplied visit, extraction, construction, return and persistent revisit at generated ${destination}`,()=>{
+ const {s,definition,ids,site}=travelFixture(destination),fuel=totalResources(s).fuel;
+ const untouched=generated(s).filter(d=>d.id!==definition.id),others=()=>JSON.stringify(untouched.map(d=>[d.id,s.sites[d.id].tiles.map(t=>({terrain:t.terrain,building:t.building,deposit:t.deposit}))])),otherBefore=others();
  startRecording(s,{maxRecords:10000,maxBytes:32_000_000});
  // Idle production, including life support, leaves the finite starter air
  // available to haulers for this bounded route check; no endurance claim.
@@ -81,7 +81,7 @@ for(const template of ['outcrop','derelict'])test(`native supplied visit, extrac
  const preserved=JSON.stringify({terrain:target.terrain,building:target.building,deposit:target.deposit});
  action(s,'expedition.launch',{site:definition.id});until(s,'second arrival',()=>s.mission?.phase==='working');
  assert.equal(JSON.stringify({terrain:target.terrain,building:target.building,deposit:target.deposit}),preserved);assert.equal(extractionStatus(target),null);
- assert.equal(JSON.stringify(s.sites[untouched.id].tiles.map(t=>({terrain:t.terrain,building:t.building,deposit:t.deposit}))),otherBefore);
+ assert.equal(others(),otherBefore);
  assert.ok(s.crew.every(c=>c.health>0));check(s);
  const log=events(s);assert.ok(log.some(e=>e.id==='resource.extracted'&&e.entity===`tile:${site.id}:${target.x}:${target.y}`));
  assert.ok(log.some(e=>e.id==='expedition.arrived'&&e.to===`site:${site.id}`&&e.route===routeDefinition(s,site.id).id));

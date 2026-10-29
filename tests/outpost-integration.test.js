@@ -35,7 +35,7 @@ test('fresh shared departure supplies and physically boards the chosen crew with
   assert.equal(s.version, VERSION);
   assert.deepEqual(s.outposts, expectedOutposts(s));
   const emptyOwners = [s.shuttle.freight, ...Object.values(s.sites).flatMap(site => site.tiles.filter(t => t.building === 'dock').map(t => t.imports))];
-  assert.equal(emptyOwners.length, 6); assert.equal(new Set(emptyOwners).size, 6);
+  assert.equal(new Set(emptyOwners).size, emptyOwners.length);
   assert.ok(emptyOwners.every(owner => JSON.stringify(owner) === '{}'));
   act(s, 'expedition.launch', { site: 'wreck', crewIds: request });
   assert.equal(s.mission, null);

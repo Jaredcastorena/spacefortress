@@ -118,6 +118,7 @@
     "src/utility-links.js",
     "src/vertical.js",
     "src/water-panels.js",
-    "src/water.js"
+    "src/water.js",
+    "src/region-view.js"
   ]
 }

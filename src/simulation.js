@@ -95,7 +95,7 @@ export function random(s) {
 function createSite(id, size, kind=id) {
   return { id, kind, size, levels: [{ z: 0, name: 'Landing deck' }], verticalLinks: [], utilityLinks: [], air: 0, power: { output: 0, demand: 0, battery: 0, capacity: 0 }, rooms: [], explored: id === 'surface' || id === 'wreck', tiles: Array.from({ length: size * size }, (_, i) => ({ x: i % size, y: Math.floor(i / size), z: 0, terrain: id === 'surface' ? 'ground' : 'void', building: null, hp: 100, drop: null, variant: i % 4, powered: false, cable: null })) };
 }
-export function createGame(seed = 74219) {
+export function createGame(seed = 74219, {regionSchema=2} = {}) {
   const s = { version: VERSION, grid: GRID, seed, rng: seed || 1, tick: 0, nextId: 1, resources: { alloy: 36, ore: 0, components: 3, food: 24, water: 40, fuel: 14, cells: 0, air: 160, medicine: 4, waste: 0, fertilizer: 8, keepsakes: 0, ice: 0, tools: 0 }, sites: {}, crew: [], creatures: [], anomaly: null, jobs: [], log: [], mission: null, stats: { built: 0, mined: 0, returned: 0, solarCells: 0, trapped: 0 }, comet: { arrives: 180, leaves: 480 }, flags: {}, objectives: {} };
   const ground = s.sites.surface = createSite('surface', 26);
   for (const t of ground.tiles) {
@@ -138,7 +138,7 @@ export function createGame(seed = 74219) {
   const solar = s.sites.solar = createSite('solar', 18);
   for (const t of solar.tiles) if (Math.min(distance([t.x,t.y],[6,9]), distance([t.x,t.y],[10,9])) <= 2) t.terrain = 'deck';
   at(solar, 5, 10).building = 'dock'; at(solar, 10, 8).building = 'collector';
-  s.region=makeRegion(seed);
+  s.region=makeRegion(seed,false,regionSchema);
   for(const def of Object.values(s.region.sites))if(!Object.hasOwn(s.sites,def.id)){
     const site=s.sites[def.id]=createSite(def.id,def.size,def.kind),layout=generatedLayout(def);
     for(let i=0;i<site.tiles.length;i++)Object.assign(site.tiles[i],layout[i]);
@@ -907,12 +907,13 @@ export function deserialize(text) {
   if (text.length > 5_000_000) throw new Error('Save is too large.');
   const s = JSON.parse(text),legacySolarModel=s?.version<59;
   if (Number.isInteger(s?.version) && s.version >= 1 && s.version <= 39) throw new Error('Legacy square-grid saves (schemas 1–39) cannot be loaded into the hex colony. Export the original save and use the preserved square version to continue it.');
-  if (![40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, VERSION].includes(s?.version) || s.grid !== GRID) throw new Error('Unsupported save topology: schemas 40–67 require grid hex-odd-q-v1.');
+  if (![40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, VERSION].includes(s?.version) || s.grid !== GRID) throw new Error('Unsupported save topology: schemas 40–68 require grid hex-odd-q-v1.');
   if ( !Number.isSafeInteger(s.tick) || s.tick < 0 || !Number.isInteger(s.rng) || !Number.isSafeInteger(s.nextId)) throw new Error('Unsupported or invalid save.');
   if (!s.sites || !Array.isArray(s.crew) || s.crew.length !== 7 || !Array.isArray(s.jobs) || !Array.isArray(s.log) || !s.stats || !s.comet || !s.flags || !s.objectives) throw new Error('Incomplete save.');
   if(s.version<64&&s.resources){if((s.resources.tools||0)!==0)throw new Error('Legacy tools.');s.resources.tools=0;}
   for (const r of RESOURCES) if (!Number.isFinite(s.resources?.[r]) || s.resources[r] < 0) throw new Error('Invalid resources.');
   if(s.version<65&&Object.values(s.sites).some(site=>!['surface','comet'].includes(site.id)&&site.tiles?.some(t=>t.deposit?.resource==='ice')))throw new Error('Legacy ice reserve site.');
+  if(s.version<68&&Object.hasOwn(s,'region')&&s.region?.schema!==1)throw new Error('Legacy planetary region schema.');
   if(s.version>=65)validateRegion(s);
   for (const id of Object.keys(siteDefinitions(s))) {
     const site = s.sites[id], size = id === 'surface' ? 26 : 18;
@@ -971,6 +972,7 @@ export function deserialize(text) {
   if(s.version===64)s.version=VERSION;
   if(s.version===65)s.version=VERSION;
   if(s.version===66)s.version=VERSION;
+  if(s.version===67)s.version=VERSION;
   const ids = new Set();
   for (const c of s.crew) {
     if (ids.has(c.id) || typeof c.name !== 'string' || c.name.length > 80 || !(c.site==='transit'||Object.hasOwn(s.sites,c.site)) || ![c.health, c.oxygen, c.energy, c.hunger, c.skill].every(Number.isFinite) || !Number.isInteger(c.x) || !Number.isInteger(c.y) || (c.site !== 'transit' && !inside(s.sites[c.site], c.x, c.y))) throw new Error('Invalid crew.');

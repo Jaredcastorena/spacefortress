@@ -36,3 +36,5 @@ dialog{border:1px solid #4a6870;border-radius:9px;background:#13232d;color:var(-
 
 .left-panel[data-panel=regions] #material-chooser{display:none}
 #material-chooser{margin:10px 0;font-size:12px}#material-chooser label{display:block;margin:10px 0 6px;color:#b3c9c7}#building-material{width:100%;padding:8px;background:#10242c;color:#d2e3df;border:1px solid #42636a;border-radius:5px}
+
+#destinations details{margin:8px 0;border-top:1px solid #34505a;padding-top:7px}#destinations summary{cursor:pointer;font-size:12px;color:#b9d9d1;padding:8px 4px}#destinations details button{margin-left:8px;width:calc(100% - 8px)}

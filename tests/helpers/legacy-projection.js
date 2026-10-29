@@ -28,7 +28,7 @@ export function projectPreRegion(state, {allowUnvisited = false} = {}) {
   validateRegion(projected);
   if (!projected.region.legacy) {
     if (!allowUnvisited) throw new Error('Cannot project a generated region into an older schema.');
-    const initial = createGame(projected.seed);
+    const initial = createGame(projected.seed,{regionSchema:projected.region.schema});
     for (const def of Object.values(projected.region.sites).filter(d => d.template)) {
       const id = def.id;
       if (!isDeepStrictEqual(projected.sites[id], initial.sites[id]) ||

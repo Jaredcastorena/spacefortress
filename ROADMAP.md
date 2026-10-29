@@ -2,8 +2,9 @@
 
 ## Current systems work
 
-Release v0.1.11 adds reusable alloy/composite properties to paid floors, walls and doors, material-aware repairs and finite slab heat conduction. The seeded orbital frontier from v0.1.10 remains available. Local follow-up adds engineering kits through the shared equipment systems. Next checkpoints include wider industry, bounded upstairs habitation and sustained outpost supply.
+Release v0.1.11 adds reusable alloy/composite properties to paid floors, walls and doors, material-aware repairs and finite slab heat conduction. The seeded orbital frontier from v0.1.10 remains available. Local follow-up adds engineering kits and a three-planet, eight-site system with hierarchical navigation. Next checkpoints include wider industry, bounded upstairs habitation and sustained outpost supply.
 
+- [x] Local after v0.1.11: generate multiple planets with distinct finite landing/derelict sites and a hierarchical map. Preserve existing world catalogs through schema68; verify native return/revisit on every generated destination.
 - [x] Local after v0.1.11: manufacture and equip engineering kits for native construction/maintenance; preserve finite wear, actual-floor transport, supplied same-identity repairs and family/material stock targets through schema67.
 - [x] Use shared alloy/composite material definitions for tools and paid habitat parts. Preserve floor/structure ownership, physical costs, supplied repairs, cancellation, rounded refunds, thermal paths and schema66 saves.
 - [x] Generate two playable orbital sites per new colony, with finite resources, paid visits, saved construction/depletion, separate residents and initial surveys. Preserve old four-site colonies through schema65.
@@ -255,7 +256,9 @@ Implement the [local-level design](docs/vertical-slice-design.md): two decks in 
 
 **First region implemented in v0.1.10:** one stable home planet groups the original sites plus a seeded outcrop and derelict. Finite deposits, route times/costs and debris differ. Both sites complete bounded supplied extraction, construction, return and revisit checks; focused synthetic cases cover independent residence and local work without the shuttle. Survey and action catalogs discover actual sites. Existing saves retain four sites without regenerated stores.
 
-**Still pending:** multiple generated planets, a larger discovery/history system, travel between remote destinations and sustained ordinary habitation. The bounded route check pauses production to retain starter air for travel; it does not prove a self-sustaining colony.
+**Planet grouping implemented locally after v0.1.11:** new worlds contain three planets and eight sites, including a resource landing and derelict at each frontier planet. Every generated destination passes bounded native supplied extraction, paid construction, return and persistent-revisit checks. Planet/site navigation is view-only, and prior four-/six-site worlds remain exact under schema68.
+
+**Still pending:** a larger discovery/history system, travel between remote destinations and sustained ordinary habitation. The bounded route check pauses production to retain starter air for travel; it does not prove a self-sustaining colony.
 
 Expand the [upward/outward progression](docs/orbital-progression.md) into generated destinations, persistent planetary identities, multiple settlements per planet, resource bodies and varied debris/solar hazards.
 

@@ -412,3 +412,6 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 - [Structural material tests](../tests/structural-materials.test.js) and [material physics tests](../tests/material-physics.test.js): native paid chains, upstairs delivery, genuine schema65 migration, strict ownership, finite heat and independent damage paths.
 
 - [Engineering equipment checks](../tests/engineering-tools.test.js): native paid manufacture/use/repair, work capabilities, type/material stock targets, upper-floor custody and genuine schema66 migration.
+
+- [Planetary view model](../src/region-view.js): detached planet/site map nodes and visible mission endpoints; hierarchy selection stays outside the saved simulation.
+- [Planetary region checks](../tests/planetary-regions.test.js): genuine schema67 migration, canonical membership, classic-state/RNG preservation, matching historical projections and filtered-map transit. Native journeys/residence cover every generated site in the existing region test files.

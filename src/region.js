@@ -75,7 +75,7 @@ function initialSurvey(def) {
 }
 
 /** Seeded, immutable catalog. Physical site state always lives in s.sites. */
-export function makeRegion(seed, legacy = false) {
+function makeRegionV1(seed, legacy = false) {
   if (!validSeed(seed) || typeof legacy !== 'boolean') throw new Error('Invalid region seed or mode.');
   seed = seed === 0 ? 0 : seed;
   const token = `${seed < 0 ? 'n' : 'p'}${Math.abs(seed).toString(36)}`;
@@ -111,6 +111,46 @@ export function makeRegion(seed, legacy = false) {
   return freeze({ schema: 1, seed, legacy, planets, sites, routes });
 }
 
+// Schema1 is an immutable compatibility boundary. New worlds use a wider
+// catalog; loading an existing colony never creates those additional sites.
+export function makeRegion(seed, legacy = false, schema = legacy ? 1 : 2) {
+  if (![1,2].includes(schema) || schema===2 && legacy) throw new Error('Unsupported planetary region schema.');
+  const original=makeRegionV1(seed,legacy);
+  if(schema===1)return original;
+  const token=`${seed<0?'n':'p'}${Math.abs(seed).toString(36)}`,homeId=`home-${token}`;
+  const home={...original.planets[homeId],map:{x:.22,y:.59},color:'#b6b897',label:'HOME PLANET'};
+  const planets={[homeId]:home},sites={};
+  for(const id of CLASSIC_IDS)sites[id]=original.sites[id];
+  for(const [index,letter] of ['a','b'].entries()){
+    const next=generator(hash(`${seed}:planet:${letter}`)),names=index?['Vesper','Oriel','Thalos','Nacre']:['Ilex','Cinder','Orison','Aster'];
+    const planetId=`planet-${letter}-${token}`,suffix=index?'-b':'';
+    const planet=planets[planetId]={id:planetId,name:`${names[next(names.length)]} ${token.toUpperCase()}`,home:`outcrop-${token}${suffix}`,map:index?{x:.79,y:.63}:{x:.55,y:.3},color:index?'#a9b9d1':'#c5a17b',label:index?'OUTER FRONTIER':'INNER FRONTIER'};
+    for(const template of ['outcrop','derelict']){
+      const outcrop=template==='outcrop',id=`${template}-${token}${suffix}`,originalDef=original.sites[`${template}-${token}`];
+      const def=sites[id]={...originalDef,id,planetId,name:`${planet.name} / ${outcrop?'Landing':'Drift Array'}`,label:`${index*2+(outcrop?5:6)} / ${outcrop?'RESOURCE LANDING':'ORBITAL DERELICT'}`,
+        sub:outcrop?'Finite ore and ice · exposed landing':'Finite components and alloy · exposed orbital deck',
+        color:planet.color,map:outcrop?{x:.43,y:.61}:{x:.76,y:.31},
+        fuel:(index?6:4)+next(2)+(index||outcrop?0:1),travel:(index?38:27)+next(8)+(outcrop?0:5),
+        debris:{period:(index?55:85)+next(16)-(outcrop?0:15),damage:index?(outcrop?3:6):(outcrop?2:4)},
+        layoutSeed:hash(`${seed}:planet:${letter}:${template}:layout`)};
+      def.survey=initialSurvey(def);
+    }
+  }
+  const routes={};
+  for(const def of Object.values(sites))if(def.id!=='surface'){
+    const id=`route-${def.id}`;routes[id]={id,from:'surface',to:def.id,fuel:def.fuel,travel:def.travel};
+  }
+  return freeze({schema:2,seed:original.seed,legacy:false,planets,sites,routes});
+}
+export function planetDefinitions(s){
+  if(owns(s,'region'))return s.region.planets;
+  return {home:{id:'home',name:SITES.surface.name,home:'surface'}};
+}
+export function planetSiteIds(s,planetId){
+  const planets=planetDefinitions(s);if(!owns(planets,planetId))return [];
+  return Object.entries(siteDefinitions(s)).filter(([,def])=>s.region?def.planetId===planetId:true).map(([id])=>id);
+}
+
 export function siteDefinitions(s) {
   return owns(s, 'region') ? s.region?.sites : SITES;
 }
@@ -141,7 +181,7 @@ export function routeDefinition(s, id) {
 /** Validate canonical metadata only; depletion, exploration and buildings vary. */
 export function validateRegion(s) {
   if (!record(s) || !validSeed(s.seed) || !record(s.region) || typeof s.region.legacy !== 'boolean') throw new Error('Invalid region.');
-  const expected = makeRegion(s.seed, s.region.legacy);
+  const expected = makeRegion(s.seed, s.region.legacy, s.region.schema);
   if (!sameMetadata(s.region, expected)) throw new Error('Invalid immutable region metadata.');
   if (!exactKeys(s.sites, Object.keys(expected.sites))) throw new Error('Invalid region site catalog.');
   for (const [id, def] of Object.entries(expected.sites)) {
@@ -157,7 +197,7 @@ export function migrateRegion(s) {
     const site = s.sites[id];
     if (!record(site) || site.id !== id || site.size !== (id === 'surface' ? 26 : SIZE) || owns(site, 'kind')) throw new Error('Invalid legacy site identity.');
   }
-  const region = makeRegion(s.seed, true);
+  const region = makeRegion(s.seed, true, 1);
   for (const id of CLASSIC_IDS) s.sites[id].kind = id;
   s.region = region;
 }

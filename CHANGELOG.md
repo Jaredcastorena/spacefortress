@@ -4,6 +4,11 @@ SPACEFORTRESS is an early playable colony simulator. Release entries describe co
 
 ## Unreleased
 
+- Generate three planets and eight physical sites in new colonies. Group frontier landings and derelicts under stable planet identities, with finite resources, distinct hazards and canonical home-origin routes.
+- Add planet-level map selection, grouped collapsible destination controls, planet-specific surveys and safe transit rendering when another planet is being viewed.
+- Add save schema68/region schema2 while preserving existing schema1 four- and six-site worlds exactly. Validate membership, routes and metadata without repairing or regenerating state.
+- Extend native supplied extraction, construction, return and persistent-revisit checks to all four generated sites; verify independent resident work, genuine schema67 migration and view-only hierarchy behavior.
+
 - Add alloy/composite engineering kits for paid construction, dismantling and maintenance, sharing existing materials, quality, finite wear, physical equipment ownership and supplied repair.
 - Generalize tool capabilities and inspection while retaining mining behavior and one tool slot per crew member. Add equipment type and work kind to craft, use and repair records.
 - Distinguish tool family and material in production stock forecasts; committed repairs count the actual preserved item instead of the selected future recipe.

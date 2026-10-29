@@ -2,14 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createGame, serialize, deserialize, step} from '../src/simulation.js';
 import {executeAction} from '../src/controls.js';
-import {siteDefinitions} from '../src/region.js';
+import {siteDefinitions,makeRegion} from '../src/region.js';
 import {horizontalNeighbors, positionOf} from '../src/spatial.js';
 import {crewPathToPosition} from '../src/navigation.js';
 import {extractionStatus} from '../src/extraction.js';
 import {syncResources} from '../src/inventory.js';
 
-for (const template of ['outcrop', 'derelict']) test(`registered ${template} residents save and work locally without a shuttle`, () => {
-  const s = createGame(74219), def = Object.values(siteDefinitions(s)).find(d => d.template === template), site = s.sites[def.id], resident = s.crew[0];
+for (const {id:destination,template} of Object.values(makeRegion(74219).sites).filter(d=>d.template)) test(`registered ${destination} residents save and work locally without a shuttle`, () => {
+  const s = createGame(74219), def = Object.values(siteDefinitions(s)).find(d => d.id === destination), site = s.sites[def.id], resident = s.crew[0];
   // Synthetic residence boundary isolates post-departure work and persistence.
   // Native supplied arrival/return/revisit is covered separately.
   Object.assign(resident, {site:site.id, x:4, y:10, z:0});

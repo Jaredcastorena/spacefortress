@@ -6,7 +6,13 @@ An early playable space colony simulator inspired by Dwarf Fortress. Keep seven 
 
 ![Local SPACEFORTRESS hex colony with original alien crew, an isometric habitat and closed detail drawers](docs/images/spacefortress-hex.png)
 
-**The game is still in development.** Build across connected floors using paid stairs, supported upper-floor extensions and a compact floor selector. New colonies add two seeded orbital destinations alongside the four starter sites. Long-lived staffed outposts, complete vertical systems, a generated universe/history and much of the wider simulation remain unfinished. The [implementation status](docs/implementation-status.md) separates working systems from plans.
+**The game is still in development.** Build across connected floors using paid stairs, supported upper-floor extensions and a compact floor selector. Published v0.1.11 adds two seeded orbital destinations alongside the four starter sites; the local planetary expansion below adds a wider new-world catalog. Long-lived staffed outposts, complete vertical systems, a generated universe/history and much of the wider simulation remain unfinished. The [implementation status](docs/implementation-status.md) separates working systems from plans.
+
+## Local development after v0.1.11: planetary regions
+
+New colonies now start in a seeded system with **three planets and eight sites**. Each frontier planet has a finite resource landing and an orbital derelict, with its own route costs, travel time, debris exposure and extractable reserves. Open **Regions → System overview**, select a planet, then inspect one of its destinations. The drawer groups destinations under collapsible planet names.
+
+Existing colonies keep their original four- or six-site worlds. Loading a save does not add terrain, supplies or residents. Local save schema68 preserves earlier region catalogs; new worlds use region schema2. Travel still departs from the home colony and returns there. Direct travel between remote sites, large-scale discovery/history and sustained outpost habitation remain unfinished. This planetary expansion is local and is not in the published v0.1.11 build.
 
 ## Local development after v0.1.11: engineering kits
 

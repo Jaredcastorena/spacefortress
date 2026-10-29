@@ -1,3 +1,4 @@
+import {regionViewNodes,visibleMissionRoute} from './region-view.js';
 import {materialId} from './materials.js';
 import {siteDefinitions,siteDefinition,siteKind} from './region.js';
 import {riserKind,utilityAt,utilityActive} from './utility-links.js';
@@ -447,25 +448,24 @@ export class Renderer {
     if (t.hp < 100) { c.fillStyle = '#352e2a'; c.fillRect(x - 12, y - 37, 24, 3); c.fillStyle = '#d99971'; c.fillRect(x - 12, y - 37, 24 * t.hp / 100, 3); }
   }
   universe(s) {
-    const c = this.ctx; const nodes = this.regionNodes(s);
-    c.strokeStyle = '#42616c'; c.setLineDash([3, 7]); c.lineWidth = 1;
-    for (let i = 1; i < nodes.length; i++) { c.beginPath(); c.moveTo(nodes[0].x, nodes[0].y); c.lineTo(nodes[i].x, nodes[i].y); c.stroke(); } c.setLineDash([]);
-    for (const n of nodes) {
-      c.save(); c.translate(n.x, n.y); const color = siteDefinition(s,n.id).color;
-      c.strokeStyle = `${color}55`; c.beginPath(); c.ellipse(0, 0, n.id === 'surface' ? 89 : 41, n.id === 'surface' ? 45 : 21, -.35, 0, Math.PI * 2); c.stroke();
-      if (n.id === 'surface') { const g = c.createRadialGradient(-20, -20, 0, 0, 0, 52); g.addColorStop(0, '#b69c6e'); g.addColorStop(.6, '#64766c'); g.addColorStop(1, '#1c353f'); c.fillStyle = g; c.beginPath(); c.arc(0, 0, 48, 0, Math.PI * 2); c.fill(); c.strokeStyle = '#b6c3a6'; c.lineWidth = 1; c.stroke(); }
-      else if (siteKind(s.sites[n.id]) === 'wreck') { this.structure({ building: 'salvage', hp: 100 }, 0, 3, s); }
-      else if (n.id === 'comet') { this.polygon([[-15, 4], [72, -30], [20, 15]], '#8bbdc22a'); this.structure({ building: 'volatile', hp: 100 }, 0, 3, s); }
-      else this.structure({ building: 'collector', hp: 100 }, 0, 5, s);
-      c.fillStyle = '#d6e1d8'; c.textAlign = 'center'; c.font = '14px Arial'; c.fillText(siteDefinition(s,n.id).name, 0, n.id === 'surface' ? 75 : 52); c.fillStyle = color; c.font = '8px monospace'; c.fillText(siteDefinition(s,n.id).label, 0, n.id === 'surface' ? 93 : 70); c.restore();
+    const c=this.ctx,nodes=this.regionNodes(s);
+    c.strokeStyle='#42616c';c.setLineDash([3,7]);c.lineWidth=1;
+    for(const n of nodes.slice(1)){c.beginPath();c.moveTo(nodes[0].x,nodes[0].y);c.lineTo(n.x,n.y);c.stroke();}c.setLineDash([]);
+    for(const n of nodes){
+      c.save();c.translate(n.x,n.y);const planet=n.type==='planet'||n.id==='surface',color=n.color;
+      c.strokeStyle=`${color}55`;c.beginPath();c.ellipse(0,0,planet?89:41,planet?45:21,-.35,0,Math.PI*2);c.stroke();
+      if(planet){const g=c.createRadialGradient(-20,-20,0,0,0,52);g.addColorStop(0,color);g.addColorStop(.6,'#64766c');g.addColorStop(1,'#1c353f');c.fillStyle=g;c.beginPath();c.arc(0,0,48,0,Math.PI*2);c.fill();c.strokeStyle=color;c.lineWidth=1;c.stroke();}
+      else if(n.template==='outcrop'){this.hex(0,5,color,'#c7d0bc');this.structure({building:'dock',hp:100},0,3,s);}
+      else if(siteKind(s.sites[n.id])==='wreck')this.structure({building:'salvage',hp:100},0,3,s);
+      else if(n.id==='comet'){this.polygon([[-15,4],[72,-30],[20,15]],'#8bbdc22a');this.structure({building:'volatile',hp:100},0,3,s);}
+      else this.structure({building:'collector',hp:100},0,5,s);
+      c.fillStyle='#d6e1d8';c.textAlign='center';c.font='14px Arial';c.fillText(n.name,0,planet?75:52);c.fillStyle=color;c.font='8px monospace';c.fillText(n.label,0,planet?93:70);c.restore();
     }
-    if (shuttleLocation(s) === 'transit') {
-      const dest = nodes.find(n => n.id === s.mission.site), from = nodes[0]; const duration = routeTime(s, s.mission.site), f = s.mission.phase === 'outbound' ? 1 - s.mission.remaining / duration : s.mission.remaining / duration;
-      const x = from.x + (dest.x - from.x) * f, y = from.y + (dest.y - from.y) * f; c.fillStyle = '#d6e9cf'; this.polygon([[x, y - 6], [x + 5, y + 5], [x, y + 2], [x - 5, y + 5]], '#d6e9cf');
-    }
+    const visible=visibleMissionRoute(s,nodes);
+    if(visible){const {from,to}=visible,duration=routeTime(s,s.mission.site),f=s.mission.phase==='outbound'?1-s.mission.remaining/duration:s.mission.remaining/duration;
+      const x=from.x+(to.x-from.x)*f,y=from.y+(to.y-from.y)*f;this.polygon([[x,y-6],[x+5,y+5],[x,y+2],[x-5,y+5]],'#d6e9cf');}
   }
   regionNodes(s) {
-    const fallback={surface:{x:.3,y:.58},wreck:{x:.66,y:.34},comet:{x:.75,y:.69},solar:{x:.36,y:.28}};
-    return Object.entries(siteDefinitions(s)).map(([id,def])=>{const p=def.map||fallback[id];return {id,x:this.w*p.x,y:this.h*p.y};});
+    return regionViewNodes(s,this.planetId).map(n=>({...n,x:this.w*n.x,y:this.h*n.y}));
   }
 }

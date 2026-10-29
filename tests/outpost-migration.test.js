@@ -46,7 +46,7 @@ test('fresh initialization creates independent empty owners without spending or 
   initializeOutpostState(s);
   assert.deepEqual(s.outposts, expectedOutposts(s));
   const owners = [s.shuttle.freight, ...allDocks(s).map(tile => tile.imports)];
-  assert.equal(new Set(owners).size, 6);
+  assert.equal(new Set(owners).size, owners.length);
   assert.ok(owners.every(owner => Object.keys(owner).length === 0));
   assert.deepEqual(totalResources(s), before); assert.equal(s.rng, rng);
   const snapshot = structuredClone(s);

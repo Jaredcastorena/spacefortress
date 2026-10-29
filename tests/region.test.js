@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SITES } from '../src/data.js';
+import { SITES, VERSION } from '../src/data.js';
 import { neighbors } from '../src/hex.js';
 import { extractionStatus, extractTile } from '../src/extraction.js';
 import { makeRegion, generatedLayout, siteDefinitions, siteDefinition, siteKind, settlementSite, outpostSiteIds, routeDefinition, validateRegion, migrateRegion } from '../src/region.js';
@@ -8,7 +8,7 @@ import { makeRegion, generatedLayout, siteDefinitions, siteDefinition, siteKind,
 const generated = region => Object.values(region.sites).filter(def => def.template);
 function state(seed = 74219, legacy = false) {
   const region = makeRegion(seed, legacy);
-  return { version: 65, seed, rng: 1938274, nextId: 22, region, sites: Object.fromEntries(Object.values(region.sites).map(def => [def.id, { id: def.id, kind: def.kind, size: def.size, explored: def.id === 'surface', tiles: def.template ? generatedLayout(def) : [] }])) };
+  return { version: VERSION, seed, rng: 1938274, nextId: 22, region, sites: Object.fromEntries(Object.values(region.sites).map(def => [def.id, { id: def.id, kind: def.kind, size: def.size, explored: def.id === 'surface', tiles: def.template ? generatedLayout(def) : [] }])) };
 }
 function oldState() {
   const s = state(74219, true); s.version = 64; delete s.region;
@@ -31,8 +31,8 @@ test('region catalogs are reproducible, deeply frozen and isolated from state co
   const s = state(), before = JSON.stringify(s), region = makeRegion(s.seed);
   assert.deepEqual(region, makeRegion(s.seed));
   assert.deepEqual(region, s.region);
-  assert.equal(region.schema, 1); assert.equal(region.legacy, false);
-  assert.equal(Object.keys(region.planets).length, 1); assert.equal(Object.keys(region.sites).length, 6);
+  assert.equal(region.schema, 2); assert.equal(region.legacy, false);
+  assert.equal(Object.keys(region.planets).length, 3); assert.equal(Object.keys(region.sites).length, 8);
   assert.ok(Object.isFrozen(region)); assert.ok(Object.isFrozen(region.sites));
   for (const def of Object.values(region.sites)) {
     assert.ok(Object.isFrozen(def)); assert.ok(Object.isFrozen(def.map));
@@ -124,12 +124,12 @@ test('initial survey equals all native extraction yields and exhausts without re
 
 test('routes are canonical, capped, immutable and connect home to every destination', () => {
   const s = state(), routes = Object.values(s.region.routes);
-  assert.equal(routes.length, 5); assert.equal(new Set(routes.map(route => route.to)).size, 5);
+  assert.equal(routes.length, 7); assert.equal(new Set(routes.map(route => route.to)).size, 7);
   for (const route of routes) {
     const def = siteDefinition(s, route.to);
     assert.equal(route.from, 'surface'); assert.equal(route.fuel, def.fuel); assert.equal(route.travel, def.travel);
-    assert.ok(Number.isInteger(route.fuel) && route.fuel > 0 && route.fuel <= 6);
-    assert.ok(Number.isInteger(route.travel) && route.travel > 0 && route.travel <= 44);
+    assert.ok(Number.isInteger(route.fuel) && route.fuel > 0 && route.fuel <= 7);
+    assert.ok(Number.isInteger(route.travel) && route.travel > 0 && route.travel <= 50);
     assert.equal(routeDefinition(s, def.id), route); assert.equal(routeDefinition(s, route.id), route);
     assert.ok(Object.isFrozen(route));
   }
@@ -147,7 +147,7 @@ test('definition and kind helpers use own keys and include every actual settleme
   assert.equal(siteKind({ id: 'unknown', kind: 'wreck' }), 'wreck'); assert.equal(settlementSite({ id: 'comet' }), false);
   assert.equal(settlementSite({ id: 'surface' }), true);
   assert.deepEqual(outpostSiteIds(s), ['wreck', ...generatedIds]);
-  delete s.sites[generatedIds[0]]; assert.deepEqual(outpostSiteIds(s), ['wreck', generatedIds[1]]);
+  delete s.sites[generatedIds[0]]; assert.deepEqual(outpostSiteIds(s), ['wreck', ...generatedIds.slice(1)]);
   assert.deepEqual(routeDefinition({}, 'wreck'), { id: 'route-wreck', from: 'surface', to: 'wreck', fuel: 2, travel: 22 });
   assert.equal(routeDefinition({ region: null }, 'wreck'), undefined);
 });
@@ -164,7 +164,7 @@ test('metadata validation ignores key ordering and preserves mutable site change
 });
 
 const tampering = {
-  schema: s => { s.region.schema = 2; }, seed: s => { s.region.seed++; }, stateSeed: s => { s.seed++; }, mode: s => { s.region.legacy = true; },
+  schema: s => { s.region.schema = 3; }, seed: s => { s.region.seed++; }, stateSeed: s => { s.seed++; }, mode: s => { s.region.legacy = true; },
   unknown: s => { s.region.discovery = true; }, missingPlanet: s => { s.region.planets = {}; }, duplicatePlanet: s => { s.region.planets.extra = Object.values(s.region.planets)[0]; },
   planet: s => { Object.values(s.region.planets)[0].home = 'wreck'; }, duplicateDefinition: s => { s.region.sites.extra = s.region.sites.wreck; },
   definition: s => { s.region.sites.wreck.name = 'Forged'; }, map: s => { s.region.sites.wreck.map.x = Infinity; }, kind: s => { s.sites.wreck.kind = 'surface'; },

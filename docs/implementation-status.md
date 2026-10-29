@@ -2,6 +2,12 @@
 
 Updated October 29, 2026.
 
+## Local after v0.1.11: planetary regions
+
+New colonies use a canonical three-planet catalog with eight physical sites. Each frontier planet owns a resource landing and orbital derelict; finite surveys, paid routes and debris vary. The map moves between planet and site scopes, the drawer groups sites by planet, and filtered transit rendering handles destinations outside the current view. These remain vacuum settlement-capable grids; planet labels do not grant surface ecology or breathable air.
+
+All four generated destinations pass bounded supplied extraction, paid construction, return and persistent-revisit tests with ordinary finite starter stores and production paused. Separate synthetic cases verify registered resident work. A genuine six-site schema67 save migrates by version only; schema1 catalogs remain immutable and new-world generation uses region schema2/save68. Browser inspection confirms the hierarchy, selected heading/group, site survey and preparation controls without console errors. The full integration run passed1,820 cases with three outdated count/map assertions and one historical skip; all three corrected cases pass on targeted rerun. Syntax, Python and public export checks pass. Broader discovery/history, direct remote travel and ordinary outpost endurance remain unfinished.
+
 ## Local after v0.1.11: engineering equipment
 
 Engineering kits extend the shared tool system to construction, dismantling and maintenance. Alloy/composite properties and workmanship affect matching work; wear is charged only for actual completed work, with normal hand work after breakage. Manufacturing, native pickup, supplied repair, layer costs, stairs and inventory conservation retain their existing systems. The equipped tool slot is shared with mining tools.

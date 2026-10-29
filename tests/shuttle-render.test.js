@@ -74,14 +74,17 @@ test('one selected terminal receives the craft; destroyed terminals do not reloc
   assert.deepEqual(draw(s, 'wreck').crafts, [], 'No arbitrary tile becomes a replacement berth');
 });
 
-test('system map draws a travel marker only during actual outbound or return transit', () => {
+test('planet map shows local transit while system overview does not invent an interplanetary trip', () => {
   for (const phase of [null, 'outbound', 'working', 'boarding', 'returning']) {
     const s = fixture();
     if (phase) s.mission = { site: 'wreck', phase, remaining: 0, fit: 'standard' };
     const { renderer, commands } = graphics();
-    renderer.universe(s);
-    const markers = commands.filter(({ name, args }) => name === 'polygon' && args[1] === '#d6e9cf');
-    assert.equal(markers.length, ['outbound', 'returning'].includes(phase) ? 1 : 0);
+    for(const scope of ['system','planet']){
+      commands.length=0;renderer.planetId=scope==='planet'?s.region.sites.wreck.planetId:null;
+      renderer.universe(s);
+      const markers=commands.filter(({name,args})=>name==='polygon'&&args[1]==='#d6e9cf');
+      assert.equal(markers.length,scope==='planet'&&['outbound','returning'].includes(phase)?1:0);
+    }
   }
 });
 
