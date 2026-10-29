@@ -30,6 +30,8 @@ test('genuine schema46 migration changes only declared deck, shipment, crew and 
 
 test('migrated and newly constructed deck-zero colonies continue identically', () => {
   const migrated = deserialize(original), current = createGame(74219);
+  // Preserve the older depot's explicit resource filter when comparing colonies.
+  for(const site of Object.values(current.sites))for(const t of site.tiles)if(t.storage)t.storage.accepted=t.storage.accepted.filter(r=>r!=='tools');
   assert.ok(order(current, 'surface', 5, 6, 'build', 'wall').ok);
   assert.deepEqual(migrated, current);
   step(migrated, 4); step(current, 4);

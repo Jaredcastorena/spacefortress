@@ -2,7 +2,11 @@
 
 SPACEFORTRESS is an early playable colony simulator. Release entries describe completed changes within their stated scope.
 
-## Unreleased
+## v0.1.9 — 2026-10-29
+
+- Add a supplied tool workshop with alloy/composite mining tools and repair recipes. Material and quality affect mining speed; condition wears only during actual work, and broken tools retain baseline hand mining.
+- Add routed crew pickup, exclusive claims, cancellation, actual-floor release, separate tool/keepsake slots and condition inspection through shared player/agent controls. Physical tool identities survive hauling, freight and repair.
+- Persist tools, committed workshop batches and pending pickups in save schema64. Preserve earlier valid hex saves; reject malformed or duplicate tool ownership. Add named craft, pickup, wear, breakage and repair events.
 
 - Keep personal items on their owner’s actual floor during release or death. Missing release locations preserve the item and collection policy; existing stair pickup, hauling and saves retain identity.
 - Use shared full-floor tile IDs for item and split-meal ownership observations, personal pickup/release events and meal preparation. Ground IDs and save/recording schemas remain unchanged.

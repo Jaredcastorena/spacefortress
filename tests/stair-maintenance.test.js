@@ -25,7 +25,7 @@ const reload=s=>deserialize(serialize(s));
 
 test('genuine schema55 stairs migrate without physical changes and reject future maintenance fields',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'77a7b11c85a21a8e166cb2f761034a010fb3e8145924225e62ca177015ee9cb3');
- const old=JSON.parse(raw),s=deserialize(raw);assert.equal(old.version,55);old.version=VERSION;for(const site of Object.values(old.sites))site.utilityLinks=[];assert.deepEqual(s,old);
+ const old=JSON.parse(raw),s=deserialize(raw);assert.equal(old.version,55);old.version=VERSION;old.resources.tools=0;for(const site of Object.values(old.sites))site.utilityLinks=[];assert.deepEqual(s,old);
  const future=JSON.parse(raw);future.jobs=[{connection:future.sites.surface.verticalLinks[0].id}];assert.throws(()=>deserialize(JSON.stringify(future)),/Legacy.*maintenance/);
 });
 

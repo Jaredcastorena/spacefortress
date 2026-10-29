@@ -1,3 +1,4 @@
+import {TOOL_RECIPES} from './tool-data.js';
 import { itemsDetails } from './possession-panels.js';
 import { foodDetails, foodKindName, foodComposition } from './food-panels.js';
 import { temperatureAt } from './thermal.js';
@@ -16,7 +17,7 @@ function recipeInput(recipe) {
   return [foodComposition(recipe.foodKinds),inventoryText({...recipe.input,food:0})].filter(v=>v!=='Empty').join(', ');
 }
 function recipeDetails(t,s,siteId) {
-  const choices=t.building==='farm'?CROPS:t.building==='galley'?MEAL_RECIPES:null;
+  const choices=t.building==='farm'?CROPS:t.building==='galley'?MEAL_RECIPES:t.building==='toolbench'?TOOL_RECIPES:null;
   if(!choices)return '';
   const selected=recipeFor(t,'selected'),active=recipeFor(t),batch=quantity(t.machine.batch)>0;
   const eligibility=s&&siteId?productionEligibility(s,s.sites[siteId],t,selected.id):null;

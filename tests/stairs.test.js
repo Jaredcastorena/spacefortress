@@ -25,7 +25,7 @@ function completeStairs(){const f=fixture(),job=build(f);until(f,()=>!f.s.jobs.i
 
 test('genuine schema54 migration preserves the paid pending order and all physical state',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'d88a01906892db7301d22a511e7316386f2694070322d856cd38292d3fdfb73c');
- const old=JSON.parse(raw),s=deserialize(raw);assert.equal(old.version,54);old.version=VERSION;for(const site of Object.values(old.sites))site.utilityLinks=[];assert.deepEqual(s,old);assert.equal(serialize(deserialize(serialize(s))),serialize(s));
+ const old=JSON.parse(raw),s=deserialize(raw);assert.equal(old.version,54);old.version=VERSION;old.resources.tools=0;for(const site of Object.values(old.sites))site.utilityLinks=[];assert.deepEqual(s,old);assert.equal(serialize(deserialize(serialize(s))),serialize(s));
  for(const mutate of [v=>v.sites.surface.tiles[0].verticalLink='vertical-1',v=>v.jobs[0].building='stairwell']){const v=JSON.parse(raw);mutate(v);assert.throws(()=>deserialize(JSON.stringify(v)),/Legacy.*stairwell/);}
 });
 

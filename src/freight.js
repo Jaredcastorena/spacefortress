@@ -1,4 +1,5 @@
 import { RESOURCES, SHUTTLE_FITS } from './data.js';
+import { discreteResource } from './item-lots.js';
 import { add, extract, quantity, contains, resourceEntries } from './inventory.js';
 import { shuttlePresence } from './outposts.js';
 import { shuttleCargoClaims } from './inventory-reservations.js';
@@ -29,7 +30,7 @@ export function freightRequest(s, siteId, kind, requested = undefined) {
   if (!presence.usable || s.departure || (siteId === 'surface' ? !!s.mission : s.mission?.phase !== 'working') || kind === 'loadCargo' && siteId !== 'surface') return reject('freight_unavailable', 'Freight work needs the idle shuttle at a usable terminal.');
   if (s.jobs.some(isFreightJob)) return reject('freight_pending', 'Finish or cancel the existing freight order.');
   const items = requested === undefined && kind === 'unloadCargo' ? Object.fromEntries(resourceEntries(s.shuttle.freight).filter(([,n]) => n > 0)) : requested;
-  if (!items || typeof items !== 'object' || ![Object.prototype, null].includes(Object.getPrototypeOf(items)) || !Object.keys(items).length || !Object.entries(items).every(([r,n]) => RESOURCES.includes(r) && Number.isFinite(n) && n > 0 && (r !== 'keepsakes' || Number.isInteger(n))) || !Number.isFinite(quantity(items))) return reject('invalid_freight', 'Choose positive amounts of known resources.');
+  if (!items || typeof items !== 'object' || ![Object.prototype, null].includes(Object.getPrototypeOf(items)) || !Object.keys(items).length || !Object.entries(items).every(([r,n]) => RESOURCES.includes(r) && Number.isFinite(n) && n > 0 && (!discreteResource(r) || Number.isSafeInteger(n))) || !Number.isFinite(quantity(items))) return reject('invalid_freight', 'Choose positive amounts of known resources.');
   if (kind === 'loadCargo' && quantity(items) > freightStatus(s, siteId).free + 1e-8) return reject('freight_capacity', 'The requested freight exceeds the free shuttle hold.');
   if (kind === 'unloadCargo' && !contains(s.shuttle.freight, items)) return reject('freight_missing', 'The requested freight is not aboard.');
   return { ok: true, cost: { ...items }, terminal: presence.terminal, work: FREIGHT_WORK };

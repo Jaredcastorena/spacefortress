@@ -30,7 +30,7 @@ test('genuine schema48 migration preserves every field outside named crew and an
 });
 
 test('migration covers named care and keepsake references without rewriting other locations',()=>{
-  for(const type of CARE_INTENTS){
+  for(const type of CARE_INTENTS.filter(type=>type!=='equipTool')){
     const old=fresh();old.crew[2].intent={type,target:[11,8]};
     old.crew[3].intent={type:'leisure',target:null,keepsake:{id:'item-1',source:'stock',target:[8,10]}};
     old.crew[4].delivery={kind:'stock',target:{x:8,y:10,z:0}};

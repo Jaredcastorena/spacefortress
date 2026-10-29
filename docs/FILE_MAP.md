@@ -122,6 +122,9 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 | [src/power.js](../src/power.js) | Electrical allocation previews and committed updates, generation/batteries, branch breaker conditions, cable controls and energy validation. |
 | [src/preflight-panels.js](../src/preflight-panels.js) | HTML panel renderers and UI formatting for preflight |
 | [src/preflight.js](../src/preflight.js) | Domain helpers for preflight |
+| [src/tool-data.js](../src/tool-data.js) | Mining materials and manufacturing/repair recipes. |
+| [src/tools.js](../src/tools.js) | Physical equipment pickup, release, work-based wear and tool identity. |
+| [src/tool-panels.js](../src/tool-panels.js) | Collapsed tool selection and condition inspection. |
 | [src/production.js](../src/production.js) | Staffed machine recipe selection, stock/batch orders, input demand, operator eligibility, production scheduling and operation validation. |
 | [src/reactor-panels.js](../src/reactor-panels.js) | HTML panel renderers and UI formatting for reactor |
 | [src/reactor-rules.js](../src/reactor-rules.js) | Domain helpers for reactor rules |

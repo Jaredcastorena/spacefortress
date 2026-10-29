@@ -27,7 +27,7 @@ function mine(s,p=target){const r=executeAction(s,'job.order',{...p,kind:'mine'}
 // flight. The inherited enclosed upper-room fixture is synthetic, not endurance.
 test('genuine schema62 migration preserves a paid upper planter and partial ground mining exactly',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'5511a56c1d751bcdf2cb58afafd8b9b1567ed87f6f936a0dcbaefcb180c7b7a2');
- const old=JSON.parse(raw),s=deserialize(raw);assert.equal(old.version,62);old.version=VERSION;assert.deepEqual(s,old);assert.ok(s.jobs.some(j=>j.kind==='mine'&&j.remaining<j.work));valid(s);
+ const old=JSON.parse(raw),s=deserialize(raw);assert.equal(old.version,62);old.version=VERSION;old.resources.tools=0;assert.deepEqual(s,old);assert.ok(s.jobs.some(j=>j.kind==='mine'&&j.remaining<j.work));valid(s);
 });
 
 test('an actual impact deposits finite upper ore, miners preserve the paid fitting, and hauling crosses stairs',()=>{

@@ -2,6 +2,14 @@
 
 Implemented September 16, 2026, following the user's request to clearly mark small simulation interactions for eventual AI training. This is a local environment interface and recorder. No model, training service, network endpoint or external dependency is involved.
 
+## Mining tools
+
+`crew.tools.equip` accepts `crew`, `source` (`stock`, `drop`, or `output`) and physical `item` ID. It reserves the item and creates a native walking request; no inventory moves until arrival. `crew.tools.cancel` releases a pending claim; `crew.tools.release` puts the equipped tool on its owner’s actual floor. A crew member can hold one tool and one keepsake.
+
+`production.recipe` adds `alloy_pick`, `composite_pick` and `repair_pick` at a tool workshop. Repair accepts a worn tool plus one alloy, preserves its ID/maker/material/quality/creation tick and restores condition after paid operator work. Repair uses continuous or batch orders; stock targets are rejected. Committed batches retain their original recipe when selection changes.
+
+Crew `derived.tool` exposes condition, multiplier, broken state and pending pickup. Item records have `kind: "mining_tool"`, material, quality, condition and stable identity. Events include `tool.crafted`, `tool.pickup.planned`, `tool.pickup.cancelled`, `tool.equipped`, `tool.released`, `tool.used`, `tool.broken` and `tool.repaired`. Save schema64 stores these items and claims; observation/recording9 remains unchanged with additive fields.
+
 ## Physical item and meal locations
 
 `item.pickup.planned` and `item.owned` identify the actual-floor source; `item.released` identifies the actual-floor destination for manual release and death. `meal.prepared.entity` identifies the workstation’s floor. Item `location` and prepared-meal `locations` use the same canonical tile ID: ground remains `tile:site:x:y`, other floors append `:z`. No saved fields or observation-version changes accompany this address correction. Shared release preserves the pocket when the owner has no local tile; the action envelope reports `code: "simulation_rejected"` with `reason: "missing_owner_tile"`.

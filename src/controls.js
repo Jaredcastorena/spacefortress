@@ -1,3 +1,6 @@
+import {TOOL_RECIPES,TOOL_MATERIALS} from './tool-data.js';
+import {equipTool,releaseTool,cancelToolPickup} from './tools.js';
+import {discreteResource} from './item-lots.js';
 import { tileAt } from './spatial.js';
 import { FLORA, CULTIVATION } from './flora-data.js';
 import { CROPS, MEAL_RECIPES, FOOD_KINDS } from './food-data.js';
@@ -41,7 +44,7 @@ import { beginAction, endAction, observe, recordingStatus, startRecording, stopR
 const enumeration=values=>({type:'string',enum:values});
 const integer=(minimum,maximum)=>({type:'integer',minimum,maximum});
 const site=enumeration(['surface','wreck','comet','solar']),xy={site,x:integer(0,1000),y:integer(0,1000)},enabled={type:'boolean'},crew={type:'string',entityType:'crew'},job={type:'string',entityType:'job'},priority={type:'integer',enum:[1,3,5]};
-const inventoryRequest={type:'object',properties:Object.fromEntries(RESOURCES.map(resource=>[resource,{type:resource==='keepsakes'?'integer':'number',exclusiveMinimum:0}])),minProperties:1,maxProperties:RESOURCES.length,additionalProperties:false};
+const inventoryRequest={type:'object',properties:Object.fromEntries(RESOURCES.map(resource=>[resource,{type:discreteResource(resource)?'integer':'number',exclusiveMinimum:0}])),minProperties:1,maxProperties:RESOURCES.length,additionalProperties:false};
 const optional=schema=>({...schema,optional:true});
 const entries=[];
 function register(id,binding,description,parameters,run) {entries.push({id,binding,description,parameters,run});}
@@ -96,7 +99,7 @@ registerTile('radiator.configure','setRadiator','Enable or isolate passive react
 registerTile('climate.configure','setClimate','Set a climate target and enabled state.',{...xy,target:{type:'number',minimum:-20,maximum:35},enabled},setClimate);
 registerTile('depot.accept','setDepotAccepted','Change a depot filter without deleting stored supplies.',{...xy,resource:enumeration(RESOURCES),enabled},setDepotAccepted);
 registerTile('depot.priority','setDepotPriority','Set delivery priority for a depot.',{...xy,priority},setDepotPriority);
-registerTile('production.recipe','setProductionRecipe','Select the next crop or galley recipe while finishing the committed batch.',{...xy,recipe:enumeration([...Object.keys(CROPS).filter(id=>id!=='legacy_crop'),...Object.keys(MEAL_RECIPES)])},setProductionRecipe);
+registerTile('production.recipe','setProductionRecipe','Select the next production recipe while finishing the committed batch.',{...xy,recipe:enumeration([...Object.keys(CROPS).filter(id=>id!=='legacy_crop'),...Object.keys(MEAL_RECIPES),...Object.keys(TOOL_RECIPES)])},setProductionRecipe);
 registerTile('production.order','setProductionOrder','Set continuous production, fixed batches or a stock target.',{...xy,mode:enumeration(['continuous','batches','stock']),limit:integer(0,1000)},setProductionOrder);
 registerTile('production.priority','setProductionPriority','Set priority for workstation operators and input delivery.',{...xy,priority},setProductionPriority);
 registerTile('production.enable','setMachineEnabled','Pause or resume a machine while retaining its inputs and batch.',{...xy,enabled},setMachineEnabled);
@@ -109,6 +112,9 @@ register('crew.routine','setLifePolicy','Set balanced, work-focused or off-duty 
 register('fire.response','setFireResponse','Enable or disable automatic supplied fire-response orders. Existing orders remain.',{site,enabled},setFireResponse);
 registerTile('pasture.gate','setPastureGate','Latch a crew wicket to contain livestock, or hold it open for animal passage.',{...xy,mode:enumeration(['latched','open'])},setPastureGate);
 registerTile('door.mode','setDoorMode','Set a pressure door to automatic, open or sealed.',{...xy,mode:enumeration(['auto','open','closed'])},setDoorMode);
+register('crew.tools.equip','equipTool','Request physical pickup of a reachable local mining tool; the crew member walks to it and claims its identity.',{crew,source:enumeration(['stock','drop','output']),item:{type:'string',pattern:'^item-[1-9][0-9]*$'}},equipTool);
+register('crew.tools.cancel','cancelToolPickup','Cancel a pending tool pickup without moving its inventory.',{crew},cancelToolPickup);
+register('crew.tools.release','releaseTool','Put the equipped mining tool on the crew member’s actual floor.',{crew},releaseTool);
 register('crew.possessions.collect','setPossessionCollection','Allow or stop physical keepsake collection during downtime.',{crew,enabled},setPossessionCollection);
 register('crew.possessions.release','releasePossession','Put the owned keepsake down at this crew member’s local position.',{crew},releasePossession);
 register('husbandry.assign','setAnimalPost','Assign one livestock animal to a reachable post, or release it with null coordinates.',{creature:{type:'string',entityType:'creature'},x:{type:['integer','null'],minimum:0,maximum:25},y:{type:['integer','null'],minimum:0,maximum:25},z:optional(integer(0,7))},sim.setAnimalPost);
@@ -190,5 +196,5 @@ export function controlBindings(getState,source='player') {
   return Object.fromEntries(entries.filter(e=>e.binding!=='step').map(e=>[e.binding,(_state,...values)=>executeAction(getState(),e.id,Object.fromEntries(Object.keys(e.parameters).map((k,i)=>[k,values[i]]).filter(([,v])=>v!==undefined)),source)]));
 }
 export function createAgentInterface(getState,beforeAction=()=>{},afterAction=()=>{}) {
-  return Object.freeze({version:1,definitions:()=>JSON.parse(JSON.stringify({grid:GRID,directions:DIRECTIONS,gasNetworks:GAS_NETWORK,gasDirections:GAS_DIRECTIONS,plumbing:PLUMBING,waterDirections:WATER_DIRECTIONS,breakerDirections:BREAKER_DIRECTIONS,breakerModes:BREAKER_MODES,liquids:LIQUID,reactor:REACTOR,fire:FIRE,animalTransport:{work:TRANSPORT_WORK,stepInterval:TRANSPORT_STEP,tameOnly:true},breeding:BREEDING,livestock:LIVESTOCK,animalTraits:ANIMAL_TRAITS,veterinary:VETERINARY,butchery:BUTCHERY,flora:FLORA,cultivation:CULTIVATION,foodKinds:FOOD_KINDS,crops:CROPS,mealRecipes:MEAL_RECIPES,buildings:BUILDINGS,recipes:RECIPES,resources:RESOURCES,shuttleFits:SHUTTLE_FITS,outposts:{sites:OUTPOST_SITES,commissioningReserves:OUTPOST_RESERVES},itemStyles:ITEM_STYLES,extraction:{ice:{capacity:ICE_SEAM_CAPACITY,perOrder:ICE_EXTRACTION_AMOUNT}}})),actions:actionCatalog,observe:()=>observe(getState()),act:(id,args={})=>{beforeAction();try{return executeAction(getState(),id,args,'agent');}finally{afterAction();}},recording:Object.freeze({status:()=>recordingStatus(getState()),start:options=>startRecording(getState(),options),stop:()=>stopRecording(getState()),export:()=>exportRecording(getState())})});
+  return Object.freeze({version:1,definitions:()=>JSON.parse(JSON.stringify({grid:GRID,directions:DIRECTIONS,gasNetworks:GAS_NETWORK,gasDirections:GAS_DIRECTIONS,plumbing:PLUMBING,waterDirections:WATER_DIRECTIONS,breakerDirections:BREAKER_DIRECTIONS,breakerModes:BREAKER_MODES,liquids:LIQUID,reactor:REACTOR,fire:FIRE,animalTransport:{work:TRANSPORT_WORK,stepInterval:TRANSPORT_STEP,tameOnly:true},breeding:BREEDING,livestock:LIVESTOCK,animalTraits:ANIMAL_TRAITS,veterinary:VETERINARY,butchery:BUTCHERY,flora:FLORA,cultivation:CULTIVATION,foodKinds:FOOD_KINDS,crops:CROPS,mealRecipes:MEAL_RECIPES,toolRecipes:TOOL_RECIPES,toolMaterials:TOOL_MATERIALS,buildings:BUILDINGS,recipes:RECIPES,resources:RESOURCES,shuttleFits:SHUTTLE_FITS,outposts:{sites:OUTPOST_SITES,commissioningReserves:OUTPOST_RESERVES},itemStyles:ITEM_STYLES,extraction:{ice:{capacity:ICE_SEAM_CAPACITY,perOrder:ICE_EXTRACTION_AMOUNT}}})),actions:actionCatalog,observe:()=>observe(getState()),act:(id,args={})=>{beforeAction();try{return executeAction(getState(),id,args,'agent');}finally{afterAction();}},recording:Object.freeze({status:()=>recordingStatus(getState()),start:options=>startRecording(getState(),options),stop:()=>stopRecording(getState()),export:()=>exportRecording(getState())})});
 }

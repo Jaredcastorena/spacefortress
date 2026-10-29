@@ -2,8 +2,9 @@
 
 ## Current systems work
 
-Release v0.1.8 adds upstairs food growing and finite recoverable impact material to the upper-floor airlocks and supplied hazard response introduced in v0.1.7. Next checkpoints are the bounded upstairs build-and-live journey and broader orbital logistics.
+Release v0.1.9 adds manufactured mining tools, material-dependent speed and wear, routed equipment pickup and supplied repair. It also includes stair fire containment and actual-floor item custody. Next checkpoints remain bounded upstairs habitation and broader orbital logistics.
 
+- [x] Manufacture alloy/composite mining tools from delivered materials; preserve item identity through native pickup, actual mining wear, repair and schema64 saves. Keep player controls and structured actions aligned.
 - [x] Make solar generation respect overhead terrain and structures; expose the blocking floor to players and agents, preserve finite battery accounting, and migrate older saves through schema59.
 - [x] Extend paid airlock-controller construction, admission, cycling, recovery, rescue passage, controls and persistence to upper floors. Keep per-floor assemblies isolated, validate exposed-walkway pressure and reject unowned stair/gas-riser bypasses. Bounded checks pass; ordinary upstairs endurance remains incomplete.
 - [x] Enable upper-floor fire suppression and automatic repair/service using the existing finite water/alloy delivery, crew duties, stair routes, cancellation and save rules.

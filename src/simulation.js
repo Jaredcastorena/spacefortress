@@ -1,3 +1,5 @@
+import {TOOL_RECIPES} from './tool-data.js';
+import {miningEffort,advanceToolPickup,clearToolPickup,validateToolPickups} from './tools.js';
 import {riserKind,utilityAt,riserPlacement,utilityJobClaims,commissionUtility,utilityWorkReady,completeUtilityWork,configureUtility,validateUtilityState,validateUtilityJobs,UTILITY_WORK} from './utility-links.js';
 import { walkingNeighbors, stairPlacement, stairJobClaims, commissionStairwell, supportedFloor, stairAt, stairWorkBlock, completeStairWork, validateStairJobs, STAIR_WORK } from './vertical.js';
 import { validateHazardLocations, migrateHazardLocations } from './hazard-locations.js';
@@ -44,7 +46,7 @@ import { openMeal, eatPortion } from './meals.js';
 import { initializeWater, validateWater } from './water.js';
 import { extractionStatus, extractTile, reserveBlocksBuilding } from './extraction.js';
 import { initializePossessions, validatePossessions, dropPossession } from './possessions.js';
-import { validItemLots } from './item-lots.js';
+import { validItemLots, itemOwners } from './item-lots.js';
 import { capture, emitEvent, emitItemMovement, tileEntityId, habitatSnapshot, recordHabitatChanges } from './telemetry.js';
 import { initializeComfort, validateComfort, experienceComfort } from './comfort.js';
 import { initializeHousing, reconcileHousing, validateHousing, bunkAccessible, ownsBunk, housingObstruction, rememberHousingSleep } from './housing.js';
@@ -91,7 +93,7 @@ function createSite(id, size) {
   return { id, size, levels: [{ z: 0, name: 'Landing deck' }], verticalLinks: [], utilityLinks: [], air: 0, power: { output: 0, demand: 0, battery: 0, capacity: 0 }, rooms: [], explored: id === 'surface' || id === 'wreck', tiles: Array.from({ length: size * size }, (_, i) => ({ x: i % size, y: Math.floor(i / size), z: 0, terrain: id === 'surface' ? 'ground' : 'void', building: null, hp: 100, drop: null, variant: i % 4, powered: false, cable: null })) };
 }
 export function createGame(seed = 74219) {
-  const s = { version: VERSION, grid: GRID, seed, rng: seed || 1, tick: 0, nextId: 1, resources: { alloy: 36, ore: 0, components: 3, food: 24, water: 40, fuel: 14, cells: 0, air: 160, medicine: 4, waste: 0, fertilizer: 8, keepsakes: 0, ice: 0 }, sites: {}, crew: [], creatures: [], anomaly: null, jobs: [], log: [], mission: null, stats: { built: 0, mined: 0, returned: 0, solarCells: 0, trapped: 0 }, comet: { arrives: 180, leaves: 480 }, flags: {}, objectives: {} };
+  const s = { version: VERSION, grid: GRID, seed, rng: seed || 1, tick: 0, nextId: 1, resources: { alloy: 36, ore: 0, components: 3, food: 24, water: 40, fuel: 14, cells: 0, air: 160, medicine: 4, waste: 0, fertilizer: 8, keepsakes: 0, ice: 0, tools: 0 }, sites: {}, crew: [], creatures: [], anomaly: null, jobs: [], log: [], mission: null, stats: { built: 0, mined: 0, returned: 0, solarCells: 0, trapped: 0 }, comet: { arrives: 180, leaves: 480 }, flags: {}, objectives: {} };
   const ground = s.sites.surface = createSite('surface', 26);
   for (const t of ground.tiles) {
     const edge = t.x < 4 || t.y < 3 || t.x > 20 || t.y > 20;
@@ -190,7 +192,7 @@ export function order(s, siteId, x, y, kind, building = null, z = 0) {
     if (building==='breaker'&&t.cable) return {ok:false,message:'Remove the cable before installing a two-terminal breaker.'};
     if (reserveBlocksBuilding(t,building)) return { ok: false, message: `Extract the remaining ${t.deposit.resource} before building here.` };
     if (building === 'floor' && t.terrain === 'floor') return { ok: false, message: 'A floor is already here.' };
-    if (['planter','airlockController','breaker','waterReservoir','waterPump','waterIntake','waterOutlet','gasTank','gasVent','gasExtractor','gasReservoir','waterTank','bilgePump','reactor', 'galley', 'iceProcessor', 'artisan', 'sculpture', 'holo', 'sanitary', 'medicalCot', 'medlab', 'commons', 'bunk', 'farm', 'recycler', 'scrubber', 'refinery', 'fabricator', 'atmosphere', 'battery'].includes(building) && t.terrain !== 'floor') return { ok: false, message: 'Place this on a habitat floor.' };
+    if (['toolbench','planter','airlockController','breaker','waterReservoir','waterPump','waterIntake','waterOutlet','gasTank','gasVent','gasExtractor','gasReservoir','waterTank','bilgePump','reactor', 'galley', 'iceProcessor', 'artisan', 'sculpture', 'holo', 'sanitary', 'medicalCot', 'medlab', 'commons', 'bunk', 'farm', 'recycler', 'scrubber', 'refinery', 'fabricator', 'atmosphere', 'battery'].includes(building) && t.terrain !== 'floor') return { ok: false, message: 'Place this on a habitat floor.' };
     cost = def.cost; work = def.work;
 
   } else if (dispatchJob({kind})||carcassJob({kind})) {
@@ -444,7 +446,7 @@ function cancelCrewTraversal(s,c) {
   const [,site,x,y,z='0']=traversal.controller.split(':');
   cancelAirlock(s,{site,x:Number(x),y:Number(y),z:Number(z),crew:c.id});
 }
-function release(s, c, reason='interrupted') { cancelCrewTraversal(s,c); const job = s.jobs.find(j => j.id === c.job); if (job) {if(c.health<=0)reason='worker_died';else if(immobile(c))reason='immobile';releaseCarcass(s,job,c,reason);releaseTransport(s,job);job.worker = null;} c.job = null; }
+function release(s, c, reason='interrupted') { clearToolPickup(s,c,c.health<=0?'death':reason);cancelCrewTraversal(s,c); const job = s.jobs.find(j => j.id === c.job); if (job) {if(c.health<=0)reason='worker_died';else if(immobile(c))reason='immobile';releaseCarcass(s,job,c,reason);releaseTransport(s,job);job.worker = null;} c.job = null; }
 function setDownBlockedRecoveryCargo(s, c, site, kind) {
   if (!c.carry || !quantity(c.carry)) return;
   const job = c.delivery?.kind === 'job' && s.jobs.find(j => j.id === c.delivery.job && j.site === c.site);
@@ -464,13 +466,13 @@ function recover(s, c, site) {
   else if (c.intent?.type === 'air' && c.oxygen >= 90) { c.intent = null; remember(s, c, 'safe-air', 'Reached breathable shelter.', 4); }
   if (!criticalAir && Math.abs(c.thermalStress) >= 45 && c.intent?.type !== 'temperature' && !(c.intent?.type === 'meal' && c.intent.servings > 0)) { release(s, c); c.intent = { type: 'temperature', target: null }; }
   if (!criticalAir && Math.abs(c.thermalStress) < 45 && c.hunger < 10 && !c.medical.servings && c.intent?.type !== 'meal') { release(s, c); c.intent = { type: 'meal', target: null, servings: 0 }; }
-  if (!c.intent || ['haul', 'leisure', 'medical'].includes(c.intent.type)) {
+  if (!c.intent || ['haul', 'leisure', 'medical', 'equipTool'].includes(c.intent.type)) {
     if (!c.medical.servings && c.hunger < (boardingDeparture(s, c) ? 40 : 35)) { release(s, c); c.intent = { type: 'meal', target: null, servings: 0 }; }
     else if (c.energy < (boardingDeparture(s, c) ? 40 : 25)) { release(s, c); c.intent = { type: 'rest', target: null }; }
   }
   if(personalClaim&&c.intent?.keepsake?.id!==personalClaim)emitEvent(s,'item.pickup.cancelled',{entity:personalClaim,actor:c.id,reason:'recovery'});
   const intent = c.intent;
-  if (!intent || ['haul', 'leisure', 'medical'].includes(intent.type)) return false;
+  if (!intent || ['haul', 'leisure', 'medical', 'equipTool'].includes(intent.type)) return false;
   if (intent.type === 'air') {
     remember(s, c, 'air-scare', 'Nearly ran out of suit air.', -12);
     const targets = site.rooms.filter(breathable).flatMap(r => r.cells.map(k => roomCellPosition(r,k)));
@@ -570,6 +572,7 @@ function act(s, c, air) {
   if (c.carry && haul(s, c, site, plannedPath)) return;
   if (medicalRest(s, c, site, plannedPath)) return;
   if (boardingDeparture(s, c)) { if (c.intent?.type === 'leisure') c.intent = null; walkToDeparture(s, c, plannedPath); return; }
+  if(advanceToolPickup(s,c))return;
   if (leisure(s, c, site, plannedPath)) return;
   const j = s.jobs.find(j => j.id === c.job);
   if (j) {
@@ -596,7 +599,7 @@ function act(s, c, air) {
     if(result==='arrived'&&j.kind==='animalTreat'&&!animalTreatmentReady(s,j)){c.activity=j.blockedReason='Waiting for safe animal treatment conditions';return;}
     if (result === 'arrived' && j.kind === 'hygiene' && !hygieneReady(s, j, c)) { c.activity = j.blockedReason = 'Waiting for patient and safe hygiene conditions'; return; }
     if (result === 'arrived' && j.kind === 'treat' && !treatmentReady(s, j, c)) { c.activity = j.blockedReason = 'Waiting for patient and safe treatment conditions'; return; }
-    if (result === 'arrived') { j.blockedReason = null; const effort = Math.min(j.remaining, workRate(c, labor)); j.remaining -= effort; gainExperience(c, labor, effort); if (j.remaining <= 0) finish(s, c, j); }
+    if (result === 'arrived') { j.blockedReason = null; const effort = j.kind==='mine'?miningEffort(s,c,j,workRate(c,labor)):Math.min(j.remaining, workRate(c, labor)); j.remaining -= effort; gainExperience(c, labor, effort); if (j.remaining <= 0) finish(s, c, j); }
     if (result === 'waiting_airlock') { c.activity='Waiting for airlock cycle'; j.blockedReason='Waiting for airlock cycle'; }
     if (result === 'blocked') { release(s, c); c.activity = 'Route blocked'; }
     return;
@@ -886,9 +889,10 @@ export function deserialize(text) {
   if (text.length > 5_000_000) throw new Error('Save is too large.');
   const s = JSON.parse(text),legacySolarModel=s?.version<59;
   if (Number.isInteger(s?.version) && s.version >= 1 && s.version <= 39) throw new Error('Legacy square-grid saves (schemas 1–39) cannot be loaded into the hex colony. Export the original save and use the preserved square version to continue it.');
-  if (![40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, VERSION].includes(s?.version) || s.grid !== GRID) throw new Error('Unsupported save topology: schemas 40–63 require grid hex-odd-q-v1.');
+  if (![40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, VERSION].includes(s?.version) || s.grid !== GRID) throw new Error('Unsupported save topology: schemas 40–64 require grid hex-odd-q-v1.');
   if ( !Number.isSafeInteger(s.tick) || s.tick < 0 || !Number.isInteger(s.rng) || !Number.isSafeInteger(s.nextId)) throw new Error('Unsupported or invalid save.');
   if (!s.sites || !Array.isArray(s.crew) || s.crew.length !== 7 || !Array.isArray(s.jobs) || !Array.isArray(s.log) || !s.stats || !s.comet || !s.flags || !s.objectives) throw new Error('Incomplete save.');
+  if(s.version<64&&s.resources){if((s.resources.tools||0)!==0)throw new Error('Legacy tools.');s.resources.tools=0;}
   for (const r of RESOURCES) if (!Number.isFinite(s.resources?.[r]) || s.resources[r] < 0) throw new Error('Invalid resources.');
   for (const id of Object.keys(SITES)) {
     const site = s.sites[id], size = id === 'surface' ? 26 : 18;
@@ -904,6 +908,7 @@ export function deserialize(text) {
   validateRoomLocations(s, { legacy: s.version <= 51 });
   validateHazardLocations(s, { legacy: s.version <= 52 });
   validateDesignationLocations(s, { legacy: s.version <= 53 });
+  if(s.version<64&&(Object.values(s.sites).some(site=>site.tiles.some(t=>t.building==='toolbench'))||s.jobs.some(j=>j.building==='toolbench')||s.crew.some(c=>c.intent?.type==='equipTool')||itemOwners(s).some(({inventory})=>(inventory.tools||0)>0||inventory._items?.some(i=>i.kind!==undefined))))throw new Error('Legacy tools or workshop.');
   if(s.version<63&&(Object.values(s.sites).some(site=>site.tiles.some(t=>t.deposit?.resource==='ore'))||s.jobs.some(j=>j.kind==='mine'&&(j.z??0)!==0)))throw new Error('Legacy impact ore or upper extraction job.');
   if(s.version<62&&(Object.values(s.sites).some(site=>site.tiles.some(t=>t.building==='planter'))||s.jobs.some(j=>j.building==='planter'||(j.z??0)!==0&&['plant','waterPlant','gather'].includes(j.kind))))throw new Error('Legacy planter or upper cultivation job.');
   if(s.version<61&&s.jobs.some(j=>(j.z??0)!==0&&(j.kind==='extinguish'||j.automaticMaintenance)))throw new Error('Legacy upper hazard response job.');
@@ -939,6 +944,7 @@ export function deserialize(text) {
   if(s.version===60)s.version=VERSION;
   if(s.version===61)s.version=VERSION;
   if(s.version===62)s.version=VERSION;
+  if(s.version===63)s.version=VERSION;
   const ids = new Set();
   for (const c of s.crew) {
     if (ids.has(c.id) || typeof c.name !== 'string' || c.name.length > 80 || !['surface', 'wreck', 'comet', 'solar', 'transit'].includes(c.site) || ![c.health, c.oxygen, c.energy, c.hunger, c.skill].every(Number.isFinite) || !Number.isInteger(c.x) || !Number.isInteger(c.y) || (c.site !== 'transit' && !inside(s.sites[c.site], c.x, c.y))) throw new Error('Invalid crew.');
@@ -996,7 +1002,7 @@ export function deserialize(text) {
     if(delivery?.recipeId===undefined)return true;
     if(delivery.kind!=='input'||!validShipmentPosition(s.sites[siteId],delivery.target))return false;
     // A destination may have been dismantled since pickup; hauling recovers the physical cargo.
-    return delivery.recipeId!=='legacy_crop'&&(Object.hasOwn(CROPS,delivery.recipeId)||Object.hasOwn(MEAL_RECIPES,delivery.recipeId));
+    return delivery.recipeId!=='legacy_crop'&&(Object.hasOwn(CROPS,delivery.recipeId)||Object.hasOwn(MEAL_RECIPES,delivery.recipeId)||Object.hasOwn(TOOL_RECIPES,delivery.recipeId));
   };
   for (const c of s.crew) {
     if(c.delivery&&!validDeliveryRecipe(c.delivery,c.site))throw new Error('Invalid shipment recipe.');
@@ -1009,7 +1015,7 @@ export function deserialize(text) {
         if (c.carry || c.job || !returnCrewIds(s).includes(c.id) || s.mission?.phase !== 'working' || c.site !== s.mission.site || !validShipmentPosition(s.sites[c.site],intent.target) || !inventory(intent.items) || quantity(intent.items) <= 0 || quantity(intent.items) > CARRY_CAPACITY) throw new Error('Invalid salvage pickup.');
         continue;
       }
-      if (!intent || !['air', 'rest', 'meal', 'haul', 'leisure', 'medical', 'temperature', 'sanitation'].includes(intent.type) || c.site === 'transit' || c.job || (intent.target !== null && !(intent.type === 'haul' ? validShipmentPosition(s.sites[c.site],intent.target) : validCrewPosition(s.sites[c.site],intent.target))) || (intent.type === 'haul' && !intent.target) || (intent.type === 'meal' && (!Number.isInteger(intent.servings) || intent.servings < 0 || intent.servings > 8))) throw new Error('Invalid crew intention.');
+      if (!intent || !['air', 'rest', 'meal', 'haul', 'leisure', 'medical', 'temperature', 'sanitation', 'equipTool'].includes(intent.type) || c.site === 'transit' || c.job || (intent.target !== null && !(intent.type === 'haul' ? validShipmentPosition(s.sites[c.site],intent.target) : validCrewPosition(s.sites[c.site],intent.target))) || (intent.type === 'haul' && !intent.target) || (intent.type === 'meal' && (!Number.isInteger(intent.servings) || intent.servings < 0 || intent.servings > 8))) throw new Error('Invalid crew intention.');
       if(intent.type==='haul'&&(!validDeliveryRecipe(intent.destination,c.site)||(intent.recipeId!==undefined&&intent.recipeId!==intent.destination?.recipeId)||(intent.foodKinds!==undefined&&!validKinds(intent.foodKinds,intent.items?.food||0))))throw new Error('Invalid food pickup claim.');
       if(intent.type==='haul'&&intent.foodKinds!==undefined){
         const recipe=Object.hasOwn(MEAL_RECIPES,intent.recipeId)?MEAL_RECIPES[intent.recipeId]:null;
@@ -1068,7 +1074,7 @@ export function deserialize(text) {
   if (!Array.isArray(s.creatures) || s.creatures.length > 100 || !s.creatures.every(c => c && typeof c.id === 'string' && (isLivestock(c)||c.species==='tibble') && c.site === 'surface' && Number.isInteger(c.x) && Number.isInteger(c.y) && inside(s.sites.surface, c.x, c.y) && percent(c.health) && percent(c.fed) && amount(c.age))) throw new Error('Invalid wildlife.');
   if (s.anomaly !== null && (typeof s.anomaly.title !== 'string' || typeof s.anomaly.description !== 'string' || typeof s.anomaly.resolved !== 'boolean')) throw new Error('Invalid signal.');
   if (s.log.length > 60 || !s.log.every(e => amount(e.tick) && typeof e.message === 'string' && e.message.length < 4000)) throw new Error('Invalid event log.');
-  validateAnimalHealth(s); validateFlora(s); validateCultivation(s); validateAirlocks(s); validateFreightState(s); validateBreakers(s); validatePlumbing(s); validateGasNetworks(s); validateLiquids(s); validateReactors(s); validateFire(s); validateTransport(s); validateHusbandry(s); validateBreeding(s); validateAnimalTraits(s); validateCarcasses(s); validatePastures(s); validateWater(s); validateHousing(s); validateComfort(s); validatePossessions(s); validateDesignations(s); validateHygiene(s); validateSanitation(s); validateFood(s); validateThermal(s); validateStorage(s); validateProduction(s); validateMedicine(s); validateNursing(s); validateCrewLife(s); validateShuttle(s); validatePreflight(s);
+  validateAnimalHealth(s); validateFlora(s); validateCultivation(s); validateAirlocks(s); validateFreightState(s); validateBreakers(s); validatePlumbing(s); validateGasNetworks(s); validateLiquids(s); validateReactors(s); validateFire(s); validateTransport(s); validateHusbandry(s); validateBreeding(s); validateAnimalTraits(s); validateCarcasses(s); validatePastures(s); validateWater(s); validateHousing(s); validateComfort(s); validatePossessions(s);validateToolPickups(s); validateDesignations(s); validateHygiene(s); validateSanitation(s); validateFood(s); validateThermal(s); validateStorage(s); validateProduction(s); validateMedicine(s); validateNursing(s); validateCrewLife(s); validateShuttle(s); validatePreflight(s);
   validateReliability(s);
   for (const site of Object.values(s.sites)){if(legacySolarModel){validatePower({...s,version:58},site);refreshPower(s,site,false);}validatePower(s,site);}
   const recorded = s.resources; syncResources(s);

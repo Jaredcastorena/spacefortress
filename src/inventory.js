@@ -3,9 +3,10 @@ import { initializePlumbingTile, waterNode } from './plumbing.js';
 import { initializeGasTile, gasNode } from './gas-networks.js';
 import { gasAmount } from './atmosphere.js';
 import { initializeLiquidTile } from './liquids.js';
-import { validItemLots, takeItemLots } from './item-lots.js';
+import { ITEM_RESOURCES, itemResource, validItemLots, takeItemLots } from './item-lots.js';
 import { foodLots, storeLots, takeFoodLots, planFoodSelection } from './food-lots.js';
 import { DEFAULT_CROP, DEFAULT_MEAL } from './food-data.js';
+import { DEFAULT_TOOL_RECIPE } from './tool-data.js';
 import { RESOURCES, RECIPES } from './data.js';
 import { shipmentPosition } from './shipment-locations.js';
 export const CARRY_CAPACITY = 6;
@@ -19,17 +20,41 @@ export function addCounts(inventory, items) {
   return inventory;
 }
 export function add(inventory, items) {
-  if(items.keepsakes && !validItemLots(items,true))throw new Error('Physical keepsakes need item identities.');
-  const discrete=items.keepsakes?[...(inventory._items||[]),...items._items.map(i=>({...i}))]:null;
+  let discrete = null;
+  if (ITEM_RESOURCES.some(resource => items[resource] !== undefined) || items._items !== undefined) {
+    if (!validItemLots(items, true) || !validItemLots(inventory, true)) throw new Error('Physical items need matching identities.');
+    discrete = [...(inventory._items || []), ...(items._items || []).map(item => ({...item}))];
+    const merged = { ...inventory, _items: discrete };
+    for (const resource of ITEM_RESOURCES) merged[resource] = (inventory[resource] || 0) + (items[resource] || 0);
+    if (discrete.length && !validItemLots(merged, true)) throw new Error('Physical items need unique identities and whole counts.');
+  }
   const lots = items.food ? [...foodLots(inventory), ...foodLots(items)] : null;
-  addCounts(inventory, items); if(discrete)inventory._items=discrete; if (lots) storeLots(inventory, lots); return inventory;
+  addCounts(inventory, items); if (discrete?.length) inventory._items = discrete; if (lots) storeLots(inventory, lots); return inventory;
 }
 export function extract(inventory, items, selector = false) {
   if (!contains(inventory, items) || planFoodSelection(inventory, items.food || 0, selector) === null) return null;
-  // Preflight discrete identities too, before either lot family is changed.
-  if (items.keepsakes && !takeItemLots({ ...inventory }, items.keepsakes, items._items)) return null;
-  const result = {};
-  if(items.keepsakes){const moved=takeItemLots(inventory,items.keepsakes,items._items);if(!moved)return null;result._items=moved;}
+  // Plan every discrete family before changing any physical inventory or food lots.
+  const counts = ITEM_RESOURCES.map(resource => items[resource] === undefined ? 0 : items[resource]), moved = [];
+  if (counts.some(count => !Number.isSafeInteger(count) || count < 0)) return null;
+  if (counts.some(Boolean) || items._items !== undefined) {
+    if (!validItemLots(inventory, true)) return null;
+    let requested = null;
+    if (items._items !== undefined) {
+      if (!Array.isArray(items._items) || items._items.some(item => !item || typeof item.id !== 'string')) return null;
+      const ids = items._items.map(item => item.id);
+      if (new Set(ids).size !== ids.length || ids.length !== counts.reduce((sum, count) => sum + count, 0)) return null;
+      requested = (inventory._items || []).filter(item => ids.includes(item.id));
+      if (requested.length !== ids.length) return null;
+    }
+    const planned = { ...inventory };
+    for (const [index, resource] of ITEM_RESOURCES.entries()) {
+      const selected = takeItemLots(planned, counts[index], requested?.filter(item => itemResource(item) === resource) ?? null, resource);
+      if (!selected) return null;
+      moved.push(...selected);
+    }
+    if (planned._items) inventory._items = planned._items; else delete inventory._items;
+  }
+  const result = moved.length ? { _items: moved } : {};
   if (items.food) storeLots(result, takeFoodLots(inventory, items.food, selector));
   for (const [r, n] of resourceEntries(items)) { if (!n) continue; result[r] = n; inventory[r] -= n; if (inventory[r] < 1e-10) delete inventory[r]; }
   return result;
@@ -46,7 +71,7 @@ export function initializeStorage(tile) {
     if (!tile.storage) tile.storage = { accepted: [...RESOURCES], priority: 3 };
   }
   if (RECIPES[tile.building] && !tile.machine) tile.machine = { input: {}, output: {}, batch: {}, progress: 0, enabled: true, status: 'Waiting for delivery', ...(!(RECIPES[tile.building].lifeSupport || RECIPES[tile.building].automatic) ? { order: { mode: 'continuous', limit: 0, remaining: 0, priority: 1 }, completed: 0 } : {}) };
-  if (tile.machine && ['farm', 'galley'].includes(tile.building)) tile.machine.recipeId ??= tile.building === 'farm' ? DEFAULT_CROP : DEFAULT_MEAL;
+  if (tile.machine && ['farm', 'galley', 'toolbench'].includes(tile.building)) tile.machine.recipeId ??= tile.building === 'farm' ? DEFAULT_CROP : tile.building === 'galley' ? DEFAULT_MEAL : DEFAULT_TOOL_RECIPE;
 }
 export const stores = s => s.sites.surface.tiles.filter(t => t.building === 'stockpile' && t.stock);
 export function syncResources(s) {

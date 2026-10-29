@@ -1,3 +1,4 @@
+import {TOOL_RECIPES} from '../src/tool-data.js';
 import { VERSION as CURRENT_SAVE_VERSION } from '../src/data.js';
 import { projectPreDecks } from './helpers/legacy-projection.js';
 import test from 'node:test';
@@ -60,7 +61,7 @@ test('new colonies contain two deterministic adult glazefoots with no added food
 
 test('shared recipe action exposes crop and meal choices, exact requirements and skill observations',()=>{
   const s=createGame(703),farm=at(s.sites.surface,7,9),catalog=actionCatalog(),definition=catalog.find(a=>a.id==='production.recipe');
-  assert.deepEqual(definition.parameters.properties.recipe.enum,[...Object.keys(CROPS).filter(id=>id!=='legacy_crop'),...Object.keys(MEAL_RECIPES)]);
+  assert.deepEqual(definition.parameters.properties.recipe.enum,[...Object.keys(CROPS).filter(id=>id!=='legacy_crop'),...Object.keys(MEAL_RECIPES),...Object.keys(TOOL_RECIPES)]);
   const definitions=createAgentInterface(()=>s).definitions();assert.ok(definitions.livestock.glazefoot);assert.ok(definitions.foodKinds.curd);
   startRecording(s);assert.equal(executeAction(s,'production.recipe',{site:'surface',x:7,y:9,recipe:'sunberry'},'test').ok,true);
   assert.equal(farm.machine.recipeId,'sunberry');const observed=observe(s).entities['tile:surface:7:9'].derived.production;

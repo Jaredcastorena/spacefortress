@@ -1,7 +1,9 @@
 import { LIVESTOCK } from './livestock-data.js';
-export const VERSION = 63;
-export const RESOURCES = ['alloy', 'ore', 'components', 'food', 'water', 'fuel', 'cells', 'air', 'medicine', 'waste', 'fertilizer', 'keepsakes', 'ice'];
+import { TOOL_RECIPES } from './tool-data.js';
+export const VERSION = 64;
+export const RESOURCES = ['alloy', 'ore', 'components', 'food', 'water', 'fuel', 'cells', 'air', 'medicine', 'waste', 'fertilizer', 'keepsakes', 'ice', 'tools'];
 export const BUILDINGS = {
+  toolbench:{name:'Tool workshop',cost:{alloy:6,components:1},work:10,demand:2,noise:1,description:'Manufacture mining tools from delivered alloy and components, or repair a worn tool with alloy. An operator, safe air and wired power are required.'},
   powerRiser:{name:'Power riser',cost:{alloy:2},work:8,overlay:true,description:'Connect paid cables on this habitat floor and the floor directly above. Independent isolation; stair hatches do not interrupt power.'},
   gasRiser:{name:'Gas riser',cost:{alloy:2},work:8,overlay:true,description:'Connect paid gas pipes on this habitat floor and the floor directly above. Uses finite pipe flow and mixing; both endpoint valves and riser isolation apply.'},
   waterRiser:{name:'Water riser',cost:{alloy:2},work:8,overlay:true,description:'Connect paid water pipes on this habitat floor and the floor directly above. Equalizes stored water with the existing flow cap; isolated from floor spills and stair hatches.'},
@@ -55,6 +57,7 @@ export const BUILDINGS = {
   trap: { name: 'Biofilter trap', cost: { alloy: 3 }, work: 5, description: 'An intact trap captures a tibble within 6 tiles every 10 seconds, spending 0.25 food from reachable depots within 6 tiles.' },
 };
 export const RECIPES = {
+  toolbench:TOOL_RECIPES.alloy_pick,
   gasTank:{input:{air:10},output:{},duration:1,automatic:true},
   waterTank:{input:{water:4},output:{},duration:1,automatic:true},
   bilgePump:{input:{},output:{water:1},duration:1,automatic:true},

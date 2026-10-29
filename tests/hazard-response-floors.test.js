@@ -25,7 +25,7 @@ const manual=s=>{const r=executeAction(s,'job.order',{...target,kind:'extinguish
 
 test('genuine schema60 migrates without resetting the fire, resources or physical state',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'8590df3a0edfc034fa62ec77c5a88cf2ae84f66883846f41c3a8254a581eb89e');
- const old=JSON.parse(raw),{s,t}=fresh(false);assert.equal(old.version,60);old.version=VERSION;
+ const old=JSON.parse(raw),{s,t}=fresh(false);assert.equal(old.version,60);old.version=VERSION;old.resources.tools=0;
  assert.deepEqual(s,old);assert.match(t.fire.blocked,/not available/);valid(s);
 });
 

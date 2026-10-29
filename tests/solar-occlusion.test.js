@@ -26,13 +26,13 @@ test('nearest opaque overhead tile blocks sunlight while empty gaps and utility 
 });
 test('genuine schema58 covered-panel save migrates only derived power without losing stored energy or supplies',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'e06a3e4a48abe2a92112733104d8a2b0b465f1754bbc285c411a3e1da86ebebd');
- const old=JSON.parse(raw),{s,site}=fresh();assert.equal(old.version,58);assert.equal(s.version,VERSION);assert.deepEqual(physical(s),physical(old));
+ const old=JSON.parse(raw),{s,site}=fresh();old.resources.tools=0;assert.equal(old.version,58);assert.equal(s.version,VERSION);assert.deepEqual(physical(s),physical(old));
  assert.equal(site.power.output,old.sites.surface.power.output-4);assert.equal(solarStatus(s,site,tileAt(site,lower)).output,0);assert.match(tileAt(site,lower).powerStatus,/Blocked above.*floor 1/);
  assert.equal(serialize(deserialize(serialize(s))),serialize(s));
 });
 test('migration validates old totals and energy before recalculation, and current stale power rejects',()=>{
  for(const mutate of [s=>s.sites.surface.energy.generated++,s=>s.sites.surface.power.output++,s=>tileAt(s.sites.surface,lower).powerStatus='invented']){const s=JSON.parse(raw);mutate(s);assert.throws(()=>deserialize(serialize(s)));}
- const bad=JSON.parse(raw);bad.version=VERSION;assert.throws(()=>deserialize(serialize(bad)),/Power totals/);
+ const bad=JSON.parse(raw);bad.version=VERSION;bad.resources.tools=0;assert.throws(()=>deserialize(serialize(bad)),/Power totals/);
 });
 test('paid construction on the roof generates upstairs while the covered lower panel stays blocked',()=>{
  const {s,site}=fresh(),before=site.power.output,result=executeAction(s,'job.order',{site:'surface',...roof,kind:'build',building:'solar'});assert.equal(result.ok,true,result.message);const j=s.jobs.find(j=>j.id===result.job);assert.deepEqual(j.cost,{alloy:5});assert.equal(j.work,8);assert.equal(tileAt(site,roof).building,null);

@@ -29,6 +29,9 @@ export function projectPreOutpost(state, version = 36) {
 // Schema53 adds deck ownership to forecast and damage-history coordinates.
 export function projectPreDesignationLocations(state) {
   const projected=structuredClone(state);
+  // A neutral schema64 summary field has no counterpart in historical bytes.
+  if((projected.resources.tools||0)!==0)throw new Error('Cannot project physical tools into an older schema.');
+  delete projected.resources.tools;
   // Schema57 adds only an empty utility registry to older colonies.
   for(const site of Object.values(projected.sites)){
     if(site.utilityLinks?.length||site.tiles.some(t=>t.risers))throw new Error('Cannot project installed utility risers into an older schema.');

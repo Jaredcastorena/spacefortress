@@ -2,7 +2,7 @@
 
 An early playable space colony simulator inspired by Dwarf Fortress. Keep seven alien founders alive, build a planetary colony, and send supplied expeditions into orbit to recover material for its next expansion.
 
-**[Play online](https://jaredcastorena.github.io/spacefortress/)** · [Online elements lab](https://jaredcastorena.github.io/spacefortress/elements.html) · [Release v0.1.8](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.8) · [Roadmap](ROADMAP.md)
+**[Play online](https://jaredcastorena.github.io/spacefortress/)** · [Online elements lab](https://jaredcastorena.github.io/spacefortress/elements.html) · [Release v0.1.9](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.9) · [Roadmap](ROADMAP.md)
 
 ![Local SPACEFORTRESS hex colony with original alien crew, an isometric habitat and closed detail drawers](docs/images/spacefortress-hex.png)
 
@@ -12,7 +12,13 @@ An early playable space colony simulator inspired by Dwarf Fortress. Keep seven 
 
 Start with [CASTOR.md](CASTOR.md) for the current architecture, version boundaries and focused entry points. The [file map](docs/FILE_MAP.md) provides per-file navigation; the [version ledger](docs/AGENT_VERSIONS.md) preserves release and compatibility distinctions.
 
-## Local development after v0.1.8: stair fire containment
+## v0.1.9: manufactured mining tools
+
+Build a tool workshop on a supplied habitat floor. Alloy tools consume two alloy and one component; composite tools use two of each and need a production operator at skill level three. Materials and operator skill affect mining speed, and tools wear only while doing actual mining work. Broken tools leave hand mining available.
+
+Select a crew member and open **Choose a mining tool** to request a physical pickup. The crew member walks to the tool; it retains its identity through hauling, equipment, release and repair. Put down a worn tool and select the workshop’s repair recipe to restore it using one delivered alloy. Tools and personal keepsakes occupy separate slots. Save schema64 preserves earlier valid hex saves and adds tool custody and pending pickups. Existing depot filters are preserved: enable Tools in a depot’s accepted resources to receive the new items.
+
+## v0.1.9: stair fire containment
 
 Open or damaged stair hatches now let a mature fire ignite a combustible fitting immediately beside the opposite landing. Both directions use the existing oxygen, wetness and fuel checks. Intact closed hatches and solid ceilings contain this spread; sealed utility risers do not carry flames. A source still creates at most one new fire per thirty-tick spread interval, with horizontal spread taking priority. New fires begin burning on the following tick. The ignition event names the parent fire and stair connection. Focused checks cover containment, physical combustion, save continuation and existing suppression orders; ordinary upstairs endurance remains unfinished.
 

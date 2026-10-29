@@ -30,7 +30,7 @@ function planted(){const f=built(),j=job(f.s,'plant');until(f.s,()=>!f.s.jobs.in
 // The inherited enclosure/air setup is synthetic; no ordinary endurance claim.
 test('genuine schema61 migration preserves in-flight gathering and every physical field',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'992c66b058bea180e62a05d251ddab6427990dc8464eeff2d9d75bae59b0179f');
- const before=JSON.parse(raw),s=deserialize(raw);assert.equal(before.version,61);before.version=VERSION;assert.deepEqual(s,before);valid(s);
+ const before=JSON.parse(raw),s=deserialize(raw);assert.equal(before.version,61);before.version=VERSION;before.resources.tools=0;assert.deepEqual(s,before);valid(s);
 });
 
 test('paid upstairs planter, propagation and water use actual stair delivery and floor events',()=>{

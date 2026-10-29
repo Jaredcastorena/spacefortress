@@ -1,3 +1,4 @@
+import {toolStatus} from './tools.js';
 import { tileEntityId } from './spatial.js';
 import {extractionStatus} from './extraction.js';
 import {solarStatus} from './solar.js';
@@ -80,7 +81,7 @@ export function observe(s) {
     }
   }
   for(const site of Object.values(sites))for(const t of site.tiles)if(t.fire)entities[t.fire.id]={type:'fire',...t.fire,tile:tileEntityId(site.id,t.x,t.y,t.z)};
-  for(const c of crew) {const site=sites[c.site];entities[c.id]={type:'crew',...c,derived:{work:workReadiness(c),suitRelease:suitReleaseStatus(s,c.id),expedition:{...expeditionCrewStatus(c),selected:selectedCrewIds.includes(c.id),selectedForReturn:returningCrewIds.includes(c.id)},residence:residences.get(c.id)||null,currentComfort:site?roomComfort(s,site,roomAt(site,c.x,c.y,c.z),c):null,homeComfort:c.housing.bunk?roomComfort(s,sites.surface,roomAt(sites.surface,c.housing.bunk.x,c.housing.bunk.y,c.housing.bunk.z),c):null}};}
+  for(const c of crew) {const site=sites[c.site];entities[c.id]={type:'crew',...c,derived:{tool:toolStatus(c),work:workReadiness(c),suitRelease:suitReleaseStatus(s,c.id),expedition:{...expeditionCrewStatus(c),selected:selectedCrewIds.includes(c.id),selectedForReturn:returningCrewIds.includes(c.id)},residence:residences.get(c.id)||null,currentComfort:site?roomComfort(s,site,roomAt(site,c.x,c.y,c.z),c):null,homeComfort:c.housing.bunk?roomComfort(s,sites.surface,roomAt(sites.surface,c.housing.bunk.x,c.housing.bunk.y,c.housing.bunk.z),c):null}};}
   for(const j of jobs) entities[j.id]={type:'job',...j};
   const pastures=pastureRegions(sites.surface);
   for(const r of pastures.regions)if(r.enclosed)entities[r.id]={type:'pasture',site:'surface',...r};

@@ -5,7 +5,7 @@ import { tileAt } from './spatial.js';
 import { airlockControlOwner } from './airlock-access.js';
 import { rawFood, foodOfKind, planFoodSelection } from './food-lots.js';
 import { emitInventoryMovement, tileEntityId } from './telemetry.js';
-import { fitAmount } from './item-lots.js';
+import { fitAmount, itemResource } from './item-lots.js';
 import { depotUsage, acceptsResource, acceptsShipment } from './storage.js';
 import { scheduleProduction, inputBatchesWanted, releaseOperationsAt, recipeFor } from './production.js';
 import { refreshPower } from './power.js';
@@ -18,6 +18,7 @@ import { incomingInventory, hasOutgoingInventory, sameInventoryLocation } from '
 export { CARRY_CAPACITY } from './inventory.js';
 export { OUTPUT_CAPACITY } from './inventory.js';
 const xy = shipmentPosition;
+const wornTools = inventory => (inventory?._items || []).filter(item => itemResource(item) === 'tools' && item.condition < 100);
 export function buffer(tile, kind) {
   if (!tile) return null;
   if (kind === 'stock') return tile.building === 'stockpile' ? tile.stock : null;
@@ -36,7 +37,11 @@ export function setMachineEnabled(s, siteId, x, y, enabled,z=0) {
 
 function pickHaul(s, c, site, pathTo) {
   const depots = site.tiles.filter(t => t.building === 'stockpile');
-  const claimed = (t, kind) => s.crew.some(o=>o!==c&&o.site===c.site&&o.intent?.keepsake?.source===kind&&sameInventoryLocation(c.site,o.intent.keepsake.target,t)) || hasOutgoingInventory(s, c.site, t, kind, c);
+  const claimed = (t, kind) => s.crew.some(other => {
+    if (other === c || other.site !== c.site) return false;
+    const pickup = other.intent?.type === 'equipTool' ? other.intent : other.intent?.keepsake;
+    return pickup?.source === kind && sameInventoryLocation(c.site, pickup.target, t);
+  }) || hasOutgoingInventory(s, c.site, t, kind, c);
   const candidates = [];
   const offer = (t, kind, items, destination, priority, purpose, foodKinds = undefined) => {
     if (!quantity(items)) return;
@@ -71,7 +76,7 @@ function pickHaul(s, c, site, pathTo) {
       for (const source of site.tiles) for (const kind of ['stock', 'imports']) {
         const inventory = buffer(source, kind);
         if ((inventory?.[r] || 0) <= 0 || claimed(source, kind)) continue;
-        let picked, foodKinds;
+        let picked, foodKinds, selectedItems;
         if (neededKinds) {
           foodKinds = {}; let room = CARRY_CAPACITY;
           for (const [foodKind, amount] of Object.entries(neededKinds)) {
@@ -80,10 +85,12 @@ function pickHaul(s, c, site, pathTo) {
           }
           picked = Object.values(foodKinds).reduce((sum, n) => sum + n, 0);
         } else {
-          picked = Math.min(needed, t.building === 'galley' && r === 'food' ? rawFood(inventory) : inventory[r], CARRY_CAPACITY);
+          const available = recipe.repair && r === 'tools' ? wornTools(inventory).length : t.building === 'galley' && r === 'food' ? rawFood(inventory) : inventory[r];
+          picked = fitAmount(r, available, Math.min(needed, CARRY_CAPACITY));
+          if (recipe.repair && r === 'tools') selectedItems = wornTools(inventory).slice(0, picked).map(item => ({...item}));
           if (t.building === 'galley' && r === 'food' && picked > 0) foodKinds = kindsIn(planFoodSelection(inventory, picked, true));
         }
-        offer(source, kind, { [r]: picked }, destination, recipe.lifeSupport || recipe.automatic ? 5 : m.order.priority, 0, foodKinds);
+        offer(source, kind, { [r]: picked, ...(selectedItems?.length ? { _items: selectedItems } : {}) }, destination, recipe.lifeSupport || recipe.automatic ? 5 : m.order.priority, 0, foodKinds);
       }
     }
   }
@@ -112,7 +119,9 @@ function inputShipment(s, c, site, tile, cargo) {
     } else {
       const raw = r === 'food' && tile.building === 'galley';
       const room = recipe.input[r] * 2 - (raw ? rawFood(store) : store[r] || 0) - incomingInventory(s, c.site, claimDestination, r, null, c);
-      picked = Math.min(raw ? rawFood(cargo) : n, Math.max(0, room));
+      const available = recipe.repair && r === 'tools' ? wornTools(cargo).length : raw ? rawFood(cargo) : n;
+      picked = fitAmount(r, available, Math.max(0, room));
+      if (recipe.repair && r === 'tools' && picked > 0) items._items = wornTools(cargo).slice(0, picked).map(item => ({...item}));
     }
     if (picked > 1e-9) items[r] = picked;
   }
@@ -163,10 +172,11 @@ export function haul(s, c, site, pathTo) {
   const target = tileAt(site, intent.destination.target), recipe = intent.destination.kind === 'input' && recipeFor(target, 'selected');
   const rawOnly = intent.destination.kind === 'input' && target.building === 'galley';
   const selector = intent.foodKinds ? { rawOnly: true, foodKinds: intent.foodKinds } : rawOnly;
-  if (intent.items.food && !planFoodSelection(items, intent.items.food, selector)) { c.intent = null; return true; }
+  const shipment = extract({ ...items }, intent.items, selector);
+  if (!shipment) { c.intent = null; return true; }
   if (intent.destination.kind === 'input') {
     if (!recipe || intent.recipeId && intent.recipeId !== recipe.id || recipe.foodKinds && intent.items.food && !intent.foodKinds) { c.intent = null; return true; }
-    const selected = inputShipment(s, c, site, target, intent.items.food ? { ...intent.items, _food: planFoodSelection(items, intent.items.food, selector) } : intent.items);
+    const selected = inputShipment(s, c, site, target, shipment);
     if (!selected || resourceEntries(intent.items).some(([r, n]) => (selected.items[r] || 0) + 1e-9 < n)) { c.intent = null; return true; }
   }
   const result = move(s, c, site, intent.target, pathTo); c.activity = 'Collecting reserved shipment';

@@ -1,6 +1,6 @@
 import { tileAt, validCellPosition } from './spatial.js';
 
-export const CARE_INTENTS = Object.freeze(['air','rest','meal','leisure','medical','temperature','sanitation']);
+export const CARE_INTENTS = Object.freeze(['air','rest','meal','leisure','medical','temperature','sanitation','equipTool']);
 // The declared layout is validated before these named references.
 export const validCrewPosition = validCellPosition;
 function legacyPosition(site,p) {

@@ -30,7 +30,7 @@ function events(s){return exportRecording(s).trim().split('\n').map(JSON.parse).
 
 test('genuine schema57 migration preserves all physical state and rejects legacy upper animals',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'3c4fa43f0bfcfb9cf126a5b69a3849389db3b814e6cae2b27646cf87c30f5825');
- const old=JSON.parse(raw),s=deserialize(raw);assert.equal(old.version,57);old.version=VERSION;assert.deepEqual(s,old);assert.equal(serialize(reload(s)),serialize(s));
+ const old=JSON.parse(raw),s=deserialize(raw);assert.equal(old.version,57);old.version=VERSION;old.resources.tools=0;assert.deepEqual(s,old);assert.equal(serialize(reload(s)),serialize(s));
  const bad=JSON.parse(raw);Object.assign(bad.creatures[0],bad.sites.surface.verticalLinks[0].upper);assert.throws(()=>deserialize(serialize(bad)),/Animal execution/);
 });
 test('animal steps use real stairs, respect closure/damage, open automatic hatches and label both decks',()=>{
