@@ -1,4 +1,5 @@
-import { tileAt, positionOf, sameCell } from './spatial.js';
+import { tileAt, positionOf, sameCell, horizontalNeighbors } from './spatial.js';
+import { stairLinks, stairOpen } from './vertical.js';
 import { neighbors } from './geometry.js';
 import { gasNode } from './gas-networks.js';
 import { LIQUID, quenchWater } from './liquids.js';
@@ -14,13 +15,31 @@ const at=(site,x,y,z=0)=>tileAt(site,{x,y,z});
 export const combustible=t=>t?.hp>0&&!!BUILDINGS[t.building]&&!['floor','wall','door','fence','pastureGate','cable','solar','advanced','sculpture'].includes(t.building);
 const oxygen=r=>!!r&&r.gas.oxygen/(r.volume*10)>=.12;
 export function initializeFire(s){for(const site of Object.values(s.sites)){site.fireSafety??={automatic:true,smokeProduced:0,smokeCleared:0,smokeVented:0,oxygenBurned:0};site.thermal.combustion??=0;for(const r of site.rooms)r.smoke??=0;}}
-export function ignite(s,site,t,cause='electrical_fault',parent=null){
+export function ignite(s,site,t,cause='electrical_fault',parent=null,connection=null){
  if((t.liquid||0)>=LIQUID.wet||t.fire||!combustible(t)||!oxygen(roomAt(site,t.x,t.y,t.z)))return false;
  t.fire={id:`fire-${s.nextId++}`,started:s.tick,age:0,intensity:20,retryAt:0,blocked:null};delete t.fireFault;
- emitEvent(s,'fire.ignited',{entity:t.fire.id,target:tileEntityId(site.id,t.x,t.y,positionOf(t).z),cause,parent});s.log.unshift({tick:s.tick,message:`Fire at ${site.id} ${t.x}/${t.y} · floor ${positionOf(t).z}. Suppression needs delivered water; isolate damaged equipment.`,type:'danger'});s.log=s.log.slice(0,60);return true;
+ emitEvent(s,'fire.ignited',{entity:t.fire.id,target:tileEntityId(site.id,t.x,t.y,positionOf(t).z),cause,parent,...(connection?{connection}:{})});s.log.unshift({tick:s.tick,message:`Fire at ${site.id} ${t.x}/${t.y} · floor ${positionOf(t).z}. Suppression needs delivered water; isolate damaged equipment.`,type:'danger'});s.log=s.log.slice(0,60);return true;
 }
 export function extinguish(s,site,t,reason,actor=null,job=null){
  if(!t.fire)return;emitEvent(s,'fire.extinguished',{entity:t.fire.id,target:tileEntityId(site.id,t.x,t.y,positionOf(t).z),reason,actor,job});delete t.fire;delete t.fireFault;
+}
+// Only fittings immediately beside both landings share a flame-spread edge.
+// Reuse environmental hatch state: a broken hatch stays open even when stairs
+// cannot carry crew. Sealed utility risers never create a flame opening.
+function stairSpreadTargets(site,t,sourceRoom){
+ const targets=[],z=positionOf(t).z;
+ for(const link of stairLinks(site)){
+  if(!stairOpen(site,link))continue;
+  const from=link.lower.z===z?link.lower:link.upper.z===z?link.upper:null;
+  if(!from||!horizontalNeighbors(from).some(p=>sameCell(p,t))||roomAt(site,from.x,from.y,from.z)!==sourceRoom)continue;
+  const to=from===link.lower?link.upper:link.lower,targetRoom=roomAt(site,to.x,to.y,to.z);
+  if(!targetRoom)continue;
+  for(const p of horizontalNeighbors(to)){
+   const target=tileAt(site,p);
+   if(combustible(target)&&!target.fire&&roomAt(site,p.x,p.y,p.z)===targetRoom)targets.push({tile:target,connection:link.id});
+  }
+ }
+ return targets;
 }
 export function updateFire(s){
  for(const site of Object.values(s.sites)){
@@ -44,7 +63,12 @@ export function updateFire(s){
    damage(s,site,t,'structure',f.intensity*.005,'fire');if(t.cable)damage(s,site,t,'cable',f.intensity*.003,'fire');if(t.pipe)damage(s,site,t,'pipe',f.intensity*.003,'fire');if(t.waterPipe)damage(s,site,t,'waterPipe',f.intensity*.003,'fire');refreshRoom(r);
    emitEvent(s,'fire.burned',{entity:f.id,target:tileEntityId(site.id,t.x,t.y,positionOf(t).z),oxygen:consumed,smoke,heat});
    if(t.hp<=0){extinguish(s,site,t,'fuel_exhausted');continue;}
-   if(f.age%30===0&&f.intensity>=60){const next=adjacent(t).map(([x,y])=>at(site,x,y,positionOf(t).z)).find(n=>combustible(n)&&!n.fire&&roomAt(site,n.x,n.y,n.z)===r);if(next)ignite(s,site,next,'spread',f.id);}
+   if(f.age%30===0&&f.intensity>=60){
+    const next=adjacent(t).map(([x,y])=>at(site,x,y,positionOf(t).z)).find(n=>combustible(n)&&!n.fire&&roomAt(site,n.x,n.y,n.z)===r);
+    // Preserve horizontal priority and at most one new fire per source/interval.
+    if(next&&ignite(s,site,next,'spread',f.id))continue;
+    for(const target of stairSpreadTargets(site,t,r))if(ignite(s,site,target.tile,'stair_spread',f.id,target.connection))break;
+   }
   }
  }
 }

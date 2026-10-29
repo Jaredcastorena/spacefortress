@@ -6,6 +6,7 @@ This ledger separates application releases, colony save schemas, grid topology a
 
 | Source/release | Colony schema and grid | Meaning |
 | --- | --- | --- |
+| Local stair flame propagation (October 29, 2026) | 63, hex; observation/recording9 unchanged | Open/damaged stair hatches connect nearby fittings for fire spread, with intact-hatch containment, one-ignition budget and named parent/connection events. |
 | v0.1.8 gardening and floor extraction (October 29, 2026) | 63, hex; observation/recording9 unchanged | Finite impact ore, shared source-aware Mining, actual-floor recovery and hauling, preserved structures, construction interruption and genuine62 migration. |
 | Upstairs cultivation checkpoint (October 29, 2026) | 62, hex; observation/recording9 unchanged | Paid planter beds; actual-floor planting/watering/gathering, finite liquid absorption and moisture returns, shared sunlight obstruction, exact schema61 migration. |
 | v0.1.7 upper-floor hazard response (October 28, 2026) | 61, hex; observation/recording9 unchanged | Includes upper airlocks below, plus supplied suppression and automatic repair/service through actual stairs. Genuine60 state migrates exactly; older schemas cannot claim newly admitted upper jobs. |
@@ -66,6 +67,8 @@ Current colony source: [data](../src/data.js), [geometry](../src/geometry.js), [
 The current hex loader rejects square schemas1–39. Historical compressed square fixtures establish rejection/protection behavior; their presence does not establish migration support. Hex40–49 compatibility requires the validated hex topology marker and subsystem migration rules.
 
 ## Reviewed source identity
+
+Current local stair fire: source/build input set **119 files**, SHA-256 fingerprint `9b8018d59e9994e36a6c72d795d4e5444be035f8bee334ea50ba3cf6bbf89851`. All67 affected checks passed, including12 new cases. Mature initial fires, enclosed rooms and wet neighboring fittings are explicit synthetic boundaries. Tests cover native fire phases, one ignition per interval, finite gas/heat/smoke accounting, shared hatch actions, exact save continuation and existing upper suppression orders. No ordinary upstairs endurance claim.
 
 v0.1.8 release candidate: floor extraction and preceding cultivation below. source/build input set **119 files**, SHA-256 fingerprint `fad2430ff3bb64d0ded34049f6ea7a7e5509a83fce7f7b30eb3570e5429594dc`. **112 distinct affected JavaScript cases covered**, including14 new cases. The first13-case gate found a legacy-coordinate lookup in cancellation; corrected it. Five subsequent fixture comparisons incorrectly required food age to remain unchanged during elapsed ticks; narrowed them to resource/structure isolation. The final56-case gate passed, including all new cases and incoming-material construction interruption. Upper geology and impact scheduling fixtures are explicit boundaries; ordinary upstairs endurance remains unverified.
 

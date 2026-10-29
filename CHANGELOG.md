@@ -4,6 +4,9 @@ SPACEFORTRESS is an early playable colony simulator. Release entries describe co
 
 ## Unreleased
 
+- Spread mature fires through open or damaged stair hatches to nearby combustible fittings. Preserve oxygen/wetness checks, horizontal priority, one ignition per interval and next-tick burning. Intact closed hatches and solid ceilings contain flames.
+- Label cross-floor ignitions with `cause: stair_spread`, the parent fire and connection ID. Explain hatch containment in the existing stair and fire inspectors; save schema63 and observation9 remain unchanged.
+
 ## v0.1.8 — 2026-10-29
 
 - Add recoverable impact ore: three units per strike, a twelve-unit reserve cap, explicit loose overflow and loss in empty space. Preserve ice reserves and the structure beneath recovered debris.

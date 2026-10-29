@@ -2,6 +2,10 @@
 
 Implemented September 16, 2026, following the user's request to clearly mark small simulation interactions for eventual AI training. This is a local environment interface and recorder. No model, training service, network endpoint or external dependency is involved.
 
+## Stair flame propagation
+
+`fire.ignited` adds `cause: "stair_spread"` and `connection: "vertical-N"` when a mature source ignites a fitting through a stair opening. `parent` identifies the source fire and `target` remains the actual-floor tile entity. No action bypasses fuel, oxygen or wetness checks. The existing `vertical.hatch` action controls intact hatch containment, while `job.order` with `kind: "extinguish"` uses normal delivered water and work. New flames burn from the following tick. This adds no saved fields or recording version.
+
 ## Extraction on declared floors
 
 `job.order` with `kind: "mine"` accepts optional `z`. Omission targets ground. The tile's optional `derived.extraction` reports `source`, `kind`, `work`, `output` and (for reserves) `remaining`, without changing state. Shared player controls use the same source rules. `no_extractable_material` rejects an empty or covered source; route and labor requirements remain physical.

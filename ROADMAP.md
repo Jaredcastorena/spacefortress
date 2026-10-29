@@ -9,6 +9,7 @@ Release v0.1.8 adds upstairs food growing and finite recoverable impact material
 - [x] Enable upper-floor fire suppression and automatic repair/service using the existing finite water/alloy delivery, crew duties, stair routes, cancellation and save rules.
 - [x] Add paid planter beds and upper-floor planting, watering and gathering through actual stair routes, finite propagules/moisture, floor-aware controls and schema62 saves. Preserve water on bed destruction; use overhead sunlight checks for sunberries.
 - [x] Recover finite impact ore and declared natural resources/salvage on actual floors, with native Mining work, stair hauling, capped reserves, source revalidation, construction interruption and schema63 persistence.
+- [x] Connect fire spread across open/damaged stair hatches, preserving destination fuel/oxygen/water checks, hatch containment, named ignition events and existing suppression/save behavior. Bounded checks pass; ordinary upstairs endurance remains unfinished.
 - [ ] Extend terminal-specific work when broader orbital logistics introduces destinations beyond the current fixed ground terminals.
 - [ ] Complete the ordinary upstairs build-and-live journey, including supplied care and operation through a full night.
 

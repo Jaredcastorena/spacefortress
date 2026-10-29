@@ -2,6 +2,10 @@
 
 Updated October 29, 2026.
 
+## Local development after v0.1.8: stair fire containment
+
+Open or damaged stair hatches now let a mature fire ignite a combustible fitting immediately beside the opposite landing. Both directions use the existing oxygen, wetness and fuel checks. Intact closed hatches and solid ceilings contain this spread; sealed utility risers do not carry flames. A source still creates at most one new fire per thirty-tick spread interval, with horizontal spread taking priority. New fires begin burning on the following tick. Existing shared suppression orders handle the resulting fire on its actual floor. Twelve new synthetic boundary cases and fifty-five affected compatibility checks pass. These are not an ordinary upstairs endurance run. Save schema63 and observation9 remain unchanged.
+
 ## v0.1.8: recoverable impact material
 
 Debris impacts now bring three ore units to the floor they hit. A reserve holds at most twelve units; overflow or a collision with an ice reserve leaves loose ore without replacing the ice. Empty space retains none. Mining transfers a finite batch into a pile on that floor and preserves the structure underneath. Crew can haul it through existing stairs to a depot and refinery.

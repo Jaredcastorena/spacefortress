@@ -12,6 +12,10 @@ An early playable space colony simulator inspired by Dwarf Fortress. Keep seven 
 
 Start with [CASTOR.md](CASTOR.md) for the current architecture, version boundaries and focused entry points. The [file map](docs/FILE_MAP.md) provides per-file navigation; the [version ledger](docs/AGENT_VERSIONS.md) preserves release and compatibility distinctions.
 
+## Local development after v0.1.8: stair fire containment
+
+Open or damaged stair hatches now let a mature fire ignite a combustible fitting immediately beside the opposite landing. Both directions use the existing oxygen, wetness and fuel checks. Intact closed hatches and solid ceilings contain this spread; sealed utility risers do not carry flames. A source still creates at most one new fire per thirty-tick spread interval, with horizontal spread taking priority. New fires begin burning on the following tick. The ignition event names the parent fire and stair connection. Focused checks cover containment, physical combustion, save continuation and existing suppression orders; ordinary upstairs endurance remains unfinished.
+
 ## v0.1.8: recoverable impact material
 
 Debris impacts now bring three ore units to the floor they hit. A reserve holds at most twelve units; overflow or a collision with an ice reserve leaves loose ore without replacing the ice. Empty space retains none. Mining transfers a finite batch into a pile on that floor and preserves the structure underneath. Crew can haul it through existing stairs to a depot and refinery.

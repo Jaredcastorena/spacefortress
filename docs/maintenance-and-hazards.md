@@ -2,6 +2,10 @@
 
 Implemented locally on September 16, 2026. These are initial interacting systems; balance values are provisional.
 
+## Flame spread through stair openings
+
+Open or damaged stair hatches now let a mature fire ignite a combustible fitting immediately beside the opposite landing. Both directions use the existing oxygen, wetness and fuel checks. Intact closed hatches and solid ceilings contain this spread; sealed utility risers do not carry flames. A source still creates at most one new fire per thirty-tick spread interval, with horizontal spread taking priority. New fires begin burning on the following tick. A mature source has intensity at least60. Source and destination fittings must each share their respective landing’s room; flames do not jump through distant room cells. The new ignition emits `fire.ignited` with `cause: stair_spread`, `parent` and `connection`, plus the existing actual-floor target. The normal paid suppression and save rules apply. This models a local opening hazard, not buoyancy, structural collapse or falling debris.
+
 ## Operating wear
 
 Electrical equipment owns a maintenance record: accumulated operating seconds, last completed service time, and an optional automatic-service policy. Powered consumers count one operating second per tick, including time waiting for inputs. Pausing a machine stops its demand and wear. Solar arrays count sunlit operation. Banks count only ticks with an actual charge or discharge transfer; a full idle bank does not wear from the clock alone. UI refreshes never advance wear.
