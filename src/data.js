@@ -1,5 +1,5 @@
 import { LIVESTOCK } from './livestock-data.js';
-export const VERSION = 61;
+export const VERSION = 62;
 export const RESOURCES = ['alloy', 'ore', 'components', 'food', 'water', 'fuel', 'cells', 'air', 'medicine', 'waste', 'fertilizer', 'keepsakes', 'ice'];
 export const BUILDINGS = {
   powerRiser:{name:'Power riser',cost:{alloy:2},work:8,overlay:true,description:'Connect paid cables on this habitat floor and the floor directly above. Independent isolation; stair hatches do not interrupt power.'},
@@ -45,6 +45,7 @@ export const BUILDINGS = {
   battery: { name: 'Battery bank', cost: { alloy: 4, components: 1 }, work: 8, description: 'Stores 120 kJ on its own circuit. New banks start empty; charge them from generation or a recovered power cell.' },
   scrubber: { name: 'Life support', cost: { alloy: 5, components: 1 }, work: 9, demand: 3, description: 'Recycles exhaled gas. Delivered breathing mix replaces lost gas and refills the habitat.' },
   atmosphere: { noise: 1, name: 'Atmosphere processor', cost: { alloy: 8, components: 2 }, work: 12, demand: 4, description: 'Crew use water and local volatiles to make breathing mix. Haulers supply life support with its output.' },
+  planter: { name: 'Planter bed', cost: { alloy: 2, fertilizer: 1 }, work: 8, description: 'A passive bed for hardy fungalcap or sunberry on a habitat floor. Deliver matching raw propagation food, then water and gather through Production work. Growth uses finite moisture and the species’ temperature and sunlight requirements.' },
   farm: { name: 'Hydroponics', cost: { alloy: 5, components: 1 }, work: 8, demand: 2, description: 'Grow fungal caps, siltgrain or sunberries with delivered water and fertilizer. Each crop yields two raw food portions. Crop choice sets work, temperature and Production skill requirements. Needs power and breathable air.' },
   recycler: { noise: 1, name: 'Nutrient recycler', cost: { alloy: 6, components: 1 }, work: 10, demand: 2, description: 'Crew process one waste and 0.25 water into 0.25 fertilizer with 25 work. Recovers nutrients from meal waste and spoiled food. Needs wired power; output must be hauled to storage.' },
   refinery: { noise: 1, name: 'Refinery', cost: { alloy: 6 }, work: 9, demand: 3, description: 'Crew refine one ore into two alloy with 20 work. Needs delivered ore and power.' },

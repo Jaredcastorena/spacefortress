@@ -1,4 +1,5 @@
-import { positionOf } from './spatial.js';
+import { positionOf, tileAt } from './spatial.js';
+import { solarExposure } from './solar.js';
 import { FLORA, CULTIVATION } from './flora-data.js';
 import { distance } from './geometry.js';
 import { temperatureAt } from './thermal.js';
@@ -19,10 +20,12 @@ export const floraBiomass = (tile,species='lichen') => tile?.flora?.[species]?.b
 export const floraStage = biomass => biomass===0?'bare':biomass<25?'sparse':biomass<70?'growing':biomass<100?'budding':'mature';
 const patchId = (site,tile,species) => floraId(site.id,tile.x,tile.y,species,positionOf(tile).z);
 const patchEntries = tile => Object.entries(tile.flora || {});
-function unsuitable(tile,species){
-  if(tile.terrain!=='ground')return {code:'terrain',message:'Native plants need ground.'};
+function unsuitable(tile,species,cultivated=tile.flora?.[species]?.origin==='cultivated'){
+  const planter=cultivated&&cultivatedSpecies.includes(species)&&tile.terrain==='floor'&&tile.building==='planter';
+  if(planter&&tile.hp<=0)return {code:'planter_damaged',message:'The planter bed is destroyed.'};
+  if(!planter&&tile.terrain!=='ground')return {code:'terrain',message:'Choose ground or a planter on a habitat floor.'};
   if(tile.fire)return {code:'fire',message:'Fire prevents growth and gathering.'};
-  if(tile.building&&!['fence','pastureGate',...(species==='lichen'?['husbandryPost']:[])].includes(tile.building))return {code:'building',message:'This structure covers the plant.'};
+  if(tile.building&&!planter&&!['fence','pastureGate',...(species==='lichen'?['husbandryPost']:[])].includes(tile.building))return {code:'building',message:'This structure covers the plant.'};
   return null;
 }
 function growthBlock(s,site,tile,species){
@@ -30,6 +33,7 @@ function growthBlock(s,site,tile,species){
   const def=FLORA[species],temp=temperatureAt(site,tile.x,tile.y,tile.z),[low,high]=def.temperature;
   if(temp<low||temp>high)return {code:'temperature',message:`Dormant at ${temp.toFixed(1)}°C; grows from ${low} to ${high}°C.`};
   if(def.daylight&&(site.id!=='surface'||s.tick%300>=220))return {code:'darkness',message:'Dormant until daylight.'};
+  if(def.daylight&&!solarExposure(site,tile).exposed)return {code:'shade',message:'Dormant beneath an overhead floor or structure.'};
   if(tile.flora?.[species]?.origin==='cultivated'&&tile.flora[species].moisture<=epsilon&&tile.flora[species].biomass<100)return {code:'dry',message:'Dry bed; deliver water to resume growth.'};
   return null;
 }
@@ -132,12 +136,12 @@ export function floraStatus(s,site,tile){
 export function gatheringJobValid(s,j){
   if(j.kind!=='gather'||j.building!==null||!Number.isSafeInteger(j.plantHarvests)||j.plantHarvests<0)return false;
   const site=s.sites[j.site];if(!site||!Number.isInteger(j.x)||!Number.isInteger(j.y)||j.x<0||j.y<0||j.x>=site.size||j.y>=site.size)return false;
-  const tile=site.tiles[j.y*site.size+j.x],eligible=gatheringEligibility(s,site,tile,j.plantSpecies);
+  const tile=tileAt(site,positionOf(j)),eligible=gatheringEligibility(s,site,tile,j.plantSpecies);
   return eligible.ok&&eligible.harvests===j.plantHarvests&&eligible.generation===j.plantGeneration&&eligible.work===j.work;
 }
 export function completeGathering(s,c,j){
   if(!gatheringJobValid(s,j))return {ok:false,message:'The designated plant is no longer ready to gather.'};
-  const site=s.sites[j.site],tile=site.tiles[j.y*site.size+j.x],species=j.plantSpecies,patch=tile.flora[species],def=FLORA[species];
+  const site=s.sites[j.site],tile=tileAt(site,positionOf(j)),species=j.plantSpecies,patch=tile.flora[species],def=FLORA[species];
   const before=patch.biomass,harvestsBefore=patch.harvests;
   spill(tile,typedFood(def.foodKind,def.yield));patch.biomass=def.harvestRemainder;patch.harvests++;
   if(patch.origin==='cultivated'){const ledger=site.cultivation[species];ledger.harvested+=before-patch.biomass;ledger.harvests++;ledger.foodProduced+=def.yield;}
@@ -148,9 +152,9 @@ export function completeGathering(s,c,j){
 export function plantingEligibility(s,site,tile,species){
   const base={cost:{food:CULTIVATION.plantFood},work:CULTIVATION.plantWork,foodKind:FLORA[species]?.foodKind??null,generation:null};
   if(!cultivatedSpecies.includes(species))return {ok:false,code:'species',message:'Choose fungalcap or sunberry propagation material.',...base};
-  if(!tile)return {ok:false,code:'terrain',message:'Choose ground for the bed.',...base};
-  const blocked=unsuitable(tile,species);if(blocked)return {ok:false,...blocked,...base};
-  if(patchEntries(tile).some(([id])=>FLORA[id]?.foodKind))return {ok:false,code:'occupied',message:'An edible patch already occupies this ground.',...base};
+  if(!tile)return {ok:false,code:'terrain',message:'Choose ground or a planter for the bed.',...base};
+  const blocked=unsuitable(tile,species,true);if(blocked)return {ok:false,...blocked,...base};
+  if(patchEntries(tile).some(([id])=>FLORA[id]?.foodKind))return {ok:false,code:'occupied',message:'An edible patch already occupies this bed.',...base};
   if(site.cultivation?.[species]?.propagules===Number.MAX_SAFE_INTEGER)return {ok:false,code:'cycle_limit',message:'Cultivation has reached its planting limit.',...base};
   return {ok:true,code:'ready',message:'Deliver one matching raw food portion and plant a bed.',...base};
 }
@@ -168,7 +172,7 @@ export function wateringEligibility(s,site,tile,species){
 function cultivationTarget(s,j){
   if(!j||j.building!==null||!['plant','waterPlant'].includes(j.kind))return null;
   const site=s.sites[j.site];if(!site||!Number.isInteger(j.x)||!Number.isInteger(j.y)||j.x<0||j.y<0||j.x>=site.size||j.y>=site.size)return null;
-  return {site,tile:site.tiles[j.y*site.size+j.x]};
+  return {site,tile:tileAt(site,positionOf(j))};
 }
 export function cultivationJobValid(s,j){
   const target=cultivationTarget(s,j);if(!target||Object.hasOwn(j,'plantHarvests'))return false;
@@ -181,7 +185,7 @@ export function cultivationJobValid(s,j){
   return result.ok&&result.generation===j.plantGeneration&&!Object.hasOwn(j,'foodKinds')&&exactKeys(j.cost,['water'])&&j.cost.water===CULTIVATION.waterDose&&j.work===CULTIVATION.waterWork;
 }
 export function completePlanting(s,c,j){
-  if(!cultivationJobValid(s,j))return {ok:false,code:'invalid_target',message:'This ground is no longer available for planting.'};
+  if(!cultivationJobValid(s,j))return {ok:false,code:'invalid_target',message:'This bed is no longer available for planting.'};
   if(!record(j.materials)||Object.keys(j.materials).some(key=>!['food','_food'].includes(key))||!validFoodLots(j.materials)||j.materials.food!==CULTIVATION.plantFood||foodOfKind(j.materials,j.plantSpecies)<CULTIVATION.plantFood-epsilon)return {ok:false,code:'missing_materials',message:'Deliver one matching raw propagation portion.'};
   if(typeof j.id!=='string'||!/^job-\d+$/.test(j.id))return {ok:false,code:'invalid_generation',message:'The planting order has no valid identity.'};
   const {site,tile}=cultivationTarget(s,j),species=j.plantSpecies,ledger=site.cultivation[species];
@@ -200,7 +204,7 @@ export function completeWatering(s,c,j){
   return {ok:true,transferred,returned};
 }
 export function absorbCultivationWater(s,site,tile,maximum){
-  if(!Number.isFinite(maximum)||maximum<=0||!tile||tile.terrain!=='ground')return 0;
+  if(!Number.isFinite(maximum)||maximum<=0||!tile)return 0;
   const entry=patchEntries(tile).find(([species,patch])=>cultivatedSpecies.includes(species)&&patch.origin==='cultivated');
   if(!entry)return 0;
   const [species,patch]=entry;if(unsuitable(tile,species))return 0;
@@ -219,6 +223,7 @@ function validPatch(species,patch){
 }
 export function validateFlora(s){
   for(const site of Object.values(s.sites))for(const tile of site.tiles){
+    if(tile.building==='planter'&&tile.terrain!=='floor')throw new Error('Invalid planter foundation.');
     if(Object.hasOwn(tile,'lichen'))throw new Error('Legacy lichen is not canonical flora.');
     if(tile.flora===undefined)continue;
     if(!tile.flora||typeof tile.flora!=='object'||Array.isArray(tile.flora))throw new Error('Invalid flora map.');

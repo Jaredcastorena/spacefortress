@@ -4,7 +4,9 @@ SPACEFORTRESS is an early playable colony simulator. Release entries describe co
 
 ## Unreleased
 
-No changes yet.
+- Add paid planter beds on habitat floors and enable upper planting, watering and gathering through shared physical work. Preserve food age, actual-floor reservations, cancellation custody and typed event identities.
+- Let beds absorb finite floor water and return retained moisture when destroyed or dismantled. Sunberries respect overhead terrain/structures through the shared solar exposure model.
+- Make plant controls and crop rendering follow the selected floor. Save schema62 preserves genuine schema61 gathering; older schemas reject newly supported planters and upper plant jobs.
 
 ## v0.1.7 — 2026-10-28
 

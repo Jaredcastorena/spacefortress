@@ -12,6 +12,12 @@ An early playable space colony simulator inspired by Dwarf Fortress. Keep seven 
 
 Start with [CASTOR.md](CASTOR.md) for the current architecture, version boundaries and focused entry points. The [file map](docs/FILE_MAP.md) provides per-file navigation; the [version ledger](docs/AGENT_VERSIONS.md) preserves release and compatibility distinctions.
 
+## Local work after v0.1.7: upstairs gardening
+
+Build a planter bed on a constructed floor for two alloy and one fertilizer. Production workers carry matching raw fungalcap or sunberry food to plant it, deliver water in half-unit doses, and gather mature crops on the actual floor. Stair routes, food age, reservations, cancellation and output hauling use the existing physical systems. Planters retain finite moisture and can absorb available floor water; a destroyed or dismantled bed returns its retained water at that location. Sunberries now share the solar system's overhead-obstruction check, while fungalcap keeps its existing temperature and darkness tolerance.
+
+The collapsed plant controls use actual-floor supplies, routes and job ownership. The canvas renderer shows the bed and its growing crop. Local saves use schema62 and migrate genuine schema61 gathering without resetting physical state; published v0.1.7 remains schema61. Focused checks separate native paid work from synthetic crop maturity/ecology conditions. Ordinary upstairs endurance remains unverified.
+
 ## v0.1.7: upper-floor airlocks and hazard response
 
 Airlock controllers can now be built through normal paid jobs on declared upper floors. The six airlock commands accept optional z; their X/Y equipment references use the controller’s floor. Ownership, queue/cycle state, rescue parties, cargo, movement, event IDs and inspection retain that floor. Approaches can use declared stairs. Each assembly remains on one floor, with two controlled doors and a finite isolated gas circuit. An exposed upper walkway must have low measured pressure before outer release. A stair opening in the chamber or a gas riser attached to its owned circuit invalidates the enclosure, including a disabled riser that could later open. Power risers remain independent. Upper-floor airlocks do not establish ordinary upstairs endurance. Version 0.1.7 uses save schema61 and migrates validated hex schemas40–60.

@@ -55,7 +55,7 @@ export function flowLiquids(s){
   for(const t of site.tiles)if(t.liquid>0&&liquidOpen(site,t,s.tick)){
    const space=t.terrain==='void',edge=t.x===0||t.y===0||t.x===site.size-1||t.y===site.size-1;
    const soil=['ground','ore'].includes(t.terrain),drainage=space?t.liquid:edge?Math.min(.5,t.liquid):soil?Math.min(CULTIVATION.absorptionRate,t.liquid):0;
-   const absorbed=!space&&!edge&&t.terrain==='ground'?absorbCultivationWater(s,site,t,drainage):0,n=drainage-absorbed;
+   const absorbed=!space&&!edge?absorbCultivationWater(s,site,t,soil?drainage:CULTIVATION.absorptionRate):0,n=Math.max(0,drainage-absorbed);
    if(n>0){t.liquid-=n;site.liquids.lost+=n;emitEvent(s,'water.lost',{entity:tileEntityId(site.id,t.x,t.y,positionOf(t).z),amount:n,cause:space?'space':edge?'map_edge':'ground_drainage'});}
   }
  }

@@ -58,3 +58,7 @@ Paid construction/save admission is implemented. The landing-deck renderer now f
 The browser floor selector now passes explicit z through map picking, tile lookup, job placement and the supported equipment controls. Rendering filters floors, actors, jobs, sources, impacts and overlays by the view. Floor changes expire pressed-control scopes; crew/maintenance/hazard navigation uses actual positions. Ground-only battery-cell loading remains hidden upstairs until its action supports z.
 
 Schema56 stair-maintenance jobs own a connection ID and claim both landings. Repair targets either end; removal normalizes work to the lower end and preserves both floor tiles. Save admission validates the connection, price, work, endpoint conflicts and actual source decks. Generic tile reservations now include z, so independent same-x/y jobs on different floors can reload.
+
+## Cultivation checkpoint (schema62)
+
+Planting, watering and gathering now resolve full positions through validation, completion, reservations and event identities. Paid planter beds make these jobs usable on constructed floors. Plant panels use actual-floor crew routes, supplies and designation ownership; ground and stacked panel keys remain distinct. Finite irrigation and moisture returns retain the bed location. Terrain extraction and terminal-specific upper work remain pending.

@@ -1,6 +1,12 @@
 # Implementation status and next depth pass
 
-Updated October 28, 2026.
+Updated October 29, 2026.
+
+## Local work after v0.1.7: upstairs gardening
+
+Build a planter bed on a constructed floor for two alloy and one fertilizer. Production workers carry matching raw fungalcap or sunberry food to plant it, deliver water in half-unit doses, and gather mature crops on the actual floor. Stair routes, food age, reservations, cancellation and output hauling use the existing physical systems. Planters retain finite moisture and can absorb available floor water; a destroyed or dismantled bed returns its retained water at that location. Sunberries now share the solar system's overhead-obstruction check, while fungalcap keeps its existing temperature and darkness tolerance.
+
+The collapsed plant controls use actual-floor supplies, routes and job ownership. The canvas renderer shows the bed and its growing crop. Local saves use schema62 and migrate genuine schema61 gathering without resetting physical state; published v0.1.7 remains schema61. Focused checks separate native paid work from synthetic crop maturity/ecology conditions. Ordinary upstairs endurance remains unverified.
 
 ## v0.1.7 upper-floor hazard response
 

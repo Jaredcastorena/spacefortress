@@ -153,7 +153,7 @@ export class Renderer {
     const sorted = [...visibleTiles].sort(compareHexDepth);
     for (const t of sorted) {
       const [x, y] = this.project(t.x, t.y);
-      this.wildFlora(t,x,y);
+      if(t.building!=='planter')this.wildFlora(t,x,y);
       const stair=links.get(t.verticalLink);if(stair)this.stairwell(x,y,stairOpen(site,stair),stair.upper.z===viewZ?'↓':'↑',stair.hp);
       if (t.terrain === 'rock') { const h = 12 + t.variant * 5; this.box(x, y, 26, 13, h, '#8a7963', '#685b4e', '#4b4842'); this.line(x - 12, y - h - 5, x + 2, y - h + 3, '#a49375'); }
       if (t.terrain === 'ore') { this.box(x, y, 22, 10, 11, '#897563', '#6d5744', '#4c473b'); for (let k = 0; k < 3; k++) { c.fillStyle = ['#ce9863', '#dfb777', '#b78052'][k]; c.fillRect(x - 14 + k * 10, y - 17 + (k % 2) * 5, 6, 4); } }
@@ -421,6 +421,7 @@ export class Renderer {
     else if (b === 'bunk') { this.box(x, y, 21, 10, 7, '#516970', '#3b4f56', '#263b44'); this.box(x - 1, y - 5, 18, 8, 2, '#bec5ae', '#879990', '#687e7e'); this.box(x - 12, y - 10, 6, 3, 2, '#e3dcc2', '#a7b1a1', '#a4afa0'); }
     else if (b === 'sanitary') { this.box(x, y, 20, 10, 7, '#9bb9b0', '#658981', '#3d6565'); this.box(x - 13, y - 8, 5, 3, 28, '#c1cec0', '#86a89d', '#527b78'); this.box(x + 5, y - 15, 12, 6, 22, '#b5c9bd', '#7b9f94', '#496e6d'); this.box(x + 3, y - 7, 9, 5, 9, '#e0dfc8', '#abc2af', '#729a8d'); c.fillStyle = t.hp ? '#90d6bb' : '#d38e71'; c.fillRect(x - 18, y - 29, 4, 4); c.fillStyle = '#d7b879'; c.fillRect(x - 9, y + 2, Math.round(16 * (t.sanitary?.output.waste || 0) / 8), 3); }
     else if (b === 'recycler') { this.box(x, y, 23, 11, 12, '#829d91', '#486c67', '#304e53'); for (const dx of [-10, 10]) { this.box(x + dx, y - 12, 8, 4, 19, '#bad0a0', '#678b72', '#426453'); this.line(x + dx - 6, y - 22, x + dx + 5, y - 17, '#d1dbad', 2); } c.fillStyle = t.powered ? '#b6e789' : '#4b6159'; c.fillRect(x - 4, y - 10, 8, 4); }
+    else if (b === 'planter') { this.box(x,y,23,11,6,'#715a49','#667d75','#3e5a57');this.polygon([[x,y-14],[x+19,y-5],[x,y+4],[x-19,y-5]],'#3d353c');this.wildFlora(t,x,y-6); }
     else if (b === 'farm') { this.box(x, y, 24, 12, 9, '#798d84', '#3e6263', '#2d484e'); this.diamond(x, y - 10, '#2f4941'); for (let i = 0; i < 6; i++) { const px = x - 15 + (i % 3) * 11, py = y - 14 + Math.floor(i / 3) * 8; c.fillStyle = '#85b079'; c.fillRect(px, py - 5, 4, 7); c.fillStyle = '#b2ce85'; c.fillRect(px - 2, py - 3, 7, 3); } }
     else if (b === 'climate') { this.box(x, y, 17, 8, 21, '#a9c3ca', '#658593', '#3b5e71'); for (let i = 0; i < 4; i++) this.line(x - 12, y - 18 + i * 4, x - 3, y - 14 + i * 4, '#294b60', 2); c.fillStyle = t.powered ? (t.climate?.status.startsWith('Heating') ? '#ecb57c' : '#8bd3db') : '#526974'; c.fillRect(x + 4, y - 16, 7, 4); }
     else if (b === 'scrubber') { this.box(x, y, 16, 8, 29, '#abb9ad', '#698989', '#41656c'); this.box(x - 7, y, 7, 4, 24, '#bbc9b6', '#82a09a', '#628b8a'); c.fillStyle = t.powered ? '#9ce1c7' : '#775b4c'; c.fillRect(x + 3, y - 21, 7, 5); for (let i = 0; i < 3; i++) this.line(x + 2, y - 10 + i * 3, x + 10, y - 14 + i * 3, '#263f4e', 2); }

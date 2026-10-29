@@ -2,6 +2,12 @@
 
 Implemented September 16, 2026, following the user's request to clearly mark small simulation interactions for eventual AI training. This is a local environment interface and recorder. No model, training service, network endpoint or external dependency is involved.
 
+## Plant work on declared floors
+
+`job.order` now accepts `plant`, `waterPlant` and `gather` with optional `z`; omitted `z` stays ground. Build `planter` through the same command on an existing habitat floor for two alloy and one fertilizer. Planting consumes one matching raw food portion and requires Production work; watering transfers half a water unit into finite bed moisture. Prepared meals cannot propagate crops. Supply reservations, saved generations, job events, harvest output and player diagnostics retain the actual floor. Upper plant IDs use the existing floor suffix, including `job.created.plant`.
+
+Sunberry growth uses the shared overhead sunlight model. Planter absorption transfers available liquid into the existing cultivation ledger; destruction returns retained moisture at the bed's tile. Schema62 admits these new jobs and buildings, with unchanged observation/recording9. Genuine61 state migrates without physical changes.
+
 ## Hazard response on declared floors
 
 `job.order` accepts `kind: "extinguish"` with optional `z`; omitted `z` remains ground. Automatic `fire.response` is a site-wide policy that schedules each fire on its actual floor. `maintenance.auto` accepts the equipment's floor and schedules repair/service there. Suppression costs two delivered water; repair/service costs one delivered alloy. Engineering duty and reachable routes/supplies are required. Existing job, fire and damage events use the actual tile ID. Schema61 persists these upper response jobs; observation/recording9 is unchanged.
