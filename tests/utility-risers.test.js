@@ -1,3 +1,4 @@
+import {projectPreRegion} from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';import {gunzipSync} from 'node:zlib';import {createHash} from 'node:crypto';
@@ -31,7 +32,7 @@ const records=s=>exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=
 
 test('genuine schema56 migration adds only empty utility lists and rejects future riser bytes',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'2dafa2bc4ebc1da00997dbb03f79b6b79a665d69db026675dc3285917fb970d6');
- const before=JSON.parse(raw),s=deserialize(raw);assert.equal(before.version,56);before.version=VERSION;before.resources.tools=0;for(const site of Object.values(before.sites))site.utilityLinks=[];assert.deepEqual(s,before);
+ const before=JSON.parse(raw),s=deserialize(raw);assert.equal(before.version,56);before.version=VERSION;before.resources.tools=0;for(const site of Object.values(before.sites))site.utilityLinks=[];assert.deepEqual(projectPreRegion(s),before);
  for(const mutate of [s=>s.sites.surface.utilityLinks=[],s=>s.sites.surface.tiles[0].risers={},s=>s.jobs.push({building:'powerRiser'})]){const old=JSON.parse(raw);mutate(old);assert.throws(()=>deserialize(JSON.stringify(old)),/Legacy.*utility/);}
 });
 

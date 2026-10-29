@@ -2,8 +2,9 @@
 
 ## Current systems work
 
-Release v0.1.9 adds manufactured mining tools, material-dependent speed and wear, routed equipment pickup and supplied repair. It also includes stair fire containment and actual-floor item custody. Next checkpoints remain bounded upstairs habitation and broader orbital logistics.
+Release v0.1.10 adds seeded resource outcrops and derelicts, persistent site and route identities, dynamic surveys and independent settlement rosters. It also includes actual-floor crew hazard fixes. Next checkpoints remain bounded upstairs habitation, sustained outpost supply and broader generated regions.
 
+- [x] Generate two playable orbital sites per new colony, with finite resources, paid visits, saved construction/depletion, separate residents and initial surveys. Preserve old four-site colonies through schema65.
 - [x] Resolve crew fire exposure, wreck shelter and docked-shuttle protection on the actual floor; identify exposure tiles consistently for crew and animals.
 - [x] Manufacture alloy/composite mining tools from delivered materials; preserve item identity through native pickup, actual mining wear, repair and schema64 saves. Keep player controls and structured actions aligned.
 - [x] Make solar generation respect overhead terrain and structures; expose the blocking floor to players and agents, preserve finite battery accounting, and migrate older saves through schema59.
@@ -249,6 +250,10 @@ Implement the [local-level design](docs/vertical-slice-design.md): two decks in 
 **Acceptance:** crew carry materials between decks, commission a second compartment and respond to a blocked connection or utility failure. Pathfinding, jobs, atmosphere, liquids, power, care and recordings respect their appropriate vertical connections. Migration preserves the existing floor without granting gas, heat or stock; both decks continue simulating when one is hidden.
 
 ### 7. Seeded planets and a wider universe
+
+**First region implemented in v0.1.10:** one stable home planet groups the original sites plus a seeded outcrop and derelict. Finite deposits, route times/costs and debris differ. Both sites complete bounded supplied extraction, construction, return and revisit checks; focused synthetic cases cover independent residence and local work without the shuttle. Survey and action catalogs discover actual sites. Existing saves retain four sites without regenerated stores.
+
+**Still pending:** multiple generated planets, a larger discovery/history system, travel between remote destinations and sustained ordinary habitation. The bounded route check pauses production to retain starter air for travel; it does not prove a self-sustaining colony.
 
 Expand the [upward/outward progression](docs/orbital-progression.md) into generated destinations, persistent planetary identities, multiple settlements per planet, resource bodies and varied debris/solar hazards.
 

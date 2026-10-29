@@ -2,6 +2,12 @@
 
 Implemented September 16, 2026, following the user's request to clearly mark small simulation interactions for eventual AI training. This is a local environment interface and recorder. No model, training service, network endpoint or external dependency is involved.
 
+## Seeded region and dynamic destinations
+
+Save schema65 stores canonical `region` metadata and each physical site's `kind`. `definitions()` exposes the current sites, region and settlement IDs. Query `actions()` for state-dependent site enums; do not hardcode the original four IDs. New games add `outcrop-<seed token>` and `derelict-<seed token>` sites. Older saves retain the original catalog without adding physical state.
+
+The colony observation exposes `region`; site observations include definition, initial survey and outpost state. Initial surveys describe extractable starting deposits, not current inventory. Expedition preparation, departure, arrival and return context includes a stable `route` ID. Route fuel covers both legs; route travel is per leg. Physical resources, depletion, buildings and inhabitants stay in mutable site state across saves and visits. Observation/recording9 remains unchanged with additive fields.
+
 ## Crew hazard positions
 
 `fire.exposure` adds `target`, the actual-floor tile ID, for both crew and animals. `wreck.debris.exposure.target` now also includes a nonzero floor. Crew fire injury, sealed-room protection and docked-shuttle immunity use the occupant’s full position. Ground tile IDs and damage formulas retain their existing form; save64 and observation/recording9 are unchanged.

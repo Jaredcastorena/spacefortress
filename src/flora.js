@@ -1,3 +1,4 @@
+import { siteKind } from './region.js';
 import { positionOf, tileAt } from './spatial.js';
 import { solarExposure } from './solar.js';
 import { FLORA, CULTIVATION } from './flora-data.js';
@@ -32,7 +33,7 @@ function growthBlock(s,site,tile,species){
   const blocked=unsuitable(tile,species);if(blocked)return blocked;
   const def=FLORA[species],temp=temperatureAt(site,tile.x,tile.y,tile.z),[low,high]=def.temperature;
   if(temp<low||temp>high)return {code:'temperature',message:`Dormant at ${temp.toFixed(1)}°C; grows from ${low} to ${high}°C.`};
-  if(def.daylight&&(site.id!=='surface'||s.tick%300>=220))return {code:'darkness',message:'Dormant until daylight.'};
+  if(def.daylight&&(siteKind(site)!=='surface'||s.tick%300>=220))return {code:'darkness',message:'Dormant until daylight.'};
   if(def.daylight&&!solarExposure(site,tile).exposed)return {code:'shade',message:'Dormant beneath an overhead floor or structure.'};
   if(tile.flora?.[species]?.origin==='cultivated'&&tile.flora[species].moisture<=epsilon&&tile.flora[species].biomass<100)return {code:'dry',message:'Dry bed; deliver water to resume growth.'};
   return null;

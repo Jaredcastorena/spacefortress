@@ -24,7 +24,7 @@ export function initializeCrewLife(s) {
 }
 export function setLifePolicy(s, id, policy) {
   const c = s.crew.find(c => c.id === id);
-  if (!c || c.health <= 0 || !(c.site === 'surface' || c.site === 'wreck' && isResident(s, c.id, 'wreck')) || !Object.hasOwn(LIFE_POLICIES, policy)) return { ok: false, message: 'Select a living surface crew member or local resident and a valid work routine.' };
+  if (!c || c.health <= 0 || !(c.site === 'surface' || !!s.sites[c.site] && isResident(s, c.id, c.site)) || !Object.hasOwn(LIFE_POLICIES, policy)) return { ok: false, message: 'Select a living surface crew member or local resident and a valid work routine.' };
   c.life.policy = policy;
   if (policy === 'work' && c.intent?.type === 'leisure') { cancelCrewTraversal(s,c); c.intent = null; }
   if (policy === 'rest' && !c.carry) { cancelCrewTraversal(s,c); const j = s.jobs.find(j => j.id === c.job); if (j) { releaseTransport(s,j,'routine_changed'); j.worker = null; } c.job = null; if (c.intent?.type === 'haul') c.intent = null; }
@@ -32,7 +32,7 @@ export function setLifePolicy(s, id, policy) {
 }
 export function prepareDowntime(s, release) {
   for (const c of s.crew) {
-    const site = s.sites[c.site], local = c.site === 'surface' || c.site === 'wreck' && isResident(s, c.id, 'wreck');
+    const site = s.sites[c.site], local = c.site === 'surface' || !!s.sites[c.site] && isResident(s, c.id, c.site);
     const returning = s.mission?.phase === 'boarding' && s.mission.returnCrew?.includes(c.id);
     if (!local || !site || returning || c.airlockTraversal || c.health <= 0 || c.medical?.bed || immobile(c) || c.rescue || c.carry || c.intent || (s.departure?.stage === 'boarding' && s.departure.crew.includes(c.id) && c.life.policy !== 'rest')) continue;
     const life = c.life, j = s.jobs.find(j => j.id === c.job);

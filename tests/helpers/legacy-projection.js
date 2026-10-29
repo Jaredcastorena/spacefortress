@@ -1,3 +1,33 @@
+import {isDeepStrictEqual} from 'node:util';
+import {createGame} from '../../src/simulation.js';
+import {validateRegion} from '../../src/region.js';
+
+// Region metadata is neutral for migrated four-site saves. Synthetic old-save
+// fixtures may explicitly exclude only untouched, unvisited generated sites;
+// never discard depleted sites, resident ownership or in-flight activity.
+export function projectPreRegion(state, {allowUnvisited = false} = {}) {
+  const projected = structuredClone(state);
+  if (!Object.hasOwn(projected, 'region')) return projected;
+  validateRegion(projected);
+  if (!projected.region.legacy) {
+    if (!allowUnvisited) throw new Error('Cannot project a generated region into an older schema.');
+    const initial = createGame(projected.seed);
+    for (const def of Object.values(projected.region.sites).filter(d => d.template)) {
+      const id = def.id;
+      if (!isDeepStrictEqual(projected.sites[id], initial.sites[id]) ||
+          !isDeepStrictEqual(projected.outposts[id], initial.outposts[id]) ||
+          [...projected.crew, ...projected.jobs, ...projected.creatures].some(e => e.site === id) ||
+          projected.mission?.site === id || projected.departure?.site === id) {
+        throw new Error('Cannot project an occupied or changed generated site.');
+      }
+      delete projected.sites[id]; delete projected.outposts[id];
+    }
+  }
+  delete projected.region;
+  for (const site of Object.values(projected.sites)) delete site.kind;
+  return projected;
+}
+
 // Historical square helpers remain for inspecting genuine old states. Never
 // strip the topology marker or relabel a hex state as a legacy fixture.
 export function projectPreAirlock(state, version = state.version) {
@@ -28,7 +58,7 @@ export function projectPreOutpost(state, version = 36) {
 
 // Schema53 adds deck ownership to forecast and damage-history coordinates.
 export function projectPreDesignationLocations(state) {
-  const projected=structuredClone(state);
+  const projected=projectPreRegion(state, {allowUnvisited:true});
   // A neutral schema64 summary field has no counterpart in historical bytes.
   if((projected.resources.tools||0)!==0)throw new Error('Cannot project physical tools into an older schema.');
   delete projected.resources.tools;

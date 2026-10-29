@@ -89,6 +89,8 @@
     "src/reactor-panels.js",
     "src/reactor-rules.js",
     "src/reactors.js",
+    "src/region-panels.js",
+    "src/region.js",
     "src/render.js",
     "src/room-locations.js",
     "src/room-panels.js",

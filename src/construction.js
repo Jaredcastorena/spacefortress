@@ -19,7 +19,7 @@ export function siteWorkAllowed(s, siteId) {
   if (!s.sites[siteId]) return false;
   if (siteId === 'surface') return true;
   const locals = s.crew.filter(c => c.site === siteId && c.health > 0);
-  if (siteId === 'wreck' && s.outposts?.wreck.established && locals.some(c => s.outposts.wreck.residents.includes(c.id))) return true;
+  if (s.outposts?.[siteId]?.established && locals.some(c => s.outposts[siteId].residents.includes(c.id))) return true;
   const mission = s.mission;
   return !!mission && mission.site === siteId && mission.phase === 'working' &&
     locals.some(c => mission.crew.includes(c.id) || mission.returnCrew?.includes(c.id));

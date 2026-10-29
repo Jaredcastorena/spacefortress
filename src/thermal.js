@@ -1,3 +1,4 @@
+import { siteKind } from './region.js';
 import { stairLinks, stairOpen, STAIR } from './vertical.js';
 import { tileAt, cellKey, positionOf } from './spatial.js';
 import { roomAtPosition, roomCellKey } from './room-locations.js';
@@ -12,7 +13,10 @@ const capacity = r => r.volume * HEAT_CAPACITY;
 export const temperature = r => r ? r.heat / capacity(r) - ZERO : null;
 export const thermalSafe = r => !!r && temperature(r) >= 5 && temperature(r) <= 35;
 const roomHere = (site,x,y,z=0) => roomAtPosition(site,{x,y,z});
-export const outsideTemperature = (siteId, tick) => siteId === 'surface' ? (tick % 300 < 220 ? 8 : -35) : ({ wreck: -60, comet: -100, solar: 90 }[siteId] ?? 8);
+export function outsideTemperature(site, tick) {
+  const kind = siteKind(typeof site === 'string' ? { id: site } : site);
+  return kind === 'surface' ? (tick % 300 < 220 ? 8 : -35) : ({ wreck: -60, comet: -100, solar: 90 }[kind] ?? 8);
+}
 export const temperatureAt = (site, x, y, z=0) => temperature(roomHere(site, x, y, z)) ?? site.thermal.ambient;
 export function initializeClimate(t) {
   if (t.building === 'climate') t.climate ??= { enabled: true, target: 20, status: 'Waiting for climate control' };
@@ -21,7 +25,7 @@ export function initializeClimate(t) {
 export function initializeThermal(s) {
   for (const site of Object.values(s.sites)) {
     for (const r of site.rooms) r.heat = capacity(r) * (20 + ZERO);
-    site.thermal = { ambient: outsideTemperature(site.id, s.tick), initial: site.rooms.reduce((n, r) => n + r.heat, 0), added: 0, removed: 0, environmentIn: 0, environmentOut: 0, equipment: 0, combustion:0, heating: 0, cooling: 0 };
+    site.thermal = { ambient: outsideTemperature(site, s.tick), initial: site.rooms.reduce((n, r) => n + r.heat, 0), added: 0, removed: 0, environmentIn: 0, environmentOut: 0, equipment: 0, combustion:0, heating: 0, cooling: 0 };
     site.tiles.forEach(initializeClimate);
   }
   for (const c of s.crew) c.thermalStress = 0;
@@ -66,7 +70,7 @@ function links(site) {
 }
 export function updateThermal(s) {
   for (const site of Object.values(s.sites)) {
-    const ledger = site.thermal; ledger.ambient = outsideTemperature(site.id, s.tick);
+    const ledger = site.thermal; ledger.ambient = outsideTemperature(site, s.tick);
     const temps = site.rooms.map(temperature), changes = site.rooms.map(() => 0), outgoing = site.rooms.map(() => 0), transfers = [];
     for (const link of links(site)) {
       let { a, b, rate } = link;
@@ -119,7 +123,7 @@ export function validateThermal(s) {
   const nonnegative = n => Number.isFinite(n) && n >= 0;
   for (const site of Object.values(s.sites)) {
     const h = site.thermal, keys = ['initial', 'added', 'removed', 'environmentIn', 'environmentOut', 'equipment', 'combustion', 'heating', 'cooling'];
-    if (!h || !keys.every(k => nonnegative(h[k])) || h.ambient !== outsideTemperature(site.id, s.tick) || site.rooms.some(r => !nonnegative(r.heat))) throw new Error('Invalid thermal state.');
+    if (!h || !keys.every(k => nonnegative(h[k])) || h.ambient !== outsideTemperature(site, s.tick) || site.rooms.some(r => !nonnegative(r.heat))) throw new Error('Invalid thermal state.');
     const expected = h.initial + h.added - h.removed + h.environmentIn - h.environmentOut + h.equipment + h.combustion + h.heating - h.cooling;
     const actual = site.rooms.reduce((n, r) => n + r.heat, 0);
     if (Math.abs(actual - expected) > 1e-6 + Math.abs(expected) * 1e-9) throw new Error('Stored heat does not balance.');

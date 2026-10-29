@@ -1,3 +1,4 @@
+import { settlementSite } from './region.js';
 import { roomTiles } from './room-locations.js';
 import { positionOf, cellKey } from './spatial.js';
 import { tileEntityId, roomEntityId } from './telemetry.js';
@@ -38,7 +39,7 @@ function assignBeds(s, site, crew, beds) {
   return new Map([...owner].map(([key, c]) => [c.id, beds.find(t => position(t) === key)]));
 }
 
-/** Inspect actual wreck conditions without moving, allocating or initializing anything.
+/** Inspect actual local conditions without moving, allocating or initializing anything.
  * crewIds is the complete proposed living resident roster. Empty means no selection.
  * All returned data is detached; no inventory/room/crew reference escapes.
  */
@@ -50,7 +51,7 @@ export function outpostReadiness(s, siteId = 'wreck', crewIds = []) {
     power: { circuits: [], output: 0, demand: 0, storedEnergy: 0, reactorDependent: false }, crew: [],
   };
   const site = s.sites?.[siteId], block = (...args) => result.blockers.push(note(...args));
-  if (siteId !== 'wreck' || !site) { block('unsupported_site', 'Settlement currently requires the wreck site.'); return result; }
+  if (!site || siteId === 'surface' || !settlementSite(site)) { block('unsupported_site', 'Select a settlement-capable destination.'); return result; }
   if (!Array.isArray(crewIds) || Object.keys(crewIds).length !== crewIds.length ||
       !Array.from(crewIds).every((id, i) => Object.hasOwn(crewIds, i) && typeof id === 'string' && s.crew.some(c => c.id === id)) ||
       new Set(crewIds).size !== crewIds.length) {
@@ -60,7 +61,7 @@ export function outpostReadiness(s, siteId = 'wreck', crewIds = []) {
   if (!crewIds.length) block('crew_selection_required', 'Select the proposed residents to check their habitat.');
   const proposed = crewIds.map(id => s.crew.find(c => c.id === id));
   const local = proposed.filter(c => c.health > 0 && c.site === siteId);
-  for (const c of proposed) if (!local.includes(c)) block('crew_unavailable', 'Every proposed resident must be alive and physically at the wreck.', { crew: c.id });
+  for (const c of proposed) if (!local.includes(c)) block('crew_unavailable', 'Every proposed resident must be alive and physically at this destination.', { crew: c.id });
 
   const terminals = site.tiles.filter(t => t.building === 'dock').sort(byPosition);
   const dock = terminals.find(working);

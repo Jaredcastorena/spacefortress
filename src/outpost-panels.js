@@ -1,4 +1,5 @@
-import { BUILDINGS, RESOURCES, RECIPES, SITES } from './data.js';
+import { siteDefinition, outpostSiteIds } from './region.js';
+import { BUILDINGS, RESOURCES, RECIPES } from './data.js';
 import { inventoryText } from './industry-panels.js';
 import { quantity } from './inventory.js';
 import { freightStatus } from './freight.js';
@@ -44,13 +45,13 @@ export function freightDetails(s, siteId, drafts = {}) {
   const waiting = job ? job.sources.reduce((sum, source) => sum + quantity(source.items), 0) : 0;
   const carried = job ? Math.max(0, quantity(job.cost) - waiting - quantity(job.materials) - (job.missingFood || 0)) : 0;
   return `<details data-panel-key="freight-${siteId}" class="outpost-section"><summary>Freight & local supplies</summary>
-    <dl><dt>Shuttle location</dt><dd>${esc(SITES[presence.location]?.name || 'In transit')}${presence.present ? ' · present' : ''}</dd>
+    <dl><dt>Shuttle location</dt><dd>${esc(siteDefinition(s, presence.location)?.name || 'In transit')}${presence.present ? ' · present' : ''}</dd>
     <dt>Freight aboard</dt><dd data-freight-onboard>${esc(inventoryText(s.shuttle.freight))}</dd>
     <dt>Salvage aboard</dt><dd>${esc(inventoryText(s.mission?.cargo))}</dd>
     <dt>Hold available</dt><dd>${amount(status.free)} / ${amount(status.capacity)} units</dd>
     <dt>Salvage pickup claims</dt><dd>${amount(status.claimed)} units</dd><dt>Freight reserved</dt><dd>${amount(status.reserved)} units</dd>
     ${siteId !== 'surface' ? `<dt>Unloaded at docks</dt><dd data-dock-imports>${esc(inventoryText(imports))}</dd>` : ''}
-    <dt>${esc(SITES[siteId].name)} depots</dt><dd data-local-stock>${esc(inventoryText(stock))}</dd></dl>
+    <dt>${esc(siteDefinition(s, siteId).name)} depots</dt><dd data-local-stock>${esc(inventoryText(stock))}</dd></dl>
     <p class="crew-hint">Onboard freight is unavailable to local construction and machines until a crew member unloads it. Service fuel and breathing stores are separate. Loose piles and reserved materials are shown at their tiles.</p>
     ${freightReason(status) ? `<p data-freight-blocked>${esc(freightReason(status))}</p>` : ''}
     ${job ? `<div data-freight-job="${esc(job.id)}"><strong>${job.kind === 'loadCargo' ? 'Loading freight' : 'Unloading freight'}</strong><p>${esc(job.blockedReason || 'Crew collect, carry and finish this terminal job.')}</p><dl><dt>Awaiting pickup</dt><dd>${amount(waiting)} units</dd><dt>Carried</dt><dd>${amount(carried)} units</dd><dt>Staged at terminal</dt><dd>${esc(inventoryText(job.materials))}</dd></dl><button data-action="cancel" data-job="${esc(job.id)}">Cancel freight job</button><p class="crew-hint">Cancellation preserves goods at their physical owners; carried or staged supplies may remain here.</p></div>` : ''}
@@ -81,7 +82,7 @@ function readinessDetails(s, siteId, crewIds, r = outpostReadiness(s,siteId,crew
 }
 
 export function residentDetails(s, siteId) {
-  if (siteId !== 'wreck') return '';
+  if (!outpostSiteIds(s).includes(siteId)) return '';
   const ids = residentIds(s,siteId), present = s.crew.filter(c => c.site === siteId && c.health > 0);
   const candidate = present.find(c => !ids.includes(c.id));
   const checked = ids.length ? ids : candidate ? [candidate.id] : [];
@@ -100,7 +101,7 @@ export function residentDetails(s, siteId) {
       const needsPickup = resident && c.health > 0 && c.site !== 'surface';
       const pickupAvailable = mission?.site === siteId && ['working','boarding'].includes(mission.phase) && c.site === siteId;
       const reason = resident ? 'Select this resident for the present shuttle return team first.' : !visiting ? 'Station new residents during a working visit.' : !otherTraveler ? 'Keep at least one other living return traveler.' : proposedReadiness?.blockers[0]?.message || 'Resolve the measured habitat requirements first.';
-      return `<div class="resident-row" data-entity="${esc(c.id)}"><strong>${esc(c.name)}</strong><small>${esc(c.role)} · ${resident ? 'Resident' : 'Visitor'}${c.health <= 0 ? ' · Deceased' : c.site !== siteId ? ` · ${esc(SITES[c.site]?.name || 'In transit')}` : ''}</small>${needsPickup ? `<button data-action="show-return-team" data-ui-action="expedition.return_crew.review" ${pickupAvailable ? '' : 'disabled'}>${hasReturn ? 'Review assigned return seat' : 'Choose a return seat'}</button><small>${hasReturn ? 'Residence ends only after physical boarding and departure.' : pickupAvailable ? 'Select this resident in Return team, then recall.' : 'Send the shuttle to pick up this resident.'}</small>` : `<button data-action="resident-toggle" data-crew="${esc(c.id)}" data-site="${siteId}" ${ready ? '' : 'disabled'}>${resident ? 'Remove residence record' : 'Station here'}</button>${!ready ? `<small>${esc(reason)}</small>` : ''}`}</div>`;
+      return `<div class="resident-row" data-entity="${esc(c.id)}"><strong>${esc(c.name)}</strong><small>${esc(c.role)} · ${resident ? 'Resident' : 'Visitor'}${c.health <= 0 ? ' · Deceased' : c.site !== siteId ? ` · ${esc(siteDefinition(s, c.site)?.name || 'In transit')}` : ''}</small>${needsPickup ? `<button data-action="show-return-team" data-ui-action="expedition.return_crew.review" ${pickupAvailable ? '' : 'disabled'}>${hasReturn ? 'Review assigned return seat' : 'Choose a return seat'}</button><small>${hasReturn ? 'Residence ends only after physical boarding and departure.' : pickupAvailable ? 'Select this resident in Return team, then recall.' : 'Send the shuttle to pick up this resident.'}</small>` : `<button data-action="resident-toggle" data-crew="${esc(c.id)}" data-site="${siteId}" ${ready ? '' : 'disabled'}>${resident ? 'Remove residence record' : 'Station here'}</button>${!ready ? `<small>${esc(reason)}</small>` : ''}`}</div>`;
     }).join('')}
     <p class="crew-hint">Stationing changes who stays; it does not build shelter or supply food, heat or air. Keep at least one living return traveler. Pickups require the shuttle and physical boarding.</p>
   </details>`;
@@ -108,21 +109,22 @@ export function residentDetails(s, siteId) {
 
 export function residenceLabel(s, c) {
   const site = residentSite(s,c.id);
-  return site ? `<p class="crew-hint" data-crew-residence>Resident of ${esc(SITES[site].name)} · ${c.site === site ? 'currently on site' : `currently ${esc(SITES[c.site]?.name || 'in transit')}`}</p>` : '';
+  return site ? `<p class="crew-hint" data-crew-residence>Resident of ${esc(siteDefinition(s, site).name)} · ${c.site === site ? 'currently on site' : `currently ${esc(siteDefinition(s, c.site)?.name || 'in transit')}`}</p>` : '';
 }
 
 export function outpostGuide() {
   const buildingIds=['floor','wall','door','stockpile','bunk','scrubber','climate','cable','solar','battery','reactor','radiator','atmosphere','iceProcessor','farm'];
-  return `<details data-panel-key="habitat-guide" class="outpost-section"><summary>How to supply a wreck habitat</summary>
-    <ol class="outpost-guide"><li>Load a manifest at the surface shuttle. Wait for physical loading, then prepare the expedition. First visits need two crew; an established wreck can receive one crew member with a spare return seat for pickup. Freight and salvage share the hold; service fuel is separate.</li><li>At Relay K-07, unload into dock imports. Keep Construction and Hauling duties on. Build on this site's map using its imported supplies or loose salvage. A local depot lets haulers feed machines.</li><li>Enclose habitat floors with intact walls and an accessible door. Keep a path between the dock, supplies and work positions. New floors have no air and begin at the wreck's ambient temperature.</li><li>Wire generation to climate and life support. Deliver real fuel if using a reactor, with suitable cooling. Warm the room before filling it with breathing mix; safe air alone does not prevent cold injury.</li><li>Supply life support, food and a safe bunk for each resident. Breathing mix can be imported or produced from delivered water by an atmosphere processor; machines need their actual inputs and workers. Open Residents & habitat for measured blockers, then choose Station here. Select the actual return team before recalling.</li><li>Check the site while the shuttle is away. Food, packaged air, fuel and other inputs remain finite. Return with supplies or select a resident for physical pickup before reserves run out.</li></ol>
+  return `<details data-panel-key="habitat-guide" class="outpost-section"><summary>How to supply an outpost habitat</summary>
+    <ol class="outpost-guide"><li>Load a manifest at the surface shuttle. Wait for physical loading, then prepare the expedition. First visits need two crew; an established outpost can receive one crew member with a spare return seat for pickup. Freight and salvage share the hold; service fuel is separate.</li><li>At the destination, unload into dock imports. Keep Construction and Hauling duties on. Build on this site's map using its imported supplies or loose salvage. A local depot lets haulers feed machines.</li><li>Enclose habitat floors with intact walls and an accessible door. Keep a path between the dock, supplies and work positions. New floors have no air and begin at the site's ambient temperature.</li><li>Wire generation to climate and life support. Deliver real fuel if using a reactor, with suitable cooling. Warm the room before filling it with breathing mix; safe air alone does not prevent cold injury.</li><li>Supply life support, food and a safe bunk for each resident. Breathing mix can be imported or produced from delivered water by an atmosphere processor; machines need their actual inputs and workers. Open Residents & habitat for measured blockers, then choose Station here. Select the actual return team before recalling.</li><li>Check the site while the shuttle is away. Food, packaged air, fuel and other inputs remain finite. Return with supplies or select a resident for physical pickup before reserves run out.</li></ol>
     <details data-panel-key="habitat-costs"><summary>Current construction costs</summary><dl>${buildingIds.map(id=>`<dt>${esc(BUILDINGS[id].name)}</dt><dd>${esc(inventoryText(BUILDINGS[id].cost))}</dd>`).join('')}</dl><p class="crew-hint">Costs are per structure, not a complete blueprint. Layout, gas volume, warming time and reserves determine how many supplied trips you need.</p><dl>${['atmosphere','iceProcessor','farm'].map(id=>`<dt>${esc(BUILDINGS[id].name)}</dt><dd>${esc(inventoryText(RECIPES[id].input))} → ${esc(inventoryText(RECIPES[id].output))}</dd>`).join('')}</dl><p class="crew-hint">Production needs delivered inputs, enabled Production duty and power. Hydroponics also requires breathable air and 10–35 °C. Check each machine inspector; these recipes do not create a self-sufficient habitat.</p></details>
   </details>`;
 }
 
 export function outpostWarning(s, viewedSite) {
-  if (viewedSite === 'wreck') return '';
-  const ids = residentIds(s,'wreck'); if (!ids.length) return '';
-  const status = outpostReadiness(s,'wreck',ids);
-  if (status.ready) return '';
-  return `<button class="outpost-warning" data-outpost-warning="wreck" data-ui-action="site.inspect" title="Open Relay K-07 status">Relay K-07: ${esc(status.blockers[0]?.message || 'Check residents and habitat')} →</button>`;
+  return outpostSiteIds(s).filter(siteId => siteId !== viewedSite).map(siteId => {
+    const ids = residentIds(s,siteId); if (!ids.length) return '';
+    const status = outpostReadiness(s,siteId,ids); if (status.ready) return '';
+    const name = siteDefinition(s,siteId).name;
+    return `<button class="outpost-warning" data-outpost-warning="${siteId}" data-ui-action="site.inspect" title="Open ${esc(name)} status">${esc(name)}: ${esc(status.blockers[0]?.message || 'Check residents and habitat')} →</button>`;
+  }).join('');
 }

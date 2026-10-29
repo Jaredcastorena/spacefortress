@@ -57,7 +57,7 @@ function mission(s, phase = 'working') {
 test('residence, arrival team, return roster and physical shuttle are separate detached observations', () => {
   const s = fixture(); mission(s);
   const o = observe(s), colony = o.entities.colony;
-  assert.deepEqual(colony.outposts, { wreck: { established: true, residents: ['crew-2'] } });
+  assert.deepEqual(colony.outposts, {...defaultOutposts(s), wreck: { established: true, residents: ['crew-2'] }});
   assert.deepEqual(colony.derived.expedition.selectedCrewIds, ['crew-2', 'crew-4']);
   assert.deepEqual(colony.derived.expedition.returnCrewIds, ['crew-4']);
   assert.deepEqual(colony.mission.returnCrew, ['crew-4']);

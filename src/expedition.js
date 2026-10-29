@@ -1,7 +1,8 @@
+import { routeDefinition } from './region.js';
 import { crewPathToPosition as crewPathTo, planCrewRoutePositions as planCrewRoute } from './navigation.js';
 import { advanceCrewRoutePositions as advanceCrewRoute } from './crew-traversal.js';
 import { shipmentPosition } from './shipment-locations.js';
-import { tileAt, cellKey, horizontalNeighbors } from './spatial.js';
+import { tileAt, cellKey, horizontalNeighbors, sameCell } from './spatial.js';
 import { freightReserved } from './freight.js';
 import { emitEvent, emitItemMovement, tileEntityId } from './telemetry.js';
 import { fitAmount, validItemLots, itemOwners } from './item-lots.js';
@@ -9,7 +10,7 @@ import { validFoodLots } from './food-lots.js';
 import { isResident } from './outposts.js';
 import { shuttleCargoClaims, hasOutgoingInventory } from './inventory-reservations.js';
 import { immobile, impaired } from './mobility.js';
-import { RESOURCES, SITES, SHUTTLE_FITS } from './data.js';
+import { RESOURCES, SHUTTLE_FITS } from './data.js';
 import { add, extract, resourceEntries, contains, quantity, spill, CARRY_CAPACITY } from './inventory.js';
 import { gainExperience } from './crew.js';
 
@@ -20,8 +21,8 @@ export function initializeShuttle(s) {
     s.mission.legacyCapacity = s.mission.capacity > 18;
   }
 }
-export const routeTime = (s, siteId) => SITES[siteId].travel + SHUTTLE_FITS[s.mission?.site === siteId ? s.mission.fit : s.shuttle.fit].travel;
-export const routeFuel = (s, siteId) => Math.max(1, SITES[siteId].fuel + SHUTTLE_FITS[s.shuttle.fit].fuel);
+export const routeTime = (s, siteId) => routeDefinition(s, siteId).travel + SHUTTLE_FITS[s.mission?.site === siteId ? s.mission.fit : s.shuttle.fit].travel;
+export const routeFuel = (s, siteId) => Math.max(1, routeDefinition(s, siteId).fuel + SHUTTLE_FITS[s.shuttle.fit].fuel);
 export const dockAt = site => site.tiles.find(t => t.building === 'dock' && t.hp > 0);
 const xy = shipmentPosition;
 // Call only when creating a mission or deliberately migrating an older save.
@@ -72,7 +73,7 @@ export function validateReturnCrew(s) {
   if (abandonedArrival(s, ids)) throw new Error('Living arrival crew cannot be left without residence.');
   for (const c of s.crew) if (c.site === m.site && !ids.includes(c.id) && (c.carry && c.delivery?.kind === 'shuttle' || c.intent?.type === 'salvage')) throw new Error('Shuttle shipment has no assigned return passenger.');
 }
-const context=(s)=>({entity:'colony',crewIds:[...s.mission.crew],returnCrewIds:returnCrewIds(s),site:`site:${s.mission.site}`,tick:s.tick});
+const context=(s)=>({entity:'colony',crewIds:[...s.mission.crew],returnCrewIds:returnCrewIds(s),site:`site:${s.mission.site}`,route:routeDefinition(s,s.mission.site)?.id,tick:s.tick});
 export const reservedCargo = s => s.mission ? shuttleCargoClaims(s, s.mission.site, returnCrewIds(s)) : 0;
 export const cargoFree = s => s.mission ? Math.max(0, s.mission.capacity - quantity(s.shuttle.freight) - quantity(s.mission.cargo) - reservedCargo(s) - freightReserved(s)) : 0;
 export function setCargoAccepted(s, resource, enabled) {
@@ -97,7 +98,7 @@ export function haulSalvage(s, c, site, pathTo) {
       for (const [r, amount] of resourceEntries(c.carry)) { const n = fitAmount(r,amount,left); if (n) shipment[r] = n; left -= n; }
       const moved=extract(c.carry,shipment);emitItemMovement(s,moved,c.id,{entity:c.id,slot:'carry'},{entity:'colony',slot:'mission.cargo'});add(m.cargo,moved);
       if(quantity(moved))emitEvent(s,'expedition.salvage.delivered',{...context(s),actor:c.id,cargo:moved,from:{entity:c.id,slot:'carry'},to:{entity:'colony',slot:'mission.cargo'},reason:'dock_delivery'});
-      if (quantity(c.carry)) { emitItemMovement(s,c.carry,c.id,{entity:c.id,slot:'carry'},{entity:tileEntityId(site.id,dock.x,dock.y),slot:'drop'});spill(dock, c.carry);emitEvent(s,'expedition.salvage.spilled',{...context(s),actor:c.id,cargo:c.carry,from:{entity:c.id,slot:'carry'},to:{entity:tileEntityId(site.id,dock.x,dock.y),slot:'drop'},reason:'hold_full'}); }
+      if (quantity(c.carry)) { emitItemMovement(s,c.carry,c.id,{entity:c.id,slot:'carry'},{entity:tileEntityId(site.id,dock.x,dock.y,xy(dock).z),slot:'drop'});spill(dock, c.carry);emitEvent(s,'expedition.salvage.spilled',{...context(s),actor:c.id,cargo:c.carry,from:{entity:c.id,slot:'carry'},to:{entity:tileEntityId(site.id,dock.x,dock.y,xy(dock).z),slot:'drop'},reason:'hold_full'}); }
       c.carry = null; c.delivery = null; c.intent = null; gainExperience(c, 'hauling', 4);
     }
     return true;
@@ -117,18 +118,18 @@ export function haulSalvage(s, c, site, pathTo) {
   const intent = c.intent, tile = tileAt(site,intent.target);
   if (!tile.drop || !contains(tile.drop, intent.items)) { c.intent = null; return true; }
   const result = move(s, c, site, intent.target, pathTo); c.activity = 'Collecting salvage for shuttle';
-  if (result === 'arrived') { c.carry = extract(tile.drop, intent.items);emitItemMovement(s,c.carry,c.id,{entity:tileEntityId(site.id,intent.target.x,intent.target.y),slot:'drop'},{entity:c.id,slot:'carry'});emitEvent(s,'expedition.salvage.picked_up',{...context(s),actor:c.id,cargo:c.carry,from:{entity:tileEntityId(site.id,intent.target.x,intent.target.y),slot:'drop'},to:{entity:c.id,slot:'carry'},reason:'reserved_pickup'}); c.delivery = { kind: 'shuttle', target: xy(dock) }; c.intent = null; if (!quantity(tile.drop)) tile.drop = null; }
+  if (result === 'arrived') { c.carry = extract(tile.drop, intent.items);emitItemMovement(s,c.carry,c.id,{entity:tileEntityId(site.id,intent.target.x,intent.target.y,xy(intent.target).z),slot:'drop'},{entity:c.id,slot:'carry'});emitEvent(s,'expedition.salvage.picked_up',{...context(s),actor:c.id,cargo:c.carry,from:{entity:tileEntityId(site.id,intent.target.x,intent.target.y,xy(intent.target).z),slot:'drop'},to:{entity:c.id,slot:'carry'},reason:'reserved_pickup'}); c.delivery = { kind: 'shuttle', target: xy(dock) }; c.intent = null; if (!quantity(tile.drop)) tile.drop = null; }
   else if (result === 'blocked') { c.intent = null; c.activity = 'Salvage route blocked'; }
   return true;
 }
 export function boardShuttle(s, c, site, pathTo) {
   if (s.mission?.phase !== 'boarding' || !isReturnTraveler(s, c) || site.id !== s.mission.site) return false;
   if (c.carry && c.delivery?.kind !== 'shuttle') return false;
-  const dock=dockAt(site),aboard=!!dock&&c.x===dock.x&&c.y===dock.y&&!c.carry,origin=tileEntityId(site.id,c.x,c.y);
-  if (c.carry) { haulSalvage(s, c, site, pathTo);if(!aboard&&!c.carry&&dock&&c.x===dock.x&&c.y===dock.y)emitEvent(s,'expedition.crew.boarded',{...context(s),actor:c.id,from:{entity:origin,slot:'location'},to:{entity:tileEntityId(site.id,dock.x,dock.y),slot:'boarding'},reason:'return_after_delivery'});return true; }
+  const dock=dockAt(site),aboard=!!dock&&sameCell(xy(c),xy(dock))&&!c.carry,origin=tileEntityId(site.id,c.x,c.y,xy(c).z);
+  if (c.carry) { haulSalvage(s, c, site, pathTo);if(!aboard&&!c.carry&&dock&&sameCell(xy(c),xy(dock)))emitEvent(s,'expedition.crew.boarded',{...context(s),actor:c.id,from:{entity:origin,slot:'location'},to:{entity:tileEntityId(site.id,dock.x,dock.y,xy(dock).z),slot:'boarding'},reason:'return_after_delivery'});return true; }
   const result = dock ? move(s, c, site, xy(dock), pathTo) : 'blocked';
   c.activity = result === 'blocked' ? 'Return route blocked; needs rescue' : result === 'arrived' ? 'At shuttle; waiting for team' : 'Returning to shuttle';
-  if(!aboard&&dock&&c.x===dock.x&&c.y===dock.y)emitEvent(s,'expedition.crew.boarded',{...context(s),actor:c.id,from:{entity:origin,slot:'location'},to:{entity:tileEntityId(site.id,dock.x,dock.y),slot:'boarding'},reason:'return'});
+  if(!aboard&&dock&&sameCell(xy(c),xy(dock)))emitEvent(s,'expedition.crew.boarded',{...context(s),actor:c.id,from:{entity:origin,slot:'location'},to:{entity:tileEntityId(site.id,dock.x,dock.y,xy(dock).z),slot:'boarding'},reason:'return'});
   return true;
 }
 export function returnWalk(s, pathTo) {

@@ -399,3 +399,9 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 - [tests/stair-fire.test.js](../tests/stair-fire.test.js): cross-floor ignition, intact/damaged/automatic hatch containment, destination limits, event identity, save continuation and existing suppression.
 
 - [tests/item-location-floors.test.js](../tests/item-location-floors.test.js): actual-floor item and split-meal identities, native stair pickup, shared release, death/hauling custody, blocked routes and save continuation.
+
+## Seeded orbital regions
+
+- [region.js](../src/region.js): canonical seeded metadata, finite layouts, site kinds, routes, strict validation and legacy migration.
+- [region-panels.js](../src/region-panels.js): compact system overview and initial surveys.
+- [region tests](../tests/region.test.js), [integration journeys](../tests/region-integration.test.js), [resident work](../tests/region-residents.test.js): reproducibility, genuine schema64 migration, native round trips/revisits and independent residence.

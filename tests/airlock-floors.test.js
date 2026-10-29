@@ -1,3 +1,4 @@
+import {projectPreRegion} from './helpers/legacy-projection.js';
 import test from 'node:test';import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';import {gunzipSync} from 'node:zlib';import {createHash} from 'node:crypto';
 import {serialize,deserialize,step} from '../src/simulation.js';
@@ -24,7 +25,7 @@ const doCycle=(f,d)=>{const r=upperCommand(f,'request',{crew:f.crew.id,direction
 
 test('genuine schema59 in-flight cycle migrates without changing physical state',()=>{
  assert.equal(createHash('sha256').update(original).digest('hex'),'7e5360c0294595a467ac0d2148a686179e125ec4d2ab8e611c1ec8727cbd3f14');
- const old=JSON.parse(original),s=deserialize(original);assert.equal(old.version,59);assert.equal(s.version,VERSION);old.version=VERSION;old.resources.tools=0;assert.deepEqual(s,old);assert.equal(serialize(reload(s)),serialize(s));
+ const old=JSON.parse(original),s=deserialize(original);assert.equal(old.version,59);assert.equal(s.version,VERSION);old.version=VERSION;old.resources.tools=0;assert.deepEqual(projectPreRegion(s),old);assert.equal(serialize(reload(s)),serialize(s));
 });
 test('stacked assemblies bind distinct floor ownership with pure matching observations and UI',()=>{
  const f=floorFixture(),ground=floorRefs(f.s,0),before=serialize(f.s),status=airlockStatus(f.s,f.site,f.controller);
@@ -62,7 +63,7 @@ test('chamber stairs and gas riser bypasses cannot be bound or silently accepted
 });
 test('undeclared, mixed-floor and legacy future airlock claims reject without mutating valid state',()=>{
  const f=floorFixture(),before=serialize(f.s);assert.equal(upperCommand(f,'enable',{enabled:false,z:7}).ok,false);assert.equal(serialize(f.s),before);
- for(const mutate of [s=>{s.version=59;},s=>{floorRefs(s).controller.airlock.config.outer.z=0;},s=>{floorRefs(s).controller.airlock.ownedNodes[0].z=0;}]){const s=structuredClone(f.s);mutate(s);assert.throws(()=>reload(s));}
+ for(const mutate of [s=>{s.version=59;},s=>{floorRefs(s).controller.airlock.config.outer.z=0;},s=>{floorRefs(s).controller.airlock.ownedNodes[0].z=0;}]){let s=structuredClone(f.s);mutate(s);if(s.version===59)s=projectPreRegion(s,{allowUnvisited:true});assert.throws(()=>reload(s));}
 });
 test('normal delivered construction can install and reload an upper-floor airlock controller',()=>{
  const raw=gunzipSync(readFileSync(new URL('./fixtures/solar-schema58.json.gz',import.meta.url))).toString(),s=deserialize(raw),site=s.sites.surface,p={x:8,y:8,z:1};assert.equal(tileAt(site,p).building,null);

@@ -9,7 +9,7 @@ import {
 
 function fixture() {
   const s = createGame();
-  s.outposts = defaultOutposts();
+  s.outposts = defaultOutposts(s);
   for (const site of Object.values(s.sites)) for (const tile of site.tiles) if (tile.building === 'dock') tile.imports = defaultDockImports();
   return s;
 }

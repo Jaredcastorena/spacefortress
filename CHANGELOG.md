@@ -2,11 +2,17 @@
 
 SPACEFORTRESS is an early playable colony simulator. Release entries describe completed changes within their stated scope.
 
-## Unreleased
+## v0.1.10 — 2026-10-29
+
+- Generate a resource outcrop and a derelict for each new seed, with finite deposits, distinct layouts, paid routes, debris exposure and stable planetary/site identities.
+- Add dynamic region navigation, initial surveys, player/agent destination catalogs and route identities in expedition events. Preserve construction, depletion and occupants between visits.
+- Support independent generated-site resident rosters, local work, construction and habitat admission through the existing systems.
+- Add save schema65. Existing valid hex saves retain their four original sites and physical state; generated metadata and resident ownership are strictly validated.
+
 
 - Apply crew fire exposure on the occupied floor. A fire below no longer injures a stacked upstairs crew member, and an upstairs fire is no longer missed.
 - Resolve wreck-debris shelter and docked-shuttle protection by full position; an upper room can shelter crew above empty space, while a terminal below cannot grant upstairs immunity.
-- Add actual-floor targets to crew/animal fire exposure events and correct wreck-debris event targets. Save64 and observation9 remain unchanged.
+- Add actual-floor targets to crew/animal fire exposure events and correct wreck-debris event targets. These hazard fixes retain observation9; the region additions advance saves to schema65.
 
 ## v0.1.9 — 2026-10-29
 

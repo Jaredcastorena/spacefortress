@@ -1,4 +1,5 @@
-import { RESOURCES, SITES } from './data.js';
+import { siteDefinition, outpostSiteIds } from './region.js';
+import { RESOURCES } from './data.js';
 import { validFoodLots } from './food-lots.js';
 import { validItemLots } from './item-lots.js';
 import { emitEvent } from './telemetry.js';
@@ -7,7 +8,7 @@ import { outpostReadiness } from './outpost-readiness.js';
 // Residence, a person's physical site and the shuttle's location are separate
 // facts. These factories/readers/validators never move people or material.
 export const OUTPOST_SITES = Object.freeze(['wreck']);
-export const defaultOutposts = () => ({ wreck: { established: false, residents: [] } });
+export const defaultOutposts = s => Object.fromEntries((s ? outpostSiteIds(s) : OUTPOST_SITES).map(id => [id, { established: false, residents: [] }]));
 export const defaultDockImports = () => ({});
 const record = value => value !== null && typeof value === 'object' &&
   [Object.prototype, null].includes(Object.getPrototypeOf(value));
@@ -26,8 +27,8 @@ function knownCrew(s) {
   return ids;
 }
 
-function knownOutpost(siteId) {
-  if (!OUTPOST_SITES.includes(siteId)) throw new Error('Unknown outpost site.');
+function knownOutpost(s, siteId) {
+  if (!outpostSiteIds(s).includes(siteId)) throw new Error('Unknown outpost site.');
 }
 
 // "Normalize" means a checked detached copy, never silently deduplicate, prune
@@ -41,17 +42,22 @@ export function normalizeResidents(s, residents) {
 }
 
 export function validateOutposts(s) {
-  if (!exact(s?.outposts, OUTPOST_SITES)) throw new Error('Invalid outpost registry.');
-  for (const siteId of OUTPOST_SITES) {
+  const sites = outpostSiteIds(s), assigned = new Set();
+  if (!exact(s?.outposts, sites)) throw new Error('Invalid outpost registry.');
+  for (const siteId of sites) {
     const state = s.outposts[siteId];
     if (!exact(state, ['established', 'residents']) || typeof state.established !== 'boolean') throw new Error('Invalid outpost state.');
     const residents = normalizeResidents(s, state.residents);
+    for (const id of residents) {
+      if (assigned.has(id)) throw new Error('Crew member has multiple outpost residences.');
+      assigned.add(id);
+    }
     if (!state.established && residents.length) throw new Error('Unestablished outpost has residents.');
   }
 }
 
 export function residentIds(s, siteId = 'wreck') {
-  knownOutpost(siteId);
+  knownOutpost(s, siteId);
   // Old schemas can be observed before the explicit migration runs. Current
   // saves must pass validateOutposts; observation does not initialize anything.
   if (s.outposts === undefined) return [];
@@ -61,14 +67,14 @@ export function residentIds(s, siteId = 'wreck') {
 
 export function residentSite(s, crewId) {
   if (!knownCrew(s).has(crewId)) throw new Error('Unknown crew member.');
-  for (const siteId of OUTPOST_SITES) if (residentIds(s, siteId).includes(crewId)) return siteId;
+  for (const siteId of outpostSiteIds(s)) if (residentIds(s, siteId).includes(crewId)) return siteId;
   return null;
 }
 
 export function isResident(s, crewId, siteId = 'wreck') {
   // Other expedition destinations currently have no residence owner. They are
   // known sites, so a normal return-roster query there should simply be false.
-  if (typeof siteId !== 'string' || !Object.hasOwn(SITES, siteId)) throw new Error('Unknown site.');
+  if (typeof siteId !== 'string' || !siteDefinition(s, siteId) || !Object.hasOwn(s.sites || {}, siteId)) throw new Error('Unknown site.');
   return residentSite(s, crewId) === siteId;
 }
 
@@ -76,13 +82,14 @@ export function isResident(s, crewId, siteId = 'wreck') {
 // habitat, or credit provisions. All rejection checks precede both roster edits.
 export function setOutpostResidents(s, siteId, crewIds) {
   const reject = (code, message) => ({ ok: false, code, message });
-  if (!OUTPOST_SITES.includes(siteId)) return reject('unsupported_outpost', 'Only the wreck supports settlement.');
+  if (!outpostSiteIds(s).includes(siteId)) return reject('unsupported_outpost', 'Select a settlement-capable destination.');
   let next, previous;
   try { next = normalizeResidents(s, crewIds); previous = residentIds(s, siteId); }
   catch { return reject('invalid_residents', 'Select distinct known crew members for the resident roster.'); }
   if (!s.outposts?.[siteId]) return reject('outpost_unavailable', 'This colony has no outpost registry.');
   if (next.length === previous.length && next.every((id, index) => id === previous[index])) return { ok: true };
   const added = next.filter(id => !previous.includes(id));
+  if (added.some(id => outpostSiteIds(s).some(other => other !== siteId && s.outposts[other].residents.includes(id)))) return reject('resident_already_assigned', 'Remove the existing residence record before stationing this crew member elsewhere.');
   const removed = previous.filter(id => !next.includes(id)).map(id => s.crew.find(c => c.id === id));
   const mission = s.mission;
   if (removed.some(c => c.health > 0 && c.site !== 'surface')) {
@@ -90,10 +97,10 @@ export function setOutpostResidents(s, siteId, crewIds) {
   }
   let nextReturn = mission?.returnCrew;
   if (added.length) {
-    if (mission?.site !== siteId || mission.phase !== 'working') return reject('settlement_unavailable', 'Station new residents during a working expedition at the wreck.');
+    if (mission?.site !== siteId || mission.phase !== 'working') return reject('settlement_unavailable', 'Station new residents during a working expedition at this destination.');
     const people = added.map(id => s.crew.find(c => c.id === id));
     if (people.some(c => c.health <= 0 || c.site !== siteId || !mission.crew.includes(c.id) && !mission.returnCrew?.includes(c.id))) {
-      return reject('resident_unavailable', 'Each new resident must be alive and physically visiting the wreck.');
+      return reject('resident_unavailable', 'Each new resident must be alive and physically visiting this destination.');
     }
     if (people.some(c => c.carry && c.delivery?.kind === 'shuttle' || c.intent?.type === 'salvage')) {
       return reject('resident_cargo_pending', 'Finish the new resident’s shuttle shipment before stationing them.');
@@ -162,14 +169,14 @@ export function shuttleLocation(s) {
   const mission = s.mission;
   if (mission === null || mission === undefined) return 'surface';
   if (!record(mission) || !['outbound', 'working', 'boarding', 'returning'].includes(mission.phase) ||
-      typeof mission.site !== 'string' || mission.site === 'surface' || !Object.hasOwn(SITES, mission.site)) {
+      typeof mission.site !== 'string' || mission.site === 'surface' || !siteDefinition(s, mission.site) || !Object.hasOwn(s.sites || {}, mission.site)) {
     throw new Error('Invalid physical shuttle mission.');
   }
   return ['outbound', 'returning'].includes(mission.phase) ? 'transit' : mission.site;
 }
 
 export function shuttlePresence(s, siteId) {
-  if (typeof siteId !== 'string' || !Object.hasOwn(SITES, siteId) || !Array.isArray(s.sites?.[siteId]?.tiles)) throw new Error('Unknown shuttle site.');
+  if (typeof siteId !== 'string' || !siteDefinition(s, siteId) || !Object.hasOwn(s.sites || {}, siteId) || !Array.isArray(s.sites?.[siteId]?.tiles)) throw new Error('Unknown shuttle site.');
   const location = shuttleLocation(s), present = location === siteId;
   const kind = siteId === 'surface' ? 'shuttle' : 'dock';
   const terminals = s.sites[siteId].tiles.filter(tile => tile.building === kind).sort((a, b) => a.y - b.y || a.x - b.x);

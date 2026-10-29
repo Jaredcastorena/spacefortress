@@ -1,3 +1,4 @@
+import { outpostSiteIds } from './region.js';
 import {toolStatus} from './tools.js';
 import { tileEntityId } from './spatial.js';
 import {extractionStatus} from './extraction.js';
@@ -11,7 +12,7 @@ import { carcassPosition, carcassStatus, dispatchEligibility, butcheryEligibilit
 import { livestockDef } from './livestock-data.js';
 import { expeditionCrewStatus, expeditionCandidates, expeditionLaunchBlock, expeditionCrewLimits } from './expedition-readiness.js';
 import { returnCrewIds } from './expedition.js';
-import { OUTPOST_SITES, residentIds, shuttleLocation, shuttlePresence } from './outposts.js';
+import { residentIds, shuttleLocation, shuttlePresence } from './outposts.js';
 import { outpostReadiness } from './outpost-readiness.js';
 import { freightStatus } from './freight.js';
 import { departureReadiness } from './preflight.js';
@@ -48,7 +49,7 @@ export function observe(s) {
   const {sites,crew,jobs,creatures,...colony}=s;
   const selectedCrewIds=[...(s.departure?.crew||s.mission?.crew||[])],destination=s.departure?.site||s.mission?.site||null;
   const returningCrewIds=returnCrewIds(s),residences=new Map();
-  const outposts=Object.fromEntries(OUTPOST_SITES.map(siteId=>{
+  const outposts=Object.fromEntries(outpostSiteIds(s).map(siteId=>{
     const residents=residentIds(s,siteId);
     for(const id of residents)residences.set(id,`site:${siteId}`);
     return [siteId,{established:s.outposts?.[siteId]?.established??false,residents}];
@@ -140,7 +141,7 @@ export function recordingStatus(s) {const r=sessions.get(s);return r?{active:r.a
 // number. The simulation calls these around a committed tick; observe stays pure.
 export function habitatSnapshot(s) {
   if(!sessions.get(s)?.active)return null;
-  return Object.fromEntries(OUTPOST_SITES.map(siteId=>{
+  return Object.fromEntries(outpostSiteIds(s).map(siteId=>{
     const crewIds=residentIds(s,siteId),status=outpostReadiness(s,siteId,crewIds);
     return [siteId,{crewIds,ready:status.ready,blockers:[...new Set(status.blockers.map(block=>block.code))].sort()}];
   }));
@@ -148,7 +149,7 @@ export function habitatSnapshot(s) {
 export function recordHabitatChanges(s,before) {
   if(!before||!sessions.get(s)?.active)return;
   const after=habitatSnapshot(s);
-  for(const siteId of OUTPOST_SITES)if(JSON.stringify(before[siteId])!==JSON.stringify(after[siteId])) {
+  for(const siteId of outpostSiteIds(s))if(JSON.stringify(before[siteId])!==JSON.stringify(after[siteId])) {
     emitEvent(s,'outpost.habitat.changed',{entity:`site:${siteId}`,site:`site:${siteId}`,previous:before[siteId],next:after[siteId],reason:'measured_conditions_changed',tick:s.tick});
   }
 }

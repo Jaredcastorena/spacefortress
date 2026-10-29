@@ -1,3 +1,4 @@
+import {defaultOutposts as expectedOutposts} from '../src/outposts.js';
 import { assertSquareProtected } from './helpers/legacy-square.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -43,9 +44,9 @@ test('genuine schema36 snapshot hashes and protected rejection retain all origin
 test('fresh initialization creates independent empty owners without spending or granting stock', () => {
   const s = createGame(37041), before = totalResources(s), rng = s.rng;
   initializeOutpostState(s);
-  assert.deepEqual(s.outposts, { wreck: { established: false, residents: [] } });
+  assert.deepEqual(s.outposts, expectedOutposts(s));
   const owners = [s.shuttle.freight, ...allDocks(s).map(tile => tile.imports)];
-  assert.equal(new Set(owners).size, 4);
+  assert.equal(new Set(owners).size, 6);
   assert.ok(owners.every(owner => Object.keys(owner).length === 0));
   assert.deepEqual(totalResources(s), before); assert.equal(s.rng, rng);
   const snapshot = structuredClone(s);

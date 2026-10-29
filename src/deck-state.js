@@ -1,3 +1,4 @@
+import { settlementSite } from './region.js';
 import {tileAt} from './spatial.js';
 import {validateVerticalLinks,MAX_DECKS} from './vertical.js';
 // Validate declared floors before validating their named position references.
@@ -23,7 +24,7 @@ export function validateDeckState(state, { legacy = false } = {}) {
       }
     } else if(state.version>=55) {
       if(!Array.isArray(site.levels)||!site.levels.length||site.levels.length>MAX_DECKS||site.levels.some((level,i)=>!record(level)||Object.keys(level).length!==2||level.z!==i||typeof level.name!=='string'||!level.name.trim()||level.name.length>80)||site.tiles.length!==site.size**2*site.levels.length)throw new Error('Invalid declared deck layout.');
-      if(!['surface','wreck'].includes(site.id)&&site.levels.length!==1)throw new Error('This site cannot contain constructed decks.');
+      if(!settlementSite(site)&&site.levels.length!==1)throw new Error('This site cannot contain constructed decks.');
       validateVerticalLinks(site);
       for(const link of site.verticalLinks){if(linkIds.has(link.id)||Number(link.id.slice(9))>=state.nextId||link.openUntil>state.tick+3)throw new Error('Invalid stairwell identity or hatch time.');linkIds.add(link.id);}
     } else {

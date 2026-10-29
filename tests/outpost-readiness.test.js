@@ -1,3 +1,4 @@
+import { executeAction } from '../src/controls.js';
 import { neighbors } from '../src/geometry.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,11 +11,11 @@ import { outpostReadiness, OUTPOST_RESERVES } from '../src/outpost-readiness.js'
 
 // Synthetic conditions isolate the inspector. This is not a supplied ordinary
 // gameplay journey: the journey suite owns construction/pressurization/warm-up.
-function habitat() {
-  const s = createGame(), site = s.sites.wreck;
+function habitat(template = 'wreck') {
+  const s = createGame(), site = template === 'wreck' ? s.sites.wreck : Object.values(s.sites).find(site => s.region.sites[site.id].template === template);
   for (const t of site.tiles) {
     t.terrain = 'deck'; t.building = null; t.hp = 100; t.drop = null; t.cable = null;
-    delete t.stock; delete t.storage; delete t.machine; delete t.imports;
+    delete t.stock; delete t.storage; delete t.machine; delete t.imports; delete t.deposit;
   }
   for (let y = 6; y <= 10; y++) for (let x = 6; x <= 10; x++) {
     const t = at(site, x, y); t.terrain = 'floor';
@@ -35,11 +36,11 @@ function habitat() {
   fillRoom(room); room.heat = (20 + 273.15) * room.volume * HEAT_CAPACITY;
   refreshPower(s, site);
   const crew = s.crew.slice(0, 2);
-  crew.forEach((c, i) => Object.assign(c, { site: 'wreck', x: 4 + i, y: 11, job: null, carry: null, delivery: null, intent: null }));
+  crew.forEach((c, i) => Object.assign(c, { site: site.id, x: 4 + i, y: 11, job: null, carry: null, delivery: null, intent: null }));
   const ids = crew.map(c => c.id);
   return { s, site, room, dock, depot, beds, scrubber, climate, solar, crew, ids, device };
 }
-const inspect = f => outpostReadiness(f.s, 'wreck', f.ids);
+const inspect = f => outpostReadiness(f.s, f.site.id, f.ids);
 const codes = result => result.blockers.map(b => b.code);
 function freeze(v) { if (v && typeof v === 'object' && !Object.isFrozen(v)) { Object.freeze(v); Object.values(v).forEach(freeze); } return v; }
 
@@ -167,4 +168,16 @@ test('serious injury requires actual safe care, medicine and a caregiver in the 
   assert.ok(codes(result).includes('caregiver_unavailable'), 'a departing visitor is not permanent medical support');
   patient.health = 95; patient.medical.injury = 5; f.dock.imports.medicine = 0;
   assert.equal(outpostReadiness(f.s, 'wreck', [patient.id]).ready, true, 'minor injury is reported without demanding unrelated equipment');
+});
+
+for (const template of ['outcrop', 'derelict']) test(`shared residence registration uses the supplied ${template} habitat and its own roster`, () => {
+  const f = habitat(template), {s, site, ids} = f;
+  assert.equal(inspect(f).ready, true);
+  // Synthetic working-arrival boundary: the habitat above isolates admission.
+  s.mission = {site:site.id, phase:'working', crew:[...ids], returnCrew:[...ids]};
+  const result = executeAction(s, 'outpost.residents', {site:site.id, crewIds:[ids[0]]});
+  assert.equal(result.ok, true, result.message);
+  assert.deepEqual(s.outposts[site.id].residents, [ids[0]]);
+  assert.deepEqual(s.mission.returnCrew, [ids[1]]);
+  for (const [id, outpost] of Object.entries(s.outposts)) if (id !== site.id) assert.deepEqual(outpost.residents, []);
 });

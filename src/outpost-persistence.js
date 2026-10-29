@@ -10,7 +10,7 @@ const docks = s => Object.values(s.sites).flatMap(site => site.tiles.filter(tile
 // Only fresh games and deliberate legacy migrations call this initializer.
 // Current saves must be validated as supplied, never repaired during loading.
 export function initializeOutpostState(s) {
-  if (s.outposts === undefined) s.outposts = defaultOutposts();
+  if (s.outposts === undefined) s.outposts = defaultOutposts(s);
   if (s.shuttle.freight === undefined) s.shuttle.freight = {};
   for (const tile of docks(s)) if (tile.imports === undefined) tile.imports = defaultDockImports();
   if (s.mission && s.mission.returnCrew === undefined) s.mission.returnCrew = [...s.mission.crew];
@@ -69,7 +69,7 @@ function validateOwnerAliases(s) {
     }
     visit(owner.inventory);
   }
-  const rosters = [s.outposts.wreck.residents, s.mission?.crew, s.mission?.returnCrew, s.departure?.crew].filter(Boolean);
+  const rosters = [...Object.values(s.outposts).map(outpost => outpost.residents), s.mission?.crew, s.mission?.returnCrew, s.departure?.crew].filter(Boolean);
   if (new Set(rosters).size !== rosters.length) throw new Error('Outpost and expedition rosters must be independent arrays.');
 }
 

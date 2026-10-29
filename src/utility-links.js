@@ -1,3 +1,4 @@
+import { settlementSite } from './region.js';
 import {tileAt,positionOf,sameCell} from './spatial.js';
 import {stairJobClaims} from './vertical.js';
 import {BUILDINGS} from './data.js';
@@ -30,7 +31,7 @@ function claims(s,site,ends,ignoreJob){
 }
 export function riserPlacement(s,site,lower,building,ignoreJob=null){
  const kind=riserKind(building),upper={...positionOf(lower),z:lower.z+1},ends=[lower,upper];
- if(!kind||!['surface','wreck'].includes(site.id))return reject('riser_site','Build risers within an existing colony site.');
+ if(!kind||!settlementSite(site))return reject('riser_site','Build risers within an existing colony site.');
  for(const p of ends){
   const t=tileAt(site,p),port=node(t,kind);
   if(t?.terrain!=='floor')return reject('riser_floor','Both riser ends need existing habitat floors, one directly above the other.');
@@ -85,7 +86,7 @@ export function validateUtilityState(s){
  for(const site of Object.values(s.sites)){
   if(!Array.isArray(site.utilityLinks))throw new Error('Invalid utility link list.');
   for(const l of site.utilityLinks){
-   if(!shape(l)||ids.has(l.id)||Number(l.id.slice(8))>=s.nextId||![l.lower,l.upper].every(p=>tileAt(site,p)?.terrain==='floor'&&tileAt(site,p).risers?.[l.kind]===l.id)||!['surface','wreck'].includes(site.id))throw new Error('Invalid utility riser.');
+   if(!shape(l)||ids.has(l.id)||Number(l.id.slice(8))>=s.nextId||![l.lower,l.upper].every(p=>tileAt(site,p)?.terrain==='floor'&&tileAt(site,p).risers?.[l.kind]===l.id)||!settlementSite(site))throw new Error('Invalid utility riser.');
    ids.add(l.id);
   }
   for(const t of site.tiles){

@@ -1,3 +1,4 @@
+import { settlementSite } from './region.js';
 // Finite terrain reserves are separate from extracted, haulable inventory.
 // This module only changes the source; callers own work, piles and events.
 export const ICE_SEAM_CAPACITY = 12;
@@ -38,7 +39,7 @@ export function validateDeposits(s) {
   for(const site of Object.values(s.sites))for(const tile of site.tiles){
     if(tile.deposit===undefined)continue;const d=tile.deposit;
     if(!d||Array.isArray(d)||Object.keys(d).length!==2||!['ice','ore'].includes(d.resource)||!Number.isInteger(d.remaining)||d.remaining<0||d.remaining>(d.resource==='ice'?ICE_SEAM_CAPACITY:IMPACT_ORE_CAPACITY))throw new Error('Invalid mineral reserve.');
-    if(d.resource==='ice'&&(!['surface','comet'].includes(site.id)||!['ground','floor','ice'].includes(tile.terrain)||d.remaining>0&&tile.building))throw new Error('Invalid ice reserve.');
+    if(d.resource==='ice'&&(!(['surface','comet'].includes(site.id)||s.version>=65&&settlementSite(site))||!['ground','floor','ice'].includes(tile.terrain)||d.remaining>0&&tile.building))throw new Error('Invalid ice reserve.');
     if(d.resource==='ore'&&!['ground','floor','ice','rock','ore'].includes(tile.terrain))throw new Error('Invalid impact ore reserve.');
   }
 }

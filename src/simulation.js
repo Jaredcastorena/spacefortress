@@ -1,3 +1,4 @@
+import {makeRegion,generatedLayout,siteDefinition,siteDefinitions,routeDefinition,siteKind,settlementSite,validateRegion,migrateRegion} from './region.js';
 import {TOOL_RECIPES} from './tool-data.js';
 import {miningEffort,advanceToolPickup,clearToolPickup,validateToolPickups} from './tools.js';
 import {riserKind,utilityAt,riserPlacement,utilityJobClaims,commissionUtility,utilityWorkReady,completeUtilityWork,configureUtility,validateUtilityState,validateUtilityJobs,UTILITY_WORK} from './utility-links.js';
@@ -75,7 +76,7 @@ import { isDay, updatePower, refreshPower, initializePower, initializeElectrical
 import { initializeReliability, maintainable, completeService, recordOperation, updateDebris, scheduleMaintenance, validateReliability } from './maintenance.js';
 import { initializeShuttle, routeTime, routeFuel, haulSalvage, boardShuttle, returnWalk, dockAt, validateShuttle, returnCrewIds, returnCrewMembers, allReturnTravelersDead } from './expedition.js';
 import { initializeOutpostState, validateOutpostState } from './outpost-persistence.js';
-import { isResident, shuttlePresence } from './outposts.js';
+import { isResident, residentSite, shuttlePresence } from './outposts.js';
 import { initializePreflight, planDeparture, loadingCost, updateDeparture, walkToDeparture, boardingDeparture, tryDeparture, spendReturnFuel, deployKit, validatePreflight } from './preflight.js';
 import { initializeCrewLife, prepareDowntime, leisure, updateCrewLife, validateCrewLife } from './crew-life.js';
 export { isDay, updatePower } from './power.js';
@@ -89,8 +90,8 @@ export function random(s) {
   let x = s.rng | 0; x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
   s.rng = x >>> 0; return s.rng / 4294967296;
 }
-function createSite(id, size) {
-  return { id, size, levels: [{ z: 0, name: 'Landing deck' }], verticalLinks: [], utilityLinks: [], air: 0, power: { output: 0, demand: 0, battery: 0, capacity: 0 }, rooms: [], explored: id === 'surface' || id === 'wreck', tiles: Array.from({ length: size * size }, (_, i) => ({ x: i % size, y: Math.floor(i / size), z: 0, terrain: id === 'surface' ? 'ground' : 'void', building: null, hp: 100, drop: null, variant: i % 4, powered: false, cable: null })) };
+function createSite(id, size, kind=id) {
+  return { id, kind, size, levels: [{ z: 0, name: 'Landing deck' }], verticalLinks: [], utilityLinks: [], air: 0, power: { output: 0, demand: 0, battery: 0, capacity: 0 }, rooms: [], explored: id === 'surface' || id === 'wreck', tiles: Array.from({ length: size * size }, (_, i) => ({ x: i % size, y: Math.floor(i / size), z: 0, terrain: id === 'surface' ? 'ground' : 'void', building: null, hp: 100, drop: null, variant: i % 4, powered: false, cable: null })) };
 }
 export function createGame(seed = 74219) {
   const s = { version: VERSION, grid: GRID, seed, rng: seed || 1, tick: 0, nextId: 1, resources: { alloy: 36, ore: 0, components: 3, food: 24, water: 40, fuel: 14, cells: 0, air: 160, medicine: 4, waste: 0, fertilizer: 8, keepsakes: 0, ice: 0, tools: 0 }, sites: {}, crew: [], creatures: [], anomaly: null, jobs: [], log: [], mission: null, stats: { built: 0, mined: 0, returned: 0, solarCells: 0, trapped: 0 }, comet: { arrives: 180, leaves: 480 }, flags: {}, objectives: {} };
@@ -135,6 +136,11 @@ export function createGame(seed = 74219) {
   const solar = s.sites.solar = createSite('solar', 18);
   for (const t of solar.tiles) if (Math.min(distance([t.x,t.y],[6,9]), distance([t.x,t.y],[10,9])) <= 2) t.terrain = 'deck';
   at(solar, 5, 10).building = 'dock'; at(solar, 10, 8).building = 'collector';
+  s.region=makeRegion(seed);
+  for(const def of Object.values(s.region.sites))if(!Object.hasOwn(s.sites,def.id)){
+    const site=s.sites[def.id]=createSite(def.id,def.size,def.kind),layout=generatedLayout(def);
+    for(let i=0;i<site.tiles.length;i++)Object.assign(site.tiles[i],layout[i]);
+  }
   log(s, 'Kepler’s Rest established. Seven crew. One small foothold.', 'good');
   log(s, 'Relay K-07 detected in near orbit. Its components could transform this colony.', 'discovery');
   updateRooms(ground); ground.rooms.forEach(r => fillRoom(r)); updateRooms(ground);
@@ -181,7 +187,7 @@ export function order(s, siteId, x, y, kind, building = null, z = 0) {
     building='stairwell';cost={...STAIR_WORK[kind].cost};work=STAIR_WORK[kind].work;
   } else if(kind==='extinguish'){if(!t.fire)return {ok:false,message:'Select an active fire.'};cost={water:FIRE.suppressionWater};work=FIRE.suppressionWork;
   } else if (kind === 'build') {
-    if (!['surface', 'wreck'].includes(siteId)) return { ok: false, message: 'Construction requires the surface colony or wreck habitat.' };
+    if (!settlementSite(site)) return { ok: false, message: 'Construction requires a settlement-capable site.' };
     const def = BUILDINGS[building]; if (!def) return { ok: false, message: 'Unknown structure.' };
     if(riserKind(building)){const ready=riserPlacement(s,site,target,building);if(!ready.ok)return ready;}
     if(building==='stairwell'){const placement=stairPlacement(s,site,target);if(!placement.ok)return placement;}
@@ -567,7 +573,7 @@ function act(s, c, air) {
   if (s.mission?.phase === 'boarding' && c.site === s.mission.site && returnCrewIds(s).includes(c.id) && c.carry && c.delivery?.kind !== 'shuttle' && haul(s,c,site,plannedPath)) return;
   if (c.site !== 'surface' && s.mission?.phase === 'boarding' && boardShuttle(s, c, site, plannedPath)) return;
   if (c.site !== 'surface' && (c.carry || c.intent?.type === 'salvage') && haulSalvage(s, c, site, plannedPath)) return;
-  if (['surface','wreck'].includes(c.site) && recover(s, c, site)) return;
+  if (settlementSite(site) && recover(s, c, site)) return;
   if (useSanitation(s, c, site, plannedPath, release)) return;
   if (c.carry && haul(s, c, site, plannedPath)) return;
   if (medicalRest(s, c, site, plannedPath)) return;
@@ -605,7 +611,7 @@ function act(s, c, air) {
     return;
   }
   c.job = null;
-  if (['surface','wreck'].includes(c.site) && haul(s, c, site, plannedPath)) return;
+  if (settlementSite(site) && haul(s, c, site, plannedPath)) return;
   if (c.site !== 'surface' && haulSalvage(s, c, site, plannedPath)) return;
   c.activity = c.site === 'surface' ? 'Available for assigned work' : 'Awaiting expedition orders';
 }
@@ -613,7 +619,7 @@ export function launch(s, siteId, crewIds = undefined) {
   const blocked=expeditionLaunchBlock(s,siteId);if(blocked)return {ok:false,message:blocked.message,code:blocked.code};
   const selected=selectExpeditionCrew(s,crewIds,siteId);if(!selected.ok)return selected;
   planDeparture(s, siteId, selected.crew); updateDeparture(s, order, release);
-  log(s, `Preparing expedition to ${SITES[siteId].name}. Load supplies, then board.`, 'info'); return { ok: true };
+  log(s, `Preparing expedition to ${siteDefinition(s,siteId).name}. Load supplies, then board.`, 'info'); return { ok: true };
 }
 function endDeparture(s,reason) {
   const d=s.departure;if(!d)return;
@@ -627,7 +633,7 @@ export function cancelDeparture(s) {
   return { ok: true };
 }
 function missionEvent(s,event,m,previous,next,details={}) {
-  emitEvent(s,event,{entity:'colony',site:`site:${m.site}`,crewIds:[...m.crew],returnCrewIds:[...m.returnCrew],previous,next,cargo:m.cargo,tick:s.tick,...details});
+  emitEvent(s,event,{entity:'colony',site:`site:${m.site}`,route:routeDefinition(s,m.site)?.id,crewIds:[...m.crew],returnCrewIds:[...m.returnCrew],previous,next,cargo:m.cargo,tick:s.tick,...details});
 }
 export function recall(s,reason='player') {
   const m = s.mission; if (!m || ['returning', 'boarding'].includes(m.phase)) return { ok: false, message: 'No expedition to recall.' };
@@ -658,24 +664,26 @@ function updateFieldHazards(s, m) {
 
 }
 function updateWreckHazards(s) {
-  if (s.tick % 65 !== 0) return;
-  const site = s.sites.wreck, presence = shuttlePresence(s, 'wreck');
-  let exposed = 0;
-  for (const c of s.crew.filter(c => c.site === 'wreck' && c.health > 0)) {
-    const room = roomAt(site,c.x,c.y,c.z), tile = shipmentTile(site,positionOf(c));
-    const sheltered = tile.terrain === 'floor' && room?.sealed && room.leakArea <= 1e-8;
-    const docked = presence.usable && sameCell(positionOf(c),positionOf(presence.terminal));
-    if (sheltered || docked) continue;
-    const shield = presence.present && returnCrewIds(s).includes(c.id) ? SHUTTLE_FITS[s.mission.fit].damage : 1;
-    const damage = 4 * shield;
-    injure(s, c, damage, 'debris impact'); exposed++;
-    emitEvent(s, 'wreck.debris.exposure', { entity: c.id, site: 'site:wreck', target: tileEntityId('wreck', c.x, c.y, c.z), damage, reason: 'outside_shelter' });
+  for(const site of Object.values(s.sites)) {
+    if(siteKind(site)!=='wreck')continue;
+    const definition=siteDefinition(s,site.id),hazard=definition?.debris||{period:65,damage:4};
+    if(s.tick%hazard.period!==0)continue;
+    const presence=shuttlePresence(s,site.id);let exposed=0;
+    for(const c of s.crew.filter(c=>c.site===site.id&&c.health>0)) {
+      const room=roomAt(site,c.x,c.y,c.z),tile=shipmentTile(site,positionOf(c));
+      const sheltered=tile.terrain==='floor'&&room?.sealed&&room.leakArea<=1e-8;
+      const docked=presence.usable&&sameCell(positionOf(c),positionOf(presence.terminal));
+      if(sheltered||docked)continue;
+      const shield=presence.present&&returnCrewIds(s).includes(c.id)?SHUTTLE_FITS[s.mission.fit].damage:1,damage=hazard.damage*shield;
+      injure(s,c,damage,'debris impact');exposed++;
+      emitEvent(s,'wreck.debris.exposure',{entity:c.id,site:`site:${site.id}`,target:tileEntityId(site.id,c.x,c.y,c.z),damage,reason:'outside_shelter'});
+    }
+    if(exposed)log(s,`Debris impact at ${definition.name}. Exposed crew need shelter.`,'danger');
   }
-  if (exposed) log(s, 'Debris impact at Relay K-07. Exposed crew need shelter.', 'danger');
 }
 function localRecoveryAvailable(s, c) {
-  if (c.site !== 'wreck') return false;
-  const site = s.sites.wreck;
+  if(c.site==='surface'||!settlementSite(s.sites[c.site]))return false;
+  const site=s.sites[c.site];
   const safeRooms = site.rooms.filter(r => breathable(r) && thermalSafe(r));
   const goals = safeRooms.flatMap(r => r.cells.map(k => roomCellPosition(r,k)));
   if (!goals.length || crewPathToPosition(s,site,c,goals) === null) return false;
@@ -693,7 +701,7 @@ function updateMission(s) {
   }
   if (m.phase === 'boarding') {
     const site = s.sites[m.site], dock = dockAt(site), ids=returnCrewIds(s), passengers=returnCrewMembers(s), crew=passengers.filter(c=>c.health>0);
-    if (!ids.length || passengers.length!==ids.length || (!crew.length&&!allReturnTravelersDead(s)) || !dock || s.jobs.some(isFreightJob) || crew.some(c => c.site!==m.site || c.x !== dock.x || c.y !== dock.y || c.carry || c.rescue || c.airlockTraversal)) return;
+    if (!ids.length || passengers.length!==ids.length || (!crew.length&&!allReturnTravelersDead(s)) || !dock || s.jobs.some(isFreightJob) || crew.some(c => c.site!==m.site || !sameCell(positionOf(c),positionOf(dock)) || c.carry || c.rescue || c.airlockTraversal)) return;
     if (!spendReturnFuel(s)) return;
     for (const helper of s.crew) if (crew.some(c => c.id === helper.rescue?.patient)) releaseRescue(s,helper,'patient_boarded');
     for (const c of crew) {
@@ -713,12 +721,12 @@ function updateMission(s) {
     if (--m.remaining > 0) return;
     if (m.phase === 'outbound') {
       m.phase = 'working'; deployKit(s); s.sites[m.site].explored = true;
-      m.crew.forEach((id, i) => { const c = s.crew.find(c => c.id === id); c.site = m.site; c.x = m.site === 'wreck' ? 4 + i : 5 + i; c.y = 10; c.activity = 'Expedition ready'; });
+      m.crew.forEach((id, i) => { const c = s.crew.find(c => c.id === id); c.site = m.site; c.x = siteKind(s.sites[m.site]) === 'wreck' ? 4 + i : 5 + i; c.y = 10; c.z=0; c.activity = 'Expedition ready'; });
       missionEvent(s,'expedition.arrived',m,'outbound','working',{reason:'outbound_transit_completed',from:'site:surface',to:`site:${m.site}`,positions:m.crew.map(id=>{const c=s.crew.find(c=>c.id===id);return {entity:id,tile:tileEntityId(c.site,c.x,c.y)};}),collector:m.collector});
-      log(s, `Arrived at ${SITES[m.site].name}. ${m.site === 'solar' ? 'Collectors deployed.' : 'Designate material for salvage.'}`, 'discovery');
+      log(s, `Arrived at ${siteDefinition(s,m.site).name}. ${m.site === 'solar' ? 'Collectors deployed.' : 'Designate material for salvage.'}`, 'discovery');
     } else {
       const returned=[];
-      for (const c of returnCrewMembers(s)) { if (c.site !== 'transit') continue; c.site = 'surface'; c.x = 10; c.y = 11; c.activity = 'Returned from expedition'; returned.push(c.id); }
+      for (const c of returnCrewMembers(s)) { if (c.site !== 'transit') continue; c.site = 'surface'; c.x = 10; c.y = 11; c.z=0; c.activity = 'Returned from expedition'; returned.push(c.id); }
       spill(at(s.sites.surface, 16, 11), m.cargo);
       if (m.cargo.components&&!s.flags.salvageReturned) {
         s.flags.salvageReturned=true;
@@ -889,16 +897,19 @@ export function deserialize(text) {
   if (text.length > 5_000_000) throw new Error('Save is too large.');
   const s = JSON.parse(text),legacySolarModel=s?.version<59;
   if (Number.isInteger(s?.version) && s.version >= 1 && s.version <= 39) throw new Error('Legacy square-grid saves (schemas 1–39) cannot be loaded into the hex colony. Export the original save and use the preserved square version to continue it.');
-  if (![40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, VERSION].includes(s?.version) || s.grid !== GRID) throw new Error('Unsupported save topology: schemas 40–64 require grid hex-odd-q-v1.');
+  if (![40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, VERSION].includes(s?.version) || s.grid !== GRID) throw new Error('Unsupported save topology: schemas 40–65 require grid hex-odd-q-v1.');
   if ( !Number.isSafeInteger(s.tick) || s.tick < 0 || !Number.isInteger(s.rng) || !Number.isSafeInteger(s.nextId)) throw new Error('Unsupported or invalid save.');
   if (!s.sites || !Array.isArray(s.crew) || s.crew.length !== 7 || !Array.isArray(s.jobs) || !Array.isArray(s.log) || !s.stats || !s.comet || !s.flags || !s.objectives) throw new Error('Incomplete save.');
   if(s.version<64&&s.resources){if((s.resources.tools||0)!==0)throw new Error('Legacy tools.');s.resources.tools=0;}
   for (const r of RESOURCES) if (!Number.isFinite(s.resources?.[r]) || s.resources[r] < 0) throw new Error('Invalid resources.');
-  for (const id of Object.keys(SITES)) {
+  if(s.version<65&&Object.values(s.sites).some(site=>!['surface','comet'].includes(site.id)&&site.tiles?.some(t=>t.deposit?.resource==='ice')))throw new Error('Legacy ice reserve site.');
+  if(s.version>=65)validateRegion(s);
+  for (const id of Object.keys(siteDefinitions(s))) {
     const site = s.sites[id], size = id === 'surface' ? 26 : 18;
     if (site?.id !== id || site.size !== size || site.tiles?.length !== size ** 2 * (s.version>=55?site.levels?.length:1) || !Array.isArray(site.rooms) || !site.power) throw new Error('Invalid site.');
     site.tiles.forEach((t, i) => { if (t.x !== i % size || t.y !== Math.floor((i % (size*size)) / size) || !['ground', 'rock', 'ore', 'floor', 'deck', 'ice', 'void'].includes(t.terrain) || (t.building && !BUILDINGS[t.building] && !['shuttle', 'dock', 'salvage', 'volatile', 'collector'].includes(t.building)) || !Number.isFinite(t.hp)) throw new Error('Invalid tile.'); });
   }
+  if(s.version<65)migrateRegion(s);
   validateUtilityState(s);
   validateDeckState(s, { legacy: s.version <= 46 });
   validateShipmentLocations(s, { legacy: s.version <= 47 });
@@ -945,19 +956,20 @@ export function deserialize(text) {
   if(s.version===61)s.version=VERSION;
   if(s.version===62)s.version=VERSION;
   if(s.version===63)s.version=VERSION;
+  if(s.version===64)s.version=VERSION;
   const ids = new Set();
   for (const c of s.crew) {
-    if (ids.has(c.id) || typeof c.name !== 'string' || c.name.length > 80 || !['surface', 'wreck', 'comet', 'solar', 'transit'].includes(c.site) || ![c.health, c.oxygen, c.energy, c.hunger, c.skill].every(Number.isFinite) || !Number.isInteger(c.x) || !Number.isInteger(c.y) || (c.site !== 'transit' && !inside(s.sites[c.site], c.x, c.y))) throw new Error('Invalid crew.');
+    if (ids.has(c.id) || typeof c.name !== 'string' || c.name.length > 80 || !(c.site==='transit'||Object.hasOwn(s.sites,c.site)) || ![c.health, c.oxygen, c.energy, c.hunger, c.skill].every(Number.isFinite) || !Number.isInteger(c.x) || !Number.isInteger(c.y) || (c.site !== 'transit' && !inside(s.sites[c.site], c.x, c.y))) throw new Error('Invalid crew.');
     ids.add(c.id);
   }
-  if (s.mission && (!SITES[s.mission.site]?.fuel || !['outbound', 'working', 'boarding', 'returning'].includes(s.mission.phase) || !Array.isArray(s.mission.crew) || !expeditionCrewCountAllowed(s,s.mission.site,s.mission.crew.length) || new Set(s.mission.crew).size !== s.mission.crew.length || !s.mission.crew.every(id => ids.has(id)) || !Number.isFinite(s.mission.remaining) || !s.mission.cargo)) throw new Error('Invalid expedition.');
+  if (s.mission && (!siteDefinition(s,s.mission.site)?.fuel || !['outbound', 'working', 'boarding', 'returning'].includes(s.mission.phase) || !Array.isArray(s.mission.crew) || !expeditionCrewCountAllowed(s,s.mission.site,s.mission.crew.length) || new Set(s.mission.crew).size !== s.mission.crew.length || !s.mission.crew.every(id => ids.has(id)) || !Number.isFinite(s.mission.remaining) || !s.mission.cargo)) throw new Error('Invalid expedition.');
   const amount = v => Number.isFinite(v) && v >= 0;
   const percent = v => amount(v) && v <= 100;
   const inventory = v => v && typeof v === 'object' && !Array.isArray(v) && Object.entries(v).every(([r, n]) => r === '_food' || r === '_items' || (RESOURCES.includes(r) && amount(n))) && validFoodLots(v) && validItemLots(v);
   validateOutpostState(s);
   if (!Number.isSafeInteger(s.comet.arrives) || !Number.isSafeInteger(s.comet.leaves) || s.comet.leaves <= s.comet.arrives || !Object.values(s.stats).every(amount)) throw new Error('Invalid simulation counters.');
   for (const site of Object.values(s.sites)) {
-    if (!['surface', 'wreck', 'comet', 'solar'].includes(site.id) || !Object.values(site.power).every(amount) || !percent(site.air)) throw new Error('Invalid environment.');
+    if (!Object.hasOwn(siteDefinitions(s),site.id) || !Object.values(site.power).every(amount) || !percent(site.air)) throw new Error('Invalid environment.');
     const gasValid = gas => gas && typeof gas === 'object' && !Array.isArray(gas) && Object.keys(gas).length === GASES.length && GASES.every(k => amount(gas[k]));
     const close = (a, b) => Number.isFinite(a) && Math.abs(a - b) < 1e-8;
     const atmosphere = site.atmosphere;
@@ -1064,8 +1076,8 @@ export function deserialize(text) {
     if (!s.mission.crew.every(id => {const c=s.crew.find(c=>c.id===id);return c.health<=0 || c.site===expected || s.mission.phase==='returning'&&!returnCrewIds(s).includes(id)&&c.site===s.mission.site&&isResident(s,id,s.mission.site);})) throw new Error('Expedition crew are in the wrong location.');
   }
   for (const c of s.crew) {
-    const resident=isResident(s,c.id,'wreck');
-    if(resident&&c.health>0&&c.site!=='wreck')throw new Error('Outpost resident is in the wrong location.');
+    const resident=residentSite(s,c.id);
+    if(resident&&c.health>0&&c.site!==resident)throw new Error('Outpost resident is in the wrong location.');
     if(c.site!=='surface'&&c.health>0&&!resident){
       const active=s.mission&&(s.mission.phase==='returning'?returnCrewIds(s):s.mission.crew).includes(c.id);
       if(!active)throw new Error('Crew are stranded outside an expedition.');

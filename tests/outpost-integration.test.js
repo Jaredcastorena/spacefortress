@@ -1,3 +1,4 @@
+import {defaultOutposts as expectedOutposts} from '../src/outposts.js';
 import { currentOutpost as field } from './helpers/current-outpost.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -32,9 +33,9 @@ function reload(s) {
 test('fresh shared departure supplies and physically boards the chosen crew with detached outpost owners', () => {
   const s = createGame(), request = ['crew-2', 'crew-4'];
   assert.equal(s.version, VERSION);
-  assert.deepEqual(s.outposts, { wreck: { established: false, residents: [] } });
+  assert.deepEqual(s.outposts, expectedOutposts(s));
   const emptyOwners = [s.shuttle.freight, ...Object.values(s.sites).flatMap(site => site.tiles.filter(t => t.building === 'dock').map(t => t.imports))];
-  assert.equal(emptyOwners.length, 4); assert.equal(new Set(emptyOwners).size, 4);
+  assert.equal(emptyOwners.length, 6); assert.equal(new Set(emptyOwners).size, 6);
   assert.ok(emptyOwners.every(owner => JSON.stringify(owner) === '{}'));
   act(s, 'expedition.launch', { site: 'wreck', crewIds: request });
   assert.equal(s.mission, null);

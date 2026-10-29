@@ -1,3 +1,4 @@
+import {projectPreRegion} from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -12,8 +13,8 @@ import {refreshPower} from '../src/power.js';
 import {startRecording,exportRecording} from '../src/telemetry.js';
 const raw=gunzipSync(readFileSync(new URL('./fixtures/stairs-schema54.json.gz',import.meta.url))).toString();
 const events=s=>exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>r.event).map(r=>r.event);
-function fixture(){
- const s=createGame(74219),site=s.sites.surface;
+function fixture(classic=false){
+ const fresh=createGame(74219),s=classic?deserialize(JSON.stringify({...projectPreRegion(fresh,{allowUnvisited:true}),version:64})):fresh,site=s.sites.surface;
  for(const c of s.crew){for(const k of Object.keys(c.labors))c.labors[k]=false;c.life.policy='work';}
  const c=s.crew[0];c.labors.construction=true;for(const t of site.tiles)if(t.machine)t.machine.enabled=false;refreshPower(s,site);
  const landing=site.tiles.find(t=>t.terrain==='floor'&&!t.building&&!t.drop&&!t.pipe&&!t.waterPipe);
@@ -21,11 +22,11 @@ function fixture(){
 }
 function build(f,p=f.landing,building='stairwell'){const r=executeAction(f.s,'job.order',{site:'surface',...positionOf(p),kind:'build',building});assert.equal(r.ok,true,r.message);return f.s.jobs.find(j=>j.id===r.job);}
 function until(f,p,limit=80){for(let i=0;i<limit&&!p();i++)step(f.s);assert.ok(p(),`Tick ${f.s.tick}: ${f.c.activity}; ${f.s.jobs.map(j=>j.blockedReason).join(', ')}`);}
-function completeStairs(){const f=fixture(),job=build(f);until(f,()=>!f.s.jobs.includes(job));assert.equal(f.site.verticalLinks.length,1);return f;}
+function completeStairs(classic=false){const f=fixture(classic),job=build(f);until(f,()=>!f.s.jobs.includes(job));assert.equal(f.site.verticalLinks.length,1);return f;}
 
 test('genuine schema54 migration preserves the paid pending order and all physical state',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'d88a01906892db7301d22a511e7316386f2694070322d856cd38292d3fdfb73c');
- const old=JSON.parse(raw),s=deserialize(raw);assert.equal(old.version,54);old.version=VERSION;old.resources.tools=0;for(const site of Object.values(old.sites))site.utilityLinks=[];assert.deepEqual(s,old);assert.equal(serialize(deserialize(serialize(s))),serialize(s));
+ const old=JSON.parse(raw),s=deserialize(raw);assert.equal(old.version,54);old.version=VERSION;old.resources.tools=0;for(const site of Object.values(old.sites))site.utilityLinks=[];assert.deepEqual(projectPreRegion(s),old);assert.equal(serialize(deserialize(serialize(s))),serialize(s));
  for(const mutate of [v=>v.sites.surface.tiles[0].verticalLink='vertical-1',v=>v.jobs[0].building='stairwell']){const v=JSON.parse(raw);mutate(v);assert.throws(()=>deserialize(JSON.stringify(v)),/Legacy.*stairwell/);}
 });
 
@@ -63,8 +64,9 @@ test('cancelling a stair before completion creates no upper grid and preserves m
 });
 
 test('current saves reject inconsistent decks, links and located references',()=>{
- const f=completeStairs(),saved=serialize(f.s);
+ // Build in a classic catalog before demotion; do not erase evolved sites.
+ const f=completeStairs(true),saved=serialize(f.s);
  const changes=[s=>s.sites.surface.levels[1].z=7,s=>s.sites.surface.tiles.pop(),s=>s.sites.surface.tiles.at(-1).z=0,s=>delete tileAt(s.sites.surface,s.sites.surface.verticalLinks[0].upper).verticalLink,s=>s.sites.surface.verticalLinks.push(structuredClone(s.sites.surface.verticalLinks[0])),s=>s.sites.surface.verticalLinks[0].upper.z=2,s=>tileAt(s.sites.surface,s.sites.surface.verticalLinks[0].upper).terrain='void',s=>s.sites.surface.verticalLinks[0].openUntil=s.tick+4,s=>s.nextId=1,s=>s.crew[0].z=2,s=>s.creatures[0].z=2,s=>s.sites.surface.rooms[0].z=2];
  for(const change of changes){const s=JSON.parse(saved);change(s);assert.throws(()=>deserialize(JSON.stringify(s)));}
- const old=JSON.parse(saved);old.version=54;assert.throws(()=>deserialize(JSON.stringify(old)));
+ const old=projectPreRegion(JSON.parse(saved));old.version=54;assert.throws(()=>deserialize(JSON.stringify(old)));
 });

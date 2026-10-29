@@ -1,3 +1,4 @@
+import {siteDefinitions,siteDefinition,outpostSiteIds} from './region.js';
 import {TOOL_RECIPES,TOOL_MATERIALS} from './tool-data.js';
 import {equipTool,releaseTool,cancelToolPickup} from './tools.js';
 import {discreteResource} from './item-lots.js';
@@ -43,7 +44,7 @@ import { beginAction, endAction, observe, recordingStatus, startRecording, stopR
 
 const enumeration=values=>({type:'string',enum:values});
 const integer=(minimum,maximum)=>({type:'integer',minimum,maximum});
-const site=enumeration(['surface','wreck','comet','solar']),xy={site,x:integer(0,1000),y:integer(0,1000)},enabled={type:'boolean'},crew={type:'string',entityType:'crew'},job={type:'string',entityType:'job'},priority={type:'integer',enum:[1,3,5]};
+const site={type:'string',entityType:'site'},xy={site,x:integer(0,1000),y:integer(0,1000)},enabled={type:'boolean'},crew={type:'string',entityType:'crew'},job={type:'string',entityType:'job'},priority={type:'integer',enum:[1,3,5]};
 const inventoryRequest={type:'object',properties:Object.fromEntries(RESOURCES.map(resource=>[resource,{type:discreteResource(resource)?'integer':'number',exclusiveMinimum:0}])),minProperties:1,maxProperties:RESOURCES.length,additionalProperties:false};
 const optional=schema=>({...schema,optional:true});
 const entries=[];
@@ -80,7 +81,7 @@ register('expedition.return_crew','setReturnCrew','Choose one or two living pass
 register('expedition.cargo','setCargoAccepted','Choose resources accepted in the shuttle hold.',{resource:enumeration(RESOURCES),enabled},setCargoAccepted);
 register('freight.load','loadFreight','Order workers to physically load specified local supplies into the surface shuttle hold.',{items:inventoryRequest},(s,items)=>sim.loadFreight(s,items));
 register('freight.unload','unloadFreight','Order workers to unload specified freight, or all current freight, at the present shuttle berth.',{site,items:optional(inventoryRequest)},(s,siteId,items)=>sim.unloadFreight(s,siteId,items));
-register('outpost.residents','setOutpostResidents','Station named visitors in a ready habitat while retaining a living return passenger. Remote residents leave only on physical departure; remove surface or deceased entries here.',{site:enumeration(OUTPOST_SITES),crewIds:{type:'array',items:crew,minItems:0,maxItems:7,uniqueItems:true}},setOutpostResidents);
+register('outpost.residents','setOutpostResidents','Station named visitors in a ready habitat while retaining a living return passenger. Remote residents leave only on physical departure; remove surface or deceased entries here.',{site:{type:'string',entityType:'outpost'},crewIds:{type:'array',items:crew,minItems:0,maxItems:7,uniqueItems:true}},setOutpostResidents);
 register('signal.resolve','resolveSignal','Investigate or isolate the current anomaly.',{investigate:enabled},sim.resolveSignal);
 register('power.discharge_cell','dischargeCell','Consume a stored energy cell to charge a bank.',{x:optional({type:['integer','null'],minimum:0,maximum:1000}),y:optional({type:['integer','null'],minimum:0,maximum:1000})},sim.dischargeCell);
 registerTile('housing.assign','setBunkOwner','Assign a bunk to one living crew member, or null for communal use.',{...xy,crew:{type:['string','null'],entityType:'crew'}},setBunkOwner);
@@ -127,7 +128,14 @@ register('husbandry.breed','setBreeding','Allow or stop new brood pairing. Exist
 register('husbandry.policy','setAnimalPolicy','Enable or pause automatic feeding/handling or curd collection.',{creature:{type:'string',entityType:'creature'},policy:enumeration(['care','harvest']),enabled},sim.setAnimalPolicy);
 register('simulation.step','step','Advance 1–300 deterministic simulation ticks.',{ticks:integer(1,300)},(s,ticks)=>{sim.step(s,ticks);return {ok:true};});
 
-export function actionCatalog() {return JSON.parse(JSON.stringify(entries.map(({run,binding,parameters,...entry})=>({...entry,parameters:{type:'object',properties:parameters,required:Object.keys(parameters).filter(k=>!parameters[k].optional),additionalProperties:false}}))));}
+export function actionCatalog(s) {
+ const catalog=JSON.parse(JSON.stringify(entries.map(({run,binding,parameters,...entry})=>({...entry,parameters:{type:'object',properties:parameters,required:Object.keys(parameters).filter(k=>!parameters[k].optional),additionalProperties:false}}))));
+ for(const entry of catalog)for(const schema of Object.values(entry.parameters.properties)) {
+  if(schema.entityType==='site')schema.enum=Object.keys(siteDefinitions(s));
+  if(schema.entityType==='outpost')schema.enum=s?outpostSiteIds(s):[...OUTPOST_SITES];
+ }
+ return catalog;
+}
 function invalidValue(s,v,schema,key) {
   if(v===undefined&&schema.optional)return null;
   const types=[schema.type].flat();
@@ -150,6 +158,8 @@ function invalidValue(s,v,schema,key) {
       const error=invalidValue(s,v[name],schema.properties[name],`${key}.${name}`);if(error)return error;
     }
   }
+  if(v!==null&&schema.entityType==='site'&&!siteDefinition(s,v))return 'Unknown site.';
+  if(v!==null&&schema.entityType==='outpost'&&!outpostSiteIds(s).includes(v))return 'Unknown settlement site.';
   if(v!==null&&schema.entityType==='crew'&&!s.crew.some(c=>c.id===v))return 'Unknown crew member.';
   if(schema.entityType==='creature'&&!s.creatures.some(c=>c.id===v))return 'Unknown creature.';
   if(schema.entityType==='job'&&!s.jobs.some(j=>j.id===v))return 'Unknown job.';
@@ -196,5 +206,5 @@ export function controlBindings(getState,source='player') {
   return Object.fromEntries(entries.filter(e=>e.binding!=='step').map(e=>[e.binding,(_state,...values)=>executeAction(getState(),e.id,Object.fromEntries(Object.keys(e.parameters).map((k,i)=>[k,values[i]]).filter(([,v])=>v!==undefined)),source)]));
 }
 export function createAgentInterface(getState,beforeAction=()=>{},afterAction=()=>{}) {
-  return Object.freeze({version:1,definitions:()=>JSON.parse(JSON.stringify({grid:GRID,directions:DIRECTIONS,gasNetworks:GAS_NETWORK,gasDirections:GAS_DIRECTIONS,plumbing:PLUMBING,waterDirections:WATER_DIRECTIONS,breakerDirections:BREAKER_DIRECTIONS,breakerModes:BREAKER_MODES,liquids:LIQUID,reactor:REACTOR,fire:FIRE,animalTransport:{work:TRANSPORT_WORK,stepInterval:TRANSPORT_STEP,tameOnly:true},breeding:BREEDING,livestock:LIVESTOCK,animalTraits:ANIMAL_TRAITS,veterinary:VETERINARY,butchery:BUTCHERY,flora:FLORA,cultivation:CULTIVATION,foodKinds:FOOD_KINDS,crops:CROPS,mealRecipes:MEAL_RECIPES,toolRecipes:TOOL_RECIPES,toolMaterials:TOOL_MATERIALS,buildings:BUILDINGS,recipes:RECIPES,resources:RESOURCES,shuttleFits:SHUTTLE_FITS,outposts:{sites:OUTPOST_SITES,commissioningReserves:OUTPOST_RESERVES},itemStyles:ITEM_STYLES,extraction:{ice:{capacity:ICE_SEAM_CAPACITY,perOrder:ICE_EXTRACTION_AMOUNT}}})),actions:actionCatalog,observe:()=>observe(getState()),act:(id,args={})=>{beforeAction();try{return executeAction(getState(),id,args,'agent');}finally{afterAction();}},recording:Object.freeze({status:()=>recordingStatus(getState()),start:options=>startRecording(getState(),options),stop:()=>stopRecording(getState()),export:()=>exportRecording(getState())})});
+  return Object.freeze({version:1,definitions:()=>JSON.parse(JSON.stringify({grid:GRID,directions:DIRECTIONS,gasNetworks:GAS_NETWORK,gasDirections:GAS_DIRECTIONS,plumbing:PLUMBING,waterDirections:WATER_DIRECTIONS,breakerDirections:BREAKER_DIRECTIONS,breakerModes:BREAKER_MODES,liquids:LIQUID,reactor:REACTOR,fire:FIRE,animalTransport:{work:TRANSPORT_WORK,stepInterval:TRANSPORT_STEP,tameOnly:true},breeding:BREEDING,livestock:LIVESTOCK,animalTraits:ANIMAL_TRAITS,veterinary:VETERINARY,butchery:BUTCHERY,flora:FLORA,cultivation:CULTIVATION,foodKinds:FOOD_KINDS,crops:CROPS,mealRecipes:MEAL_RECIPES,toolRecipes:TOOL_RECIPES,toolMaterials:TOOL_MATERIALS,buildings:BUILDINGS,recipes:RECIPES,resources:RESOURCES,shuttleFits:SHUTTLE_FITS,sites:siteDefinitions(getState()),region:getState().region,outposts:{sites:outpostSiteIds(getState()),commissioningReserves:OUTPOST_RESERVES},itemStyles:ITEM_STYLES,extraction:{ice:{capacity:ICE_SEAM_CAPACITY,perOrder:ICE_EXTRACTION_AMOUNT}}})),actions:()=>actionCatalog(getState()),observe:()=>observe(getState()),act:(id,args={})=>{beforeAction();try{return executeAction(getState(),id,args,'agent');}finally{afterAction();}},recording:Object.freeze({status:()=>recordingStatus(getState()),start:options=>startRecording(getState(),options),stop:()=>stopRecording(getState()),export:()=>exportRecording(getState())})});
 }

@@ -1,3 +1,4 @@
+import { settlementSite } from './region.js';
 import {tileAt,positionOf,sameCell,horizontalNeighbors} from './spatial.js';
 import {emitEvent,tileEntityId} from './telemetry.js';
 
@@ -63,7 +64,7 @@ export function stairJobClaims(j,p,site){
 }
 export function stairPlacement(s,site,lower,ignoreJob=null){
  const reject=(code,message)=>({ok:false,code,message}),bottom=tileAt(site,lower),upper={...positionOf(lower),z:lower.z+1},top=tileAt(site,upper);
- if(!['surface','wreck'].includes(site.id)||lower.z<0||upper.z>=MAX_DECKS)return reject('stair_limit','Stairs require a colony floor with room for another deck.');
+ if(!settlementSite(site)||lower.z<0||upper.z>=MAX_DECKS)return reject('stair_limit','Stairs require a colony floor with room for another deck.');
  if(!bottom||bottom.terrain!=='floor'||bottom.building||bottom.verticalLink||bottom.drop||bottom.fire)return reject('stair_landing','Start stairs on a clear habitat floor.');
  if(!top&&upper.z!==site.levels.length)return reject('stair_layout','The next deck must directly follow the existing decks.');
  if(top&&(!['void','floor'].includes(top.terrain)||top.building||top.verticalLink||top.drop||top.fire||top.cable||top.pipe||top.waterPipe))return reject('stair_landing','Clear the upper landing first.');

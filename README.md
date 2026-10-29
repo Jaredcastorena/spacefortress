@@ -2,17 +2,23 @@
 
 An early playable space colony simulator inspired by Dwarf Fortress. Keep seven alien founders alive, build a planetary colony, and send supplied expeditions into orbit to recover material for its next expansion.
 
-**[Play online](https://jaredcastorena.github.io/spacefortress/)** · [Online elements lab](https://jaredcastorena.github.io/spacefortress/elements.html) · [Release v0.1.9](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.9) · [Roadmap](ROADMAP.md)
+**[Play online](https://jaredcastorena.github.io/spacefortress/)** · [Online elements lab](https://jaredcastorena.github.io/spacefortress/elements.html) · [Release v0.1.10](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.10) · [Roadmap](ROADMAP.md)
 
 ![Local SPACEFORTRESS hex colony with original alien crew, an isometric habitat and closed detail drawers](docs/images/spacefortress-hex.png)
 
-**The game is still in development.** Build across connected floors using paid stairs, supported upper-floor extensions and a compact floor selector. Orbital destinations remain fixed. Long-lived staffed outposts, complete vertical systems, a generated universe/history and much of the wider simulation remain unfinished. The [implementation status](docs/implementation-status.md) separates working systems from plans.
+**The game is still in development.** Build across connected floors using paid stairs, supported upper-floor extensions and a compact floor selector. New colonies add two seeded orbital destinations alongside the four starter sites. Long-lived staffed outposts, complete vertical systems, a generated universe/history and much of the wider simulation remain unfinished. The [implementation status](docs/implementation-status.md) separates working systems from plans.
 
 ## Agent entry briefing
 
 Start with [CASTOR.md](CASTOR.md) for the current architecture, version boundaries and focused entry points. The [file map](docs/FILE_MAP.md) provides per-file navigation; the [version ledger](docs/AGENT_VERSIONS.md) preserves release and compatibility distinctions.
 
-## Local development after v0.1.9: floor-specific exposure
+## v0.1.10: a seeded orbital frontier
+
+New colonies include a resource outcrop and a derelict with different finite deposits, route costs, travel times and debris exposure. Open **Regions** to inspect their initial surveys and prepare a supplied expedition. Mining, paid construction, cargo return and revisiting preserve the actual site; each settlement has its own resident roster.
+
+Save schema65 preserves existing hex colonies as their original four-site region. Start a new colony to explore the generated sites; loading an older save does not add resources or replace terrain. This is one seeded planetary region, with broader universe generation and sustained outpost habitation still ahead.
+
+### Floor-specific exposure
 
 Crew fire injuries now follow the tile they occupy. Wreck-debris shelter uses the current floor, and a docked shuttle protects only occupants at its actual terminal position. Fire and debris exposure events identify the affected floor. Five new synthetic boundary cases cover stacked occupants, shelter, terminal protection and exact save continuation; ordinary upstairs endurance remains unfinished.
 

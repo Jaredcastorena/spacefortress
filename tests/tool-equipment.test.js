@@ -1,3 +1,5 @@
+import {VERSION} from '../src/data.js';
+import {projectPreRegion} from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -17,8 +19,8 @@ const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-9,`${a} != ${b}`);
 const call=(s,id,args)=>{const r=executeAction(s,id,args);assert.equal(r.ok,true,r.message);return r;};
 
 test('genuine schema63 migration changes only version and neutral tool resource total',()=>{
- const prior=JSON.parse(raw),expected=structuredClone(prior);expected.version=64;expected.resources.tools=0;
- const s=deserialize(raw);assert.deepEqual(JSON.parse(serialize(s)),expected);
+ const prior=JSON.parse(raw),expected=structuredClone(prior);expected.version=VERSION;expected.resources.tools=0;
+ const s=deserialize(raw);assert.deepEqual(projectPreRegion(JSON.parse(serialize(s))),expected);
  const copy=deserialize(serialize(s));step(s,2);step(copy,2);assert.equal(serialize(s),serialize(copy));
 });
 
@@ -58,7 +60,7 @@ test('tool and keepsake slots coexist and death releases both onto the actual fl
 test('malformed tools, duplicate ownership and unsupported legacy tool state reject saves',()=>{
  const s=createGame();pocket(s);const stable=JSON.parse(serialize(s));
  for(const edit of [x=>x.crew[0].possessions.inventory._items[0].condition=-1,x=>x.crew[0].possessions.inventory._items[0].material='unknown',x=>x.crew[1].possessions.inventory=structuredClone(x.crew[0].possessions.inventory),x=>x.version=63]){
-  const invalid=structuredClone(stable);edit(invalid);assert.throws(()=>deserialize(JSON.stringify(invalid)));
+  let invalid=structuredClone(stable);edit(invalid);if(invalid.version===63)invalid=projectPreRegion(invalid,{allowUnvisited:true});assert.throws(()=>deserialize(JSON.stringify(invalid)));
  }
 });
 
