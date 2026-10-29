@@ -1,6 +1,9 @@
 // Deck-aware cell addressing. No simulation state, rendering or vertical edges.
 import { neighbors } from './hex.js';
 
+// Stable physical-owner IDs. Ground IDs retain their original form.
+export const tileEntityId = (site,x,y,z=0) => `tile:${site}:${x}:${y}${z===0?'':`:${z}`}`;
+
 const position = p => !!p && ['x', 'y', 'z'].every(key => Number.isSafeInteger(p[key]));
 const qualified = p => position(p) && typeof p.site === 'string' && p.site.length > 0;
 

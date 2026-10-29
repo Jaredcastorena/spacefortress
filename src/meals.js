@@ -11,7 +11,7 @@ export function cookMeal(s,c,j,ingredients,recipeId=DEFAULT_MEAL) {
   for (const lot of foodLots(ingredients)) composition[lot.kind || 'ration'] = (composition[lot.kind || 'ration'] || 0) + lot.amount;
   const meal={id:`meal-${j.id}`,maker:c.id,quality:mealQualityForLevel(c.skills.production.level),created:s.tick,recipeId,ingredients:composition};
   const result={food:recipe.output.food};storeLots(result,[{amount:result.food,age:foodAge(ingredients),meal}]);
-  emitEvent(s,'meal.prepared',{entity:tileEntityId(j.site,j.x,j.y),actor:c.id,job:j.id,batch:meal.id,quality:meal.quality,food:result.food,age:foodAge(ingredients),recipeId,ingredients:composition});
+  emitEvent(s,'meal.prepared',{entity:tileEntityId(j.site,j.x,j.y,j.z),actor:c.id,job:j.id,batch:meal.id,quality:meal.quality,food:result.food,age:foodAge(ingredients),recipeId,ingredients:composition});
   return result;
 }
 export function openedInventory(meal) {

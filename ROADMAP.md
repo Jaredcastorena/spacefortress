@@ -254,6 +254,8 @@ Expand the [upward/outward progression](docs/orbital-progression.md) into genera
 
 ### 8. Materials, tools and deeper production
 
+The existing physical-item foundation now preserves upstairs pickup, release, death and hauling, with actual-floor item and meal identities. This fixes custody for future equipment; manufactured tools, material properties and tool condition are still pending.
+
 Introduce reusable material properties, distinct manufactured items and tools, then expand recipes, equipment condition and repair around them. Track the remaining industry families in the [conversion inventory](docs/conversion-inventory.md).
 
 **Acceptance:** at least one complete extraction-to-tool production chain makes material choice and tool condition affect real work or failure. Items retain identity and properties through manufacture, transport, use, repair and saves. Required inputs and labor cannot be bypassed by an abstract global stock total.

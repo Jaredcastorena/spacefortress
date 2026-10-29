@@ -31,7 +31,7 @@ export function collectPossession(s,c,site,pathTo) {
       for(const item of inventory._items)if(!claimed.has(item.id))options.push({item,t,source,distance:route.length});
     }
     options.sort((a,b)=>Number(b.item.style===c.housing.preference)-Number(a.item.style===c.housing.preference)||b.item.quality-a.item.quality||a.distance-b.distance||a.item.id.localeCompare(b.item.id));
-    if(options.length){const {item,t,source}=options[0];intent.keepsake={id:item.id,target:positionOf(t),source};intent.target=null;emitEvent(s,'item.pickup.planned',{entity:item.id,actor:c.id,source:tileEntityId(site.id,t.x,t.y)});}
+    if(options.length){const {item,t,source}=options[0];intent.keepsake={id:item.id,target:positionOf(t),source};intent.target=null;emitEvent(s,'item.pickup.planned',{entity:item.id,actor:c.id,source:tileEntityId(site.id,t.x,t.y,t.z)});}
   }
   const claim=intent.keepsake;if(!claim)return false;
   const t=tileAt(site,claim.target),inventory=sourceInventory(t,claim.source),item=inventory?._items?.find(i=>i.id===claim.id),route=crewPathTo(s, site,c,[claim.target]);
@@ -39,7 +39,7 @@ export function collectPossession(s,c,site,pathTo) {
   if(route.length){advanceCrewRoute(s,c,site,[route.at(-1)]);c.activity='Collecting a personal keepsake';return true;}
   const shipment=extract(inventory,{keepsakes:1,_items:[item]});if(!shipment){delete intent.keepsake;return false;}
   add(p.inventory,shipment);if(claim.source==='drop'&&!quantity(t.drop))t.drop=null;delete intent.keepsake;
-  c.activity='Picked up a personal keepsake';emitEvent(s,'item.owned',{entity:item.id,actor:c.id,source:tileEntityId(site.id,t.x,t.y)});return true;
+  c.activity='Picked up a personal keepsake';emitEvent(s,'item.owned',{entity:item.id,actor:c.id,source:tileEntityId(site.id,t.x,t.y,t.z)});return true;
 }
 export function usePossession(s,c) {
   const item=c.possessions.inventory._items?.[0];if(!item)return;
@@ -56,13 +56,16 @@ export function setPossessionCollection(s,id,enabled) {
   if(enabled&&c.intent?.type==='leisure'&&!c.intent.rested)delete c.intent.searchedKeepsake;return {ok:true};
 }
 export function dropPossession(s,c,reason='death') {
-  if(c.site==='transit'||!c.possessions.inventory.keepsakes)return;
-  const item=c.possessions.inventory._items[0],site=s.sites[c.site];spill(site.tiles[c.y*site.size+c.x],c.possessions.inventory);c.possessions.inventory={};
-  emitEvent(s,'item.released',{entity:item.id,actor:c.id,target:tileEntityId(c.site,c.x,c.y),reason});
+  if(c.site==='transit'||!c.possessions.inventory.keepsakes)return false;
+  const item=c.possessions.inventory._items[0],tile=tileAt(s.sites[c.site],positionOf(c));
+  if(!tile)return false;
+  spill(tile,c.possessions.inventory);c.possessions.inventory={};
+  emitEvent(s,'item.released',{entity:item.id,actor:c.id,target:tileEntityId(c.site,c.x,c.y,c.z),reason});return true;
 }
 export function releasePossession(s,id) {
   const c=s.crew.find(c=>c.id===id&&c.health>0);if(!c||c.site==='transit'||!c.possessions.inventory.keepsakes)return {ok:false,message:'Choose a living owner at a local site.'};
-  dropPossession(s,c,'player');c.possessions.collect=false;return {ok:true};
+  if(!dropPossession(s,c,'player'))return {ok:false,code:'missing_owner_tile',message:'The owner has no local tile for this item.'};
+  c.possessions.collect=false;return {ok:true};
 }
 export function validatePossessions(s) {
   if(!Number.isSafeInteger(s.nextItemId)||s.nextItemId<1)throw new Error('Invalid item sequence.');

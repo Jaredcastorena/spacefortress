@@ -18,6 +18,14 @@ Only actual downtime grants enjoyment: leisure increases by `.03 × quality`, pl
 
 The crew inspector shows item identity, maker, quality and preference match. Collection can be disabled. **Put keepsake down here** creates a physical pile at the owner's location and disables collection until enabled again. Local death drops the same item once. Pocket items accompany crew during travel, separate from work shipments and shuttle cargo. Released remote items can become shuttle salvage when the cargo filter permits them.
 
+## Custody across floors
+
+Personal pickup follows existing stair routes and claims the actual source floor. Manual release and death place the same physical item at the owner’s current tile; they cannot deposit it at the matching downstairs coordinates. An unavailable local release tile leaves the pocket and collection policy intact. After a death, ordinary hauling can recover the item through the stairs.
+
+Physical inventory owners and item/meal events use the shared tile identity helper in `src/spatial.js`. Ground IDs retain `tile:site:x:y`; upper IDs append `:z`. Item ownership and split prepared-meal locations therefore distinguish stacked storage, loose piles and machine buffers. The telemetry module continues re-exporting the helper for existing callers.
+
+Six new cases cover observations, split meals, native stair pickup, closed-hatch claim recovery, shared release, death followed by hauling, exact save continuation and no-loss rejection. Crafted payloads and enclosed upper rooms are explicit initial fixtures; this does not establish upstairs manufacturing or endurance. All79 distinct affected cases passed. No new saved fields or recording schema were needed.
+
 ## Labels, recording and persistence
 
 The shared action catalog adds:

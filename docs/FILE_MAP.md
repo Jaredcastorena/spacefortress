@@ -393,3 +393,5 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 - [tests/helpers/airlock-floor-fixture.js](../tests/helpers/airlock-floor-fixture.js): explicitly synthetic stacked finite assemblies; distinct from ordinary colony acceptance.
 
 - [tests/stair-fire.test.js](../tests/stair-fire.test.js): cross-floor ignition, intact/damaged/automatic hatch containment, destination limits, event identity, save continuation and existing suppression.
+
+- [tests/item-location-floors.test.js](../tests/item-location-floors.test.js): actual-floor item and split-meal identities, native stair pickup, shared release, death/hauling custody, blocked routes and save continuation.

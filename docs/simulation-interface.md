@@ -2,6 +2,10 @@
 
 Implemented September 16, 2026, following the user's request to clearly mark small simulation interactions for eventual AI training. This is a local environment interface and recorder. No model, training service, network endpoint or external dependency is involved.
 
+## Physical item and meal locations
+
+`item.pickup.planned` and `item.owned` identify the actual-floor source; `item.released` identifies the actual-floor destination for manual release and death. `meal.prepared.entity` identifies the workstation’s floor. Item `location` and prepared-meal `locations` use the same canonical tile ID: ground remains `tile:site:x:y`, other floors append `:z`. No saved fields or observation-version changes accompany this address correction. Shared release preserves the pocket when the owner has no local tile; the action envelope reports `code: "simulation_rejected"` with `reason: "missing_owner_tile"`.
+
 ## Stair flame propagation
 
 `fire.ignited` adds `cause: "stair_spread"` and `connection: "vertical-N"` when a mature source ignites a fitting through a stair opening. `parent` identifies the source fire and `target` remains the actual-floor tile entity. No action bypasses fuel, oxygen or wetness checks. The existing `vertical.hatch` action controls intact hatch containment, while `job.order` with `kind: "extinguish"` uses normal delivered water and work. New flames burn from the following tick. This adds no saved fields or recording version.

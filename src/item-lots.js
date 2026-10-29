@@ -1,3 +1,5 @@
+import { tileEntityId } from './spatial.js';
+
 // Discrete items travel alongside resource counts. Never split a keepsake into fractions.
 export const ITEM_STYLES = { art:'Prismatic knot', quiet:'Meditation ring', company:'Story tokens' };
 export const fitAmount = (resource,amount,space) => resource==='keepsakes' ? Math.floor(Math.min(amount,space)+1e-9) : Math.min(amount,space);
@@ -17,7 +19,7 @@ export function takeItemLots(inventory,amount,requested=null) {
 }
 export function itemOwners(s) {
   const owners=[],put=(inventory,entity,slot)=>{if(inventory)owners.push({inventory,location:{entity,slot}});};
-  for(const site of Object.values(s.sites))for(const t of site.tiles){const id=`tile:${site.id}:${t.x}:${t.y}`;put(t.stock,id,'stock');put(t.drop,id,'drop');put(t.imports,id,'imports');put(t.sanitary?.output,id,'sanitary.output');if(t.machine)for(const slot of ['input','output','batch'])put(t.machine[slot],id,`machine.${slot}`);}
+  for(const site of Object.values(s.sites))for(const t of site.tiles){const id=tileEntityId(site.id,t.x,t.y,t.z);put(t.stock,id,'stock');put(t.drop,id,'drop');put(t.imports,id,'imports');put(t.sanitary?.output,id,'sanitary.output');if(t.machine)for(const slot of ['input','output','batch'])put(t.machine[slot],id,`machine.${slot}`);}
   for(const c of s.crew){put(c.carry,c.id,'carry');put(c.possessions?.inventory,c.id,'pocket');}
   for(const j of s.jobs){put(j.materials,j.id,'materials');j.sources.forEach((source,i)=>put(source.items,j.id,`sources.${i}`));}
   // Freight is one durable owner, separate from flight service stores and salvage.

@@ -66,3 +66,7 @@ Planting, watering and gathering now resolve full positions through validation, 
 ## Extraction checkpoint (schema63)
 
 Ice/impact reserves, natural terrain and salvage use shared source rules on the requested floor. Work, cancellation, completion, deposits, loose piles and event identities use full positions. Debris damage and retained material share the impact location. Native stair hauling carries recovered ore to storage. Construction blocks on active reserves at ordering and execution. Current fixed shuttle/expedition terminals remain on their existing floors.
+
+## Personal item and prepared-meal custody checkpoint
+
+Personal item release and death now resolve the actual crew tile. Pickup planning, ownership/release and meal-preparation events retain z. Shared inventory-owner enumeration uses canonical full-floor tile IDs, so both discrete items and split meal batches report their actual owners. Ground IDs remain stable; saves and observation schema are unchanged. Native stair pickup, closed-hatch cancellation/recovery, release, death and subsequent hauling pass bounded checks.

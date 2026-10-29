@@ -1,3 +1,4 @@
+import { tileEntityId } from './spatial.js';
 import {extractionStatus} from './extraction.js';
 import {solarStatus} from './solar.js';
 import { floraStatus, plantingEligibility, wateringEligibility } from './flora.js';
@@ -37,7 +38,7 @@ import { resourceEntries } from './inventory.js';
 export const TELEMETRY_VERSION = 9;
 const sessions = new WeakMap();
 const clone = value => JSON.parse(JSON.stringify(value));
-export const tileEntityId = (site,x,y,z=0) => `tile:${site}:${x}:${y}${z===0?'':`:${z}`}`;
+export { tileEntityId } from './spatial.js';
 export const roomEntityId = (site,r) => {
   const anchor=[...r.cells].sort((a,b)=>{const [ax,ay]=a.split(',').map(Number),[bx,by]=b.split(',').map(Number);return ay-by||ax-bx;})[0];
   return `room:${site}:${anchor}${r.z?`:${r.z}`:''}`;
