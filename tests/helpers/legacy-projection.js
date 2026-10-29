@@ -1,12 +1,29 @@
 import {isDeepStrictEqual} from 'node:util';
 import {createGame} from '../../src/simulation.js';
 import {validateRegion} from '../../src/region.js';
+import {validateMaterials} from '../../src/materials.js';
+
+// Only implicit-default alloy records are neutral in historical projections.
+// Composite choices and their different paid costs must never disappear.
+export function projectPreStructuralMaterials(state) {
+  const projected=structuredClone(state);
+  validateMaterials(projected);
+  for(const site of Object.values(projected.sites))for(const t of site.tiles)if(t.materials){
+    if(Object.values(t.materials).some(id=>id!=='alloy'))throw new Error('Cannot project composite construction into an older schema.');
+    delete t.materials;
+  }
+  for(const job of projected.jobs)if(Object.hasOwn(job,'material')){
+    if(job.material!=='alloy')throw new Error('Cannot project paid composite work into an older schema.');
+    delete job.material;
+  }
+  return projected;
+}
 
 // Region metadata is neutral for migrated four-site saves. Synthetic old-save
 // fixtures may explicitly exclude only untouched, unvisited generated sites;
 // never discard depleted sites, resident ownership or in-flight activity.
 export function projectPreRegion(state, {allowUnvisited = false} = {}) {
-  const projected = structuredClone(state);
+  const projected = projectPreStructuralMaterials(state);
   if (!Object.hasOwn(projected, 'region')) return projected;
   validateRegion(projected);
   if (!projected.region.legacy) {

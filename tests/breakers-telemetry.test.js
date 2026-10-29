@@ -144,7 +144,8 @@ test('breaker previews expose detached terminal, fault and local source IDs with
   assert.equal(diagnostic.inputCircuit, diagnostic.outputCircuit);
   assert.ok(diagnostic.faultEntities.includes('tile:surface:13:8'));
   assert.ok(diagnostic.sourceEntities.includes('tile:surface:11:8'));
-  const {electrical, plumbing, ...gas} = initial.derived;
+  const {electrical, plumbing, materials, ...gas} = initial.derived;
+  assert.equal(materials.floor.id, 'alloy');
   assert.deepEqual(gas, gasStatus(site, first));
   assert.deepEqual(plumbing, plumbingStatus(s, site, first));
   diagnostic.faultEntities.push('invented'); diagnostic.sourceEntities.length = 0;

@@ -122,7 +122,10 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 | [src/power.js](../src/power.js) | Electrical allocation previews and committed updates, generation/batteries, branch breaker conditions, cable controls and energy validation. |
 | [src/preflight-panels.js](../src/preflight-panels.js) | HTML panel renderers and UI formatting for preflight |
 | [src/preflight.js](../src/preflight.js) | Domain helpers for preflight |
-| [src/tool-data.js](../src/tool-data.js) | Mining materials and manufacturing/repair recipes. |
+| [src/material-data.js](../src/material-data.js) | Shared immutable alloy/composite tool and structure properties. |
+| [src/materials.js](../src/materials.js) | Paid construction/repair specifications, independent floor/structure ownership, refunds, inspection and save validation. |
+| [src/material-panels.js](../src/material-panels.js) | Collapsed material selection and layer inspection. |
+| [src/tool-data.js](../src/tool-data.js) | Mining tool definitions and manufacturing/repair recipes using shared material properties. |
 | [src/tools.js](../src/tools.js) | Physical equipment pickup, release, work-based wear and tool identity. |
 | [src/tool-panels.js](../src/tool-panels.js) | Collapsed tool selection and condition inspection. |
 | [src/production.js](../src/production.js) | Staffed machine recipe selection, stock/batch orders, input demand, operator eligibility, production scheduling and operation validation. |
@@ -405,3 +408,5 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 - [region.js](../src/region.js): canonical seeded metadata, finite layouts, site kinds, routes, strict validation and legacy migration.
 - [region-panels.js](../src/region-panels.js): compact system overview and initial surveys.
 - [region tests](../tests/region.test.js), [integration journeys](../tests/region-integration.test.js), [resident work](../tests/region-residents.test.js): reproducibility, genuine schema64 migration, native round trips/revisits and independent residence.
+
+- [Structural material tests](../tests/structural-materials.test.js) and [material physics tests](../tests/material-physics.test.js): native paid chains, upstairs delivery, genuine schema65 migration, strict ownership, finite heat and independent damage paths.

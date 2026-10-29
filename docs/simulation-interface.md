@@ -2,6 +2,14 @@
 
 Implemented September 16, 2026, following the user's request to clearly mark small simulation interactions for eventual AI training. This is a local environment interface and recorder. No model, training service, network endpoint or external dependency is involved.
 
+## Structural materials
+
+`job.order` accepts optional `material: "alloy" | "composite"` only for `kind: "build"` and `building: "floor" | "wall" | "door"`. Omission means alloy. Positional player bindings retain `site, x, y, kind, building, z, material`; adding material does not change the floor argument. Repair uses the installed structure's material automatically.
+
+`definitions().materials` exposes shared tool and structure properties; `definitions().structuralMaterials.buildings` lists eligible building IDs. Tile `derived.materials` reports independent `floor` and `structure` layers, including implicit alloy, conductivity and applicable repair/damage properties. Installation/removal events are `construction.material.installed` and `construction.material.removed`, with actual-floor entity, actor, job, layer, material and paid cost or refund. Structural job creation/completion includes material selection; structure damage includes material and raw incoming amount.
+
+Schema66 stores sparse tile `materials` and structural-job `material`, validates paid work/cost and preserves older saves without stock changes. Floors conduct heat only between adjacent stacked compartments in this model. Gaps and openings retain independent paths; utility overlay damage is not reduced by the wall's material. Observation/recording9 remains unchanged with additive fields.
+
 ## Seeded region and dynamic destinations
 
 Save schema65 stores canonical `region` metadata and each physical site's `kind`. `definitions()` exposes the current sites, region and settlement IDs. Query `actions()` for state-dependent site enums; do not hardcode the original four IDs. New games add `outcrop-<seed token>` and `derelict-<seed token>` sites. Older saves retain the original catalog without adding physical state.

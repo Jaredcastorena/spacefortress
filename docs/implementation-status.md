@@ -2,13 +2,19 @@
 
 Updated October 29, 2026.
 
+## v0.1.11: structural materials
+
+Alloy/composite definitions now drive tools and paid floors, hull walls and pressure doors. A hidden selector updates physical costs; separate floor/structure ownership survives building, repair and dismantling. Composite uses one extra component, more work, lower solid conductivity and reduced wall/door damage. Repairs consume the installed material's supplies; half-cost refunds round down per resource, so a single component is not recovered.
+
+Seventeen new focused cases cover native paid chains, upper-floor delivery, cancellation, genuine schema65 migration, strict save validation and synthetic heat/damage boundaries. The first full suite passed 1,805 cases with two outdated metadata assertions and one historical skip; all eleven affected compatibility cases pass after those expectations were updated. Schema66 keeps implicit alloy and adds no resources. Stacked-room slab conduction is finite and separate from stair flow. General equipment materials, floor collapse, exterior slab radiation and ordinary upstairs endurance remain unfinished.
+
 ## v0.1.10: seeded orbital sites
 
 New colonies have six persistent sites: four starter locations, a generated resource outcrop and a generated derelict. Seeded layouts, initial finite surveys, route costs/times and debris vary. Player and agent controls share the dynamic registry. Paid visits, extraction, hauling, construction, return and persistence on revisit pass bounded checks using starter supplies with production paused. Generated residents have distinct rosters and continue local work without the shuttle; registration/readiness tests use explicit synthetic habitats.
 
 Schema65 migrates old hex saves into a four-site catalog without generating terrain or supplies. A larger universe, multiple generated planets, remote-to-remote transport and sustained ordinary outpost acceptance remain unfinished. Repeated journeys with normal colony demand still require a replenished air supply; this release does not establish endurance.
 
-## Local development after v0.1.9: crew hazard positions
+## v0.1.10: crew hazard positions
 
 Crew fire exposure now reads their actual floor. Wreck-debris shelter uses that floor’s terrain and room, and shuttle terminal protection requires the same full position. Exposure events preserve the affected tile for both crew and animals. Five synthetic boundary cases pass, including exact save continuation; ordinary upstairs/night endurance remains incomplete.
 

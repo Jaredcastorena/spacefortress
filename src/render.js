@@ -1,3 +1,4 @@
+import {materialId} from './materials.js';
 import {siteDefinitions,siteDefinition,siteKind} from './region.js';
 import {riserKind,utilityAt,utilityActive} from './utility-links.js';
 import { stairOpen } from './vertical.js';
@@ -131,6 +132,7 @@ export class Renderer {
       const [x, y] = this.project(t.x, t.y);
       this.hexPrism(x, y + 5, 5, tileColors[t.terrain][t.variant], t.terrain === 'ice' ? '#4c718e' : '#3e4140', '#343b3c');
       this.hex(x, y, tileColors[t.terrain][t.variant], t.terrain === 'floor' ? '#8f9d923d' : '#a5aa9417');
+      if(materialId(t,'floor')==='composite')this.hex(x,y,'#7f8dc52b','#b3c2df66');
       if(airlockCells.has(cellKey(positionOf(t))))this.hex(x,y,'#8ddce622','#82cbd580');
       if (selectedCells.has(key(t.x, t.y))) this.hex(x, y, '#93d5c218');
       if (t.terrain === 'floor' || t.terrain === 'deck') { c.fillStyle = '#b2c0af42'; c.fillRect(x - 1, y - 12, 2, 1); c.fillRect(x - 24, y, 2, 1); }
@@ -276,7 +278,7 @@ export class Renderer {
     if (this.hover && (this.hover.z??0) === viewZ && this.hover.x >= 0 && this.hover.y >= 0 && this.hover.x < site.size && this.hover.y < site.size) {
       const [x, y] = this.project(this.hover.x, this.hover.y); this.hex(x, y, mode === 'build' ? '#8ee5cc55' : '#ffffdd1a', mode === 'mine' ? '#edbd7e' : '#c5e6d8');
       if (mode === 'build' && build === 'stairwell') { c.globalAlpha=.5;this.stairwell(x,y,true,'↑');c.globalAlpha=1;c.fillStyle='#c7e5ce';c.font='10px monospace';c.textAlign='center';c.fillText(`Landing → floor ${viewZ+1}`,x,y-36); }
-      else if (mode === 'build') { c.globalAlpha = .5; this.structure({ building: build, terrain: 'floor', hp: 100, powered: true, x: this.hover.x, y: this.hover.y, z: viewZ }, x, y, s,null,site); c.globalAlpha = 1; }
+      else if (mode === 'build') { c.globalAlpha = .5; this.structure({ building: build, terrain: 'floor', hp: 100, powered: true, materials:{structure:this.buildMaterial||'alloy'}, x: this.hover.x, y: this.hover.y, z: viewZ }, x, y, s,null,site); c.globalAlpha = 1; }
     }
     c.restore();
     if (siteId === 'surface' && !isDay(s)) { c.fillStyle = '#0a1b3840'; c.fillRect(0, 0, this.w, this.h); }
@@ -390,14 +392,14 @@ export class Renderer {
     else if (b === 'cable') { this.portStar(x,y,'#b1e5c4','#315750'); }
     else if (b === 'wall') {
       const bounds=site?projectedBounds(site.size):null,front=bounds&&y>=(bounds.top+bounds.bottom)/2,h=this.cutaway&&front?9:32;
-      this.hexPrism(x,y,h,'#a7aea0','#64787c','#40565f');this.hex(x,y-h,null,'#c3c6ac');
+      const composite=materialId(t,'structure')==='composite';this.hexPrism(x,y,h,composite?'#b1b8d0':'#a7aea0',composite?'#697c9b':'#64787c',composite?'#465976':'#40565f');this.hex(x,y-h,null,composite?'#d5daee':'#c3c6ac');
       if(h>10){c.fillStyle='#cfac6a';c.fillRect(x+9,y-h+12,5,3);}
     }
     else if (b === 'door') {
-      this.hex(x,y,'#324955','#8cb5b0');
+      const composite=materialId(t,'structure')==='composite';this.hex(x,y,composite?'#435274':'#324955',composite?'#aebde2':'#8cb5b0');
       if(!doorOpen(t,s.tick))this.hexPrism(x,y,27,'#94ada9','#3c6870','#325663',.86);
       else {this.box(x-19,y-2,4,2,27,'#94ada9','#3c6870','#325663');this.box(x+19,y+2,4,2,27,'#94ada9','#3c6870','#325663');}
-      c.fillStyle='#98dfba';c.fillRect(x-4,y-23,8,3);
+      c.fillStyle=composite?'#c0c9f0':'#98dfba';c.fillRect(x-4,y-23,8,3);
     }
     else if (b === 'solar' || b === 'advanced') { this.box(x, y, 5, 3, 9, '#77878a', '#485765', '#3a4a53'); this.box(x, y - 9, 27, 14, 3, b === 'advanced' ? '#477f99' : '#315b76', '#345268', '#213d52'); for (let n = -2; n <= 2; n++) { this.line(x - 25 + (n + 2) * 6, y - 11 + (n + 2) * 3, x + 1 + (n + 2) * 6, y - 24 + (n + 2) * 3, '#8abcd35c'); } this.line(x - 13, y - 17, x + 13, y - 4, '#80b9d363'); if (b === 'advanced') { c.fillStyle = '#e2c886'; c.fillRect(x - 3, y - 14, 6, 3); } }
     else if (b === 'fence' || b === 'pastureGate') {

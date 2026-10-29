@@ -1,3 +1,4 @@
+import {repairSpec} from './materials.js';
 import { stairAt } from './vertical.js';
 import { positionOf, sameCell } from './spatial.js';
 import { BUILDINGS } from './data.js';
@@ -9,7 +10,7 @@ export function maintenanceDetails(s, site, t) {
   if (!m && !incident && (!t.building || t.hp >= 100)) return '';
   return `<hr><div class="eyebrow">CONDITION & SERVICE</div>
     ${m ? `<dl><dt>Operating time</dt><dd>${m.usage} / ${SERVICE_INTERVAL}s between services</dd><dt>Last serviced</dt><dd>${m.servicedAt === null ? 'Not yet serviced' : `Colony time ${m.servicedAt}s`}</dd></dl><p>${m.usage >= SERVICE_INTERVAL ? 'Service overdue. Continued operation wears equipment down.' : 'Service before the interval expires to prevent wear.'}</p><button data-action="auto-service" aria-pressed="${m.auto}">Automatic service: ${m.auto ? 'On' : 'Off'}</button>${m.blocked ? `<p>${esc(m.blocked)}</p>` : ''}${t.hp > 0 && m.usage > 0 ? '<button data-action="service">Service equipment · 1 alloy</button>' : ''}<p class="crew-hint">Engineers deliver supplies before servicing. Automatic service queues work when due or below 51% condition. Cancelling its order also turns automatic service off.</p>` : ''}
-    ${t.building && t.hp < 100 ? '<button data-action="repair-structure">Repair structure · 1 alloy</button>' : ''}
+    ${t.building && t.hp < 100 ? `<button data-action="repair-structure">Repair structure · ${Object.entries(repairSpec(t).cost).map(([r,n])=>`${n} ${r}`).join(' · ')}</button>` : ''}
     ${incident ? `<p>Last recorded damage: ${incident.cause === 'wear' ? 'overdue service' : incident.cause === 'fire' ? 'fire' : incident.cause === 'water' ? 'wet cable short' : 'debris impact'} to ${damageNames[incident.target]||incident.target} at ${incident.tick}s (−${incident.amount.toFixed(incident.amount < 1 ? 2 : 0)} condition).</p>` : ''}`;
 }
 export function maintenanceOverview(s) {

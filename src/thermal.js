@@ -1,3 +1,5 @@
+import {materialProfile} from './materials.js';
+import {SOLID_FLOOR_CONDUCTANCE} from './material-data.js';
 import { siteKind } from './region.js';
 import { stairLinks, stairOpen, STAIR } from './vertical.js';
 import { tileAt, cellKey, positionOf } from './spatial.js';
@@ -57,10 +59,16 @@ function links(site) {
     const sides = new Set();
     for (const [x, y] of neighbors(t.x, t.y)) { const z=positionOf(t).z,owner = owners.get(cellKey({x,y,z})); if (owner !== undefined) sides.add(owner); else if (external(at(x, y, z))) sides.add(null); }
     const open = t.hp <= 0 || (t.building === 'door' && (t.doorMode === 'open' || (t.doorMode !== 'closed' && t.doorUntil > site.atmosphere.tick)));
-    const rate = open ? .8 : .015 + .4 * (1 - t.hp / 100) ** 2, ids = [...sides];
+    const rate = open ? .8 : .015 * materialProfile(t,'structure').structure.conductivity + .4 * (1 - t.hp / 100) ** 2, ids = [...sides];
     for (let a = 0; a < ids.length; a++) for (let b = a + 1; b < ids.length; b++) {
       result.push({ a: ids[a] === null ? ids[b] : ids[a], b: ids[a] === null ? null : ids[b], rate: rate / Math.max(1, ids.length - 1) });
     }
+  }
+  // A constructed slab conducts heat between the rooms it separates. It
+  // transfers no gas; stair openings use their own finite exchange below.
+  for(const t of site.tiles)if(t.terrain==='floor'&&t.z>0&&!t.verticalLink){
+    const a=owners.get(cellKey(positionOf(t))),b=owners.get(cellKey({...positionOf(t),z:t.z-1}));
+    if(a!==undefined&&b!==undefined&&a!==b)result.push({a,b,rate:SOLID_FLOOR_CONDUCTANCE*materialProfile(t,'floor').structure.conductivity});
   }
   for(const link of stairLinks(site))if(stairOpen(site,link)){
     const a=owners.get(cellKey(link.lower))??null,b=owners.get(cellKey(link.upper))??null;

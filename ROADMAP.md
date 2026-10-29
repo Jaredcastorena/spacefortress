@@ -2,8 +2,9 @@
 
 ## Current systems work
 
-Release v0.1.10 adds seeded resource outcrops and derelicts, persistent site and route identities, dynamic surveys and independent settlement rosters. It also includes actual-floor crew hazard fixes. Next checkpoints remain bounded upstairs habitation, sustained outpost supply and broader generated regions.
+Release v0.1.11 adds reusable alloy/composite properties to paid floors, walls and doors, material-aware repairs and finite slab heat conduction. The seeded orbital frontier from v0.1.10 remains available. Next checkpoints include broader equipment/industry, bounded upstairs habitation and sustained outpost supply.
 
+- [x] Use shared alloy/composite material definitions for tools and paid habitat parts. Preserve floor/structure ownership, physical costs, supplied repairs, cancellation, rounded refunds, thermal paths and schema66 saves.
 - [x] Generate two playable orbital sites per new colony, with finite resources, paid visits, saved construction/depletion, separate residents and initial surveys. Preserve old four-site colonies through schema65.
 - [x] Resolve crew fire exposure, wreck shelter and docked-shuttle protection on the actual floor; identify exposure tiles consistently for crew and animals.
 - [x] Manufacture alloy/composite mining tools from delivered materials; preserve item identity through native pickup, actual mining wear, repair and schema64 saves. Keep player controls and structured actions aligned.
@@ -261,9 +262,11 @@ Expand the [upward/outward progression](docs/orbital-progression.md) into genera
 
 ### 8. Materials, tools and deeper production
 
-**First chain implemented in v0.1.9:** finite extraction, refining, fabrication and workshop manufacture produce alloy/composite tools. Routed pickup, material/quality speed, actual-work wear, same-identity repair and schema64 saves are verified in a bounded staffed scenario. General material properties, additional equipment families and deeper industry remain future work.
+**First chain implemented in v0.1.9:** finite extraction, refining, fabrication and workshop manufacture produce alloy/composite tools. Routed pickup, material/quality speed, actual-work wear, same-identity repair and schema64 saves are verified in a bounded staffed scenario. Shared structural properties now extend to floors, walls and doors in v0.1.11. Additional equipment families and deeper industry remain future work.
 
-Introduce reusable material properties, distinct manufactured items and tools, then expand recipes, equipment condition and repair around them. Track the remaining industry families in the [conversion inventory](docs/conversion-inventory.md).
+**Structural materials implemented in v0.1.11:** alloy and composite now share definitions across tools and supplied habitat parts. Floors and structures retain separate owners; composite changes physical construction/repair costs, solid conductivity and wall/door damage. Finite slab heat exchange, native upstairs delivery, cancellation and genuine schema65 migration pass focused checks. Floor collapse and exterior slab radiation remain future work.
+
+Expand material properties, distinct manufactured items, recipes, equipment condition and repair from this shared foundation. Track the remaining industry families in the [conversion inventory](docs/conversion-inventory.md).
 
 **Acceptance:** at least one complete extraction-to-tool production chain makes material choice and tool condition affect real work or failure. Items retain identity and properties through manufacture, transport, use, repair and saves. Required inputs and labor cannot be bypassed by an abstract global stock total.
 

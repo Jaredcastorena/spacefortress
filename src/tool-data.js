@@ -1,8 +1,6 @@
+import {MATERIALS} from './material-data.js';
 // Material properties are shared by manufacturing, work, inspection and saves.
-export const TOOL_MATERIALS = Object.freeze({
- alloy: {name:'Alloy',speed:1.25,wear:1},
- composite: {name:'Composite',speed:1.5,wear:.5},
-});
+export const TOOL_MATERIALS = Object.freeze(Object.fromEntries(Object.entries(MATERIALS).map(([id,material]) => [id,Object.freeze({name:material.name,...material.tool})])));
 const recipe=(id,name,input,duration,minSkill,extra)=>({id,name,input,output:{tools:1},duration,minSkill,air:40,temperature:[5,40],...extra});
 export const DEFAULT_TOOL_RECIPE='alloy_pick';
 export const TOOL_RECIPES=Object.freeze({

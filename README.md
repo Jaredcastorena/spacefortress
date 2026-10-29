@@ -2,11 +2,17 @@
 
 An early playable space colony simulator inspired by Dwarf Fortress. Keep seven alien founders alive, build a planetary colony, and send supplied expeditions into orbit to recover material for its next expansion.
 
-**[Play online](https://jaredcastorena.github.io/spacefortress/)** · [Online elements lab](https://jaredcastorena.github.io/spacefortress/elements.html) · [Release v0.1.10](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.10) · [Roadmap](ROADMAP.md)
+**[Play online](https://jaredcastorena.github.io/spacefortress/)** · [Online elements lab](https://jaredcastorena.github.io/spacefortress/elements.html) · [Release v0.1.11](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.11) · [Roadmap](ROADMAP.md)
 
 ![Local SPACEFORTRESS hex colony with original alien crew, an isometric habitat and closed detail drawers](docs/images/spacefortress-hex.png)
 
 **The game is still in development.** Build across connected floors using paid stairs, supported upper-floor extensions and a compact floor selector. New colonies add two seeded orbital destinations alongside the four starter sites. Long-lived staffed outposts, complete vertical systems, a generated universe/history and much of the wider simulation remain unfinished. The [implementation status](docs/implementation-status.md) separates working systems from plans.
+
+## v0.1.11: structural materials
+
+Open **Build → Construction material** to choose alloy or composite for habitat floors, hull walls and pressure doors. Composite adds one component and 50% more construction work (rounded up), conducts 25% as much heat through solid material, and takes 60% of incoming wall/door damage. Its wall/door repairs cost one alloy and one component. Costs, delivery, cancellation and dismantling use the existing physical supply system.
+
+Floors and their walls or doors keep separate materials. Solid upper floors now exchange finite heat between stacked compartments; stair openings and damaged gaps retain their own heat paths. The inspector shows each layer and repair supplies. Schema66 preserves older hex colonies without adding resources; existing parts default to alloy. General equipment materials, floor collapse and exterior floor radiation remain future work.
 
 ## Agent entry briefing
 

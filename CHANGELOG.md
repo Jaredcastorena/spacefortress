@@ -2,6 +2,14 @@
 
 SPACEFORTRESS is an early playable colony simulator. Release entries describe completed changes within their stated scope.
 
+## v0.1.11 — 2026-10-29
+
+- Add shared alloy/composite definitions for existing tools and paid habitat floor, hull wall and pressure door construction. Preserve independent floor and structure materials through construction, repair and dismantling.
+- Apply material conductivity to solid boundaries and finite heat transfer between stacked compartments. Open doors, damaged gaps and stair openings retain their existing transfer paths; composite resistance affects walls/doors without reducing cable or pipe damage.
+- Add a collapsed material selector, updated costs, composite map colors, layer inspection and material-aware repair supplies. Player and agent commands share optional material selection and typed installation/removal events.
+- Add save schema66 with strict material ownership and paid-job validation. Migrate prior valid hex saves without granting resources; implicit alloy preserves existing parts and tool behavior.
+- Cover native paid construction, delivery, cancellation, repairs, removal, upper-floor work, heat conservation and genuine schema65 migration. General equipment materials and floor collapse remain unfinished.
+
 ## v0.1.10 — 2026-10-29
 
 - Generate a resource outcrop and a derelict for each new seed, with finite deposits, distinct layouts, paid routes, debris exposure and stable planetary/site identities.

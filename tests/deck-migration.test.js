@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { createGame, order, serialize, deserialize, step } from '../src/simulation.js';
-import { projectPreDecks, projectPreRegion } from './helpers/legacy-projection.js';
+import { projectPreDecks, projectPreRegion, projectPreStructuralMaterials } from './helpers/legacy-projection.js';
 
 // Synthetic seed74219, tick0, one paid wall order; produced by source31a3a27
 // before schema47 edits. This is not a player save or an endurance trial.
@@ -33,9 +33,9 @@ test('migrated and newly constructed deck-zero colonies continue identically', (
   // Compare the same classic four-site boundary, then preserve the older depot's explicit resource filter when comparing colonies.
   for(const site of Object.values(current.sites))for(const t of site.tiles)if(t.storage)t.storage.accepted=t.storage.accepted.filter(r=>r!=='tools');
   assert.ok(order(current, 'surface', 5, 6, 'build', 'wall').ok);
-  assert.deepEqual(migrated, current);
+  assert.deepEqual(projectPreStructuralMaterials(migrated), projectPreStructuralMaterials(current));
   step(migrated, 4); step(current, 4);
-  assert.deepEqual(migrated, current);
+  assert.deepEqual(projectPreStructuralMaterials(migrated), projectPreStructuralMaterials(current));
   const saved = serialize(current); assert.equal(serialize(deserialize(saved)), saved);
 });
 

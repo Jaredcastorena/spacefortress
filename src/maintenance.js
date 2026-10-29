@@ -1,3 +1,4 @@
+import {materialProfile,materialId} from './materials.js';
 import {damageUtility} from './utility-links.js';
 import { stairAt, STAIR } from './vertical.js';
 import { tileAt, positionOf, sameCell } from './spatial.js';
@@ -24,9 +25,11 @@ export function damage(s, site, t, target, amount, cause) {
   const stair=target==='structure'?stairAt(site,positionOf(t)):null;
   const asset = target === 'waterPipe' ? t.waterPipe : target === 'pipe' ? t.pipe : target === 'cable' ? t.cable : target === 'structure' && t.building ? t : stair;
   if (!asset || asset.hp <= 0 || !Number.isFinite(amount) || amount <= 0) return;
-  const before = asset.hp; asset.hp = Math.max(0, asset.hp - amount);
+  const profile=target==='structure'&&asset===t?materialProfile(t,'structure'):null;
+  const applied=amount*(profile?.structure.damageMultiplier??1);
+  const before = asset.hp; asset.hp = Math.max(0, asset.hp - applied);
   damageUtility(s,site,t,target,amount,cause);
-  emitEvent(s,'structure.damaged',{entity:tileEntityId(site.id,t.x,t.y,positionOf(t).z),target,cause,amount:before-asset.hp,condition:asset.hp});
+  emitEvent(s,'structure.damaged',{entity:tileEntityId(site.id,t.x,t.y,positionOf(t).z),target,cause,amount:before-asset.hp,condition:asset.hp,...(profile?{material:materialId(t,'structure'),rawAmount:amount}:{})});
   if(stair){emitEvent(s,'vertical.damaged',{entity:`site:${site.id}`,connection:stair.id,target:tileEntityId(site.id,t.x,t.y,t.z),cause,amount:before-stair.hp,condition:stair.hp});if(before>=STAIR.minimumCondition&&stair.hp<STAIR.minimumCondition)emitEvent(s,'vertical.blocked',{entity:`site:${site.id}`,connection:stair.id,reason:'damage',condition:stair.hp});}
   site.incidents.unshift({ tick: s.tick, x: t.x, y: t.y, z: positionOf(t).z, target, cause, amount: before - asset.hp }); site.incidents = site.incidents.slice(0, 12);
   if (cause === 'debris' || [75, 50, 0].some(n => before > n && asset.hp <= n)) emit(s, `${target === 'waterPipe' ? 'Water pipe' : target === 'pipe' ? 'Gas pipe' : target === 'cable' ? 'Power cable' : (stair?'Stairwell':BUILDINGS[t.building]?.name) || 'Structure'} at ${t.x}/${t.y} · floor ${positionOf(t).z}: ${cause === 'wear' ? 'overdue service wear' : cause==='fire'?'fire damage':cause==='water'?'wet cable short':'debris impact'}, condition ${Math.round(asset.hp)}%.`);
