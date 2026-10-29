@@ -52,9 +52,12 @@ test('ground airlocks cannot cast barriers or crossing edges onto another deck',
   assert.equal(planCrewRoutePositions(f.s,site,crew,[ground(CONFIG.inner)]),null);
   assert.equal(planCrewRoute(f.s,site,crew,[CONFIG.inner]),null);
   assert.equal(snapshot(f.s),before);
-  // Explicit upper controller schemas are not implemented; do not guess a
-  // floor for legacy controller configuration pairs.
-  Object.assign(tileAt(site,{x:5,y:5,z:4}),{building:'airlockController',airlock:{binding:'unsupported'}});
+  // A fully configured upper controller now owns only its own floor's doors.
+  // Keep this pure route fixture separate from hardware/cycle admission checks.
+  const controller=structuredClone(f.controller);controller.z=4;
+  for(const p of Object.values(controller.airlock.config))p.z=4;
+  controller.airlock.chamberCells=controller.airlock.chamberCells.map(k=>k.replace(/,0$/,',4'));
+  Object.assign(tileAt(site,{x:controller.x,y:controller.y,z:4}),controller);
   assert.equal(planCrewRoutePositions(f.s,site,crew,[goal]),null);
 });
 

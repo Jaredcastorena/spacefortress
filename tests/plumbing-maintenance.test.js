@@ -40,7 +40,7 @@ test('water-pipe damage keeps gas pipe, cable and fitting condition independent 
   assert.equal(t.waterPipe.hp, 40);
   assert.equal(t.pipe.hp, 100); assert.equal(t.cable.hp, 100); assert.equal(t.hp, 100);
   assert.deepEqual(site.incidents[0], { tick: 0, x: 11, y: 9, z: 0, target: 'waterPipe', cause: 'debris', amount: 60 });
-  assert.ok(s.log.some(e => e.message.startsWith('Water pipe at 11/9:')));
+  assert.ok(s.log.some(e => e.message.startsWith('Water pipe at 11/9 · floor 0:')));
   assert.ok(events(s).some(e => e.id === 'structure.damaged' && e.entity === 'tile:surface:11:9' && e.target === 'waterPipe' && e.amount === 60 && e.condition === 40));
   damage(s, site, t, 'pipe', 20, 'fire'); assert.equal(t.pipe.hp, 80); assert.equal(t.waterPipe.hp, 40);
   check(s);
