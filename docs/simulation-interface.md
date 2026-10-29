@@ -2,6 +2,14 @@
 
 Implemented September 16, 2026, following the user's request to clearly mark small simulation interactions for eventual AI training. This is a local environment interface and recorder. No model, training service, network endpoint or external dependency is involved.
 
+## Engineering equipment
+
+`definitions().toolKinds` describes each tool family and its supported job kinds. `alloy_kit` and `composite_kit` produce physical `engineering_tool` items through the tool workshop. Existing `crew.tools.equip`, `crew.tools.cancel` and `crew.tools.release` actions share one work-tool slot across mining tools and engineering kits. The existing `repair_pick` recipe ID is retained and now repairs either family.
+
+Engineering kits affect build, remove, repair, service and cable/gas-pipe/water-pipe repair or removal jobs. They do not speed mining, production, medical work or suppression. Crew `derived.tool` includes `kind` and detached `appliesTo` job kinds; its multiplier describes supported work. The optional internal work-specific status also reports applicability and an effective multiplier. `tool.crafted` and `tool.repaired` include kind; `tool.used` includes kind and workKind. Stock forecasts match type/material and committed repairs retain the original item properties.
+
+Schema67 admits engineering items and recipe commitments; prior hex saves preserve quantities and identities. Old schemas cannot carry these new item/recipe fields. Observation/recording9 remains unchanged with additive fields.
+
 ## Structural materials
 
 `job.order` accepts optional `material: "alloy" | "composite"` only for `kind: "build"` and `building: "floor" | "wall" | "door"`. Omission means alloy. Positional player bindings retain `site, x, y, kind, building, z, material`; adding material does not change the floor argument. Repair uses the installed structure's material automatically.

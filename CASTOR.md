@@ -4,7 +4,7 @@
 
 ## Where you are
 
-- Package **0.1.11**, colony save schema **66**, grid **hex-odd-q-v1**. The separate elements laboratory has its own schema **3** and square cell model.
+- Package **0.1.11**, local colony save schema **67** (published v0.1.11 uses66), grid **hex-odd-q-v1**. The separate elements laboratory has its own schema **3** and square cell model.
 - Structural review baseline **e330c6f**, October 15, 2026. Later local changes include meal freshness, imported production stock, trap health/capture-cost fixes, shared crew and workstation work-readiness diagnostics, finite local suit resupply, manual suit-to-room oxygen transfer and finite airlock refill prediction at the actual vent target, passive reuse of recovered extractor gas during refill, sealed correction of release pressure drift, and finite delivered supply-tank replenishment. The version ledger identifies the current runtime fingerprint and focused checks; package version alone does not identify every change.
 - This is an original isometric space colony simulator: planetary construction, crew needs, physical resources and supplied orbital expeditions. Paid stairs and multi-floor saves now connect declared floors in local code. The browser now selects installed floors and routes inspection/build controls to them; new games add two seeded orbital destinations with finite resources and independent residents. A larger generated universe remains future work.
 
@@ -26,7 +26,7 @@ Read the [version ledger](docs/AGENT_VERSIONS.md), then the relevant system and 
 | Crew hazard exposure | [simulation](src/simulation.js), [stacked-floor checks](tests/crew-hazard-floors.test.js) | Fire injury, wreck shelter and docked protection use actual-floor positions. Exposure events identify the occupied tile. |
 | Physical environment | [atmosphere](src/atmosphere.js), [power](src/power.js), [airlocks](src/airlocks.js), [cargo scenarios](tests/airlock-freight-integration.test.js) | Finite supplies, tick ordering and door interlocks. Cargo scenarios are synthetic, not ordinary colony acceptance. |
 | Structural materials | [definitions](src/material-data.js), [construction and ownership](src/materials.js), [panels](src/material-panels.js), [physics checks](tests/material-physics.test.js) | Paid floor/wall/door choices, separate floor/structure owners, implicit alloy, finite stacked-room heat, supplied repair and schema66. Openings retain independent paths; no floor collapse. |
-| Mining tools | [materials and recipes](src/tool-data.js), [equipment and wear](src/tools.js), [inspection](src/tool-panels.js) | Physical item identities; routed pickup; actual-work wear; paid repair; one tool plus one keepsake per crew member. Schema64 retains pending claims and committed batches. |
+| Work tools | [materials and recipes](src/tool-data.js), [equipment and wear](src/tools.js), [inspection](src/tool-panels.js) | Physical mining tools and engineering kits; routed pickup; capability-matched work and wear; supplied same-identity repair; one tool plus one keepsake per crew member. Schema67 preserves prior items and adds kits; stock targets distinguish family/material. |
 | Building and industry | [construction](src/construction.js), [production](src/production.js), [inventory](src/inventory.js), [reservation queries](src/inventory-reservations.js) | Delivered inputs differ from reservations. Availability/capacity queries distinguish decks; saved shipment references now retain explicit deck-zero positions. |
 | Crew, food, ecology | [crew life](src/crew-life.js), [food lots](src/food-lots.js), [husbandry](src/husbandry.js) | Health, freshness, ancestry and bodies. [Personal items](src/possessions.js) retain actual-floor custody; [inventory owners](src/item-lots.js) use the canonical tile IDs in spatial.js for discrete items and meal observations. |
 | Orbital supply/residence | [freight](src/freight.js), [outposts](src/outposts.js), [expedition](src/expedition.js) | Presence, passengers and supplies have separate owners. |
@@ -47,7 +47,7 @@ Serve locally on port8420; `elements.html` opens the lab. Select focused tests f
 
 ## Important limits
 
-- Current saves accept validated hex schemas40–66. Square schemas1–39 are rejected and their original bytes remain protected for export; do not relabel them as hex.
+- Current saves accept validated hex schemas40–67. Square schemas1–39 are rejected and their original bytes remain protected for export; do not relabel them as hex.
 - Current readiness is not an endurance forecast. A supplied, briefly ready room does not establish sustained outpost habitation, care or a complete return journey.
 - Existing public evidence includes finite recovery successes and later resource/air recovery failures. [Verification status](docs/verification-status.md) preserves their scope; [roadmap](ROADMAP.md) records unfinished ordinary journeys.
 - Do not directly grant supplies, healing or movement to make acceptance pass. Preserve physical jobs, conservation and player/agent parity.

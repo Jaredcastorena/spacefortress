@@ -66,7 +66,7 @@ test('malformed tools, duplicate ownership and unsupported legacy tool state rej
 
 test('inspection and shared catalog expose tool controls without changing simulation',()=>{
  const s=createGame(),c=pocket(s,0),before=serialize(s),html=toolDetails(s,c),view=observe(s);
- assert.match(html,/Broken: mining continues at normal speed/);assert.match(html,/crew.tools.release/);assert.equal(view.entities[c.id].derived.tool.broken,true);assert.equal(serialize(s),before);
+ assert.match(html,/Broken: work continues at normal speed/);assert.match(html,/crew.tools.release/);assert.equal(view.entities[c.id].derived.tool.broken,true);assert.equal(serialize(s),before);
  const definitions=createAgentInterface(()=>s).definitions();assert.equal(definitions.toolMaterials.composite.wear,.5);assert.equal(definitions.toolRecipes.repair_pick.input.alloy,1);
  const catalog=actionCatalog();for(const id of ['crew.tools.equip','crew.tools.cancel','crew.tools.release'])assert.ok(catalog.some(a=>a.id===id));
  for(const id of ['alloy_pick','composite_pick','repair_pick'])assert.ok(catalog.find(a=>a.id==='production.recipe').parameters.properties.recipe.enum.includes(id));

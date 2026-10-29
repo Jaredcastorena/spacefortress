@@ -2,7 +2,7 @@ import {MATERIALS} from './material-data.js';
 import {structuralBuilding,constructionSpec,repairSpec,materialId,installMaterial,clearMaterial,dismantleRefund,rejectLegacyMaterials,validateMaterials} from './materials.js';
 import {makeRegion,generatedLayout,siteDefinition,siteDefinitions,routeDefinition,siteKind,settlementSite,validateRegion,migrateRegion} from './region.js';
 import {TOOL_RECIPES} from './tool-data.js';
-import {miningEffort,advanceToolPickup,clearToolPickup,validateToolPickups} from './tools.js';
+import {workEffort,advanceToolPickup,clearToolPickup,validateToolPickups,rejectLegacyEquipment} from './tools.js';
 import {riserKind,utilityAt,riserPlacement,utilityJobClaims,commissionUtility,utilityWorkReady,completeUtilityWork,configureUtility,validateUtilityState,validateUtilityJobs,UTILITY_WORK} from './utility-links.js';
 import { walkingNeighbors, stairPlacement, stairJobClaims, commissionStairwell, supportedFloor, stairAt, stairWorkBlock, completeStairWork, validateStairJobs, STAIR_WORK } from './vertical.js';
 import { validateHazardLocations, migrateHazardLocations } from './hazard-locations.js';
@@ -615,7 +615,7 @@ function act(s, c, air) {
     if(result==='arrived'&&j.kind==='animalTreat'&&!animalTreatmentReady(s,j)){c.activity=j.blockedReason='Waiting for safe animal treatment conditions';return;}
     if (result === 'arrived' && j.kind === 'hygiene' && !hygieneReady(s, j, c)) { c.activity = j.blockedReason = 'Waiting for patient and safe hygiene conditions'; return; }
     if (result === 'arrived' && j.kind === 'treat' && !treatmentReady(s, j, c)) { c.activity = j.blockedReason = 'Waiting for patient and safe treatment conditions'; return; }
-    if (result === 'arrived') { j.blockedReason = null; const effort = j.kind==='mine'?miningEffort(s,c,j,workRate(c,labor)):Math.min(j.remaining, workRate(c, labor)); j.remaining -= effort; gainExperience(c, labor, effort); if (j.remaining <= 0) finish(s, c, j); }
+    if (result === 'arrived') { j.blockedReason = null; const effort = workEffort(s,c,j,workRate(c,labor)); j.remaining -= effort; gainExperience(c, labor, effort); if (j.remaining <= 0) finish(s, c, j); }
     if (result === 'waiting_airlock') { c.activity='Waiting for airlock cycle'; j.blockedReason='Waiting for airlock cycle'; }
     if (result === 'blocked') { release(s, c); c.activity = 'Route blocked'; }
     return;
@@ -907,7 +907,7 @@ export function deserialize(text) {
   if (text.length > 5_000_000) throw new Error('Save is too large.');
   const s = JSON.parse(text),legacySolarModel=s?.version<59;
   if (Number.isInteger(s?.version) && s.version >= 1 && s.version <= 39) throw new Error('Legacy square-grid saves (schemas 1–39) cannot be loaded into the hex colony. Export the original save and use the preserved square version to continue it.');
-  if (![40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, VERSION].includes(s?.version) || s.grid !== GRID) throw new Error('Unsupported save topology: schemas 40–66 require grid hex-odd-q-v1.');
+  if (![40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, VERSION].includes(s?.version) || s.grid !== GRID) throw new Error('Unsupported save topology: schemas 40–67 require grid hex-odd-q-v1.');
   if ( !Number.isSafeInteger(s.tick) || s.tick < 0 || !Number.isInteger(s.rng) || !Number.isSafeInteger(s.nextId)) throw new Error('Unsupported or invalid save.');
   if (!s.sites || !Array.isArray(s.crew) || s.crew.length !== 7 || !Array.isArray(s.jobs) || !Array.isArray(s.log) || !s.stats || !s.comet || !s.flags || !s.objectives) throw new Error('Incomplete save.');
   if(s.version<64&&s.resources){if((s.resources.tools||0)!==0)throw new Error('Legacy tools.');s.resources.tools=0;}
@@ -919,6 +919,7 @@ export function deserialize(text) {
     if (site?.id !== id || site.size !== size || site.tiles?.length !== size ** 2 * (s.version>=55?site.levels?.length:1) || !Array.isArray(site.rooms) || !site.power) throw new Error('Invalid site.');
     site.tiles.forEach((t, i) => { if (t.x !== i % size || t.y !== Math.floor((i % (size*size)) / size) || !['ground', 'rock', 'ore', 'floor', 'deck', 'ice', 'void'].includes(t.terrain) || (t.building && !BUILDINGS[t.building] && !['shuttle', 'dock', 'salvage', 'volatile', 'collector'].includes(t.building)) || !Number.isFinite(t.hp)) throw new Error('Invalid tile.'); });
   }
+  if(s.version<67)rejectLegacyEquipment(s);
   if(s.version<66)rejectLegacyMaterials(s);
   if(s.version<65)migrateRegion(s);
   validateUtilityState(s);
@@ -969,6 +970,7 @@ export function deserialize(text) {
   if(s.version===63)s.version=VERSION;
   if(s.version===64)s.version=VERSION;
   if(s.version===65)s.version=VERSION;
+  if(s.version===66)s.version=VERSION;
   const ids = new Set();
   for (const c of s.crew) {
     if (ids.has(c.id) || typeof c.name !== 'string' || c.name.length > 80 || !(c.site==='transit'||Object.hasOwn(s.sites,c.site)) || ![c.health, c.oxygen, c.energy, c.hunger, c.skill].every(Number.isFinite) || !Number.isInteger(c.x) || !Number.isInteger(c.y) || (c.site !== 'transit' && !inside(s.sites[c.site], c.x, c.y))) throw new Error('Invalid crew.');

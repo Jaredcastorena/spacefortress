@@ -2,6 +2,13 @@
 
 SPACEFORTRESS is an early playable colony simulator. Release entries describe completed changes within their stated scope.
 
+## Unreleased
+
+- Add alloy/composite engineering kits for paid construction, dismantling and maintenance, sharing existing materials, quality, finite wear, physical equipment ownership and supplied repair.
+- Generalize tool capabilities and inspection while retaining mining behavior and one tool slot per crew member. Add equipment type and work kind to craft, use and repair records.
+- Distinguish tool family and material in production stock forecasts; committed repairs count the actual preserved item instead of the selected future recipe.
+- Add schema67 with genuine schema66 migration and rejection of premature engineering-item or recipe ownership in older saves. No new resources or dependencies.
+
 ## v0.1.11 — 2026-10-29
 
 - Add shared alloy/composite definitions for existing tools and paid habitat floor, hull wall and pressure door construction. Preserve independent floor and structure materials through construction, repair and dismantling.

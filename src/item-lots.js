@@ -1,11 +1,11 @@
-import { TOOL_MATERIALS } from './tool-data.js';
+import { TOOL_MATERIALS, isTool } from './tool-data.js';
 import { tileEntityId } from './spatial.js';
 
 // Discrete items travel alongside resource counts. Never split a physical item into fractions.
 export const ITEM_STYLES = { art:'Prismatic knot', quiet:'Meditation ring', company:'Story tokens' };
 export const ITEM_RESOURCES = ['keepsakes', 'tools'];
 export const discreteResource = resource => ITEM_RESOURCES.includes(resource);
-export const itemResource = item => item && item.kind === undefined ? 'keepsakes' : item?.kind === 'mining_tool' ? 'tools' : null;
+export const itemResource = item => item && item.kind === undefined ? 'keepsakes' : isTool(item) ? 'tools' : null;
 export const fitAmount = (resource,amount,space) => discreteResource(resource) ? Math.floor(Math.min(amount,space)+1e-9) : Math.min(amount,space);
 const TOOL_KEYS = ['id','maker','kind','material','quality','condition','created'];
 export function validItemLots(inventory,physical=false) {

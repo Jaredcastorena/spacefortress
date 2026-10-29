@@ -2,6 +2,12 @@
 
 Updated October 29, 2026.
 
+## Local after v0.1.11: engineering equipment
+
+Engineering kits extend the shared tool system to construction, dismantling and maintenance. Alloy/composite properties and workmanship affect matching work; wear is charged only for actual completed work, with normal hand work after breakage. Manufacturing, native pickup, supplied repair, layer costs, stairs and inventory conservation retain their existing systems. The equipped tool slot is shared with mining tools.
+
+A bounded native scenario uses ordinary starter supplies to build a workshop, produce a kit, collect it, complete the same wall faster than the unequipped control, repair wall damage and repair the worn kit without changing identity. Separate synthetic cases cover precise wear boundaries, type/material stock forecasts and upper-habitat custody. Schema67 migrates a genuine schema66 save without physical changes. Full JavaScript integration passed1,813 tests with zero failures and one historical skip. Syntax and the126-file public export also pass. These checks do not establish general equipment coverage or ordinary upstairs endurance.
+
 ## v0.1.11: structural materials
 
 Alloy/composite definitions now drive tools and paid floors, hull walls and pressure doors. A hidden selector updates physical costs; separate floor/structure ownership survives building, repair and dismantling. Composite uses one extra component, more work, lower solid conductivity and reduced wall/door damage. Repairs consume the installed material's supplies; half-cost refunds round down per resource, so a single component is not recovered.

@@ -1,4 +1,4 @@
-import {TOOL_RECIPES,DEFAULT_TOOL_RECIPE} from './tool-data.js';
+import {TOOL_RECIPES,DEFAULT_TOOL_RECIPE,isTool} from './tool-data.js';
 import {finishToolBatch} from './tools.js';
 import { sameCell, positionOf, tileAt, horizontalNeighbors, cellKey } from './spatial.js';
 import { crewPathToPosition } from './navigation.js';
@@ -41,9 +41,9 @@ export function initializeProduction(s) {
 }
 const operationAt = (s, site, t) => s.jobs.find(j => j.kind === 'operate' && j.site === site.id && sameCell(positionOf(j),positionOf(t)));
 const outputResource = t => Object.keys(recipeFor(t, 'selected').output)[0];
-const matchesProduct = (candidate, desired) => !desired || (desired.outputKind ? candidate?.outputKind === desired.outputKind : desired.material ? candidate?.material === desired.material : desired.id && MEAL_RECIPES[desired.id] ? candidate?.id === desired.id : true);
+const matchesProduct = (candidate, desired) => !desired || (desired.outputKind ? candidate?.outputKind === desired.outputKind : desired.material ? candidate?.material === desired.material && candidate?.toolKind === desired.toolKind : desired.id && MEAL_RECIPES[desired.id] ? candidate?.id === desired.id : true);
 function productAmount(inventory, resource, preparedOnly, recipe) {
-  if(resource==='tools'&&recipe?.material)return (inventory?._items||[]).filter(i=>i.kind==='mining_tool'&&i.material===recipe.material).length;
+  if(resource==='tools'&&recipe?.material)return (inventory?._items||[]).filter(i=>i.kind===recipe.toolKind&&i.material===recipe.material).length;
   if (recipe?.outputKind) return foodOfKind(inventory, recipe.outputKind);
   if (recipe?.id && MEAL_RECIPES[recipe.id]) return foodLots(inventory).reduce((n, lot) => n + (lot.meal && (lot.meal.recipeId || DEFAULT_MEAL) === recipe.id ? lot.amount : 0), 0);
   return preparedOnly ? preparedFood(inventory) : inventory?.[resource] || 0;
@@ -55,7 +55,13 @@ export function projectedStock(s, site, resource, ignorePending = null, prepared
   const amount = inventory => productAmount(inventory, resource, preparedOnly, recipe);
   for (const t of site.tiles) {
     total += amount(t.stock) + amount(t.drop) + amount(t.machine?.output) + (t.building === 'dock' ? amount(t.imports) : 0);
-    if ((!preparedOnly || t.building==='galley') && staffed(t) && matchesProduct(recipeFor(t), recipe) && (quantity(t.machine?.batch) || (t !== ignorePending && operationAt(s, site, t)))) total += recipeFor(t).output[resource] || 0;
+    if ((!preparedOnly || t.building==='galley') && staffed(t)) {
+      const active=recipeFor(t);
+      // Repair preserves an existing tool, so count its committed identity and
+      // properties, never infer a new tool from the selected future recipe.
+      if(active.repair){if(resource==='tools'&&quantity(t.machine?.batch))total+=amount(t.machine.batch);}
+      else if(matchesProduct(active,recipe)&&(quantity(t.machine?.batch)||(t!==ignorePending&&operationAt(s,site,t))))total+=active.output[resource]||0;
+    }
   }
   for (const c of s.crew) if (c.site === site.id && c.carry && (!c.delivery || c.delivery.kind === 'stock')) total += amount(c.carry);
   return total;
@@ -96,7 +102,7 @@ function productionReason(s, site, t, recipe = recipeFor(t), checkLabor = true) 
     const missing = recipe.foodKinds && Object.entries(recipe.foodKinds).filter(([kind, n]) => foodOfKind(m.input, kind) + 1e-9 < n).map(([kind]) => FOOD_KINDS[kind].name);
     return block('ingredients', missing?.length ? `Waiting for ingredients: ${missing.join(', ')}` : 'Waiting for unprepared food delivery');
   }
-  if(!quantity(m.batch)&&recipe.repair&&!m.input._items?.some(i=>i.kind==='mining_tool'&&i.condition<100))return block('tool_condition','Waiting for a worn tool');
+  if(!quantity(m.batch)&&recipe.repair&&!m.input._items?.some(i=>isTool(i)&&i.condition<100))return block('tool_condition','Waiting for a worn tool');
   if (!quantity(m.batch) && !contains(m.input, recipe.input)) return block('inputs', `Waiting for input delivery: ${Object.entries(recipe.input).filter(([r, n]) => (m.input[r] || 0) < n).map(([r]) => r).join(', ')}`);
   return null;
 }
@@ -166,7 +172,7 @@ export function operateMachine(s, c, j, site, pathTo) {
   if (route === null) { c.job = null; j.worker = null; j.blockedReason = m.status = c.activity = 'Workstation route blocked'; return; }
   if (route.length) { advanceCrewRoutePositions(s, c, site, [route.at(-1)]); c.activity = `Going to ${BUILDINGS[t.building].name.toLowerCase()}`; return; }
   if (!quantity(m.batch)) {
-    const request=recipe.repair?{...recipe.input,_items:[m.input._items?.find(i=>i.kind==='mining_tool'&&i.condition<100)]}:recipe.input;
+    const request=recipe.repair?{...recipe.input,_items:[m.input._items?.find(i=>isTool(i)&&i.condition<100)]}:recipe.input;
     const batch = extract(m.input, request, t.building === 'galley' ? foodSelector(recipe) : false); if (!batch) return;
     m.batch = batch; if (recipeMachine(t)) m.batchRecipeId = recipe.id;
     m.progress = 0;
@@ -247,7 +253,7 @@ export function validateProduction(s) {
       }
     } else if (m.recipeId !== undefined || m.batchRecipeId !== undefined) throw new Error('Recipe selection on unsupported machine.');
     if(recipeFor(t,'selected').repair&&o?.mode==='stock')throw new Error('Invalid repair stock target.');
-    if(recipeFor(t).repair&&quantity(m.batch)&&!m.batch._items?.some(i=>i.kind==='mining_tool'&&i.condition<100))throw new Error('Invalid committed tool repair.');
+    if(recipeFor(t).repair&&quantity(m.batch)&&!m.batch._items?.some(i=>isTool(i)&&i.condition<100))throw new Error('Invalid committed tool repair.');
     if (!o || !['continuous', 'batches', 'stock'].includes(o.mode) || !Number.isInteger(o.limit) || o.limit < 0 || o.limit > 1000 || !Number.isInteger(o.remaining) || o.remaining < 0 || o.remaining > o.limit || (o.mode !== 'batches' && o.remaining !== 0) || (o.mode === 'continuous' && o.limit !== 0) || ![1, 3, 5].includes(o.priority) || !Number.isSafeInteger(m.completed) || m.completed < 0) throw new Error('Invalid production order.');
   }
   for (const j of s.jobs.filter(j => j.kind === 'operate')) {

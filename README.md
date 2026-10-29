@@ -8,6 +8,12 @@ An early playable space colony simulator inspired by Dwarf Fortress. Keep seven 
 
 **The game is still in development.** Build across connected floors using paid stairs, supported upper-floor extensions and a compact floor selector. New colonies add two seeded orbital destinations alongside the four starter sites. Long-lived staffed outposts, complete vertical systems, a generated universe/history and much of the wider simulation remain unfinished. The [implementation status](docs/implementation-status.md) separates working systems from plans.
 
+## Local development after v0.1.11: engineering kits
+
+The tool workshop can now manufacture alloy/composite engineering kits alongside mining tools. Equip a kit through the existing crew controls to improve construction, dismantling and maintenance. Wear follows completed matching work; mining, medical care and unrelated duties do not consume the kit. Broken kits retain normal hand-work speed.
+
+Kits use the existing physical tool slot, stairs, hauling and workshop repair process. Stock targets distinguish tool family and material, including committed repairs. Local save schema67 preserves prior colonies and existing tool identities without additional stock. These changes are not yet part of the published v0.1.11 build.
+
 ## v0.1.11: structural materials
 
 Open **Build → Construction material** to choose alloy or composite for habitat floors, hull walls and pressure doors. Composite adds one component and 50% more construction work (rounded up), conducts 25% as much heat through solid material, and takes 60% of incoming wall/door damage. Its wall/door repairs cost one alloy and one component. Costs, delivery, cancellation and dismantling use the existing physical supply system.
