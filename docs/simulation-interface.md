@@ -2,6 +2,10 @@
 
 Implemented September 16, 2026, following the user's request to clearly mark small simulation interactions for eventual AI training. This is a local environment interface and recorder. No model, training service, network endpoint or external dependency is involved.
 
+## Hazard response on declared floors
+
+`job.order` accepts `kind: "extinguish"` with optional `z`; omitted `z` remains ground. Automatic `fire.response` is a site-wide policy that schedules each fire on its actual floor. `maintenance.auto` accepts the equipment's floor and schedules repair/service there. Suppression costs two delivered water; repair/service costs one delivered alloy. Engineering duty and reachable routes/supplies are required. Existing job, fire and damage events use the actual tile ID. Schema61 persists these upper response jobs; observation/recording9 is unchanged.
+
 ## Airlocks on declared floors
 
 Airlock controllers can now be built through normal paid jobs on declared upper floors. The six airlock commands accept optional z; their X/Y equipment references use the controller’s floor. Ownership, queue/cycle state, rescue parties, cargo, movement, event IDs and inspection retain that floor. Approaches can use declared stairs. Each assembly remains on one floor, with two controlled doors and a finite isolated gas circuit.

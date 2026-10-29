@@ -384,5 +384,6 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 
 ## Upper-floor airlock verification
 
+- [tests/hazard-response-floors.test.js](../tests/hazard-response-floors.test.js): upper suppression/maintenance delivery, exact-floor labels, blocked routes/supplies, cancellation custody and genuine schema60 migration.
 - [tests/airlock-floors.test.js](../tests/airlock-floors.test.js): upper pressure cycles, stair approaches, rescue/cargo custody, interruption, player/agent parity, save migration and paid controller work.
 - [tests/helpers/airlock-floor-fixture.js](../tests/helpers/airlock-floor-fixture.js): explicitly synthetic stacked finite assemblies; distinct from ordinary colony acceptance.

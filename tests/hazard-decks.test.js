@@ -66,11 +66,11 @@ test('fire spreads and records damage only within its actual deck compartment',(
   assert.equal(fireJobValid(s,{site:'surface',x:3,y:3,z:7,fire:upper.fire.id}),true);assert.equal(fireJobValid(s,{site:'surface',x:3,y:3,z:0,fire:upper.fire.id}),false);
 });
 
-test('unsupported upper fire and service responses cannot request work on the ground floor',()=>{
+test('upper fire and service responses target their actual floor and retain route isolation',()=>{
   const {s,site}=compartments(),upper=at(site,3,3,7);ignite(s,site,upper,'test');
-  const calls=[],order=(...args)=>{calls.push(args);return {ok:false,message:'test'};};prepareFire(s,order,()=>{});assert.equal(calls.length,0);assert.match(upper.fire.blocked,/this deck/);
+  const calls=[],order=(...args)=>{calls.push(args);return {ok:false,message:'test'};};prepareFire(s,order,()=>{});assert.equal(calls.length,1);assert.equal(calls[0][4],'extinguish');assert.equal(calls[0][6],7);assert.equal(upper.fire.blocked,'test');
   upper.maintenance.auto=true;upper.maintenance.usage=SERVICE_INTERVAL;s.jobs.push({id:'ground-repair',kind:'repair',site:'surface',x:3,y:3,z:0});
-  scheduleMaintenance(s,order);assert.equal(calls.length,0);assert.match(upper.maintenance.blocked,/this deck/);
+  scheduleMaintenance(s,order);assert.equal(calls.length,2);assert.equal(calls[1][4],'service');assert.equal(calls[1][6],7);assert.equal(upper.maintenance.blocked,'test');
   const actor={...s.crew[0],site:'surface',x:3,y:3,z:7},ground={...actor,z:0},before=positionOf(actor);let releases=0;
   assert.equal(evadeFire(s,ground,site,null,()=>{releases++;}),false);assert.equal(releases,0);
   assert.equal(evadeFire(s,actor,site,null,()=>{releases++;}),true);assert.equal(releases,1);assert.notDeepEqual(positionOf(actor),before);assert.equal(actor.z,7);assert.equal(actor.activity,'Escaping a fire');

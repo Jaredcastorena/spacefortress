@@ -27,13 +27,13 @@ export function damage(s, site, t, target, amount, cause) {
   emitEvent(s,'structure.damaged',{entity:tileEntityId(site.id,t.x,t.y,positionOf(t).z),target,cause,amount:before-asset.hp,condition:asset.hp});
   if(stair){emitEvent(s,'vertical.damaged',{entity:`site:${site.id}`,connection:stair.id,target:tileEntityId(site.id,t.x,t.y,t.z),cause,amount:before-stair.hp,condition:stair.hp});if(before>=STAIR.minimumCondition&&stair.hp<STAIR.minimumCondition)emitEvent(s,'vertical.blocked',{entity:`site:${site.id}`,connection:stair.id,reason:'damage',condition:stair.hp});}
   site.incidents.unshift({ tick: s.tick, x: t.x, y: t.y, z: positionOf(t).z, target, cause, amount: before - asset.hp }); site.incidents = site.incidents.slice(0, 12);
-  if (cause === 'debris' || [75, 50, 0].some(n => before > n && asset.hp <= n)) emit(s, `${target === 'waterPipe' ? 'Water pipe' : target === 'pipe' ? 'Gas pipe' : target === 'cable' ? 'Power cable' : (stair?'Stairwell':BUILDINGS[t.building]?.name) || 'Structure'} at ${t.x}/${t.y}: ${cause === 'wear' ? 'overdue service wear' : cause==='fire'?'fire damage':cause==='water'?'wet cable short':'debris impact'}, condition ${Math.round(asset.hp)}%.`);
+  if (cause === 'debris' || [75, 50, 0].some(n => before > n && asset.hp <= n)) emit(s, `${target === 'waterPipe' ? 'Water pipe' : target === 'pipe' ? 'Gas pipe' : target === 'cable' ? 'Power cable' : (stair?'Stairwell':BUILDINGS[t.building]?.name) || 'Structure'} at ${t.x}/${t.y} · floor ${positionOf(t).z}: ${cause === 'wear' ? 'overdue service wear' : cause==='fire'?'fire damage':cause==='water'?'wet cable short':'debris impact'}, condition ${Math.round(asset.hp)}%.`);
 }
 export function recordOperation(s, site, operating) {
   for (const t of operating) {
     initializeMaintenance(t); const m = t.maintenance; if (!m || t.hp <= 0) continue;
     m.usage++;
-    if (m.usage === SERVICE_INTERVAL) emit(s, `${BUILDINGS[t.building].name} at ${t.x}/${t.y} is due for service. Engineers need one alloy.`, 'info');
+    if (m.usage === SERVICE_INTERVAL) emit(s, `${BUILDINGS[t.building].name} at ${t.x}/${t.y} · floor ${positionOf(t).z} is due for service. Engineers need one alloy.`, 'info');
     if (m.usage > SERVICE_INTERVAL && (m.usage - SERVICE_INTERVAL) % WEAR_PERIOD === 0) damage(s, site, t, 'structure', 1, 'wear');
   }
 }
@@ -51,8 +51,7 @@ export function scheduleMaintenance(s, order) {
     const m = t.maintenance;
     if (!m?.auto || (m.usage < SERVICE_INTERVAL && t.hp > 50)) continue;
     if (s.jobs.some(j => j.site === site.id && sameCell(positionOf(j),positionOf(t)) && j.kind !== 'operate')) { m.blocked = null; continue; }
-    if(positionOf(t).z!==0){m.blocked='Maintenance on this deck is not available yet.';continue;}
-    const result = order(s, site.id, t.x, t.y, t.hp < 100 ? 'repair' : 'service');
+    const result = order(s, site.id, t.x, t.y, t.hp < 100 ? 'repair' : 'service', null, positionOf(t).z);
     m.blocked = result.ok ? null : result.message;
     if (result.ok) { result.job.automaticMaintenance = true; result.job.priority = t.building === 'scrubber' || t.hp <= 50 ? 5 : 3; }
   }

@@ -4,10 +4,16 @@ SPACEFORTRESS is an early playable colony simulator. Release entries describe co
 
 ## Unreleased
 
+No changes yet.
+
+## v0.1.7 — 2026-10-28
+
 - Enable paid upper-floor airlock controllers and floor-aware configuration, requests, pause/resume, cancellation, release and unbinding. Preserve ground defaults and stable ground IDs.
 - Carry crew, rescue parties, cargo, ownership and saved pressure cycles through upper-floor airlocks and declared stair approaches. Player inspection and structured events use the actual floor.
 - Check exposed-walkway pressure before opening the outer door and reject stair or gas-riser bypasses around the controlled chamber.
-- Save schema60 migrates validated hex schemas40–59; a genuine in-flight schema59 fixture preserves physical state exactly.
+- Enable manual and automatic upper-floor fire suppression with two delivered water, and automatic repair/service with one delivered alloy. Preserve stair routing, engineering duties, cancellation custody and exact-floor events.
+- Identify the actual floor in fire inspection and damage/service messages.
+- Save schema61 migrates validated hex schemas40–60. Genuine schema59 airlock and schema60 fire fixtures preserve physical state; older schemas cannot claim the new job types.
 
 ## v0.1.6 — 2026-10-28
 

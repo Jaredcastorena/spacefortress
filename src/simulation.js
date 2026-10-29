@@ -160,7 +160,7 @@ export function order(s, siteId, x, y, kind, building = null, z = 0) {
   const stair=!riserKind(building)&&['repair','remove'].includes(kind)?stairAt(site,target):null;
   if(!stair&&building==='stairwell'&&kind!=='build')return {ok:false,message:'Select an existing stairwell.'};
   if(stair&&kind==='remove'&&!sameCell(target,stair.lower))return order(s,siteId,stair.lower.x,stair.lower.y,kind,null,stair.lower.z);
-  if(z!==0&&(!['animalCare','animalHarvest','animalTreat','animalDispatch','animalButcher','animalDiscard','treat','feed','hygiene','operate','build','remove','repair','repairCable','removeCable','service','repairPipe','removePipe','repairWaterPipe','removeWaterPipe'].includes(kind)))return {ok:false,code:'unsupported_deck_work',message:'This work type is not available on this deck yet.'};
+  if(z!==0&&(!['extinguish','animalCare','animalHarvest','animalTreat','animalDispatch','animalButcher','animalDiscard','treat','feed','hygiene','operate','build','remove','repair','repairCable','removeCable','service','repairPipe','removePipe','repairWaterPipe','removeWaterPipe'].includes(kind)))return {ok:false,code:'unsupported_deck_work',message:'This work type is not available on this deck yet.'};
   if (!siteWorkAllowed(s, siteId) && (s.mission?.site !== siteId || s.mission.phase !== 'working')) return { ok: false, message: 'Resume field work before assigning expedition orders.' };
   if (s.jobs.some(j => j.site === siteId && sameCell(positionOf(j),target) && (kind==='extinguish'?j.kind==='extinguish':['feed', 'hygiene'].includes(kind) ? j.kind === kind && j.patient === building : !['feed', 'hygiene', 'operate', 'animalCare', 'animalHarvest', 'animalTreat', 'animalLead', 'extinguish'].includes(j.kind)))) return { ok: false, message: 'Work already designated here.' };
   if(s.jobs.some(j=>j.site===siteId&&stairJobClaims(j,target,site)))return {ok:false,code:'stair_endpoint_reserved',message:'Finish or cancel the stairwell claiming this landing.'};
@@ -884,7 +884,7 @@ export function deserialize(text) {
   if (text.length > 5_000_000) throw new Error('Save is too large.');
   const s = JSON.parse(text),legacySolarModel=s?.version<59;
   if (Number.isInteger(s?.version) && s.version >= 1 && s.version <= 39) throw new Error('Legacy square-grid saves (schemas 1–39) cannot be loaded into the hex colony. Export the original save and use the preserved square version to continue it.');
-  if (![40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, VERSION].includes(s?.version) || s.grid !== GRID) throw new Error('Unsupported save topology: schemas 40–60 require grid hex-odd-q-v1.');
+  if (![40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, VERSION].includes(s?.version) || s.grid !== GRID) throw new Error('Unsupported save topology: schemas 40–61 require grid hex-odd-q-v1.');
   if ( !Number.isSafeInteger(s.tick) || s.tick < 0 || !Number.isInteger(s.rng) || !Number.isSafeInteger(s.nextId)) throw new Error('Unsupported or invalid save.');
   if (!s.sites || !Array.isArray(s.crew) || s.crew.length !== 7 || !Array.isArray(s.jobs) || !Array.isArray(s.log) || !s.stats || !s.comet || !s.flags || !s.objectives) throw new Error('Incomplete save.');
   for (const r of RESOURCES) if (!Number.isFinite(s.resources?.[r]) || s.resources[r] < 0) throw new Error('Invalid resources.');
@@ -902,6 +902,7 @@ export function deserialize(text) {
   validateRoomLocations(s, { legacy: s.version <= 51 });
   validateHazardLocations(s, { legacy: s.version <= 52 });
   validateDesignationLocations(s, { legacy: s.version <= 53 });
+  if(s.version<61&&s.jobs.some(j=>(j.z??0)!==0&&(j.kind==='extinguish'||j.automaticMaintenance)))throw new Error('Legacy upper hazard response job.');
   if(s.version<=45&&(s.creatures?.some(a=>['death','body','carcass'].some(k=>Object.hasOwn(a,k)))||s.jobs.some(j=>dispatchJob(j)||carcassJob(j))))throw new Error('Legacy livestock death or body shadow.');
   if(s.version<=45&&legacyMeatShadow(s))throw new Error('Legacy meat or butchery recipe shadow.');
   if(s.version<=44&&Array.isArray(s.creatures)&&s.creatures.some(a=>Object.hasOwn(a,'genetics')||a.lifecycle?.brood&&Object.hasOwn(a.lifecycle.brood,'inheritance')))throw new Error('Legacy livestock genetics shadow.');
@@ -931,6 +932,7 @@ export function deserialize(text) {
   if(s.version===57)s.version=VERSION;
   if(s.version===58)s.version=VERSION;
   if(s.version===59)s.version=VERSION;
+  if(s.version===60)s.version=VERSION;
   const ids = new Set();
   for (const c of s.crew) {
     if (ids.has(c.id) || typeof c.name !== 'string' || c.name.length > 80 || !['surface', 'wreck', 'comet', 'solar', 'transit'].includes(c.site) || ![c.health, c.oxygen, c.energy, c.hunger, c.skill].every(Number.isFinite) || !Number.isInteger(c.x) || !Number.isInteger(c.y) || (c.site !== 'transit' && !inside(s.sites[c.site], c.x, c.y))) throw new Error('Invalid crew.');

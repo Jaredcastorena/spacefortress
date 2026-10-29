@@ -2,8 +2,12 @@
 
 ## Current systems work
 
+Release v0.1.7 includes upper-floor airlocks and supplied hazard response. Next checkpoints are the remaining upper-floor work families and the bounded upstairs build-and-live journey.
+
 - [x] Make solar generation respect overhead terrain and structures; expose the blocking floor to players and agents, preserve finite battery accounting, and migrate older saves through schema59.
 - [x] Extend paid airlock-controller construction, admission, cycling, recovery, rescue passage, controls and persistence to upper floors. Keep per-floor assemblies isolated, validate exposed-walkway pressure and reject unowned stair/gas-riser bypasses. Bounded checks pass; ordinary upstairs endurance remains incomplete.
+- [x] Enable upper-floor fire suppression and automatic repair/service using the existing finite water/alloy delivery, crew duties, stair routes, cancellation and save rules.
+- [ ] Convert remaining upper-floor work families, including terrain extraction and plant work, with actual-floor ownership and shared player/agent controls.
 - [ ] Complete the ordinary upstairs build-and-live journey, including supplied care and operation through a full night.
 
 - [x] Enable animal movement and handler escorts through stairs, upper-floor post assignment and supplied care/collection, floor-aware carcasses and births, safe stair removal, and schema58 persistence. Bounded checks pass; ordinary upstairs living remains unverified.

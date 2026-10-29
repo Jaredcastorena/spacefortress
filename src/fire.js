@@ -17,7 +17,7 @@ export function initializeFire(s){for(const site of Object.values(s.sites)){site
 export function ignite(s,site,t,cause='electrical_fault',parent=null){
  if((t.liquid||0)>=LIQUID.wet||t.fire||!combustible(t)||!oxygen(roomAt(site,t.x,t.y,t.z)))return false;
  t.fire={id:`fire-${s.nextId++}`,started:s.tick,age:0,intensity:20,retryAt:0,blocked:null};delete t.fireFault;
- emitEvent(s,'fire.ignited',{entity:t.fire.id,target:tileEntityId(site.id,t.x,t.y,positionOf(t).z),cause,parent});s.log.unshift({tick:s.tick,message:`Fire at ${site.id} ${t.x}/${t.y}. Suppression needs delivered water; isolate damaged equipment.`,type:'danger'});s.log=s.log.slice(0,60);return true;
+ emitEvent(s,'fire.ignited',{entity:t.fire.id,target:tileEntityId(site.id,t.x,t.y,positionOf(t).z),cause,parent});s.log.unshift({tick:s.tick,message:`Fire at ${site.id} ${t.x}/${t.y} · floor ${positionOf(t).z}. Suppression needs delivered water; isolate damaged equipment.`,type:'danger'});s.log=s.log.slice(0,60);return true;
 }
 export function extinguish(s,site,t,reason,actor=null,job=null){
  if(!t.fire)return;emitEvent(s,'fire.extinguished',{entity:t.fire.id,target:tileEntityId(site.id,t.x,t.y,positionOf(t).z),reason,actor,job});delete t.fire;delete t.fireFault;
@@ -52,8 +52,7 @@ export function fireJobValid(s,j){const t=tileAt(s.sites[j.site],positionOf(j));
 export function prepareFire(s,order,cancelJob){
  for(const j of [...s.jobs])if(j.kind==='extinguish'&&!fireJobValid(s,j))cancelJob(s,j.id,true);
  for(const site of Object.values(s.sites))if(site.fireSafety.automatic)for(const t of site.tiles)if(t.fire&&s.tick>=t.fire.retryAt&&!s.jobs.some(j=>j.kind==='extinguish'&&j.site===site.id&&sameCell(positionOf(j),positionOf(t)))){
-  if(positionOf(t).z!==0){t.fire.blocked='Fire response on this deck is not available yet.';continue;}
-  const result=order(s,site.id,t.x,t.y,'extinguish');t.fire.blocked=result.ok?null:result.message;
+  const result=order(s,site.id,t.x,t.y,'extinguish',null,positionOf(t).z);t.fire.blocked=result.ok?null:result.message;
  }
 }
 export function setFireResponse(s,siteId,enabled){const site=s.sites[siteId];if(!site||typeof enabled!=='boolean')return {ok:false,message:'Choose a site and response policy.'};site.fireSafety.automatic=enabled;return {ok:true};}

@@ -2,13 +2,17 @@
 
 Updated October 28, 2026.
 
-## Local upper-floor airlocks after v0.1.6
+## v0.1.7 upper-floor hazard response
+
+Manual and automatic suppression now reach upper fires through normal stair routes and consume two delivered water. Automatic repair/service uses one delivered alloy and targets the actual floor. Engineering duty, reachable supply, reservation custody, retry delays and physical work remain required. Fire inspection and typed events identify the same floor. Schema61 preserves genuine schema60 state and rejects legacy claims for newly supported upper jobs. The finite synthetic scenarios cover migration, delivery, cancellation, blocked supplies/routes, and exact continuation; ordinary upstairs endurance remains unverified.
+
+## v0.1.7 upper-floor airlocks
 
 Airlock controllers can now be built through normal paid jobs on declared upper floors. The six airlock commands accept optional z; their X/Y equipment references use the controller’s floor. Ownership, queue/cycle state, rescue parties, cargo, movement, event IDs and inspection retain that floor. Approaches can use declared stairs. Each assembly remains on one floor, with two controlled doors and a finite isolated gas circuit.
 
 An exposed upper walkway must have low measured pressure before outer release. A stair opening in the chamber or a gas riser attached to its owned circuit invalidates the enclosure, including a disabled riser that could later open. Power risers remain independent. Upper-floor airlocks do not establish ordinary upstairs endurance.
 
-Twelve new scenarios and 144 distinct compatibility cases are covered. The first 101-case gate had one obsolete missing-room expectation; the second 62-case gate found a coordinate-default bug in the bypass check. After correcting those, the final 32-case affected gate passed. Genuine schema59 in-flight migration preserves physical state, and schema60 persists upper assemblies. Pressure-cycle fixtures are synthetic with finite initial supplies; a separate scenario builds an upper controller through real delivered work. No full-suite or ordinary endurance rerun was performed.
+Twelve new scenarios and 144 distinct compatibility cases are covered. The first 101-case gate had one obsolete missing-room expectation; the second 62-case gate found a coordinate-default bug in the bypass check. After correcting those, the final 32-case affected gate passed. Genuine schema59 in-flight migration preserves physical state, and schema60 persists upper assemblies. Pressure-cycle fixtures are synthetic with finite initial supplies; a separate scenario builds an upper controller through real delivered work. These were focused development checks. Release CI and deployment verification are recorded in the [v0.1.7 release](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.7); ordinary upstairs endurance remains unverified.
 
 ## v0.1.6 solar exposure
 
