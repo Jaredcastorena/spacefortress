@@ -1,5 +1,5 @@
 import { LIVESTOCK } from './livestock-data.js';
-export const VERSION = 59;
+export const VERSION = 60;
 export const RESOURCES = ['alloy', 'ore', 'components', 'food', 'water', 'fuel', 'cells', 'air', 'medicine', 'waste', 'fertilizer', 'keepsakes', 'ice'];
 export const BUILDINGS = {
   powerRiser:{name:'Power riser',cost:{alloy:2},work:8,overlay:true,description:'Connect paid cables on this habitat floor and the floor directly above. Independent isolation; stair hatches do not interrupt power.'},

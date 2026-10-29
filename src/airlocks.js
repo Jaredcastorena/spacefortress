@@ -1,5 +1,5 @@
 import { tileAt, positionOf, sameCell } from './spatial.js';
-import { groundAirlockConfig, groundAirlockCells } from './airlock-locations.js';
+import { airlockConfig, airlockCells } from './airlock-locations.js';
 import { emitEvent } from './telemetry.js';
 import { refreshAtmosphere } from './atmosphere.js';
 import { refreshPower } from './power.js';
@@ -9,7 +9,7 @@ import { airlockTile as at, airlockId as id, airlockKey as key, airlockRoom, air
 const opposite=side=>side==='inner'?'outer':'inner';
 const members=entry=>entry?[entry.crew,...(entry.patient?[entry.patient]:[])]:[];
 const controllers=s=>Object.values(s.sites).flatMap(site=>site.tiles.filter(t=>t.airlock).map(t=>[site,t]));
-const resolve=(s,args)=>{const site=s.sites[args.site];return [site,site&&at(site,args.x,args.y)];};
+const resolve=(s,args)=>{const site=s.sites[args.site];return [site,site&&at(site,args.x,args.y,args.z??0)];};
 const error=(reason,message=reason.replaceAll('_',' '))=>({ok:false,reason,message});
 // Successful public controls must leave immediately serializable derived
 // readings. This previews the circuit only: no charge, fuel or energy is used.
@@ -125,11 +125,11 @@ export function configureAirlock(s,args) {
  const [site,t]=resolve(s,args);if(t?.building!=='airlockController')return error('invalid_controller');
  if(t.airlock&&(t.airlock.party||t.airlock.queue.length||!(t.airlock.phase==='idle'||t.airlock.phase==='paused'&&t.airlock.resumePhase==='idle')))return error('cycle_active');
  const names=['chamber','inner','outer','extractor','pump','reservoir','vent'];
- if(names.some(k=>!Array.isArray(args[k])||args[k].length!==2||!args[k].every(Number.isInteger)||!at(site,...args[k])))return error('invalid_reference');
- const config=groundAirlockConfig(args);
+ if(names.some(k=>!Array.isArray(args[k])||args[k].length!==2||!args[k].every(Number.isInteger)||!at(site,...args[k],args.z??0)))return error('invalid_reference');
+ const config=airlockConfig(args);
  if(new Set(names.filter(k=>k!=='chamber').map(k=>key(config[k]))).size!==6)return error('duplicate_reference');
  const room=airlockRoom(site,config.chamber);if(!room)return error('layout_changed');
- const previous=t.airlock,a={binding:'pending',config,chamberCells:groundAirlockCells(room).sort(),ownedNodes:[],enabled:true,phase:'idle',direction:null,party:null,queue:[],nextCycle:1,cycle:null,resumePhase:null,recoverySide:null,reason:null};
+ const previous=t.airlock,a={binding:'pending',config,chamberCells:airlockCells(room).sort(),ownedNodes:[],enabled:true,phase:'idle',direction:null,party:null,queue:[],nextCycle:1,cycle:null,resumePhase:null,recoverySide:null,reason:null};
  const layout=airlockLayout(site,{...t,airlock:a},false);if(!layout.ok)return error(layout.reason);
  if(['inner','outer'].some(side=>open(site,tileAt(site,config[side]))))return error('door_open');
  if(s.crew.some(c=>c.site===site.id&&c.health>0&&(inside(a,c)||doorPosition(a,c)))||(s.creatures||[]).some(c=>(c.site||'surface')===site.id&&c.health>0&&(inside(a,c)||doorPosition(a,c))))return error('unexpected_occupant');

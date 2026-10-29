@@ -2,6 +2,13 @@
 
 SPACEFORTRESS is an early playable colony simulator. Release entries describe completed changes within their stated scope.
 
+## Unreleased
+
+- Enable paid upper-floor airlock controllers and floor-aware configuration, requests, pause/resume, cancellation, release and unbinding. Preserve ground defaults and stable ground IDs.
+- Carry crew, rescue parties, cargo, ownership and saved pressure cycles through upper-floor airlocks and declared stair approaches. Player inspection and structured events use the actual floor.
+- Check exposed-walkway pressure before opening the outer door and reject stair or gas-riser bypasses around the controlled chamber.
+- Save schema60 migrates validated hex schemas40–59; a genuine in-flight schema59 fixture preserves physical state exactly.
+
 ## v0.1.6 — 2026-10-28
 
 - Block solar generation beneath upper terrain or intact structures. Identify the nearest blocking floor in player inspection and structured observations.

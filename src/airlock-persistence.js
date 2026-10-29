@@ -42,7 +42,7 @@ export function validateAirlocks(s) {
   if(!airlockRouteInfo(site,t))fail('door orientation');
   if(!Array.isArray(a.ownedNodes)||a.ownedNodes.length<6||a.ownedNodes.length>site.tiles.length)fail('owned references');
   const refs=new Set();for(const ref of a.ownedNodes) {
-   if(!exact(ref,['x','y','layer','z'])||!coord(site,{x:ref.x,y:ref.y,z:ref.z})||!['building','pipe'].includes(ref.layer))fail('owned reference');
+   if(!exact(ref,['x','y','layer','z'])||!coord(site,{x:ref.x,y:ref.y,z:ref.z})||ref.z!==positionOf(t).z||!['building','pipe'].includes(ref.layer))fail('owned reference');
    const key=`${entity}:${ref.layer}:${cellKey(ref)}`,global=`${site.id}:${ref.layer}:${cellKey(ref)}`;
    if(refs.has(key)||owned.has(global))fail('duplicate ownership');refs.add(key);owned.set(global,{entity,binding:a.binding});
   }

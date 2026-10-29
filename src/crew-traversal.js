@@ -2,8 +2,8 @@ import { stairDestination, stairAt } from './vertical.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
 import { moveCrew } from './atmosphere.js';
 import { pathToPosition, passablePosition, planCrewRoutePositions } from './navigation.js';
-import { groundStep, horizontalStep, tileAt, sameCell, positionOf, cellKey } from './spatial.js';
-import { airlockDoorPermit, airlockRouteInfo } from './airlock-access.js';
+import { horizontalStep, tileAt, sameCell, positionOf, cellKey } from './spatial.js';
+import { airlockDoorPermit, airlockRouteInfo, airlockId } from './airlock-access.js';
 import { requestAirlock, cancelAirlock } from './airlocks.js';
 
 const result = (status, reason = null) => ({ status, reason });
@@ -11,13 +11,13 @@ const same = sameCell;
 const position = positionOf;
 const groundCell = p => Array.isArray(p) && p.length === 2 ? { x: p[0], y: p[1], z: 0 } : null;
 const origin = c => ({ ...c, z: c.z ?? 0 });
-const controller = (site, id) => site.tiles.find(t => position(t).z===0 && `tile:${site.id}:${t.x}:${t.y}` === id && t.building === 'airlockController');
+const controller = (site, id) => site.tiles.find(t => airlockId(site,t) === id && t.building === 'airlockController');
 const waiting = (c, reason) => { c.activity = reason ? `Waiting for airlock: ${reason.replaceAll('_', ' ')}` : 'Waiting for airlock'; return result('waiting_airlock', reason); };
 
 export function cancelCrewTraversal(s, c) {
   const site = s.sites[c.site], claim = c.airlockTraversal;
   const t = site && claim && controller(site, claim.controller);
-  return t ? cancelAirlock(s, { site: site.id, x: t.x, y: t.y, crew: c.id }) : null;
+  return t ? cancelAirlock(s, { site: site.id, x: t.x, y: t.y, z:position(t).z, crew: c.id }) : null;
 }
 
 function step(s, c, site, next) {
@@ -35,7 +35,7 @@ function step(s, c, site, next) {
  * Needs/exposure still run each tick. No inventory or intent belongs here. */
 export function continueCrewTraversal(s, c, site) {
   const claim = c.airlockTraversal; if (!claim) return null;
-  if (!groundStep(site, c, position(c))) return result('blocked', 'route_unavailable');
+  if (!horizontalStep(site, c, position(c))) return result('blocked', 'route_unavailable');
   if (s.crew.some(helper => helper.rescue?.carrying && helper.rescue.patient === c.id)) return waiting(c, 'carried_patient');
   const t = controller(site, claim.controller), a = t?.airlock;
   if (!a || a.binding !== claim.binding) return result('blocked', 'airlock_unavailable');
@@ -73,7 +73,7 @@ export function continueCrewTraversal(s, c, site) {
   const canEnter = (current, p) => {
     if (!party) return passablePosition(current, p);
     const tile = tileAt(current, p);
-    return p.z === 0 && allowed.has(cellKey(p)) && !!tile && !tile.fire && !['void', 'rock'].includes(tile.terrain) && tile.building !== 'wall' && (tile.building !== 'door' || tile.hp > 0);
+    return allowed.has(cellKey(p)) && !!tile && !tile.fire && !['void', 'rock'].includes(tile.terrain) && tile.building !== 'wall' && (tile.building !== 'door' || tile.hp > 0);
   };
   const path = pathToPosition(site, origin(c), goals, canEnter);
   if (path === null) return !inside ? lostApproach() : waiting(c, 'route_unavailable');
@@ -89,7 +89,7 @@ export function advanceCrewRoutePositions(s, c, site, goals) {
     const destination = c.airlockTraversal.destination;
     if (destination && !goals.some(goal => sameCell(goal, destination))) {
       const t = controller(site, c.airlockTraversal.controller);
-      if (t) cancelAirlock(s, { site: site.id, x: t.x, y: t.y, crew: c.id });
+      if (t) cancelAirlock(s, { site: site.id, x: t.x, y: t.y, z:position(t).z, crew: c.id });
     }
     const continued = continueCrewTraversal(s, c, site); if (continued) return continued;
   }
@@ -100,7 +100,7 @@ export function advanceCrewRoutePositions(s, c, site, goals) {
   if (first.kind === 'walk') return step(s, c, site, first.path[0]);
   const t = controller(site, first.controller);
   if (!t) return result('blocked', 'airlock_unavailable');
-  const requested = requestAirlock(s, { site: site.id, x: t.x, y: t.y, crew: c.id, direction: first.direction });
+  const requested = requestAirlock(s, { site: site.id, x: t.x, y: t.y, z:position(t).z, crew: c.id, direction: first.direction });
   if (!requested.ok) return result('blocked', requested.code || requested.reason || 'request_rejected');
   // Persist the complete endpoint shared by traveler, party and carried patient.
   const endpoint = route.path.at(-1), destination = position(endpoint), a = t.airlock;

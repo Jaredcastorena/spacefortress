@@ -1,6 +1,6 @@
 import { walkingNeighbors } from './vertical.js';
 import { airlockCellFromKey } from './airlock-locations.js';
-import { airlockDoorPermit, airlockRouteInfo } from './airlock-access.js';
+import { airlockDoorPermit, airlockRouteInfo, airlockId } from './airlock-access.js';
 import { tileAt as tileAtPosition, cellKey, horizontalNeighbors } from './spatial.js';
 
 // Horizontal paths use explicit cells internally. Legacy coordinate pairs
@@ -63,15 +63,13 @@ const pair = p => [p.x, p.y];
 const cell = p => ({ x: p.x, y: p.y, z: p.z });
 
 /** Pure position-valued crew plan. Controller configuration and persisted
- * traversal claims still use ground pairs; convert those only at this boundary.
+ * traversal claims retain full floor positions.
  * Automatic crossings retain their finite planning cost, not a readiness promise.
  * Manual release permits ordinary access through its one released side. */
 export function planCrewRoutePositions(s, site, crew, goals) {
   if (!tileAtPosition(site, crew) || !Array.isArray(goals)) return null;
   const controllers = site.tiles.filter(t => t.building === 'airlockController' &&
     t.airlock?.binding);
-  // Upper-deck controller configurations have no supported persistence contract yet.
-  if (controllers.some(t=>(t.z??0)!==0)) return null;
   if (!controllers.length) {
     const path = pathToPosition(site, crew, goals);
     return path === null ? null : { path, cost: path.length, segments: path.length ? [{ kind: 'walk', path }] : [] };
@@ -107,7 +105,7 @@ export function planCrewRoutePositions(s, site, crew, goals) {
       if ([...Object.values(entry), ...Object.values(exit)].some(p => !p)) return null;
       const crossing = pathToPosition(site, entry.inside, [exit.inside], inside);
       if (crossing === null || !passablePosition(site, entry.outside) || !passablePosition(site, exit.outside)) continue;
-      const descriptor = { kind: 'airlock', controller: `tile:${site.id}:${t.x}:${t.y}`, binding: a.binding, direction, destination: cell(exit.outside) };
+      const descriptor = { kind: 'airlock', controller: airlockId(site,t), binding: a.binding, direction, destination: cell(exit.outside) };
       addEdge(entry.outside, { ...descriptor, path: [entry.door, entry.inside, ...crossing, exit.door, exit.outside].map(cell) });
       const start = cellKey(crew), entryKey = cellKey(entry.door), exitKey = cellKey(exit.door);
       if (chamber.has(start) || start === entryKey || start === exitKey) {

@@ -228,7 +228,7 @@ $('inspector').onsubmit = e => {
   if(airlockForm&&selected&&!selected.crew) {
     e.preventDefault(); const values={};
     for(const field of airlockForm.elements)if(field.name)values[field.name]=field.type==='checkbox'?field.checked:field.value;
-    const request=airlockFormAction(airlockForm.dataset.airlockForm,values,{site:siteId,x:selected.x,y:selected.y},e.submitter?.dataset.direction);
+    const request=airlockFormAction(airlockForm.dataset.airlockForm,values,{site:siteId,x:selected.x,y:selected.y,z:selected.z},e.submitter?.dataset.direction);
     if(!request){toast('Complete the airlock fields and confirm any manual release.',true);return;}
     const r=executeAction(state,request.id,request.args,'player');
     if(r.ok&&request.id==='airlock.release'){const draft=airlockDrafts.get(airlockDraftKey());if(draft)draft.acceptAtmosphereLoss=false;}
@@ -271,7 +271,7 @@ $('inspector').onclick = e => {
   if(action==='gather'&&selected&&!selected.crew){result(order(state,siteId,selected.x,selected.y,'gather',button.dataset.species, selected.z),'Gathering designated. A worker must reach and harvest the plant.');return;}
   if(['plant','waterPlant'].includes(action)&&selected&&!selected.crew){result(order(state,siteId,selected.x,selected.y,action,button.dataset.species, selected.z),action==='plant'?'Planting designated. A Production worker must deliver matching raw food and plant the bed.':'Watering designated. A Production worker must deliver water and tend the bed.');return;}
   if(['airlock-enable','airlock-cancel','airlock-unbind'].includes(action)&&selected&&!selected.crew) {
-    const target={site:siteId,x:selected.x,y:selected.y},t=at(state.sites[siteId],selected.x,selected.y,selected.z);
+    const target={site:siteId,x:selected.x,y:selected.y,z:selected.z},t=at(state.sites[siteId],selected.x,selected.y,selected.z);
     const args=action==='airlock-enable'?{...target,enabled:!t.airlock?.enabled}:action==='airlock-cancel'?{...target,crew:button.dataset.crew}:target;
     const r=executeAction(state,action.replace('airlock-','airlock.'),args,'player');
     if(r.ok&&action==='airlock-unbind')airlockDrafts.delete(airlockDraftKey());

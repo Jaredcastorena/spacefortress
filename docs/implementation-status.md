@@ -2,6 +2,14 @@
 
 Updated October 28, 2026.
 
+## Local upper-floor airlocks after v0.1.6
+
+Airlock controllers can now be built through normal paid jobs on declared upper floors. The six airlock commands accept optional z; their X/Y equipment references use the controller’s floor. Ownership, queue/cycle state, rescue parties, cargo, movement, event IDs and inspection retain that floor. Approaches can use declared stairs. Each assembly remains on one floor, with two controlled doors and a finite isolated gas circuit.
+
+An exposed upper walkway must have low measured pressure before outer release. A stair opening in the chamber or a gas riser attached to its owned circuit invalidates the enclosure, including a disabled riser that could later open. Power risers remain independent. Upper-floor airlocks do not establish ordinary upstairs endurance.
+
+Twelve new scenarios and 144 distinct compatibility cases are covered. The first 101-case gate had one obsolete missing-room expectation; the second 62-case gate found a coordinate-default bug in the bypass check. After correcting those, the final 32-case affected gate passed. Genuine schema59 in-flight migration preserves physical state, and schema60 persists upper assemblies. Pressure-cycle fixtures are synthetic with finite initial supplies; a separate scenario builds an upper controller through real delivered work. No full-suite or ordinary endurance rerun was performed.
+
 ## v0.1.6 solar exposure
 
 Solar arrays now need daylight and a clear vertical column above them. Higher terrain and intact structures block generation; empty space and bare utility overlays do not. The inspector identifies the blocking floor, and structured observations expose the same reason. Batteries still supply only their stored energy. Save schema59 validates older power accounting before recalculating sunlight availability, preserving physical resources, battery charge and the energy ledger. The model is a deterministic vertical column, without angled sunlight, transparent materials or orbital lighting. Nine new solar cases and141 compatibility cases are covered. One obsolete unshaded-source expectation was corrected; the final55-case affected gate passed. Release CI subsequently exposed two cable-isolation accounting regressions; restored the existing generated/curtailed accounting and all65 affected checks passed. Full release CI and deployment are recorded in the release record. Ordinary upstairs endurance remains unverified.

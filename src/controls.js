@@ -52,7 +52,8 @@ function registerTile(id,binding,description,parameters,run) {
 // Domain airlock commands take named arguments; player bindings retain the
 // existing positional adapter and share the same strict public schema.
 function registerAirlock(id,binding,description,parameters,run) {
-  register(id,binding,description,parameters,(s,...values)=>run(s,Object.fromEntries(Object.keys(parameters).map((key,i)=>[key,values[i]]))));
+  const located={...parameters,z:optional(integer(Number.MIN_SAFE_INTEGER,Number.MAX_SAFE_INTEGER))};
+  register(id,binding,description+' References use the controller floor; omitted z targets floor zero.',located,(s,...values)=>run(s,Object.fromEntries(Object.keys(located).map((key,i)=>[key,values[i]]))));
 }
 const airlockPoint={type:'array',items:integer(0,1000),minItems:2,maxItems:2};
 registerAirlock('airlock.configure','configureAirlock','Bind an existing chamber, pressure doors and isolated gas network.',{...xy,chamber:airlockPoint,inner:airlockPoint,outer:airlockPoint,extractor:airlockPoint,pump:airlockPoint,reservoir:airlockPoint,vent:airlockPoint},configureAirlock);

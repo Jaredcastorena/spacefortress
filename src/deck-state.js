@@ -48,7 +48,8 @@ export function validateDeckState(state, { legacy = false } = {}) {
     for(const c of state.crew)if(c.site==='transit'?c.z!==0:!tileAt(state.sites[c.site],c))throw new Error('Invalid crew deck.');
     for(const j of state.jobs)if(!tileAt(state.sites[j.site],j))throw new Error('Invalid job deck.');
     for(const a of state.creatures)if(state.version<58?a.z!==0:!tileAt(state.sites[a.site],a))throw new Error('Animal execution currently requires deck zero.');
-    for(const site of Object.values(state.sites))for(const t of site.tiles)if(t.z!==0&&t.building==='airlockController')throw new Error('Upper airlock execution is not supported.');
+    for(const site of Object.values(state.sites))for(const t of site.tiles)if(state.version<60&&t.z!==0&&t.building==='airlockController')throw new Error('Upper airlock execution is not supported by this save schema.');
+    if(state.version<60&&state.jobs.some(j=>j.z!==0&&j.kind==='build'&&j.building==='airlockController'))throw new Error('Legacy upper airlock construction.');
   }
 }
 

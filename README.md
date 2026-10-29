@@ -12,13 +12,17 @@ An early playable space colony simulator inspired by Dwarf Fortress. Keep seven 
 
 Start with [CASTOR.md](CASTOR.md) for the current architecture, version boundaries and focused entry points. The [file map](docs/FILE_MAP.md) provides per-file navigation; the [version ledger](docs/AGENT_VERSIONS.md) preserves release and compatibility distinctions.
 
+## Local work after v0.1.6
+
+Airlock controllers can now be built through normal paid jobs on declared upper floors. The six airlock commands accept optional z; their X/Y equipment references use the controller’s floor. Ownership, queue/cycle state, rescue parties, cargo, movement, event IDs and inspection retain that floor. Approaches can use declared stairs. Each assembly remains on one floor, with two controlled doors and a finite isolated gas circuit. An exposed upper walkway must have low measured pressure before outer release. A stair opening in the chamber or a gas riser attached to its owned circuit invalidates the enclosure, including a disabled riser that could later open. Power risers remain independent. Upper-floor airlocks do not establish ordinary upstairs endurance. Local saves use schema60 and migrate validated hex schemas40–59. The published v0.1.6 build remains schema59.
+
 ## v0.1.6: upstairs livestock and sunlight
 
 Livestock can now use stairs and upper-floor posts, including supplied feeding, veterinary care, product collection and carcass work. Pastures follow usable stair connections, and births can use clear constructed floors. Stair removal protects upstairs animals as well as crew.
 
 Solar arrays now need daylight and a clear vertical column above them. Higher terrain and intact structures block generation; empty space and bare utility overlays do not. The inspector identifies the blocking floor, and structured observations expose the same reason. Batteries still supply only their stored energy. Save schema59 validates older power accounting before recalculating sunlight availability, preserving physical resources, battery charge and the energy ledger. Validated hex schemas40–58 migrate to the current format.
 
-Upper-floor airlocks and the complete upstairs build-and-live journey remain unfinished. Focused checks pass; the [release record](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.6) records release CI and deployment verification.
+In published v0.1.6, upper-floor airlocks and the complete upstairs build-and-live journey remained unfinished. The local checkpoint above adds upper airlocks. Focused checks pass; the [release record](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.6) records release CI and deployment verification.
 
 ## v0.1.5: connected floors and utility systems
 

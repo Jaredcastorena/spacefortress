@@ -68,7 +68,7 @@ test('queued, admitted and carried-party destinations migrate without reordering
 
 test('ground bindings do not claim matching coordinates on another deck',()=>{
   const f=fixture({smoke:0}),route=airlockRouteInfo(f.site,f.controller),upper={...route.inner.door,z:1};
-  assert.equal(airlockRoom(f.site,{...f.controller.airlock.config.chamber,z:1}),false);
+  assert.equal(airlockRoom(f.site,{...f.controller.airlock.config.chamber,z:1}),undefined);
   assert.equal(airlockRouteInfo(f.site,{...f.controller,z:1}),null);
   assert.equal(airlockPhysicalPath(f.site,upper,route.inner.outside),false);
   assert.equal(airlockDoorPermit(f.site,{id:'stranger'}, {...route.inner.outside,z:1},upper),true,'another floor does not touch this door');

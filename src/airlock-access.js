@@ -1,18 +1,19 @@
-// Pure airlock observations and movement guards. This leaf deliberately imports
-// neither physics nor movement; observing or planning never changes a cycle.
+// Pure airlock observations and movement guards. Planning reads declared
+// topology; observing or planning never changes a cycle.
 import { DIRECTIONS, step, opposite, directionBetween, tileAt as legacyTileAt } from './geometry.js';
 import { tileAt, cellKey, sameCell, horizontalNeighbors, positionOf } from './spatial.js';
-import { groundAirlockCells, airlockCellFromKey } from './airlock-locations.js';
+import { airlockCells, airlockCellFromKey } from './airlock-locations.js';
+import {walkingNeighbors} from './vertical.js';
 export const AIRLOCK_PHASES = ['idle','prepare_entry','admit','seal_entry','recover','refill','release','paused'];
 export const AIRLOCK_DIRECTIONS = Object.freeze(Object.fromEntries(DIRECTIONS.map(direction=>[direction,true])));
 export const airlockTile = legacyTileAt;
-export const airlockId = (site,t) => `tile:${site.id}:${t.x}:${t.y}`;
+export const airlockId = (site,t) => `tile:${site.id}:${t.x}:${t.y}${positionOf(t).z===0?'':`:${positionOf(t).z}`}`;
 export const airlockKey = cellKey;
 const neighbors = horizontalNeighbors;
 const same = sameCell;
 const hexStep = (p,d) => {const [x,y]=step(p.x,p.y,d);return {x,y,z:p.z};};
 const hexDirection = (a,b) => a.z===b.z?directionBetween([a.x,a.y],[b.x,b.y]):null;
-export const airlockRoom = (site,p) => p?.z===0&&site.rooms.find(r=>(r.z===undefined||r.z===0)&&r.cells.includes(`${p.x},${p.y}`));
+export const airlockRoom = (site,p) => p&&site.rooms.find(r=>(r.z??0)===p.z&&r.cells.includes(`${p.x},${p.y}`));
 export const airlockNode = t => t?.pipe||t?.gasStore||null;
 export const airlockGas = gas => (gas?.oxygen||0)+(gas?.inert||0)+(gas?.co2||0);
 export const airlockPayload = t => {const n=airlockNode(t);return n?airlockGas(n.gas)+(n.smoke||0):0;};
@@ -20,13 +21,13 @@ export const airlockCapacity = t => ['gasReservoir','gasTank'].includes(t?.build
 export const airlockOpen = (site,t) => !!t&&(t.hp<=0||t.doorMode==='open'||t.doorMode!=='closed'&&t.doorUntil>(site.atmosphere?.tick||0));
 export const airlockWalkable = (site,p) => {const t=tileAt(site,p);return !!t&&!t.fire&&!['void','rock'].includes(t.terrain)&&t.building!=='wall'&&!(t.building==='fence'&&t.hp>0)&&!(t.building==='door'&&t.hp>0&&t.doorMode==='closed');};
 export function airlockPhysicalPath(site,from,to) {
- if(from?.z!==0||to?.z!==0||!tileAt(site,from)||!tileAt(site,to))return false;
+ if(!tileAt(site,from)||!tileAt(site,to))return false;
  const todo=[from],seen=new Set([airlockKey(from)]);
- for(let i=0;i<todo.length;i++) {if(same(todo[i],to))return true;for(const p of neighbors(todo[i]))if(!seen.has(airlockKey(p))&&airlockWalkable(site,p)){seen.add(airlockKey(p));todo.push(p);}}
+ for(let i=0;i<todo.length;i++) {if(same(todo[i],to))return true;for(const p of walkingNeighbors(site,todo[i]))if(!seen.has(airlockKey(p))&&airlockWalkable(site,p)){seen.add(airlockKey(p));todo.push(p);}}
  return false;
 }
 export function airlockRouteInfo(site,t) {
- const a=t?.airlock;if(!a||positionOf(t).z!==0||Object.values(a.config).some(p=>p?.z!==0))return null;const cells=new Set(a.chamberCells),result={chamberCells:[...a.chamberCells]};
+ const a=t?.airlock;if(!a||Object.values(a.config).some(p=>p?.z!==positionOf(t).z))return null;const cells=new Set(a.chamberCells),result={chamberCells:[...a.chamberCells]};
  for(const side of ['inner','outer']) {
   const door=a.config[side],inside=neighbors(door).filter(p=>cells.has(airlockKey(p)));
   if(inside.length!==1)return null;
@@ -35,7 +36,7 @@ export function airlockRouteInfo(site,t) {
  }
  return result;
 }
-export function airlockController(site,reference) {return site.tiles.find(t=>positionOf(t).z===0&&t.airlock&&airlockId(site,t)===reference)||null;}
+export function airlockController(site,reference) {return site.tiles.find(t=>t.airlock&&airlockId(site,t)===reference)||null;}
 export function airlockControlOwner(site,t,layer='building') {
  const owner=(layer==='pipe'?t?.pipe:t)?.airlockOwner;if(!owner)return null;
  const controller=airlockController(site,owner.controller),a=controller?.airlock;
@@ -47,9 +48,12 @@ const fail=reason=>({ok:false,reason});
 export function airlockLayout(site,t,checkOwnership=true) {
  const a=t?.airlock;if(!a||t.building!=='airlockController')return fail('layout_changed');
  const cfg=a.config,route=airlockRouteInfo(site,t),room=airlockRoom(site,cfg.chamber);
- if(!route||!room||groundAirlockCells(room).sort().join(';')!==[...a.chamberCells].sort().join(';'))return fail('layout_changed');
+ if(!route||!room||airlockCells(room).sort().join(';')!==[...a.chamberCells].sort().join(';'))return fail('layout_changed');
  if(t.hp<100||t.fire)return fail('equipment_damaged');
- const named=new Set([airlockKey(cfg.inner),airlockKey(cfg.outer)]),cells=new Set(groundAirlockCells(room));
+ const named=new Set([airlockKey(cfg.inner),airlockKey(cfg.outer)]),cells=new Set(airlockCells(room));
+ // A chamber is controlled through its two doors only; independent vertical
+ // openings or utility ports cannot become an unowned pressure bypass.
+ if((site.verticalLinks||[]).some(link=>[link.lower,link.upper].some(p=>cells.has(airlockKey(p)))))return fail('layout_changed');
  for(const cell of cells)for(const p of neighbors(airlockCellFromKey(cell))) {
   if(cells.has(airlockKey(p)))continue;const n=tileAt(site,p);
   if(!n||!['wall','door'].includes(n.building)||n.building==='door'&&!named.has(airlockKey(p)))return fail('layout_changed');
@@ -64,7 +68,7 @@ export function airlockLayout(site,t,checkOwnership=true) {
   if(!airlockWalkable(site,r.inside)||!airlockWalkable(site,r.outside))return fail('route_unavailable');
  }
  const habitat=airlockRoom(site,route.inner.outside);
- if(!habitat||habitat===room||airlockRoom(site,route.outer.outside))return fail('layout_changed');
+ if(!habitat||habitat===room||airlockRoom(site,route.outer.outside)?.sealed)return fail('layout_changed');
  const equipment={extractor:'gasExtractor',pump:'gasPump',reservoir:'gasReservoir',vent:'gasVent'};
  for(const [key,building] of Object.entries(equipment)){const n=tileAt(site,cfg[key]);if((key==='reservoir'?!['gasReservoir','gasTank'].includes(n?.building):n?.building!==building)||n.pipe)return fail('layout_changed');if(n.hp<100||n.fire)return fail('equipment_damaged');}
  if(!cells.has(airlockKey(cfg.extractor))||!cells.has(airlockKey(cfg.vent)))return fail('layout_changed');
@@ -77,6 +81,8 @@ export function airlockLayout(site,t,checkOwnership=true) {
  const recoveryNodes=first.includes(ex)?first:second,storageNodes=first.includes(ex)?second:first;
  if(!recoveryNodes.includes(vent)||!storageNodes.includes(tank)||recoveryNodes.includes(tank)||storageNodes.includes(ex))return fail('layout_changed');
  const nodes=[...recoveryNodes,...storageNodes];
+ const branchCells=new Set([...nodes,pump].map(n=>airlockKey(positionOf(n))));
+ if((site.utilityLinks||[]).some(link=>link.kind==='gas'&&[link.lower,link.upper].some(p=>branchCells.has(airlockKey(p)))))return fail('layout_changed');
  if(nodes.some(n=>!n.pipe&&![ex,vent,tank].includes(n)))return fail('layout_changed');
  if(nodes.some(n=>(n.pipe?n.pipe.hp:n.hp)<100||n.fire))return fail('equipment_damaged');
  for(const other of site.tiles)if(other!==pump&&other.building==='gasPump') {const d=other.gasDevice?.direction;if(Object.hasOwn(AIRLOCK_DIRECTIONS,d)&&[tileAt(site,hexStep(positionOf(other),opposite(d))),tileAt(site,hexStep(positionOf(other),d))].some(n=>nodes.includes(n)))return fail('layout_changed');}
@@ -120,7 +126,7 @@ export function airlockRoomReading(room) {
 export function airlockSideBlock(site,t,side) {
  const a=t.airlock,route=airlockRouteInfo(site,t),chamber=airlockRoomReading(airlockRoom(site,a.config.chamber));
  if(!route||!chamber)return 'layout_changed';
- if(side==='outer')return chamber.pressure<=1+1e-9?null:'pressure_mismatch';
+ if(side==='outer'){const exterior=airlockRoomReading(airlockRoom(site,route.outer.outside));return chamber.pressure<=1+1e-9&&(!exterior||exterior.pressure<=1+1e-9)?null:'pressure_mismatch';}
  const habitat=airlockRoomReading(airlockRoom(site,route.inner.outside));
  if(!habitat)return 'layout_changed';
  if(!habitat.thermalSafe||!chamber.thermalSafe)return 'unsafe_temperature';

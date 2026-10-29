@@ -15,7 +15,7 @@ import { SITES } from './data.js';
 import { crewSprite, ANATOMIES } from './sprites.js';
 
 import { doorOpen } from './atmosphere.js';
-import { airlockStatus } from './airlock-access.js';
+import { airlockStatus, airlockId } from './airlock-access.js';
 import { quantity } from './inventory.js';
 import { floraBiomass, floraStage } from './flora.js';
 import { carcassPosition } from './animal-carcasses.js';
@@ -159,7 +159,7 @@ export class Renderer {
       if (t.terrain === 'ore') { this.box(x, y, 22, 10, 11, '#897563', '#6d5744', '#4c473b'); for (let k = 0; k < 3; k++) { c.fillStyle = ['#ce9863', '#dfb777', '#b78052'][k]; c.fillRect(x - 14 + k * 10, y - 17 + (k % 2) * 5, 6, 4); } }
       if (t.deposit?.remaining > 0) { const h = 4 + t.deposit.remaining / 2; this.box(x,y,19,9,h,'#b9d8de','#7aaebf','#4c788c'); this.line(x-12,y-h-2,x+5,y-h+4,'#e0eff0',2); this.line(x+5,y-h+4,x+10,y-h-2,'#668fa5',2); }
       if(t.liquid>1e-8){c.save();c.globalAlpha=Math.min(.8,.2+t.liquid/4*.6);this.hex(x,y,'#3b94ba','#8bcee0');this.line(x-12,y,x+2,y+7,'#b2deeb',1);c.restore();}
-      if (t.building) this.structure(t, x, y, s,airlocks.find(a=>a.entity===`tile:${site.id}:${t.x}:${t.y}`),site);
+      if (t.building) this.structure(t, x, y, s,airlocks.find(a=>a.entity===airlockId(site,t)),site);
       for(const kind of Object.keys(t.risers||{})){const link=utilityAt(site,t,kind);if(link&&(this[`${kind}Overlay`]||this.selection?.site===siteId&&this.selection.x===t.x&&this.selection.y===t.y&&(this.selection.z??0)===viewZ))this.riserMarker(x,y,kind,utilityActive(site,link));}
       const controlledDoor=airlockDoors.get(cellKey(positionOf(t)));
       if(controlledDoor){const color=!controlledDoor.intact?'#ed937e':controlledDoor.permitted?'#9be1bf':'#ecc37c';c.fillStyle=color;c.fillRect(x-4,y-30,8,6);if(!controlledDoor.permitted){c.strokeStyle=color;c.lineWidth=2;c.strokeRect(x-2,y-34,4,5);}}
