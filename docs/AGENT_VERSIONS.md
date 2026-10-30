@@ -6,6 +6,7 @@ This ledger separates application releases, colony save schemas, grid topology a
 
 | Source/release | Colony schema and grid | Meaning |
 | --- | --- | --- |
+| Local fuel synthesis (October 29, 2026) | 69, hex; region and observation/recording9 unchanged | Staffed conversion of finite solar cells and water into fuel; shared paid construction, hauling, power, work orders and production records. Genuine schema68 preserved; package remains0.1.12, unpublished. |
 | v0.1.12 planetary regions and engineering kits (October 29, 2026) | 68, hex; region2 for new worlds, region1 retained; observation/recording9 | Three planets/eight sites, finite per-site opportunities, hierarchical view and strict existing-world preservation. All four generated destinations pass supplied return/revisit checks. Includes the engineering equipment checkpoint below. |
 | Local engineering equipment (October 29, 2026) | 67, hex; observation/recording9 unchanged | Alloy/composite engineering kits, capability-matched construction/maintenance, finite wear, shared physical ownership/repair and type/material stock forecasts. Pre-release checkpoint, included in v0.1.12 with schema68. |
 | v0.1.11 structural materials (October 29, 2026) | 66, hex; observation/recording9 unchanged | Shared alloy/composite definitions, paid floor/wall/door choices, independent layer ownership, supplied repairs, finite slab heat exchange and strict migration/validation. |

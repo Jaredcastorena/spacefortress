@@ -2,6 +2,10 @@
 
 Updated October 29, 2026.
 
+## Local after v0.1.12: fuel synthesis
+
+The paid fuel synthesizer converts one solar cell and two water into two fuel with 40 operator work, 6 kW, Production 2 and safe air/temperature. The existing production scheduler, deliveries, stock forecasts, work interruption and actual-floor custody own the process. Output is ordinary finite fuel used by shuttle preparation and reactors. Schema69 adds the equipment boundary while retaining previous physical state; no fuel, cells or buildings are granted on migration. Wider fuel chemistry and sustained colony supply balance remain unfinished. Focused checks cover migration, readiness, partial-batch preservation, dismantling refunds, upper-floor output and delivery of manufactured fuel into an empty reactor and shuttle. A native salvage/solar collection chain reaches paid synthesis and stored fuel after restarting existing supplied life support. A later repeat departure did not finish within its180-tick bound; this does not establish continuous expedition or colony endurance.
+
 ## v0.1.12: planetary regions
 
 New colonies use a canonical three-planet catalog with eight physical sites. Each frontier planet owns a resource landing and orbital derelict; finite surveys, paid routes and debris vary. The map moves between planet and site scopes, the drawer groups sites by planet, and filtered transit rendering handles destinations outside the current view. These remain vacuum settlement-capable grids; planet labels do not grant surface ecology or breathable air.

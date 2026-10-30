@@ -1,10 +1,13 @@
 # Structured simulation interface and recordings
 
+
+Local schema69 adds `fuelSynthesizer` to building definitions and the existing `job.order` construction path. Its generic `production.enable`, `production.order` and `production.priority` controls retain optional `z`. Read the building/recipe definitions and production readiness for required cells, water, skill and environment. Existing `production.batch.started` and `production.batch.completed` events identify `recipe: "fuelSynthesizer"`, actor, job, full tile owner and input/output amounts. Fuel remains in the machine output until physically hauled. Observation/recording9 is unchanged.
+
 Implemented September 16, 2026, following the user's request to clearly mark small simulation interactions for eventual AI training. This is a local environment interface and recorder. No model, training service, network endpoint or external dependency is involved.
 
 ## Planet hierarchy and catalog versions
 
-Local save schema68 admits the original region schema1 catalogs and the new region schema2 catalog. Existing saves retain their four or six physical sites and exact metadata; only newly generated schema2 worlds have three planets/eight sites. `definitions().region.planets` maps stable IDs to name, home site and, for schema2, system-map position, color and label. Every site retains its `planetId`; routes keep canonical `from: "surface"`, destination, round-trip fuel and per-leg time. Discover actual IDs through definitions/actions.
+Save schema68 and later admit the original region schema1 catalogs and the new region schema2 catalog. Existing saves retain their four or six physical sites and exact metadata; only newly generated schema2 worlds have three planets/eight sites. `definitions().region.planets` maps stable IDs to name, home site and, for schema2, system-map position, color and label. Every site retains its `planetId`; routes keep canonical `from: "surface"`, destination, round-trip fuel and per-leg time. Discover actual IDs through definitions/actions.
 
 Planet/site map selection is transient UI state. It does not alter saves, RNG, discovery, inventory or simulation commands. Grouped navigation and surveys use the same catalog; map transit is drawn only when both endpoints are visible. All generated landing/derelict grids retain the existing vacuum-settlement `kind: "wreck"` rules. No remote-to-remote travel is implied.
 

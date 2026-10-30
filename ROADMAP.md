@@ -2,8 +2,9 @@
 
 ## Current systems work
 
-Release v0.1.12 adds engineering kits and a three-planet, eight-site system with hierarchical navigation. It builds on the paid material choices, repairs and finite slab heat conduction from v0.1.11, while retaining existing colony worlds. Next checkpoints include wider industry, bounded upstairs habitation and sustained outpost supply.
+Release v0.1.12 adds engineering kits and a three-planet, eight-site system with hierarchical navigation. It builds on the paid material choices, repairs and finite slab heat conduction from v0.1.11, while retaining existing colony worlds. Local follow-up adds fuel synthesis from recovered solar cells and delivered water. Next checkpoints include wider industry, bounded upstairs habitation and sustained outpost supply.
 
+- [x] Local after v0.1.12: add staffed, paid fuel synthesis using finite solar cells and water, shared power/hauling/orders and schema69 persistence.
 - [x] v0.1.12: generate multiple planets with distinct finite landing/derelict sites and a hierarchical map. Preserve existing world catalogs through schema68; verify native return/revisit on every generated destination.
 - [x] v0.1.12: manufacture and equip engineering kits for native construction/maintenance; preserve finite wear, actual-floor transport, supplied same-identity repairs and family/material stock targets through schema67.
 - [x] Use shared alloy/composite material definitions for tools and paid habitat parts. Preserve floor/structure ownership, physical costs, supplied repairs, cancellation, rounded refunds, thermal paths and schema66 saves.
@@ -271,6 +272,8 @@ Expand the [upward/outward progression](docs/orbital-progression.md) into genera
 **Structural materials implemented in v0.1.11:** alloy and composite now share definitions across tools and supplied habitat parts. Floors and structures retain separate owners; composite changes physical construction/repair costs, solid conductivity and wall/door damage. Finite slab heat exchange, native upstairs delivery, cancellation and genuine schema65 migration pass focused checks. Floor collapse and exterior slab radiation remain future work.
 
 **Engineering equipment in v0.1.12:** paid alloy/composite kits improve matching construction and maintenance work, wear only on that work, and use existing physical pickup, stairs, storage and same-identity repair. Stock targets distinguish family/material and committed repairs. Native paid manufacture→pickup→construction→wall repair→kit repair is covered; wider equipment families remain unfinished.
+
+**Fuel synthesis implemented locally after v0.1.12:** recover solar cells, supply a paid workstation with cells and water, and manufacture fuel under the same skill, power, air, temperature and output-capacity rules as other staffed industry. Finite output can feed existing shuttle preparation and reactor buffers. This is an abstract shared fuel resource, not separate propellant/reactor chemistry.
 
 Expand material properties, distinct manufactured items, recipes, equipment condition and repair from this shared foundation. Track the remaining industry families in the [conversion inventory](docs/conversion-inventory.md).
 

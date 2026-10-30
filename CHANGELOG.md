@@ -2,6 +2,12 @@
 
 SPACEFORTRESS is an early playable colony simulator. Release entries describe completed changes within their stated scope.
 
+## Unreleased
+
+- Add a paid fuel synthesizer: one solar cell and two water produce two fuel through 40 staffed work with 6 kW, safe air, 5–40 °C and Production 2. Existing input/output hauling, batch and stock orders, blockers, repairs and actual-floor ownership apply.
+- Add original synthesizer artwork and a compact build-menu entry. Shared commands, production observations and typed batch records expose its costs and outcomes.
+- Add schema69 for fuel equipment and jobs; preserve genuine schema68 state and reject premature synthesizers in older saves. No starter supplies or dependencies are added.
+
 ## v0.1.12 — 2026-10-29
 
 - Generate three planets and eight physical sites in new colonies. Group frontier landings and derelicts under stable planet identities, with finite resources, distinct hazards and canonical home-origin routes.
