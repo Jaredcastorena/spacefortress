@@ -75,7 +75,7 @@ import { updateRooms, roomAt, initializeAtmosphere, fillRoom, refreshAtmosphere,
 export { updateRooms, roomAt } from './atmosphere.js';
 
 import { isDay, updatePower, refreshPower, initializePower, initializeElectrical, releaseBatteryEnergy, BATTERY_CAPACITY, CELL_CHARGE, CELL_INSTALL_WORK, validatePower } from './power.js';
-import { initializeReliability, maintainable, completeService, recordOperation, updateDebris, scheduleMaintenance, validateReliability } from './maintenance.js';
+import { initializeReliability, maintainable, completeService, recordOperation, updateDebris, updateHerdWarning, scheduleMaintenance, validateReliability } from './maintenance.js';
 import { initializeShuttle, routeTime, routeFuel, haulSalvage, boardShuttle, returnWalk, dockAt, validateShuttle, returnCrewIds, returnCrewMembers, allReturnTravelersDead } from './expedition.js';
 import { initializeOutpostState, validateOutpostState } from './outpost-persistence.js';
 import { isResident, residentSite, shuttlePresence } from './outposts.js';
@@ -824,6 +824,7 @@ export function step(s, ticks = 1) {
     prepareHusbandry(s,order,cancelJob);
     prepareFire(s,order,cancelJob);
     updateCrewLife(s); reconcileHousing(s); reconcileAirlocks(s);
+    updateHerdWarning(s);
     for (const current of Object.values(s.sites)) { refreshAtmosphere(current); refreshPower(s, current); }
     const unsafe = site.rooms.some(r => homeHabitatRoom(site, r) && !breathable(r));
     const airWarning = unsafe || habitatSuitAssistance;

@@ -28,7 +28,7 @@ Each actual surface strike contributes three ore units on its target floor. Up t
 
 ## Forecast debris
 
-The initial surface debris interval is **1,200 seconds**. Ninety seconds before impact, a deterministic forecast selects a tile containing exposed wiring, an exterior array or a hull wall. The threatened tile receives an on-map marker and a countdown. The Colony drawer links to it so the player can inspect equipment and prepare alloy, engineers and redundant circuits.
+The initial surface debris interval is **1,200 seconds**. Ninety seconds before that forecast is posted, two or more living surface bristlebacks stop clicking in unison; the strike tile is still unchosen. Ninety seconds before impact, a deterministic forecast selects a tile containing exposed wiring, an exterior array or a hull wall. The herd starts clicking again when the marker appears. The threatened tile receives an on-map marker and a countdown. The Colony drawer links to it so the player can inspect equipment and prepare alloy, engineers and redundant circuits.
 
 An impact removes 35 condition from a structure and 60 from any cable at that coordinate. Damage is bounded at zero. If equipment was dismantled before impact, missing assets take no damage. Wiring beneath an impacted wall can also be damaged. A weakened cable can break entirely; an impacted wall leaks according to the existing atmosphere model. The next pass is scheduled 1,200 seconds later.
 

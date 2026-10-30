@@ -1,3 +1,4 @@
+import { herdMemberQuiet } from './maintenance.js';
 import {regionViewNodes,visibleMissionRoute} from './region-view.js';
 import {materialId} from './materials.js';
 import {siteDefinitions,siteDefinition,siteKind} from './region.js';
@@ -194,7 +195,7 @@ export class Renderer {
           this.box(x, y - 1, 18, 9, 13, '#ab9b71', '#817955', '#5b604d');
           this.box(x - 13, y - 5, 10, 5, 10, '#c0b088', '#978c61', '#6e7254');
           c.fillStyle = '#d3c5a0'; c.fillRect(x - 22, y - 18, 2, 7); c.fillRect(x - 17, y - 20, 2, 7); c.fillStyle = '#182d31'; c.fillRect(x - 21, y - 9, 3, 2);
-          for (let i = 0; i < 3; i++) this.line(x - 7 + i * 7, y - 16 + i * 3, x - 7 + i * 7, y - 10 + i * 3, '#d6bb83', 1);
+          if (!herdMemberQuiet(s,creature)) for (let i = 0; i < 3; i++) this.line(x - 7 + i * 7, y - 16 + i * 3, x - 7 + i * 7, y - 10 + i * 3, '#d6bb83', 1);
           }
           if(escorted){this.line(x-19,y-10,x+12,y-22,'#8ee4d7',2);}
           if(creature.lifecycle?.brood){c.fillStyle='#e8bf85';c.fillRect(x+2,y-5,4,4);c.fillRect(x+9,y-2,4,4);}

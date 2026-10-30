@@ -11,13 +11,15 @@ import { spill } from './inventory.js';
 export const SERVICE_INTERVAL = 1200;
 export const WEAR_PERIOD = 30;
 export const DEBRIS_INTERVAL = 1200;
+export const DEBRIS_FORECAST = 90;
+export const HERD_WARNING_LEAD = 180;
 export const maintainable = t => !!(BUILDINGS[t.building]?.output || BUILDINGS[t.building]?.demand || t.building === 'battery');
 export function initializeMaintenance(t) {
   if (!maintainable(t)) { delete t.maintenance; return; }
   if (t.maintenance?.asset !== t.building) t.maintenance = { asset: t.building, usage: 0, servicedAt: null, auto: false, blocked: null };
 }
 export function initializeReliability(s) {
-  s.debris = { next: s.tick + DEBRIS_INTERVAL, target: null, count: 0 };
+  s.debris = { next: s.tick + DEBRIS_INTERVAL, target: null, count: 0, herdQuiet: false };
   for (const site of Object.values(s.sites)) { site.incidents = []; site.tiles.forEach(initializeMaintenance); }
 }
 const emit = (s, message, type = 'danger') => { s.log.unshift({ tick: s.tick, message, type }); s.log = s.log.slice(0, 60); };
@@ -63,7 +65,7 @@ export function scheduleMaintenance(s, order) {
 }
 export function updateDebris(s) {
   const h = s.debris, site = s.sites.surface;
-  if (s.tick >= h.next - 90 && !h.target) {
+  if (s.tick >= h.next - DEBRIS_FORECAST && !h.target) {
     const candidates = site.tiles.filter(t => (t.verticalLink&&stairAt(site,t)?.upper.z===t.z&&!site.rooms.some(room=>room.z===t.z&&room.sealed&&room.cells.includes(`${t.x},${t.y}`))) || (t.terrain !== 'floor' && (t.waterPipe || t.pipe || t.cable || BUILDINGS[t.building]?.output)) || t.building === 'wall');
     if (candidates.length) {
       const chosen = candidates[((s.seed >>> 0) + Math.imul(h.count + 1, 7919) >>> 0) % candidates.length]; h.target = positionOf(chosen);
@@ -80,10 +82,33 @@ export function updateDebris(s) {
   }
   h.count++; h.next = s.tick + DEBRIS_INTERVAL; h.target = null;
 }
+const herdMember = a => a.species === 'bristleback' && a.health > 0 && a.site === 'surface';
+const livingHerd = s => s.creatures.filter(herdMember).map(a => a.id).sort();
+export const herdMemberQuiet = (s, a) => s.debris?.herdQuiet === true && herdMember(a);
+export function updateHerdWarning(s) {
+  const h = s.debris;
+  if (!h) return;
+  const remaining = h.next - s.tick;
+  const herd = livingHerd(s);
+  const quiet = herd.length >= 2 && h.target == null && remaining > DEBRIS_FORECAST && remaining <= HERD_WARNING_LEAD;
+  if (quiet === h.herdQuiet || (!quiet && h.herdQuiet !== true)) return;
+  h.herdQuiet = quiet;
+  const details = { entity: 'herd:bristleback', site: 'site:surface', animals: herd, impactTick: h.next };
+  if (quiet) {
+    emit(s, 'The bristlebacks have stopped clicking in unison.', 'discovery');
+    emitEvent(s, 'herd.quiet', { ...details, reason: 'unison' });
+  } else {
+    const reason = herd.length < 2 ? 'herd_lost' : h.target ? 'forecast_visible' : 'window_ended';
+    emit(s, reason === 'herd_lost' ? 'Too few bristlebacks remain to call in unison.' : 'The bristlebacks are clicking again.', 'info');
+    emitEvent(s, 'herd.calling', { ...details, reason });
+  }
+}
 export function validateReliability(s) {
   const h = s.debris;
   const point = (site,p) => p&&validHazardPosition(site,{x:p.x,y:p.y,z:p.z});
-  if (!h || !Number.isSafeInteger(h.next) || h.next <= s.tick || h.next > s.tick + DEBRIS_INTERVAL || !Number.isSafeInteger(h.count) || h.count < 0 || (h.target !== null && (!validHazardPosition(s.sites.surface,h.target) || h.next - s.tick > 90))) throw new Error('Invalid debris forecast.');
+  if (!h || !Number.isSafeInteger(h.next) || h.next <= s.tick || h.next > s.tick + DEBRIS_INTERVAL || !Number.isSafeInteger(h.count) || h.count < 0 || (h.target !== null && (!validHazardPosition(s.sites.surface,h.target) || h.next - s.tick > DEBRIS_FORECAST))) throw new Error('Invalid debris forecast.');
+  if (h.herdQuiet !== undefined && h.herdQuiet !== true && h.herdQuiet !== false) throw new Error('Invalid herd warning.');
+  if (h.herdQuiet === true && (livingHerd(s).length < 2 || h.target !== null || h.next - s.tick > HERD_WARNING_LEAD || h.next - s.tick <= DEBRIS_FORECAST)) throw new Error('Invalid herd warning.');
   for (const site of Object.values(s.sites)) {
     if (!Array.isArray(site.incidents) || site.incidents.length > 12 || site.incidents.some(i => !point(site,i) || !Number.isSafeInteger(i.tick) || i.tick < 0 || i.tick > s.tick || !['wear', 'debris', 'fire', 'water'].includes(i.cause) || !['structure', 'cable', 'pipe', 'waterPipe'].includes(i.target) || !Number.isFinite(i.amount) || i.amount <= 0 || i.amount > 100)) throw new Error('Invalid damage history.');
     for (const t of site.tiles) {

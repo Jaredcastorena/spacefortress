@@ -2,6 +2,10 @@
 
 Updated October 30, 2026.
 
+## Local after v0.1.12: bristleback herd warning
+
+Two or more living surface bristlebacks stop clicking during the 90 seconds before the existing debris forecast chooses a tile. The strike stays unmarked until that forecast. Calls resume when the marker appears, or if fewer than two remain. Saves from schema 70 that omit `debris.herdQuiet` still load. A forged warning, or silence stored outside that window, is rejected. Herd loss during a tick ends silence before that tick is saved. A silent save must contain at least two living surface bristlebacks; inspection and artwork share that same site scope. Six herd checks and 47 affected maintenance, hazard, simulation and recording checks pass. This does not change impact damage, repair supplies or establish colony endurance.
+
 ## Local after v0.1.12: power-cell installation
 
 A stored power cell is no longer injected into a battery immediately. `power.discharge_cell` reserves one cell and creates a hauling job. The selected surface bank, on any declared floor, receives 100 kJ only when a hauler finishes that work. Omitting coordinates chooses one reachable bank with room. Cancellation, a removed bank, or less than 100 kJ of free capacity returns the cell and adds no energy. Schema70 preserves a genuine schema69 colony and rejects an installation job stored in an older save. Focused checks cover reservation, reload, cancellation, a blocked route, the shared agent command, an upper-floor delivery and migration. The existing power and solar-return cases also pass with the job. Review also rejects saved installation jobs that omit their cell cost or alter the work contract. Nine focused cases and the full JavaScript gate pass:1,840 passing cases,0failures and1historical schema36 skip. This does not establish colony endurance.

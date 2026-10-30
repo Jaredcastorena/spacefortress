@@ -4,6 +4,7 @@ SPACEFORTRESS is an early playable colony simulator. Release entries describe co
 
 ## Unreleased
 
+- Two or more living surface bristlebacks stop clicking together during the 90 seconds before a debris forecast names its tile. The forecast, impact, and repair supplies are unchanged. Their calls resume when that marker appears.
 - Haulers install one stored power cell into a surface battery, including an upper floor. The bank gains 100 kJ only when that work finishes. Cancelling, or a bank that cannot accept the cell, returns it. Save schema70 preserves schema69 and rejects an installation job in an older save.
 - Add a paid fuel synthesizer: one solar cell and two water produce two fuel through 40 staffed work with 6 kW, safe air, 5–40 °C and Production 2. Existing input/output hauling, batch and stock orders, blockers, repairs and actual-floor ownership apply.
 - Add original synthesizer artwork and a compact build-menu entry. Shared commands, production observations and typed batch records expose its costs and outcomes.
