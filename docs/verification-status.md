@@ -1,6 +1,12 @@
 # Verification status
 
-Updated October 26, 2026. This is the compact evidence index for implemented and proposed systems. **Verified** means the named scope passed its stated check. **Pending** means evidence is not yet complete. **Failed** means a known check contradicts the requirement. None of these rows declares the whole game finished.
+Updated October 30, 2026. This is the compact evidence index for implemented and proposed systems. **Verified** means the named scope passed its stated check. **Pending** means evidence is not yet complete. **Failed** means a known check contradicts the requirement. None of these rows declares the whole game finished.
+
+## Local recruitment — schema72
+
+**Verified, bounded scope:** 16 [state/persistence checks](../tests/population.test.js), eight [controls/panel checks](../tests/population-controls.test.js) and two [native integration checks](../tests/population-integration.test.js) pass. The genuine schema71 save changes only version; malformed recruitment and impossible maker histories reject. Native arrival uses finite food, paid industry, bunk ownership and social bonds. A separate controlled injury receives delivered medicine in a paid cot. Browser contact/accept preserves panel focus and expansion, shows current shortages and starts the arrival countdown; no console errors. Public export includes all three new modules. The full compatibility run and one targeted repair of an obsolete seven-person catalog expectation cover all 1,884 runnable cases; one historical schema36 case remains skipped. Game code was unchanged during that expectation repair.
+
+**Pending broader scope:** long-term population sustainability, births, aging, departures, factions and institutions. These checks do not resolve the ordinary endurance gaps below.
 
 ## Unreleased shared-system corrections — schema 47
 

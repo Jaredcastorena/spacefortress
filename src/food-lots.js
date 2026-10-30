@@ -1,3 +1,4 @@
+import { validCrewId } from './crew-identity.js';
 import { FOOD_KINDS, MEAL_RECIPES } from './food-data.js';
 // Unlisted food is fresh, unprepared legacy ration. Typed fresh lots are explicit.
 export const FOOD_LIFETIME = 3600;
@@ -49,7 +50,7 @@ export function takeFoodLots(inventory, amount, selector = false) {
   storeLots(inventory, planned.remaining); return planned.moved;
 }
 export function validMeal(m) {
-  if (!(m && /^meal-job-[1-9]\d*$/.test(m.id) && /^crew-[0-6]$/.test(m.maker) && Number.isInteger(m.quality) && m.quality>=1 && m.quality<=4 && Number.isSafeInteger(m.created) && m.created>=0)) return false;
+  if (!(m && /^meal-job-[1-9]\d*$/.test(m.id) && validCrewId(m.maker) && Number.isInteger(m.quality) && m.quality>=1 && m.quality<=4 && Number.isSafeInteger(m.created) && m.created>=0)) return false;
   if (m.recipeId === undefined && m.ingredients === undefined) return true;
   const recipe = Object.hasOwn(MEAL_RECIPES, m.recipeId) && MEAL_RECIPES[m.recipeId], ingredients = m.ingredients;
   return !!recipe && !!ingredients && typeof ingredients === 'object' && !Array.isArray(ingredients) && Object.entries(ingredients).every(([kind, n]) => Object.hasOwn(FOOD_KINDS, kind) && Number.isFinite(n) && n > 0) && Math.abs(Object.values(ingredients).reduce((n, value) => n + value, 0) - recipe.input.food) < 1e-8 && (!recipe.foodKinds || Object.keys(ingredients).length === Object.keys(recipe.foodKinds).length && Object.entries(recipe.foodKinds).every(([kind, n]) => Math.abs((ingredients[kind] || 0) - n) < 1e-8));

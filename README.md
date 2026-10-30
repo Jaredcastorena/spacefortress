@@ -10,6 +10,8 @@ An early playable space colony simulator inspired by Dwarf Fortress. Keep seven 
 
 ## Local development after v0.1.12
 
+Open **Colony → Recruitment** to contact one traveler and accept or decline their arrival. An independent ferry uses the actual home pad; a blocked pad causes a bounded wait and eventual diversion. New crew bring no supplies and use existing food, duties, bunks, relationships and care. Habitat shortages remain visible before acceptance. Schema72 supports up to 64 retained crew records and preserves untouched older colonies. [Recruitment details](docs/recruitment.md).
+
 Cargo depots now have per-resource delivery limits in a collapsed inspector section. Haulers count stored stock, uncollected job reservations and incoming shipments before collecting more. Lowering a limit preserves supplies; cargo already in hand can reroute. Schema71 adds empty limits to older hex saves.
 
 Surface bristleback herds now fall silent for the 90 seconds before a debris forecast names its tile. Their calls, inspection details and structured events reflect the warning; losing the herd ends it immediately. This is a local, unreleased addition.

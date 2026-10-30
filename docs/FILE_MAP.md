@@ -62,11 +62,14 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 | [src/construction.js](../src/construction.js) | Site work authority, local construction supply reservation, worker material pickup/delivery, cancellation and reservation accounting. |
 | [src/controls.js](../src/controls.js) | Shared player/agent action registry, argument validation, dispatcher and browser agent API factory |
 | [src/crew-life-panels.js](../src/crew-life-panels.js) | HTML panel renderers and UI formatting for crew-life |
+| [src/crew-identity.js](../src/crew-identity.js) | Bounded canonical crew IDs and maker arrival timestamps. |
+| [src/population.js](../src/population.js) | Lazy recruitment, deterministic candidates, bounded landing, detached newcomer initialization and strict history validation. |
+| [src/population-panels.js](../src/population-panels.js) | Collapsed recruitment details and focus restoration. |
 | [src/crew-life.js](../src/crew-life.js) | Domain helpers for crew life |
 | [src/crew-panels.js](../src/crew-panels.js) | HTML panel renderers and UI formatting for crew |
 | [src/crew-traversal.js](../src/crew-traversal.js) | Domain helpers for crew traversal |
 | [src/crew.js](../src/crew.js) | Persistent crew labor/skill profiles, shared personal work readiness/rate, experience, memories and morale. |
-| [src/data.js](../src/data.js) | Colony save schema VERSION=70 and static resource, building, recipe (including finite fuel synthesis), species, site, crew and shuttle-fit registries. |
+| [src/data.js](../src/data.js) | Colony save schema VERSION=72 and static resource, building, recipe (including finite fuel synthesis), species, site, crew and shuttle-fit registries. |
 | [src/elements-app.js](../src/elements-app.js) | Elements reference browser application |
 | [src/elements.js](../src/elements.js) | Separate deterministic cell environment laboratory with materials, gas/water/heat, devices, electrical circuits, action schema and bounded JSONL recording. |
 | [src/expedition-panels.js](../src/expedition-panels.js) | HTML panel renderers and UI formatting for expedition |

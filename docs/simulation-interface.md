@@ -1,5 +1,7 @@
 # Structured simulation interface and recordings
 
+Local schema72 adds `population.contact {}` and `population.respond {offer, accept}`. Player and agent commands share validation; stale offers and malformed arguments reject without changing the colony. `colony.derived.population` exposes detached roster, candidate, timing, landing and current food/air/bunk warnings. Definitions include `recruitment` timing constants. Events are `population.offer.opened`, `population.offer.declined`, `population.offer.expired`, `population.arrival.accepted`, `population.arrival.blocked`, `population.arrival.diverted` and `crew.arrived`. Landing events identify the real pad and stable offer/person IDs. Ordinary work, meals and care retain their existing events. Observation/recording9 is unchanged. [Recruitment](recruitment.md).
+
 Local schema71 adds `depot.limit` with `site`, `x`, `y`, optional `z`, `resource`, and `limit` (integer 0–320 or null to clear). Successful changes emit `depot.limit.changed` with the canonical tile entity, site, resource, previous cap and new cap. Depot tile observations expose `derived.depot` totals and `derived.depot.resources` with each resource’s stored, reserved, incoming, used, limit and free quantities. Observation/recording9 remains unchanged. Intake caps do not remove existing supplies or block reservation refunds.
 
 

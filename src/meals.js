@@ -1,3 +1,4 @@
+import { crewStartTicks } from './crew-identity.js';
 import { foodLots, foodAge, storeLots, validFoodLots, planFoodSelection } from './food-lots.js';
 import { DEFAULT_MEAL, MEAL_RECIPES, mealQualityForLevel } from './food-data.js';
 import { extract, add } from './inventory.js';
@@ -47,10 +48,10 @@ export function moveOpenedMeal(source,destination) {
   source.servings=0;source.foodAge=0;delete source.openedFood;delete source.qualityTotal;
 }
 export function validateMeals(s,owners) {
-  const metadata=new Map();
+  const metadata=new Map(),makers=crewStartTicks(s);
   const validateInventory=inv=>{
     if(!validFoodLots(inv))throw new Error('Invalid prepared food.');
-    for(const lot of foodLots(inv))if(lot.meal){const m=lot.meal;if(m.created>s.tick||Number(m.id.slice(9))>=s.nextId)throw new Error('Invalid meal batch identity.');const previous=metadata.get(m.id);if(previous&&JSON.stringify(previous)!==JSON.stringify(m))throw new Error('Conflicting meal batch metadata.');metadata.set(m.id,m);}
+    for(const lot of foodLots(inv))if(lot.meal){const m=lot.meal;if(!makers.has(m.maker)||m.created<makers.get(m.maker)||m.created>s.tick||Number(m.id.slice(9))>=s.nextId)throw new Error('Invalid meal batch identity.');const previous=metadata.get(m.id);if(previous&&JSON.stringify(previous)!==JSON.stringify(m))throw new Error('Conflicting meal batch metadata.');metadata.set(m.id,m);}
   };
   for(const owner of owners)validateInventory(owner.inventory);
   for(const c of s.crew)for(const meal of [c.medical,c.intent?.type==='meal'?c.intent:null])if(meal){

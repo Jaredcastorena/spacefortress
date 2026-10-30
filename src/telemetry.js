@@ -1,3 +1,4 @@
+import { populationStatus } from './population.js';
 import {materialStatus} from './materials.js';
 import { outpostSiteIds } from './region.js';
 import {toolStatus} from './tools.js';
@@ -58,7 +59,7 @@ export function observe(s) {
     return [siteId,{established:s.outposts?.[siteId]?.established??false,residents}];
   }));
   const expedition={selectedCrewIds,returnCrewIds:returningCrewIds,destination:destination?`site:${destination}`:null,crewLimits:destination?expeditionCrewLimits(s,destination):null,phase:s.departure?.stage||s.mission?.phase||'idle',preparing:!!s.departure,remaining:s.mission?.remaining||0,candidates:expeditionCandidates(s),departure:departureReadiness(s)};
-  const entities={colony:{type:'colony',...colony,derived:{...(colony.derived||{}),expedition,shuttle:{location:shuttleLocation(s)}}}};
+  const entities={colony:{type:'colony',...colony,derived:{...(colony.derived||{}),expedition,population:populationStatus(s),shuttle:{location:shuttleLocation(s)}}}};
   for(const site of Object.values(sites)) {
     const {tiles,rooms,...environment}=site;
     const launchBlocked=expeditionLaunchBlock(s,site.id);

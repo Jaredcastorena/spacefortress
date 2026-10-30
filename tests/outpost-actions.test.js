@@ -68,7 +68,7 @@ test('outpost action catalog publishes detached resource and roster contracts fo
   assert.deepEqual(Object.keys(load.properties.items.properties).sort(), [...RESOURCES].sort());
   assert.equal(load.properties.items.properties.keepsakes.type, 'integer');
   assert.equal(load.properties.items.properties.food.exclusiveMinimum, 0);
-  for (const [id, minimum, maximum] of [['expedition.return_crew', 1, 2], ['outpost.residents', 0, 7]]) {
+  for (const [id, minimum, maximum] of [['expedition.return_crew', 1, 2], ['outpost.residents', 0, 64]]) {
     const schema = catalog.find(a => a.id === id).parameters.properties.crewIds;
     assert.equal(schema.type, 'array'); assert.equal(schema.uniqueItems, true);
     assert.equal(schema.minItems, minimum); assert.equal(schema.maxItems, maximum);

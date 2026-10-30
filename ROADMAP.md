@@ -286,6 +286,8 @@ Expand material properties, distinct manufactured items, recipes, equipment cond
 
 ### 9. Persistent history, factions and broader society
 
+**First recruitment implemented locally after v0.1.12:** player-initiated contact, accept/decline, a timed independent ferry and a real ground-pad arrival. A blocked landing waits then diverts. Up to64 stable crew records retain existing people, relationships, claims and goods. Newcomers use ordinary meals, duties, paid industry, housing, social bonds and medical care; they bring no colony supplies. Strict schema72 migration preserves seven-founder saves without starting recruitment. This establishes arrival and integration; births, aging, generations, departures, factions and institutions remain unfinished. [Mechanics and bounded checks](docs/recruitment.md).
+
 Build connected histories, populations, trade and faction relationships on persistent sites and physical logistics. Expand ecology, culture, institutions and threats in bounded slices from the conversion inventory; direct-character adventures remain later scope.
 
 **Acceptance:** a small faction/trade encounter produces lasting consequences for supplies, relationships and recorded world history across travel and reload. Later systems must interact with that history and the colony economy. Background text alone does not satisfy these milestones.

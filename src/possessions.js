@@ -1,3 +1,4 @@
+import { crewStartTicks } from './crew-identity.js';
 import { sameCell, tileAt, positionOf } from './spatial.js';
 import { validCrewPosition } from './crew-locations.js';
 import { shipmentPosition } from './shipment-locations.js';
@@ -70,10 +71,10 @@ export function releasePossession(s,id) {
 }
 export function validatePossessions(s) {
   if(!Number.isSafeInteger(s.nextItemId)||s.nextItemId<1)throw new Error('Invalid item sequence.');
-  const ids=new Set(),claims=new Set();
+  const ids=new Set(),claims=new Set(),makers=crewStartTicks(s);
   for(const {inventory} of itemOwners(s)) {
     if(!validItemLots(inventory,true))throw new Error('Item count does not match physical items.');
-    for(const item of inventory._items||[]){if(ids.has(item.id)||Number(item.id.slice(5))>=s.nextItemId||item.created>s.tick)throw new Error('Invalid or duplicated item identity.');ids.add(item.id);}
+    for(const item of inventory._items||[]){if(!makers.has(item.maker)||item.created<makers.get(item.maker)||ids.has(item.id)||Number(item.id.slice(5))>=s.nextItemId||item.created>s.tick)throw new Error('Invalid or duplicated item identity.');ids.add(item.id);}
   }
   for(const c of s.crew){const p=c.possessions;if(!p||typeof p.collect!=='boolean'||!p.inventory||typeof p.inventory!=='object'||Array.isArray(p.inventory)||Object.keys(p.inventory).some(k=>!['keepsakes','tools','_items'].includes(k))||(p.inventory.keepsakes||0)>1||(p.inventory.tools||0)>1)throw new Error('Invalid personal inventory.');
     const claim=c.intent?.keepsake;if(claim){if(c.intent.type!=='leisure'||!p.collect||p.inventory.keepsakes||!/^item-[1-9]\d*$/.test(claim.id)||!['stock','drop','output'].includes(claim.source)||!validCrewPosition(s.sites[c.site],claim.target)||claims.has(claim.id))throw new Error('Invalid personal pickup claim.');claims.add(claim.id);}

@@ -1,3 +1,4 @@
+import { validCrewId } from './crew-identity.js';
 import { TOOL_MATERIALS, isTool } from './tool-data.js';
 import { tileEntityId } from './spatial.js';
 
@@ -17,7 +18,7 @@ export function validItemLots(inventory,physical=false) {
   if (!Array.isArray(items) || !items.length || items.length !== total || new Set(items.map(item => item?.id)).size !== total) return false;
   if (!ITEM_RESOURCES.every((resource, index) => items.filter(item => itemResource(item) === resource).length === counts[index])) return false;
   return items.every(item => {
-    if (!item || !/^item-[1-9]\d*$/.test(item.id) || !/^crew-[0-6]$/.test(item.maker) || !Number.isInteger(item.quality) || item.quality < 1 || item.quality > 4 || !Number.isSafeInteger(item.created) || item.created < 0) return false;
+    if (!item || !/^item-[1-9]\d*$/.test(item.id) || !validCrewId(item.maker) || !Number.isInteger(item.quality) || item.quality < 1 || item.quality > 4 || !Number.isSafeInteger(item.created) || item.created < 0) return false;
     if (itemResource(item) === 'keepsakes') return Object.hasOwn(ITEM_STYLES, item.style);
     return Object.keys(item).length === TOOL_KEYS.length && TOOL_KEYS.every(key => Object.hasOwn(item, key)) && Object.hasOwn(TOOL_MATERIALS,item.material) && Number.isFinite(item.condition) && item.condition >= 0 && item.condition <= 100;
   });
