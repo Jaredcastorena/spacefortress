@@ -1,6 +1,8 @@
 # Structured simulation interface and recordings
 
 
+Local schema70 orders power-cell installation through `power.discharge_cell`. Optional `x`, `y` and `z` select one surface battery; omitted coordinates choose a reachable bank with 100 kJ free. The action reserves one cell and creates a `chargeCell` hauling job. `power.cell.installed` identifies the actor, job, bank and 100 kJ only after that work finishes. Cancellation returns the cell. Observation/recording9 is unchanged.
+
 Local schema69 adds `fuelSynthesizer` to building definitions and the existing `job.order` construction path. Its generic `production.enable`, `production.order` and `production.priority` controls retain optional `z`. Read the building/recipe definitions and production readiness for required cells, water, skill and environment. Existing `production.batch.started` and `production.batch.completed` events identify `recipe: "fuelSynthesizer"`, actor, job, full tile owner and input/output amounts. Fuel remains in the machine output until physically hauled. Observation/recording9 is unchanged.
 
 Implemented September 16, 2026, following the user's request to clearly mark small simulation interactions for eventual AI training. This is a local environment interface and recorder. No model, training service, network endpoint or external dependency is involved.

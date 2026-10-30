@@ -6,6 +6,7 @@ This ledger separates application releases, colony save schemas, grid topology a
 
 | Source/release | Colony schema and grid | Meaning |
 | --- | --- | --- |
+| Local power-cell installation (October 30, 2026) | 70, hex; region and observation/recording9 unchanged | Haulers install one stored power cell as 100 kJ in a surface battery, including an upper floor. Energy is injected only when the work finishes. Schema69 state is preserved. Package remains 0.1.12, unpublished. |
 | Local fuel synthesis (October 29, 2026) | 69, hex; region and observation/recording9 unchanged | Staffed conversion of finite solar cells and water into fuel; shared paid construction, hauling, power, work orders and production records. Genuine schema68 preserved; package remains0.1.12, unpublished. |
 | v0.1.12 planetary regions and engineering kits (October 29, 2026) | 68, hex; region2 for new worlds, region1 retained; observation/recording9 | Three planets/eight sites, finite per-site opportunities, hierarchical view and strict existing-world preservation. All four generated destinations pass supplied return/revisit checks. Includes the engineering equipment checkpoint below. |
 | Local engineering equipment (October 29, 2026) | 67, hex; observation/recording9 unchanged | Alloy/composite engineering kits, capability-matched construction/maintenance, finite wear, shared physical ownership/repair and type/material stock forecasts. Pre-release checkpoint, included in v0.1.12 with schema68. |
@@ -75,6 +76,8 @@ Current colony source: [data](../src/data.js), [geometry](../src/geometry.js), [
 The current hex loader rejects square schemas1–39. Historical compressed square fixtures establish rejection/protection behavior; their presence does not establish migration support. Hex40–49 compatibility requires the validated hex topology marker and subsystem migration rules.
 
 ## Reviewed source identity
+
+Local power-cell checkpoint: source/build input set **128 files**, SHA-256 fingerprint `6ecfe315a03b2475d35ceccea95493489e48ce0f0f79da8490e6a5acec9027c0`. Full JavaScript integration: **1,840 pass, 0 fail, 1 historical schema36 skip**. Nine focused cases cover reserved and carried cells, completed injection, cancellation, route/capacity rejection, shared commands, upper-floor delivery, changed destinations and strict saved work contracts. Genuine schema69 fixture SHA-256: `5da6c529da0d0326ae78160e06d6bc4f34e352344a943f2a6446820039f11747`. Ten changed JavaScript files pass syntax checks; the127-file public export passes dependency and privacy checks. Rendered controls expose installation at the home colony on both floors and hide unsupported remote actions. No ordinary endurance claim.
 
 Release v0.1.12 candidate: source/build input set **128 files**, SHA-256 fingerprint `1106a693d25c86ed8847ee5400831a8170bf1829caf4bfd67aa2db46f581dd2b`. Gameplay source matches the planetary and engineering checkpoints below; release preparation changes package metadata and documentation only. Local integration evidence covers1,823 passing JavaScript cases and one historical skip, with29 Python checks. GitHub CI gates deployment; this preparation entry does not claim a completed hosted run.
 

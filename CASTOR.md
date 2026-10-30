@@ -4,7 +4,7 @@
 
 ## Where you are
 
-- Package **0.1.12**, local colony save schema **69** (published v0.1.12 uses68), grid **hex-odd-q-v1**. The separate elements laboratory has its own schema **3** and square cell model.
+- Package **0.1.12**, local colony save schema **70** (published v0.1.12 uses68), grid **hex-odd-q-v1**. The separate elements laboratory has its own schema **3** and square cell model.
 - Structural review baseline **e330c6f**, October 15, 2026. Later local changes include meal freshness, imported production stock, trap health/capture-cost fixes, shared crew and workstation work-readiness diagnostics, finite local suit resupply, manual suit-to-room oxygen transfer and finite airlock refill prediction at the actual vent target, passive reuse of recovered extractor gas during refill, sealed correction of release pressure drift, and finite delivered supply-tank replenishment. The version ledger identifies the current runtime fingerprint and focused checks; package version alone does not identify every change.
 - This is an original isometric space colony simulator: planetary construction, crew needs, physical resources and supplied orbital expeditions. Paid stairs and multi-floor saves now connect declared floors in local code. The browser now selects installed floors and routes inspection/build controls to them; new games group eight sites under three seeded planets, with finite frontier landings/derelicts and independent residents. Existing four-/six-site colonies keep their worlds. Larger discovery/history and direct remote travel remain future work.
 
@@ -47,7 +47,7 @@ Serve locally on port8420; `elements.html` opens the lab. Select focused tests f
 
 ## Important limits
 
-- Current saves accept validated hex schemas40–69. Square schemas1–39 are rejected and their original bytes remain protected for export; do not relabel them as hex.
+- Current saves accept validated hex schemas40–70. Square schemas1–39 are rejected and their original bytes remain protected for export; do not relabel them as hex.
 - Current readiness is not an endurance forecast. A supplied, briefly ready room does not establish sustained outpost habitation, care or a complete return journey.
 - Existing public evidence includes finite recovery successes and later resource/air recovery failures. [Verification status](docs/verification-status.md) preserves their scope; [roadmap](ROADMAP.md) records unfinished ordinary journeys.
 - Do not directly grant supplies, healing or movement to make acceptance pass. Preserve physical jobs, conservation and player/agent parity.

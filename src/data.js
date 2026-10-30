@@ -1,6 +1,6 @@
 import { LIVESTOCK } from './livestock-data.js';
 import { TOOL_RECIPES } from './tool-data.js';
-export const VERSION = 69;
+export const VERSION = 70;
 export const RESOURCES = ['alloy', 'ore', 'components', 'food', 'water', 'fuel', 'cells', 'air', 'medicine', 'waste', 'fertilizer', 'keepsakes', 'ice', 'tools'];
 export const BUILDINGS = {
   fuelSynthesizer:{name:'Fuel synthesizer',cost:{alloy:6,components:2},work:12,demand:6,noise:1,description:'Consumes one solar cell and two water to produce two fuel in 40 operator work. Requires wired power, safe air and a Production 2 operator. Deliver output to the shuttle or a reactor.'},
@@ -45,7 +45,7 @@ export const BUILDINGS = {
   door: { name: 'Pressure door', cost: { alloy: 3 }, work: 5, description: 'Opens briefly for passing crew. Gas flows while open. Can be held open or sealed shut.' },
   bunk: { name: 'Crew bunk', cost: { alloy: 3 }, work: 6, description: 'Crew recover energy here. Place inside a sealed habitat.' },
   solar: { name: 'Solar array', cost: { alloy: 5 }, work: 8, output: 4, description: 'Produces up to 4 kW in daylight with clear space above. Floors and solid structures block sunlight.' },
-  battery: { name: 'Battery bank', cost: { alloy: 4, components: 1 }, work: 8, description: 'Stores 120 kJ on its own circuit. New banks start empty; charge them from generation or a recovered power cell.' },
+  battery: { name: 'Battery bank', cost: { alloy: 4, components: 1 }, work: 8, description: 'Stores 120 kJ on its own circuit. New banks start empty. Generation charges a connected bank. Haulers can install one recovered power cell for 100 kJ.' },
   scrubber: { name: 'Life support', cost: { alloy: 5, components: 1 }, work: 9, demand: 3, description: 'Recycles exhaled gas. Delivered breathing mix replaces lost gas and refills the habitat.' },
   atmosphere: { noise: 1, name: 'Atmosphere processor', cost: { alloy: 8, components: 2 }, work: 12, demand: 4, description: 'Crew use water and local volatiles to make breathing mix. Haulers supply life support with its output.' },
   planter: { name: 'Planter bed', cost: { alloy: 2, fertilizer: 1 }, work: 8, description: 'A passive bed for hardy fungalcap or sunberry on a habitat floor. Deliver matching raw propagation food, then water and gather through Production work. Growth uses finite moisture and the species’ temperature and sunlight requirements.' },

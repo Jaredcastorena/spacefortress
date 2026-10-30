@@ -100,7 +100,8 @@ test('portable cells require reachable free capacity and charge only the selecte
   const s = createGame(), site = s.sites.surface, bank = at(site, 13, 7), depot = at(site, 8, 10);
   depot.stock.cells = 2; syncResources(s); assert.equal(dischargeCell(s, 13, 7).ok, false); assert.equal(depot.stock.cells, 2);
   releaseBatteryEnergy(site, bank); refreshPower(s, site); setCableEnabled(s, 'surface', 13, 7, false);
-  assert.equal(dischargeCell(s, 13, 7).ok, true); assert.equal(bank.charge, 100); assert.equal(depot.stock.cells, 1); balance(site);
+  assert.equal(dischargeCell(s, 13, 7).ok, true); assert.equal(bank.charge, 0); assert.equal(depot.stock.cells, 1);
+  until(s, () => bank.charge === 100, 800); balance(site);
   releaseBatteryEnergy(site, bank); refreshPower(s, site);
   for (const [x, y] of neighbors(bank.x, bank.y)) at(site, x, y).building = 'wall';
   assert.equal(dischargeCell(s, 13, 7).ok, false); assert.equal(depot.stock.cells, 1);

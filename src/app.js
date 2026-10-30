@@ -342,7 +342,7 @@ $('inspector').onclick = e => {
   if(action==='expedition-crew'&&!state.departure&&!state.mission){const ids=manifestDraft(siteId),id=button.dataset.crew,index=ids.indexOf(id);if(index>=0)ids.splice(index,1);else if(ids.length<2&&expeditionCandidates(state).some(c=>c.id===id&&c.eligible))ids.push(id);refresh();}
   if (action === 'launch') result(launch(state, siteId, [...manifestDraft(siteId)]), 'Departure planned. Haulers will load supplies, then crew will board.');
   if (action === 'recall') result(recall(state), 'Recall ordered. Crew will return to the shuttle before departure.');
-  if (action === 'cell') result(dischargeCell(state), 'Charged cell transferred to colony batteries.');
+  if (action === 'cell') result(dischargeCell(state), 'Haulers will install a stored power cell into a battery.');
   if (action === 'cancel-departure') result(cancelDeparture(state), 'Preparation cancelled. Loaded supplies remain aboard.');
   if (action === 'unload-shuttle') result(order(state, 'surface', 16, 11, 'unloadShuttle'), 'Unloading designated. Crew will recover the service stores.');
   if (action === 'refit') result(order(state, 'surface', 16, 11, 'refit', button.dataset.fit), 'Shuttle refit designated. Engineers will deliver its materials.');
@@ -351,7 +351,7 @@ $('inspector').onclick = e => {
   if (action === 'auto-service' && selected) { const t = at(state.sites[siteId], selected.x, selected.y, selected.z); result(setAutoService(state, siteId, t.x, t.y, !t.maintenance.auto, selected.z)); }
   if (['service', 'repair-structure'].includes(action) && selected) result(order(state, siteId, selected.x, selected.y, action === 'service' ? 'service' : 'repair', undefined, selected.z), 'Engineering work designated.');
   if (action === 'inspect-maintenance') { inspectTile('surface',+button.dataset.x,+button.dataset.y,Number(button.dataset.z||0)); return; }
-  if (action === 'bank-cell' && selected && siteId === 'surface' && selected.z === 0) result(dischargeCell(state, selected.x, selected.y), 'Power cell loaded into this bank.');
+  if (action === 'bank-cell' && selected && siteId === 'surface') result(dischargeCell(state, selected.x, selected.y, selected.z), 'Haulers will carry a power cell to this bank.');
   if (action === 'power-priority' && selected) result(setPowerPriority(state, siteId, selected.x, selected.y, Number(button.dataset.priority), selected.z));
   if (action === 'cable-toggle' && selected) { const t = at(state.sites[siteId], selected.x, selected.y, selected.z); result(setCableEnabled(state, siteId, t.x, t.y, !t.cable.enabled, selected.z)); }
   if (['repairCable', 'removeCable'].includes(action) && selected) result(order(state, siteId, selected.x, selected.y, action, undefined, selected.z), 'Cable work designated.');

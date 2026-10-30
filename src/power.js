@@ -13,6 +13,8 @@ import { horizontalNeighbors, tileAt as tileAtPosition, positionOf } from './spa
 
 export const BATTERY_CAPACITY = 120;
 export const BATTERY_RATE = 20;
+export const CELL_CHARGE = 100;
+export const CELL_INSTALL_WORK = 4;
 export const electrical = t => !!(BUILDINGS[t.building]?.output || BUILDINGS[t.building]?.demand || t.building === 'battery' || t.building === 'breaker');
 export const key = powerTileKey;
 const at = tileAt;

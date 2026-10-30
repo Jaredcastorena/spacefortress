@@ -8,9 +8,11 @@ An early playable space colony simulator inspired by Dwarf Fortress. Keep seven 
 
 **The game is still in development.** Build across connected floors using paid stairs, supported upper-floor extensions and a compact floor selector. Version 0.1.12 adds engineering kits and a seeded system with three planets and eight sites for new colonies. Long-lived staffed outposts, complete vertical systems, a generated universe/history and much of the wider simulation remain unfinished. The [implementation status](docs/implementation-status.md) separates working systems from plans.
 
-## Local development after v0.1.12: fuel synthesis
+## Local development after v0.1.12
 
-A paid fuel synthesizer converts one recovered solar cell and two delivered water into two fuel. It needs 6 kW, safe air, 5–40 °C and a Production 2 operator for 40 work. Existing haulers move its output into storage, shuttle supplies or reactor buffers. Batch limits, stock targets, pause/resume and maintenance use the existing production controls. Save schema69 preserves previous colonies without adding supplies or machinery. This increment is local and is not part of published v0.1.12.
+A stored power cell can be installed by haulers into a surface battery on any floor. The bank receives 100 kJ only when they finish, and cancelling the job returns the cell. Save schema70 preserves a schema69 colony and does not add charge by itself.
+
+A paid fuel synthesizer converts one recovered solar cell and two delivered water into two fuel. It needs 6 kW, safe air, 5–40 °C and a Production 2 operator for 40 work. Existing haulers move its output into storage, shuttle supplies or reactor buffers. Batch limits, stock targets, pause/resume and maintenance use the existing production controls. Loading an older colony adds neither supplies nor machinery. These increments are local and are not part of published v0.1.12.
 
 ## v0.1.12: planetary regions
 

@@ -70,8 +70,10 @@ test('solar collection requires recovery, uses supplies, and returns physical po
   step(s, 90); assert.ok(s.mission.cargo.cells > 0); assert.equal(s.resources.cells, 0);
   recall(s); for (let i = 0; i < 80 && s.mission; i++) step(s); assert.equal(s.resources.cells, 0); assert.ok(at(s.sites.surface, 16, 11).drop.cells > 0);
   step(s, 40); assert.ok(s.resources.cells > 0);
-  releaseBatteryEnergy(s.sites.surface, at(s.sites.surface, 13, 7)); const cells = s.resources.cells;
-  assert.equal(dischargeCell(s).ok, true); assert.equal(s.resources.cells, cells - 1); assert.equal(s.sites.surface.power.battery, 100);
+  releaseBatteryEnergy(s.sites.surface, at(s.sites.surface, 13, 7)); const bank = at(s.sites.surface, 13, 7); bank.cable.enabled = false; const cells = s.resources.cells;
+  assert.equal(dischargeCell(s).ok, true);
+  for (let i = 0; i < 800 && bank.charge < 100; i++) step(s);
+  assert.equal(bank.charge, 100); assert.equal(s.resources.cells, cells - 1); assert.equal(s.sites.surface.power.battery, 100);
 });
 test('save round trip continues deterministically; incompatible and malformed saves are rejected', () => {
   const a = createGame(); order(a, 'surface', 4, 10, 'mine'); step(a, 6);
