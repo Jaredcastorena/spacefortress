@@ -57,7 +57,7 @@ test('breaker and cable construction reject an overlay bypass in either order wh
 
 test('invalid breaker controls are atomic and no-op settings preserve simulation state',()=>{
  const {s,breaker}=fixture();const initial=structuredClone(s);
- for(const [enabled,direction,mode] of [[true,'east','manual'],[true,'north','manual'],[true,'south','manual'],[true,'west','manual'],['yes','ne','manual'],[true,'up','manual'],[true,'ne','overload'],[true,'ne',null]]){
+ for(const [enabled,direction,mode] of [[true,'east','manual'],[true,'north','manual'],[true,'south','manual'],[true,'west','manual'],['yes','ne','manual'],[true,'up','manual'],[true,'ne','unsupported'],[true,'ne',null]]){
   assert.equal(setBreaker(s,'surface',10,9,enabled,direction,mode).ok,false);assert.deepEqual(s,initial);
  }
  assert.equal(setBreaker(s,'surface',11,9,true,'ne','manual').ok,false);assert.deepEqual(s,initial);

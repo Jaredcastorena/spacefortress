@@ -926,7 +926,7 @@ export function deserialize(text) {
   if (text.length > 5_000_000) throw new Error('Save is too large.');
   const s = JSON.parse(text),legacySolarModel=s?.version<59;
   if (Number.isInteger(s?.version) && s.version >= 1 && s.version <= 39) throw new Error('Legacy square-grid saves (schemas 1–39) cannot be loaded into the hex colony. Export the original save and use the preserved square version to continue it.');
-  if (![40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, VERSION].includes(s?.version) || s.grid !== GRID) throw new Error('Unsupported save topology: schemas 40–72 require grid hex-odd-q-v1.');
+  if (![40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, VERSION].includes(s?.version) || s.grid !== GRID) throw new Error('Unsupported save topology: schemas 40–73 require grid hex-odd-q-v1.');
   if ( !Number.isSafeInteger(s.tick) || s.tick < 0 || !Number.isInteger(s.rng) || !Number.isSafeInteger(s.nextId)) throw new Error('Unsupported or invalid save.');
   if (!s.sites || !Array.isArray(s.crew) || s.crew.length < 7 || s.crew.length > MAX_CREW || (s.version < 72 && s.crew.length !== 7) || !Array.isArray(s.jobs) || !Array.isArray(s.log) || !s.stats || !s.comet || !s.flags || !s.objectives) throw new Error('Incomplete save.');
   if(s.version<72&&Object.hasOwn(s,'population'))throw new Error('Legacy population state.');
@@ -942,6 +942,7 @@ export function deserialize(text) {
   }
   if(s.version<69&&(Object.values(s.sites).some(site=>site.tiles.some(t=>t.building==='fuelSynthesizer'))||s.jobs.some(j=>j.building==='fuelSynthesizer')))throw new Error('Legacy fuel synthesizer or job.');
   if(s.version<70&&s.jobs.some(j=>j.kind==='chargeCell'))throw new Error('Legacy power-cell installation job.');
+  if(s.version<73&&Object.values(s.sites).some(site=>site.tiles.some(t=>t.protection&&(Object.hasOwn(t.protection,'overload')||['overload','wet_fault_and_overload'].includes(t.protection.mode)||t.protection.cause==='overload'))))throw new Error('Legacy breaker overload state.');
   if(s.version<71)for(const site of Object.values(s.sites))for(const t of site.tiles){
     if(t.storage&&Object.hasOwn(t.storage,'limits'))throw new Error('Legacy depot delivery limits.');
     if(t.building==='stockpile'&&t.storage&&typeof t.storage==='object'&&!Array.isArray(t.storage))t.storage.limits={};
@@ -1003,6 +1004,7 @@ export function deserialize(text) {
   if(s.version===69)s.version=VERSION;
   if(s.version===70)s.version=VERSION;
   if(s.version===71)s.version=VERSION;
+  if(s.version===72)s.version=VERSION;
   const ids = new Set();
   for (const c of s.crew) {
     if (ids.has(c.id) || typeof c.name !== 'string' || c.name.length > 80 || !(c.site==='transit'||Object.hasOwn(s.sites,c.site)) || ![c.health, c.oxygen, c.energy, c.hunger, c.skill].every(Number.isFinite) || !Number.isInteger(c.x) || !Number.isInteger(c.y) || (c.site !== 'transit' && !inside(s.sites[c.site], c.x, c.y))) throw new Error('Invalid crew.');

@@ -1,3 +1,4 @@
+import { routePower } from './power-routing.js';
 import { LIQUID, wetCable, shortCable } from './liquids.js';
 import { initializeReactorTile, tripReactor, reactorBlock, reactorOutput, generateReactor } from './reactors.js';
 import { initializeClimate } from './thermal.js';
@@ -6,7 +7,7 @@ import { BUILDINGS } from './data.js';
 import {isDay,solarStatus} from './solar.js';
 export {isDay} from './solar.js';
 import { buildPowerTopology, powerTileKey, breakerTerminals, breakerContactClosed, branchForBreaker } from './power-topology.js';
-import { initializeBreakerTile, tripBreaker } from './breakers.js';
+import { initializeBreakerTile, tripBreaker, overloadMode, wetFaultMode, BREAKER_OVERLOAD_TICKS } from './breakers.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
 import { tileAt } from './geometry.js';
 import { horizontalNeighbors, tileAt as tileAtPosition, positionOf } from './spatial.js';
@@ -66,7 +67,8 @@ export function previewPower(s, site) {
     }
     networks.push({ id, tiles, cells: network.cells, sources, activeFaults, transfers, output, demand, used, storedSupply, curtailed: surplus, charging: charged });
   }
-  return { topology, networks, powered, suppliedFaults };
+  const plan = { topology, networks, powered, suppliedFaults };
+  return { ...plan, routing: routePower(plan) };
 }
 
 // Sources here mean available local supply, not a measurement of branch current.
@@ -81,28 +83,61 @@ export function breakerConditions(s, site, t, plan = previewPower(s, site)) {
   for (const network of plan.networks) for (const [tile, output] of network.sources) if (output > 0) available.add(tile);
   const sourceEntities = branch.sources.filter(tile => tile.hp > 0 && (tile.building === 'battery' ? tile.charge > 0 : available.has(tile))).sort(byPosition).map(tile => tileEntityId(site.id, tile.x, tile.y, positionOf(tile).z));
   const connected = breakerContactClosed(t), bypassed = branch.bypassed;
-  const wouldTrip = connected && protection.mode === 'wet_fault' && !bypassed && faultEntities.length > 0;
-  const blocked = t.hp <= 0 ? 'damaged' : protection.tripped ? 'tripped' : !protection.enabled ? 'open' : bypassed ? 'bypassed' : protection.mode === 'manual' ? 'manual' : wouldTrip ? 'wet_fault' : 'clear';
-  const status = { damaged: 'Needs repair', tripped: 'Tripped: wet fault in branch', open: 'Open', bypassed: 'Bypass route: branch cannot be isolated', manual: 'Closed: manual isolation', wet_fault: 'Wet fault detected: trip on next tick', clear: 'Closed: wet-fault protection armed' }[blocked];
-  return { inputCircuit: plan.topology.membership.get(terminals.input) ?? null, outputCircuit: plan.topology.membership.get(terminals.output) ?? null, connected, bypassed, faultEntities, sourceEntities, wouldTrip, blocked, status };
+  const routed = plan.routing.contacts.get(powerTileKey(t)) || { signed: 0, throughput: 0 };
+  const rating = protection.overload?.rating ?? 8, effectiveRating = rating * t.hp / 100;
+  const overloadTicks = protection.overload?.ticks || 0;
+  const overloaded = connected && overloadMode(protection.mode) && routed.throughput > effectiveRating + 1e-9;
+  const overloadWouldTrip = overloaded && overloadTicks + 1 >= BREAKER_OVERLOAD_TICKS;
+  const wetFaultWouldTrip = connected && wetFaultMode(protection.mode) && !bypassed && faultEntities.length > 0;
+  const wouldTrip = wetFaultWouldTrip || overloadWouldTrip;
+  // Preserve legacy status text; new modes show their actual delayed protection.
+  const blocked = t.hp <= 0 ? 'damaged' : protection.tripped ? 'tripped' : !protection.enabled ? 'open' :
+    wetFaultWouldTrip ? 'wet_fault' : overloaded ? 'overload' : bypassed ? 'bypassed' : protection.mode === 'manual' ? 'manual' : 'clear';
+  let status = { damaged: 'Needs repair', tripped: `Tripped: ${protection.cause === 'overload' ? 'branch overload' : 'wet fault in branch'}`,
+    open: 'Open', bypassed: 'Bypass route: branch cannot be isolated', manual: 'Closed: manual isolation',
+    wet_fault: 'Wet fault detected: trip on next tick', overload: `Overload: ${overloadTicks}/${BREAKER_OVERLOAD_TICKS} ticks${overloadWouldTrip ? '; trip on next tick' : ''}`,
+    clear: 'Closed: wet-fault protection armed' }[blocked];
+  if (blocked === 'clear' && overloadMode(protection.mode)) status = protection.mode === 'overload' ? 'Closed: overload protection armed' : 'Closed: wet-fault and overload protection armed';
+  return { inputCircuit: plan.topology.membership.get(terminals.input) ?? null, outputCircuit: plan.topology.membership.get(terminals.output) ?? null,
+    connected, bypassed, faultEntities, sourceEntities, wouldTrip, wetFaultWouldTrip, blocked, status,
+    rating, effectiveRating, plannedThroughput: routed.throughput, signedThroughput: routed.signed,
+    lastDeliveredThroughput: protection.overload?.lastThroughput ?? 0, lastDeliveredTick: protection.overload?.lastTick ?? null,
+    overloadTicks, overloadDelay: BREAKER_OVERLOAD_TICKS, overloaded, overloadWouldTrip };
+
 }
 
 function protectedPlan(s, site, advance) {
   let plan = previewPower(s, site);
   if (!advance) return plan;
   const breakers = site.tiles.filter(t => t.building === 'breaker');
-  // Every successful pass permanently opens at least one contact for this tick.
-  // A discarded preview has no fault, battery, fuel, heat or RNG effects.
+  const before = new Map(breakers.map(t => [t, t.protection.overload?.ticks || 0]));
+  // Each pass opens at least one contact. Every preview reuses the same counters;
+  // discarded plans never spend fuel/charge or apply fault heat and cable damage.
   for (let pass = 0; pass < breakers.length; pass++) {
     const due = [];
     for (const t of breakers) {
-      if (!breakerContactClosed(t) || t.protection.mode !== 'wet_fault') continue;
+      if (!breakerContactClosed(t)) continue;
       const conditions = breakerConditions(s, site, t, plan);
-      if (conditions.wouldTrip) due.push({ tile: t, faults: conditions.faultEntities });
+      if (conditions.wetFaultWouldTrip) due.push({ tile: t, faults: conditions.faultEntities });
+      else if (conditions.overloaded && before.get(t) + 1 >= BREAKER_OVERLOAD_TICKS)
+        due.push({ tile: t, faults: [], details: { cause: 'overload', attemptedThroughput: conditions.plannedThroughput, effectiveRating: conditions.effectiveRating } });
     }
     if (!due.length) break;
-    for (const { tile, faults } of due) tripBreaker(s, site, tile, faults);
+    for (const { tile, faults, details } of due) tripBreaker(s, site, tile, faults, details);
     plan = previewPower(s, site);
+  }
+  for (const t of breakers) {
+    const p = t.protection, metadata = p.overload;
+    if (!metadata) continue;
+    const flow = plan.routing.contacts.get(powerTileKey(t))?.throughput || 0;
+    const connected = breakerContactClosed(t), overloaded = connected && overloadMode(p.mode) && flow > metadata.rating * t.hp / 100 + 1e-9;
+    const ticks = overloaded ? before.get(t) + 1 : 0;
+    p.overload = { ...metadata, ticks, lastThroughput: flow, lastTick: s.tick };
+    if (ticks !== before.get(t) && !p.tripped) emitEvent(s, 'power.breaker.overload.changed', {
+      entity: tileEntityId(site.id, t.x, t.y, positionOf(t).z), previousTicks: before.get(t), ticks,
+      throughput: flow, effectiveRating: metadata.rating * t.hp / 100, delay: BREAKER_OVERLOAD_TICKS,
+      reason: !connected ? 'open' : overloaded ? 'overload' : 'within_rating',
+    });
   }
   return plan;
 }

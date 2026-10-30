@@ -1,6 +1,6 @@
 # Electrical branch isolation
 
-**Implemented and verified — schema 36.** The first part of the [electrical protection contract](electrical-isolation-design.md) is accepted: 731 full-suite tests and scoped browser checks passed. [Verification status](verification-status.md) records exact evidence and limits.
+**First increment verified at schema36; overload extension implemented locally at schema73.** [Current overload rules](breaker-overloads.md) cover rated delayed trips and combined protection. The first part of the [electrical protection contract](electrical-isolation-design.md) is accepted: 731 full-suite tests and scoped browser checks passed. [Verification status](verification-status.md) records exact evidence and limits.
 
 A physical breaker separates electrical branches. It can be operated manually or latch open when its output branch contains a wet cable that would receive fault power. Its two ports, connected generators and stored battery energy determine what remains live.
 
@@ -11,15 +11,15 @@ A physical breaker separates electrical branches. It can be operated manually or
 | Building | `breaker` |
 | Construction | 4 alloy, 1 component, 8 work; actual material delivery and crew work |
 | Placement | Empty surface habitat floor; no cable overlay on the breaker tile |
-| Initial state | Open, east-facing, manual mode, no trip latch |
+| Initial state | Open, northeast-facing (`ne`), manual mode, no trip latch |
 | Electrical role | Two opposite terminals; no side connection, demand, generation or battery store |
 | Condition | Any positive condition permits the contact to close; zero condition disconnects |
 
-An east-facing breaker's input terminal faces west and its monitored output faces east. North/south orientations follow the same rule. Power can travel in either direction: the labels define the monitored side, not a one-way electrical valve. Gas and water pipes remain independent overlays under the existing placement rules. A cable cannot be added beneath the breaker later to bypass its contact.
+A northeast-facing breaker's input terminal faces southwest and its monitored output faces northeast. The six hex directions use opposite port pairs. Power can travel in either direction: the labels define the monitored side, not a one-way electrical valve. Gas and water pipes remain independent overlays under the existing placement rules. A cable cannot be added beneath the breaker later to bypass its contact.
 
 The visible Power map button selects the optional wiring overlay. Breaker settings and terminal diagnostics live in the selected-tile inspector. A compact advisory shows any bypass and available output-side sources without opening the details disclosure; battery entries show retained charge. The disclosure contains terminal/fault identities and the predicted trip. Damaged-device text explains repair preserves the requested switch setting and latch. The first increment has manual and wet-fault modes; it has no current meter, rating or overload timer.
 
-Open the contact before changing direction or mode; a single request to open and reconfigure a currently closed contact is rejected. Closing a tripped or broken breaker is rejected. Repairs cost one alloy and five Engineering work and restore structure condition without clearing a trip latch. Dismantling takes five Construction work and uses the ordinary salvage rule, returning two alloy. The breaker has no automatic service-wear cycle.
+Open the contact before changing direction, mode or rating; a single request to open and reconfigure a currently closed contact is rejected. Closing a tripped or broken breaker is rejected. Repairs cost one alloy and five Engineering work and restore structure condition without clearing a trip latch. Dismantling takes five Construction work and uses the ordinary salvage rule, returning two alloy. The breaker has no automatic service-wear cycle.
 
 Reset requires an intact, physically open device with no fire, clears the trip cause and sets requested `enabled:false`, leaving it open. A trip preserves the prior requested enabled value while its latch forces the physical contact open. Repair also preserves requested enabled state: an untripped contact that was enabled before damage conducts again when repaired above zero condition; a tripped contact stays latched open. The player explicitly closes after reset. Reclosing into the same supplied fault can trip again on the next advancing tick.
 
@@ -107,4 +107,4 @@ Schema 35 to 36 changes the version without granting fields, equipment, cable, m
 
 Acceptance covers 59 new cases: physical controls 8, pure graph 8, integrated topology 10, conservation 11, migration 12, instrumentation 7 and cascades 3. The full 731-test suite passed with zero failures/skips; Firefox verified controls, visible remaining-source/bypass advisories, held clicks, artwork and save36 reload. Root inspected the map, tripped contact and both advisories. See [verification status](verification-status.md) for logs and scoped limitations.
 
-This increment detects supplied wet faults on a topological branch. It does not measure voltage/current, model resistance, overload ordinary cables, route per-edge throughput or provide electrical ground-fault sensing. Rated delayed overload breakers, disposable fuses and paid fuse replacement remain **unimplemented proposals** in the design document. No overload/fuse values or timers belong to current saves. Automatic load controllers, cable thermal capacity, arc faults and inter-site transmission also remain future work.
+The original increment detects supplied wet faults on a topological branch. Local schema73 now adds [routed contact throughput and rated delayed overloads](breaker-overloads.md). It remains a deterministic transport model without voltage/resistance or electrical ground-fault sensing. Ordinary cables have no overload rating. Disposable fuses, paid fuse replacement, automatic load controllers, cable thermal capacity, arc faults and inter-site transmission remain future work.

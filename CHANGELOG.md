@@ -4,6 +4,8 @@ SPACEFORTRESS is an early playable colony simulator. Release entries describe co
 
 ## Unreleased
 
+- Add deterministic routed power and three-tick breaker overloads, including combined wet-fault protection, configurable ratings, condition-adjusted thresholds and charging/backfeed measurements. Replans settle before energy/fuel/fault effects commit. Collapsed diagnostics distinguish planned from last delivered flow. Schema73 preserves older breakers without adding ratings until configured.
+
 - Add player-initiated recruitment, accept/decline, a timed independent ferry and real-pad landing with bounded holding/diversion. Newcomers bring no stock and join existing food, work, housing, relationships and care. Schema72 preserves older founders, expands the stable roster to 64 retained records and validates arrival and manufactured-product histories.
 
 - Add per-resource depot delivery limits with a collapsed editor and shared `depot.limit` action. Haulers respect stored, reserved and incoming quantities on the selected floor; lowering a cap preserves goods and refunds. Schema71 migrates genuine schema70 custody without creating supplies.

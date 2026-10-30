@@ -69,7 +69,7 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 | [src/crew-panels.js](../src/crew-panels.js) | HTML panel renderers and UI formatting for crew |
 | [src/crew-traversal.js](../src/crew-traversal.js) | Domain helpers for crew traversal |
 | [src/crew.js](../src/crew.js) | Persistent crew labor/skill profiles, shared personal work readiness/rate, experience, memories and morale. |
-| [src/data.js](../src/data.js) | Colony save schema VERSION=72 and static resource, building, recipe (including finite fuel synthesis), species, site, crew and shuttle-fit registries. |
+| [src/data.js](../src/data.js) | Colony save schema VERSION=73 and static resource, building, recipe (including finite fuel synthesis), species, site, crew and shuttle-fit registries. |
 | [src/elements-app.js](../src/elements-app.js) | Elements reference browser application |
 | [src/elements.js](../src/elements.js) | Separate deterministic cell environment laboratory with materials, gas/water/heat, devices, electrical circuits, action schema and bounded JSONL recording. |
 | [src/expedition-panels.js](../src/expedition-panels.js) | HTML panel renderers and UI formatting for expedition |
@@ -122,6 +122,7 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 | [src/possessions.js](../src/possessions.js) | Domain helpers for possessions |
 | [src/power-panels.js](../src/power-panels.js) | HTML panel renderers and UI formatting for power |
 | [src/power-topology.js](../src/power-topology.js) | Domain helpers for power topology |
+| [src/power-routing.js](../src/power-routing.js) | Pure finite source/sink transport through physical graph paths, stable ties and signed contact throughput. |
 | [src/power.js](../src/power.js) | Electrical allocation previews and committed updates, generation/batteries, branch breaker conditions, cable controls and energy validation. |
 | [src/preflight-panels.js](../src/preflight-panels.js) | HTML panel renderers and UI formatting for preflight |
 | [src/preflight.js](../src/preflight.js) | Domain helpers for preflight |

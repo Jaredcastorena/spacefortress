@@ -1,8 +1,10 @@
 # Electrical networks and stored energy
 
-Implemented locally; September 16, 2026. This is an initial electrical model, not a complete utility simulation.
+Foundational model recorded September 16, 2026. This is an initial electrical model, not a complete utility simulation.
 
 Implemented extensions include [wet-cable faults](floor-water.md), which consume actual power and damage exposed wiring, and powered [water plumbing](plumbing.md). The verified schema-36 [electrical isolation](electrical-isolation.md) increment adds physical two-terminal manual breakers and supplied-wet-fault protection. Its 731-test full-suite and browser acceptance are indexed in [verification status](verification-status.md).
+
+Current local extension after v0.1.12: [routed power and delayed breaker overloads](breaker-overloads.md), schema73. Finite accepted transfers include charging/backfeed, stable graph routes and condition-adjusted contact ratings. The original energy allocation and conservation rules remain in force.
 
 Previous extension: [colony reactors and exterior radiators](reactors.md) add fueled generation, core-to-room heat and manual overheat recovery in schema 31. Historical evidence below describes the earlier foundational release.
 

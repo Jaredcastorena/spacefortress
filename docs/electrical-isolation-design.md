@@ -1,6 +1,6 @@
 # Electrical isolation and overload protection
 
-**Status: first increment implemented and verified for schema 36. Later overloads/fuses remain unimplemented proposals.** Code review dated September 16, 2026. Schema35 water plumbing is the preceding release; schema36 acceptance is recorded in verification status. The [electrical isolation guide](electrical-isolation.md) records the first increment's source-checked rules; [verification status](verification-status.md) separates those rules from accepted evidence. Numerical overload/fuse ratings below are proposals, not settled user choices or current save fields.
+**Status: first increment verified for schema36; routed power and delayed overloads implemented locally in schema73. Disposable fuses remain a proposal.** Code review dated September 16, 2026. Schema35 water plumbing is the preceding release; schema36 acceptance is recorded in verification status. The [electrical isolation guide](electrical-isolation.md) records the first increment's source-checked rules; [verification status](verification-status.md) separates those rules from accepted evidence. Overload ratings below now match the local implementation; fuse costs and replacement work remain proposals. [Current mechanics and verification](breaker-overloads.md).
 
 The player should be able to put life support and industrial equipment on separate branches, isolate damaged wiring, and recover from an overload with physical repair work where appropriate. Protection belongs to actual installed equipment. A local battery can keep an isolated branch alive and continue feeding a fault.
 
@@ -64,9 +64,9 @@ Approved shared actions in `src/controls.js`:
 
 Reclosing into an unresolved supplied wet fault trips again on the next advancing tick. There is no automatic reset loop, free repair or automatic battery discharge.
 
-## Later increment: honest overloads need routed power
+## Local overload increment: routed power
 
-Do not compare every breaker with the whole circuit's requested demand. That would trip an unrelated branch, trip on unmet demand, and miss reverse charging flow. The current flood-fill allocator cannot provide branch measurements on its own.
+Do not compare every breaker with the whole circuit's requested demand. That would trip an unrelated branch, trip on unmet demand, and miss reverse charging flow. The original flood-fill allocator could not provide branch measurements on its own.
 
 For this later overload increment, extract a **pure allocation plan** from `calculate` while preserving present fault/load priority and per-bank transfer rules. The plan contains each source's generation, each accepted load/fault demand, each bank's charge/discharge and curtailed generation. Planning must not consume reactor fuel, transfer charge, damage cable, heat rooms, emit events or change RNG. Apply these effects once, after protection decisions settle.
 
@@ -79,9 +79,9 @@ Then assign the planned source-to-sink transfers to physical graph routes:
 
 This is a deterministic transport model, **not a voltage, resistance or Kirchhoff solver**. Loops can reroute power after a trip. A tie-break change can affect which parallel branch carries the modeled load, so route ordering must be a documented stable rule with loop fixtures. The model is sufficient for finite branch allocation, isolation and useful failures without claiming real electrical current simulation.
 
-### Proposed overload rules and tick order
+### Overload rules and tick order
 
-Extend breaker modes with `overload` and `wet_fault_and_overload`, plus rating and timer state. Proposed allowed ratings are 4, 8, 16 or 32 kW, default 8; effective rating is `rating * hp / 100`. These ratings and counters do not belong to the first wet-fault increment.
+Extend breaker modes with `overload` and `wet_fault_and_overload`, plus rating and timer state. Allowed overload ratings are 4, 8, 16 or 32 kW, default 8; effective rating is `rating * hp / 100`. These ratings and counters do not belong to the first wet-fault increment.
 
 In an overload mode, a breaker latches open after **three consecutive simulation ticks** whose planned net throughput exceeds its effective rating. A tick at or below the rating resets the counter to zero. Requested but unserved demand does not increment it. No source means zero flow and no trip; merely being wet is not a trip condition.
 
@@ -113,7 +113,7 @@ Keep all controls in the selected-tile inspector and optional Power overlay. Sho
 
 First derived observations expose `inputCircuit`, `outputCircuit`, `connected`, `bypassed`, `faultEntities`, `sourceEntities`, `wouldTrip`, `blocked` and readable `status` under `derived.electrical`. `sourceEntities` identifies available local generators/intact charged banks on the output side after omitting this contact; it does not measure throughput. Condition priority is `damaged`, `tripped`, `open`, `bypassed`, `manual`, `wet_fault`, `clear`. Breaker tile `circuit` remains null while both terminal memberships are exposed separately. Merge electrical derived data with existing reactor/gas/plumbing data rather than overwriting it. `protection` uses telemetry's `power` system.
 
-The later overload extension would add `effectiveRating`, `plannedThroughput`, `lastDeliveredThroughput` and `overloadTicks`. These remain unimplemented. Keep predicted fields separate from last committed fields.
+The local overload extension exposes `effectiveRating`, `plannedThroughput`, `lastDeliveredThroughput`, `lastDeliveredTick` and `overloadTicks`. Keep predicted fields separate from last committed fields.
 
 Implemented first-increment events are `power.breaker.changed`, `power.breaker.tripped`, `power.breaker.reset` and `power.cable.changed`, using stable tile IDs. Breaker events include `previous`/`next` protection state, `faultEntities`, `tick` and `cause` (`configuration`, `wet_fault` or `manual_reset`). No-op commands do not manufacture state-change events. Rejected controls still receive the standard shared action result.
 
@@ -155,7 +155,7 @@ Opening/tripping is not an energy sink. Do not count denied load as consumed or 
 
 ## Implementation handoff and risks
 
-**First increment accepted:** two-terminal connectivity, pure supplied-fault preview, physical construction, shared controls/telemetry and independent graph/conservation/migration/browser checks pass. The later overload/fuse stage still requires the routed-flow model and its separate acceptance cases above; do not infer it from wet-fault protection. Broader orbital progression remains tracked in [conversion inventory](conversion-inventory.md).
+**First increment accepted:** two-terminal connectivity, pure supplied-fault preview, physical construction, shared controls/telemetry and independent graph/conservation/migration/browser checks pass. The routed overload stage now has its own bounded checks; disposable fuses and broader acceptance remain separate. Broader orbital progression remains tracked in [conversion inventory](conversion-inventory.md).
 
 Primary first-increment risks are a preview consuming energy, a one-vertex contact leaking connectivity, branch backfeed being hidden, and output scope accidentally including the upstream circuit through a bypass. `validatePower` currently recomputes expected diagnostics from a shallow tile clone; nested protection state must not mutate during that read. Existing `powerStatus`, one-circuit-per-tile assumptions, build predicates, maintenance classification and schema validation all need explicit review.
 

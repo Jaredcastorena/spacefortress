@@ -58,13 +58,13 @@ test('breaker catalog describes configure/reset arguments and exposes detached m
   assert.deepEqual(reset.parameters.required, ['site','x','y']);
   assert.equal(configure.parameters.additionalProperties, false);
   assert.equal(reset.parameters.additionalProperties, false);
-  assert.deepEqual(configure.parameters.properties.mode.enum, ['manual','wet_fault']);
+  assert.deepEqual(configure.parameters.properties.mode.enum, ['manual','wet_fault','overload','wet_fault_and_overload']);
   assert.deepEqual(configure.parameters.properties.direction.enum, DIRECTIONS);
   const {s} = fixture(), api = createAgentInterface(() => s), definitions = api.definitions();
-  assert.deepEqual(definitions.breakerModes, ['manual','wet_fault']);
+  assert.deepEqual(definitions.breakerModes, ['manual','wet_fault','overload','wet_fault_and_overload']);
   assert.deepEqual(definitions.breakerDirections.ne, true);
   definitions.breakerModes.push('overload'); definitions.breakerDirections.ne = false;
-  assert.deepEqual(api.definitions().breakerModes, ['manual','wet_fault']);
+  assert.deepEqual(api.definitions().breakerModes, ['manual','wet_fault','overload','wet_fault_and_overload']);
   assert.deepEqual(api.definitions().breakerDirections.ne, true);
 });
 
@@ -109,7 +109,7 @@ test('rejected breaker requests and accepted no-ops produce results without fabr
   const invalid = [
     ['power.breaker', settings(10, {enabled:'yes'})],
     ['power.breaker', settings(10, {direction:'up'})],
-    ['power.breaker', settings(10, {mode:'overload'})],
+    ['power.breaker', settings(10, {mode:'unsupported'})],
     ['power.breaker', settings(10, {extra:true})],
     ['power.breaker', settings(11)],
     ['power.breaker.reset', {...position(10), enabled:false}],

@@ -87,6 +87,7 @@
     "src/possession-panels.js",
     "src/possessions.js",
     "src/power-panels.js",
+    "src/power-routing.js",
     "src/power-topology.js",
     "src/power.js",
     "src/preflight-panels.js",
