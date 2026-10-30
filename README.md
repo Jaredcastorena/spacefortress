@@ -10,6 +10,8 @@ An early playable space colony simulator inspired by Dwarf Fortress. Keep seven 
 
 ## Local development after v0.1.12
 
+Disposable fuse boxes now use the existing physical power routes. They blow immediately on overload and need one delivered alloy plus engineering work to replace. Repairs preserve spent cartridges; replacement preserves box damage and leaves the switch open. Schema74 retains older breaker settings. [Fuse controls and replacement](docs/fuses.md).
+
 Breakers now support delayed overload protection with 4/8/16/32 kW settings. Measurements follow finite power routed through actual contacts, including charging and battery backfeed. Three consecutive overloaded ticks open the contact; damage lowers its effective rating. Open a breaker to configure it, reduce the load, then reset and reclose after a trip. Schema73 preserves existing unconfigured breakers. [Overload protection](docs/breaker-overloads.md).
 
 Open **Colony → Recruitment** to contact one traveler and accept or decline their arrival. An independent ferry uses the actual home pad; a blocked pad causes a bounded wait and eventual diversion. New crew bring no supplies and use existing food, duties, bunks, relationships and care. Habitat shortages remain visible before acceptance. Schema72 supports up to 64 retained crew records and preserves untouched older colonies. [Recruitment details](docs/recruitment.md).

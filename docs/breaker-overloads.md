@@ -1,6 +1,6 @@
 # Routed power and breaker overloads
 
-Implemented locally after v0.1.12. Colony schema73; observation/recording9 unchanged. Disposable fuses remain future work.
+Implemented locally after v0.1.12. Colony schema73; observation/recording9 unchanged. [Disposable fuses](fuses.md) reuse this routing and add immediate protection with paid replacement in schema74.
 
 ## Configure and recover
 

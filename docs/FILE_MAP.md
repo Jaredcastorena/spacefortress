@@ -123,6 +123,10 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 | [src/power-panels.js](../src/power-panels.js) | HTML panel renderers and UI formatting for power |
 | [src/power-topology.js](../src/power-topology.js) | Domain helpers for power topology |
 | [src/power-routing.js](../src/power-routing.js) | Pure finite source/sink transport through physical graph paths, stable ties and signed contact throughput. |
+| [src/power-protection.js](../src/power-protection.js) | Shared contact predicates, ratings and fuse material/work constants. |
+| [src/fuses.js](../src/fuses.js) | Fuse initialization, controls, overload latch and validation. |
+| [src/fuse-work.js](../src/fuse-work.js) | Paid replacement readiness, completion, work validation and legacy guards. |
+| [src/fuse-panels.js](../src/fuse-panels.js) | Compact fuse inspector and collapsed electrical diagnostics. |
 | [src/power.js](../src/power.js) | Electrical allocation previews and committed updates, generation/batteries, branch breaker conditions, cable controls and energy validation. |
 | [src/preflight-panels.js](../src/preflight-panels.js) | HTML panel renderers and UI formatting for preflight |
 | [src/preflight.js](../src/preflight.js) | Domain helpers for preflight |
@@ -180,6 +184,9 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 | [tests/atmosphere-status-panels.test.js](../tests/atmosphere-status-panels.test.js) | Static regression test source for atmosphere status panels |
 | [tests/atmosphere-status.test.js](../tests/atmosphere-status.test.js) | Static regression test source for atmosphere status |
 | [tests/atmosphere.test.js](../tests/atmosphere.test.js) | Static regression test source for atmosphere |
+| [tests/fuses-integration.test.js](../tests/fuses-integration.test.js) | Immediate protection, mixed-device replans, finite energy, upper circuits and genuine schema73 migration. |
+| [tests/fuse-work.test.js](../tests/fuse-work.test.js) | Supplied replacement, stale/cancelled work, repairs, salvage and persistence. |
+| [tests/fuse-controls.test.js](../tests/fuse-controls.test.js) | Shared configuration, strict fuse state and compact inspector controls. |
 | [tests/breakers-cascades.test.js](../tests/breakers-cascades.test.js) | Static regression test source for breakers cascades |
 | [tests/breakers-conservation.test.js](../tests/breakers-conservation.test.js) | Static regression test source for breakers conservation |
 | [tests/breakers-migration.test.js](../tests/breakers-migration.test.js) | Static regression test source for breakers migration |

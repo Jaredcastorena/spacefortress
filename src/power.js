@@ -1,3 +1,5 @@
+import { isProtectionDevice, protectionClosed } from './power-protection.js';
+import { initializeFuseTile, blowFuse } from './fuses.js';
 import { routePower } from './power-routing.js';
 import { LIQUID, wetCable, shortCable } from './liquids.js';
 import { initializeReactorTile, tripReactor, reactorBlock, reactorOutput, generateReactor } from './reactors.js';
@@ -16,12 +18,12 @@ export const BATTERY_CAPACITY = 120;
 export const BATTERY_RATE = 20;
 export const CELL_CHARGE = 100;
 export const CELL_INSTALL_WORK = 4;
-export const electrical = t => !!(BUILDINGS[t.building]?.output || BUILDINGS[t.building]?.demand || t.building === 'battery' || t.building === 'breaker');
+export const electrical = t => !!(BUILDINGS[t.building]?.output || BUILDINGS[t.building]?.demand || t.building === 'battery' || isProtectionDevice(t));
 export const key = powerTileKey;
 const at = tileAt;
 const neighbors = (site, t) => horizontalNeighbors(positionOf(t)).map(p => tileAtPosition(site,p)).filter(Boolean);
 export function initializeElectrical(t) {
-  initializeMaintenance(t); initializeClimate(t); initializeReactorTile(t); initializeBreakerTile(t);
+  initializeMaintenance(t); initializeClimate(t); initializeReactorTile(t); initializeBreakerTile(t); initializeFuseTile(t);
   t.cable ??= null;
   if (t.building === 'battery') t.charge ??= 0;
   if (BUILDINGS[t.building]?.demand) t.powerPriority ??= t.building === 'scrubber' ? 5 : 3;
@@ -71,19 +73,24 @@ export function previewPower(s, site) {
   return { ...plan, routing: routePower(plan) };
 }
 
-// Sources here mean available local supply, not a measurement of branch current.
-// The optional plan is internal reuse; public callers can omit it for a fresh,
-// read-only prediction with the current topology and physical inventories.
-export function breakerConditions(s, site, t, plan = previewPower(s, site)) {
-  if (t.building !== 'breaker') return null;
-  const terminals = breakerTerminals(t), branch = branchForBreaker(site, t, plan.topology), protection = t.protection;
+function contactConditions(s,site,t,plan) {
+  const terminals = breakerTerminals(t), branch = branchForBreaker(site, t, plan.topology);
   const byPosition = (a, b) => a.y - b.y || a.x - b.x;
   const faultEntities = branch.tiles.filter(tile => plan.suppliedFaults.has(tile)).sort(byPosition).map(tile => tileEntityId(site.id, tile.x, tile.y, positionOf(tile).z));
   const available = new Set();
   for (const network of plan.networks) for (const [tile, output] of network.sources) if (output > 0) available.add(tile);
   const sourceEntities = branch.sources.filter(tile => tile.hp > 0 && (tile.building === 'battery' ? tile.charge > 0 : available.has(tile))).sort(byPosition).map(tile => tileEntityId(site.id, tile.x, tile.y, positionOf(tile).z));
-  const connected = breakerContactClosed(t), bypassed = branch.bypassed;
+  const connected = protectionClosed(t), bypassed = branch.bypassed;
   const routed = plan.routing.contacts.get(powerTileKey(t)) || { signed: 0, throughput: 0 };
+  return { terminals, branch, faultEntities, sourceEntities, connected, bypassed, routed };
+}
+
+// Sources here mean available local supply, not a measurement of branch current.
+// The optional plan is internal reuse; public callers can omit it for a fresh,
+// read-only prediction with the current topology and physical inventories.
+export function breakerConditions(s, site, t, plan = previewPower(s, site)) {
+  if (t.building !== 'breaker') return null;
+  const { terminals, faultEntities, sourceEntities, connected, bypassed, routed } = contactConditions(s,site,t,plan), protection=t.protection;
   const rating = protection.overload?.rating ?? 8, effectiveRating = rating * t.hp / 100;
   const overloadTicks = protection.overload?.ticks || 0;
   const overloaded = connected && overloadMode(protection.mode) && routed.throughput > effectiveRating + 1e-9;
@@ -106,30 +113,52 @@ export function breakerConditions(s, site, t, plan = previewPower(s, site)) {
 
 }
 
+export function fuseConditions(s,site,t,plan=previewPower(s,site)) {
+  if(t.building!=='fuseBox')return null;
+  const p=t.protection,{terminals,faultEntities,sourceEntities,connected,bypassed,routed}=contactConditions(s,site,t,plan);
+  const effectiveRating=p.rating*t.hp/100,overloaded=connected&&routed.throughput>effectiveRating+1e-9;
+  const blocked=t.hp<=0?'damaged':p.blown?'blown':!p.enabled?'open':overloaded?'overload':bypassed?'bypassed':'clear';
+  const status={damaged:'Needs repair',blown:'Blown fuse: replacement required',open:'Open',overload:'Overload: fuse will blow on next tick',bypassed:'Bypass route: branch cannot be isolated',clear:'Closed: fuse protection armed'}[blocked];
+  return {inputCircuit:plan.topology.membership.get(terminals.input)??null,outputCircuit:plan.topology.membership.get(terminals.output)??null,
+    connected,bypassed,faultEntities,sourceEntities,rating:p.rating,effectiveRating,
+    plannedThroughput:routed.throughput,signedThroughput:routed.signed,lastDeliveredThroughput:p.lastThroughput,lastDeliveredTick:p.lastTick,
+    blown:p.blown,overloaded,wouldBlow:overloaded,wouldTrip:overloaded,blocked,status};
+}
+export function protectionConditions(s,site,t,plan=previewPower(s,site)) {
+  return t.building==='fuseBox'?fuseConditions(s,site,t,plan):breakerConditions(s,site,t,plan);
+}
+
 function protectedPlan(s, site, advance) {
   let plan = previewPower(s, site);
   if (!advance) return plan;
-  const breakers = site.tiles.filter(t => t.building === 'breaker');
-  const before = new Map(breakers.map(t => [t, t.protection.overload?.ticks || 0]));
+  const devices = site.tiles.filter(isProtectionDevice);
+  const before = new Map(devices.map(t => [t, t.protection.overload?.ticks || 0]));
   // Each pass opens at least one contact. Every preview reuses the same counters;
   // discarded plans never spend fuel/charge or apply fault heat and cable damage.
-  for (let pass = 0; pass < breakers.length; pass++) {
+  for (let pass = 0; pass < devices.length; pass++) {
     const due = [];
-    for (const t of breakers) {
-      if (!breakerContactClosed(t)) continue;
-      const conditions = breakerConditions(s, site, t, plan);
+    for (const t of devices) {
+      if (!protectionClosed(t)) continue;
+      const conditions = protectionConditions(s, site, t, plan);
+      if(t.building==='fuseBox') {
+        if(conditions.wouldBlow)due.push({tile:t,details:{attemptedThroughput:conditions.plannedThroughput,effectiveRating:conditions.effectiveRating}});
+        continue;
+      }
       if (conditions.wetFaultWouldTrip) due.push({ tile: t, faults: conditions.faultEntities });
       else if (conditions.overloaded && before.get(t) + 1 >= BREAKER_OVERLOAD_TICKS)
         due.push({ tile: t, faults: [], details: { cause: 'overload', attemptedThroughput: conditions.plannedThroughput, effectiveRating: conditions.effectiveRating } });
     }
     if (!due.length) break;
-    for (const { tile, faults, details } of due) tripBreaker(s, site, tile, faults, details);
+    for (const { tile, faults, details } of due) {
+      if(tile.building==='fuseBox')blowFuse(s,site,tile,details);else tripBreaker(s,site,tile,faults,details);
+    }
     plan = previewPower(s, site);
   }
-  for (const t of breakers) {
-    const p = t.protection, metadata = p.overload;
+  for (const t of devices) {
+    const p = t.protection, flow = plan.routing.contacts.get(powerTileKey(t))?.throughput || 0;
+    if(t.building==='fuseBox'){p.lastThroughput=flow;p.lastTick=s.tick;continue;}
+    const metadata=p.overload;
     if (!metadata) continue;
-    const flow = plan.routing.contacts.get(powerTileKey(t))?.throughput || 0;
     const connected = breakerContactClosed(t), overloaded = connected && overloadMode(p.mode) && flow > metadata.rating * t.hp / 100 + 1e-9;
     const ticks = overloaded ? before.get(t) + 1 : 0;
     p.overload = { ...metadata, ticks, lastThroughput: flow, lastTick: s.tick };
@@ -172,7 +201,7 @@ function calculate(s, site, advance, recordEvents=true) {
     }
     networks.push({ id, cells: network.cells, output, demand, used, battery, capacity, curtailed, charging });
   }
-  for (const t of site.tiles) if (t.building === 'breaker') t.powerStatus = breakerConditions(s, site, t, plan).status;
+  for (const t of site.tiles) if (isProtectionDevice(t)) t.powerStatus = protectionConditions(s, site, t, plan).status;
   site.circuits = networks;
   site.power = { output: 0, demand: 0, used: 0, battery: 0, capacity: 0, curtailed: 0, networks: networks.length, brownouts: 0 };
   for (const circuit of networks) {
@@ -188,7 +217,7 @@ export function updatePower(s, site) { return calculate(s, site, true); }
 // Commission only initial/legacy equipment. New construction needs player-installed routes.
 export function seedPowerNetwork(site) {
   site.tiles.forEach(t => { t.cable = null; initializeElectrical(t); });
-  const equipment = site.tiles.filter(t => electrical(t) && t.building !== 'breaker');
+  const equipment = site.tiles.filter(t => electrical(t) && !isProtectionDevice(t));
   const decks = new Map();
   for (const device of equipment) {
     const z=positionOf(device).z;if(!decks.has(z))decks.set(z,new Set());
@@ -198,7 +227,7 @@ export function seedPowerNetwork(site) {
     for (let i = 0; i < queue.length; i++) {
       const t = queue[i];
       if (connected.has(key(t))) { endpoint = t; break; }
-      for (const n of neighbors(site, t)) if (!['void', 'rock'].includes(n.terrain) && !previous.has(key(n))) { previous.set(key(n), t); queue.push(n); }
+      for (const n of neighbors(site, t)) if (!isProtectionDevice(n) && !['void', 'rock'].includes(n.terrain) && !previous.has(key(n))) { previous.set(key(n), t); queue.push(n); }
     }
     if (!endpoint) { device.cable = { hp: 100, enabled: true }; continue; }
     let cursor = endpoint;

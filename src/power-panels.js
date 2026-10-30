@@ -1,9 +1,10 @@
+import { isProtectionDevice } from './power-protection.js';
 import { BUILDINGS } from './data.js';
 import {solarExposure} from './solar.js';
 import { electrical, BATTERY_CAPACITY } from './power.js';
 
 export function powerDetails(site, t) {
-  if (t.building==='breaker' || (!t.cable && !electrical(t))) return '';
+  if (isProtectionDevice(t) || (!t.cable && !electrical(t))) return '';
   const circuit = site.circuits.find(c => c.id === t.circuit),sunlight=t.building==='solar'?solarExposure(site,t):null;
   return `<hr><div class="eyebrow">ELECTRICAL CIRCUIT</div>${t.powerStatus ? `<p>${t.powerStatus}</p>` : ''}
     ${sunlight?`<dl><dt>Sunlight path</dt><dd>${sunlight.exposed?'Clear above':`Blocked at floor ${sunlight.blockedBy.z}`}</dd></dl><p class="crew-hint">Generation needs daylight and open space above the panel.</p>`:''}

@@ -46,6 +46,9 @@
     "src/food-panels.js",
     "src/freight-persistence.js",
     "src/freight.js",
+    "src/fuse-panels.js",
+    "src/fuse-work.js",
+    "src/fuses.js",
     "src/gas-networks.js",
     "src/gas-panels.js",
     "src/geometry.js",
@@ -87,6 +90,7 @@
     "src/possession-panels.js",
     "src/possessions.js",
     "src/power-panels.js",
+    "src/power-protection.js",
     "src/power-routing.js",
     "src/power-topology.js",
     "src/power.js",
@@ -97,6 +101,7 @@
     "src/reactor-rules.js",
     "src/reactors.js",
     "src/region-panels.js",
+    "src/region-view.js",
     "src/region.js",
     "src/render.js",
     "src/room-locations.js",
@@ -122,7 +127,6 @@
     "src/utility-links.js",
     "src/vertical.js",
     "src/water-panels.js",
-    "src/water.js",
-    "src/region-view.js"
+    "src/water.js"
   ]
 }

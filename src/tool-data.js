@@ -3,7 +3,7 @@ import {MATERIALS} from './material-data.js';
 export const TOOL_MATERIALS = Object.freeze(Object.fromEntries(Object.entries(MATERIALS).map(([id,material]) => [id,Object.freeze({name:material.name,...material.tool})])));
 export const TOOL_KINDS=Object.freeze({
  mining_tool:Object.freeze({name:'mining tool',work:'mining',jobs:Object.freeze(['mine'])}),
- engineering_tool:Object.freeze({name:'engineering kit',work:'construction and maintenance',jobs:Object.freeze(['build','remove','repair','service','repairCable','removeCable','repairPipe','removePipe','repairWaterPipe','removeWaterPipe'])}),
+ engineering_tool:Object.freeze({name:'engineering kit',work:'construction and maintenance',jobs:Object.freeze(['build','remove','repair','service','repairCable','removeCable','repairPipe','removePipe','repairWaterPipe','removeWaterPipe','replaceFuse'])}),
 });
 export const isTool=item=>!!item&&Object.hasOwn(TOOL_KINDS,item.kind);
 export const toolSupports=(item,kind)=>isTool(item)&&TOOL_KINDS[item.kind].jobs.includes(kind);

@@ -1,4 +1,5 @@
 import {BUILDINGS} from './data.js';
+import {FUSE_REPLACEMENT_COST} from './power-protection.js';
 import {MATERIALS, STRUCTURAL_BUILDINGS, DEFAULT_MATERIAL} from './material-data.js';
 import {tileAt, positionOf} from './spatial.js';
 
@@ -39,6 +40,7 @@ export function clearMaterial(tile, layer) {
 }
 export function dismantleRefund(tile) {
   const cost = BUILDINGS[tile.building] ? constructionSpec(tile.building, materialId(tile,'structure') ?? DEFAULT_MATERIAL).cost : {};
+  if(tile.building==='fuseBox'&&tile.protection?.blown)cost.alloy=Math.max(0,(cost.alloy||0)-FUSE_REPLACEMENT_COST.alloy);
   return Object.fromEntries(Object.entries(cost).map(([r,n]) => [r,Math.floor(n/2)]));
 }
 export function materialStatus(tile) {

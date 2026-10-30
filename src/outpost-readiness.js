@@ -1,10 +1,11 @@
+import { isProtectionDevice } from './power-protection.js';
 import { settlementSite } from './region.js';
 import { roomTiles } from './room-locations.js';
 import { positionOf, cellKey } from './spatial.js';
 import { tileEntityId, roomEntityId } from './telemetry.js';
 import { GAS_PER_TILE, breathable, refreshAtmosphere } from './atmosphere.js';
 import { temperature, thermalSafe } from './thermal.js';
-import { previewPower, breakerConditions } from './power.js';
+import { previewPower, protectionConditions } from './power.js';
 import { crewPathToPosition as crewPathTo, passablePosition } from './navigation.js';
 import { livingAllowed } from './rooms.js';
 import { availableInventory } from './inventory-reservations.js';
@@ -83,8 +84,9 @@ export function outpostReadiness(s, siteId = 'wreck', crewIds = []) {
   const plan = previewPower(s, site), networkOf = new Map();
   for (const network of plan.networks) for (const t of network.tiles) networkOf.set(t, network);
   const faultCircuits = new Set(plan.networks.filter(n => n.activeFaults.length).map(n => n.id));
-  for (const t of site.tiles.filter(t => t.building === 'breaker')) if (breakerConditions(s, site, t, plan).wouldTrip) {
-    const network = networkOf.get(t); if (network) faultCircuits.add(network.id);
+  for(const t of site.tiles.filter(isProtectionDevice)){
+    const protection=protectionConditions(s,site,t,plan);
+    if(protection.wouldTrip)for(const circuit of [protection.inputCircuit,protection.outputCircuit])if(circuit)faultCircuits.add(circuit);
   }
   const operative = t => working(t) && plan.powered.has(t) && !faultCircuits.has(networkOf.get(t)?.id);
   const byCell = new Map(), eligibleRooms = new Set(), devicesByRoom = new Map();

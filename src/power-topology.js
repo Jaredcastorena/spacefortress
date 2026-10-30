@@ -1,3 +1,4 @@
+import { isProtectionDevice, protectionClosed } from './power-protection.js';
 import {activeUtilityLinks} from './utility-links.js';
 import { BUILDINGS } from './data.js';
 import { breakerClosed, BREAKER_DIRECTIONS } from './breakers.js';
@@ -19,7 +20,7 @@ function facing(t,terminal) {
   return {x,y,z:positionOf(t).z};
 }
 function matchingVertex(t,from) {
-  if(t.building!=='breaker')return conducting(t)?powerTileKey(t):null;
+  if(!isProtectionDevice(t))return conducting(t)?powerTileKey(t):null;
   for(const terminal of ['input','output']) {
     const position=facing(t,terminal);
     if(position&&sameCell(position,positionOf(from)))return breakerTerminals(t)[terminal];
@@ -29,13 +30,13 @@ function matchingVertex(t,from) {
 
 // Graph vertices refer to physical tiles, but graph construction never changes
 // them. Broken/disabled ordinary equipment remains an isolated vertex exactly
-// as in the legacy allocator. A breaker owns two vertices and no allocation tile.
+// as in the legacy allocator. A protection device owns two vertices and no allocation tile.
 export function buildPowerTopology(site,{openContacts=new Set()}={}) {
   const vertices=new Map(),adjacency=new Map(),membership=new Map();
   const riserNeighbors=new Map();
   for(const link of activeUtilityLinks(site,'power'))for(const [from,to] of [[link.lower,link.upper],[link.upper,link.lower]]){const k=powerTileKey(from);riserNeighbors.set(k,[...(riserNeighbors.get(k)||[]),to]);}
   for(const t of site.tiles) {
-    if(t.building==='breaker') {
+    if(isProtectionDevice(t)) {
       const terminals=breakerTerminals(t);
       for(const terminal of ['input','output'])vertices.set(terminals[terminal],{id:terminals[terminal],tile:t,terminal});
     }else if(t.cable||ordinaryElectrical(t)) {
@@ -51,7 +52,7 @@ export function buildPowerTopology(site,{openContacts=new Set()}={}) {
         const endpoint=neighbor&&matchingVertex(neighbor,t);
         if(endpoint&&vertices.has(endpoint))edges.push(endpoint);
       }
-      if(breakerClosed(t)&&!openContacts.has(powerTileKey(t)))edges.push(breakerTerminals(t)[terminal==='input'?'output':'input']);
+      if(protectionClosed(t)&&!openContacts.has(powerTileKey(t)))edges.push(breakerTerminals(t)[terminal==='input'?'output':'input']);
     }else if(conducting(t)) {
       for(const direction of DIRECTIONS) {
         const [x,y]=step(t.x,t.y,direction),neighbor=at(site,{x,y,z:positionOf(t).z}),endpoint=neighbor&&matchingVertex(neighbor,t);
@@ -82,7 +83,7 @@ export function buildPowerTopology(site,{openContacts=new Set()}={}) {
 // alternate path exists; no cable or other breaker is opened to invent isolation.
 export function branchForBreaker(site,t,topology=buildPowerTopology(site)) {
   const terminals=breakerTerminals(t),reached=new Set(),tiles=[],terminalIds=[];
-  if(t.building!=='breaker'||!topology.vertices.has(terminals.output))return {tiles,terminals:terminalIds,vertices:reached,bypassed:false,sources:[]};
+  if(!isProtectionDevice(t)||!topology.vertices.has(terminals.output))return {tiles,terminals:terminalIds,vertices:reached,bypassed:false,sources:[]};
   const queue=[terminals.output];reached.add(terminals.output);
   for(let i=0;i<queue.length;i++) {
     const current=queue[i],vertex=topology.vertices.get(current);

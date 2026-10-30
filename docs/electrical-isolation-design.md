@@ -95,9 +95,9 @@ An 8 kW branch with 5 kW of normal loads plus one supplied 5 kW wet fault trips 
 
 For the overload extension, add a validated rating field to the shared control while preserving prior modes. Require an open contact for mode, rating or orientation changes. Reset also clears the overload timer. A reset/reclose into unresolved demand can retrip. Reactor temperature trips remain independent.
 
-## Follow-on using the same mechanism: disposable fuse
+## Disposable fuse: implemented locally in schema74
 
-After the later overload and routing model pass acceptance, add `fuseBox` with the same two-terminal topology. Proposed build cost: **2 alloy, 1 component, 6 work**, including its first fuse. Start open. Ratings use the same 4/8/16/32 kW choices.
+`fuseBox` now uses the same two-terminal topology and routed protection phase. [Implemented rules](fuses.md). Build cost: **2 alloy, 1 component, 6 work**, including its first fuse. Start open. Ratings use the same 4/8/16/32 kW choices.
 
 - State replaces breaker latch/counter with `blown: false`; orientation, requested enabled state and rating remain.
 - A fuse blows on the first tick of planned throughput over its effective rating. It opens before energy commit using the same bounded replan phase. This is a coarse one-tick fuse model, not an I²t or arc simulation.
@@ -105,7 +105,7 @@ After the later overload and routing model pass acceptance, add `fuseBox` with t
 - Structure repair fixes condition only. Replacement must not fix structure damage. Revalidate target state when work completes so stale jobs cannot grant extra cartridges or salvage.
 - Destruction and demolition follow normal structure rules. Salvage must not refund a cartridge already consumed by blowing; document its contribution separately if ordinary building salvage would otherwise include it.
 
-Do not ship the fuse before the shared topology, plan/commit and event semantics are proven by the breaker. It adds a physical repair choice, not a second power allocator.
+The fuse reuses the breaker topology, finite route plan and final-only commit. It adds a physical replacement choice to the existing allocator.
 
 ## Player interface and observations
 
@@ -117,7 +117,7 @@ The local overload extension exposes `effectiveRating`, `plannedThroughput`, `la
 
 Implemented first-increment events are `power.breaker.changed`, `power.breaker.tripped`, `power.breaker.reset` and `power.cable.changed`, using stable tile IDs. Breaker events include `previous`/`next` protection state, `faultEntities`, `tick` and `cause` (`configuration`, `wet_fault` or `manual_reset`). No-op commands do not manufacture state-change events. Rejected controls still receive the standard shared action result.
 
-`power.fuse.blown` and `power.fuse.replaced` remain future event proposals. The later overload extension would include attempted throughput and effective rating; no such measurements are invented for current wet-fault sensing.
+Schema74 implements `power.fuse.changed`, `power.fuse.blown` and `power.fuse.replaced`. Overload trip/blow events include attempted routed throughput and effective rating. Wet-fault sensing retains its separate supplied-fault meaning.
 
 A trip can happen within one tick and be followed by rerouting; an end-of-tick delta alone cannot preserve its order. The event is an observation, not proof that the breaker prevented a particular injury or a training reward. Recording remains optional, bounded and outside saves/RNG state.
 
@@ -146,7 +146,7 @@ Opening/tripping is not an energy sink. Do not count denied load as consumed or 
 9. Save before and after a trip; resumed simulation is identical to uninterrupted simulation. Migration preserves all existing gas, water, charge, energy, resources and cable controls; grants no equipment; runs once. Invalid state and altered energy ledgers are rejected.
 10. With no protection devices, existing power/atmosphere/fire/water/reactor and full-suite behavior remains valid. Verify hidden inspector, overlay, held clicks and reload in the browser. A test count does not prove a complete electricity simulation.
 
-### Additional gates for later overloads and fuses
+### Gates for the implemented overload and fuse extensions
 
 - A supplied 10 kW route on an 8 kW branch trips on its third advancing tick. Repeated previews do not advance the timer; a low-flow tick resets it. High requested but unserved demand does not count. Charging and battery backfeed do count.
 - Loop rerouting, simultaneous trips and series protection advance counters once and commit energy once. Route tie breaking is deterministic and documented. No temporary route plan consumes fuel, charge or fault energy.

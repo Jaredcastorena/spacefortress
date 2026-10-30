@@ -1,6 +1,7 @@
+import { FUSE_BUILD_COST, FUSE_BUILD_WORK } from './power-protection.js';
 import { LIVESTOCK } from './livestock-data.js';
 import { TOOL_RECIPES } from './tool-data.js';
-export const VERSION = 73;
+export const VERSION = 74;
 export const RESOURCES = ['alloy', 'ore', 'components', 'food', 'water', 'fuel', 'cells', 'air', 'medicine', 'waste', 'fertilizer', 'keepsakes', 'ice', 'tools'];
 export const BUILDINGS = {
   fuelSynthesizer:{name:'Fuel synthesizer',cost:{alloy:6,components:2},work:12,demand:6,noise:1,description:'Consumes one solar cell and two water to produce two fuel in 40 operator work. Requires wired power, safe air and a Production 2 operator. Deliver output to the shuttle or a reactor.'},
@@ -10,6 +11,7 @@ export const BUILDINGS = {
   waterRiser:{name:'Water riser',cost:{alloy:2},work:8,overlay:true,description:'Connect paid water pipes on this habitat floor and the floor directly above. Equalizes stored water with the existing flow cap; isolated from floor spills and stair hatches.'},
   stairwell:{name:'Stairwell and hatch',cost:{alloy:6,components:1},work:12,description:'Build from a clear habitat floor. Pays for a stairwell, hatch and the landing directly above. Further upper floors need paid material, a reachable builder and support below.'},
   airlockController:{name:'Airlock controller',cost:{alloy:4,components:1},work:8,demand:1,description:'Controls two pressure doors and an isolated gas recovery network. Uses 1 kW while enabled. Requires a habitat floor, wired power, a sealed chamber and separately built gas equipment. Retains real gas between measured pressure cycles.'},
+  fuseBox:{name:'Fuse box',cost:FUSE_BUILD_COST,work:FUSE_BUILD_WORK,description:'A two-terminal contact that blows immediately when routed power exceeds its condition-adjusted rating. Starts open with a fuse included. A blown fuse needs one delivered alloy and three engineering work to replace; ordinary repairs only restore the box. Open before changing direction or rating.'},
   breaker:{name:'Branch breaker',cost:{alloy:4,components:1},work:8,description:'A two-terminal electrical contact with no side connection. Starts open in manual mode. Optional wet-fault and delayed overload protection. Three consecutive excessive routed-power ticks trip the contact; condition lowers its rating. Bypasses and local batteries can keep a branch powered. Requires habitat floor without cable; open before changing direction, mode or rating.'},
   waterPipe:{name:'Water pipe / valve',cost:{alloy:1},work:2,overlay:true,description:'A sealed two-unit water pipe with a manual isolation valve. Levels water with adjacent open pipes and reservoirs; stores its own finite contents. Can share tiles with gas pipes and cables. Damage below 50% leaks onto open floor.'},
   waterReservoir:{name:'Water reservoir',cost:{alloy:6,components:1},work:10,description:'Empty passive 32-unit water storage. Connect pipes or a pump; close its valve to retain water. Has no automatic hauler deliveries. Requires a habitat floor.'},

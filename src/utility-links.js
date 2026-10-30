@@ -1,3 +1,4 @@
+import { isProtectionDevice } from './power-protection.js';
 import { settlementSite } from './region.js';
 import {tileAt,positionOf,sameCell} from './spatial.js';
 import {stairJobClaims} from './vertical.js';
@@ -10,7 +11,7 @@ export const UTILITY_WORK=Object.freeze({repair:{cost:{alloy:1},work:6},remove:{
 const kinds=Object.values(RISER_KIND),fields=['id','kind','lower','upper','hp','enabled'];
 const point=p=>p&&Object.keys(p).length===3&&['x','y','z'].every(k=>Number.isSafeInteger(p[k]));
 const shape=l=>l&&Object.keys(l).length===fields.length&&fields.every(k=>Object.hasOwn(l,k))&&typeof l.id==='string'&&/^utility-[1-9][0-9]*$/.test(l.id)&&kinds.includes(l.kind)&&point(l.lower)&&point(l.upper)&&l.lower.x===l.upper.x&&l.lower.y===l.upper.y&&l.upper.z===l.lower.z+1&&Number.isFinite(l.hp)&&l.hp>=0&&l.hp<=100&&typeof l.enabled==='boolean';
-const node=(t,kind)=>kind==='power'?(t?.building==='breaker'?null:t?.cable):kind==='gas'?t?.pipe:t?.waterPipe;
+const node=(t,kind)=>kind==='power'?(isProtectionDevice(t)?null:t?.cable):kind==='gas'?t?.pipe:t?.waterPipe;
 const portReady=(t,kind)=>{const p=node(t,kind);return !!p&&(kind==='power'?p.hp>0&&p.enabled:p.open===true);};
 const reject=(code,message)=>({ok:false,code,message});
 const id=(site,p)=>tileEntityId(site.id,p.x,p.y,p.z);

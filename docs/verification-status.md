@@ -2,6 +2,12 @@
 
 Updated October 30, 2026. This is the compact evidence index for implemented and proposed systems. **Verified** means the named scope passed its stated check. **Pending** means evidence is not yet complete. **Failed** means a known check contradicts the requirement. None of these rows declares the whole game finished.
 
+## Local disposable fuses — schema74
+
+**Verified:** 32 new focused checks cover shared controls and strict state, physical replacement/refunds, separate repairs and salvage, immediate opening, mixed breaker/fuse replans, reverse battery flow, reactor fuel, wet faults, upper risers and genuine prior-schema preservation. Ninety-two affected electrical checks also pass. Full compatibility gate: **1,946 passed, zero failed, one historical skip**.
+
+A normally paid fuse/scrubber/galley branch costs13 alloy and3 components. Browser verification closes its4kW fuse against5kW at tick19; it blows at20, a crew replacement consumes one delivered alloy and completes open at29, then an8kW cartridge carries5kW at30. No console errors. Twenty changed JavaScript files pass syntax checks; the135-file web export contains required modules and no private operator records. The first controlled-test expectation failures remain accounted for; these checks do not establish ordinary colony or outpost endurance. [Fuse rules](fuses.md).
+
 ## Local routed power and delayed overloads — schema73
 
 **Verified, bounded scope:** 11 [routing checks](../tests/power-routing.test.js), eight [controls/panel checks](../tests/breaker-overload-controls.test.js), 11 [integration checks](../tests/breaker-overloads.test.js), and 62 existing electrical/utility cases pass. Finite generation, charging/backfeed, loop ties, simultaneous/cascaded trips, upper risers, final-only fuel/fault effects, pure previews and strict migration are covered. The native paid branch trips at 5 kW on a 4 kW setting while original life support remains powered; reload during the delay and restart after load reduction pass. Browser configuration trips at tick 22, resets and runs at 5 kW with an 8 kW rating through tick 25, with zero errors. Public export includes the routing module. Final JavaScript compatibility gate: **1,914 pass, zero failures, one historical schema36 skip**.
@@ -330,7 +336,7 @@ Five preceding36 normal-action outbound, remote mined/held/docked cargo and retu
 | Browser controls, artwork and saves | Verified | : actual construction designation and shared controls, manual isolation, prediction/trip/reset/retrip, tripped reconfiguration, visible bypass/backfeed advisories, held-click/outside/cancel guards, labels/events and save36 reload/navigation. Root viewed map, trip and both collapsed-advisory screenshots; no scoped application errors. |
 | Source and documentation checks | Verified | All 74 source modules parsed; 554 local links across 59 Markdown files resolved after documentation edits. |
 | Runtime cleanup | Verified | All eleven workers completed. UI-owned QA3870081/3870082 stopped and8421/9223 closed; user preview8420 PID3703011 retained; root rechecked both preview pages HTTP200 and closed QA ports. |
-| Full requested game | Pending | Rated overloads/fuses, local decks, generated regions, staffed outposts and the broader180-system conversion remain incomplete. |
+| Full requested game | Pending | Advanced electrical losses, complete local decks and generated regions, sustained staffed outposts and the broader180-system conversion remain incomplete. |
 
 ## Historical closed-plumbing release — schema 35
 

@@ -1,3 +1,4 @@
+import { PROTECTION_RATINGS, protectionClosed } from './power-protection.js';
 import { settlementSite } from './region.js';
 import * as power from './power.js';
 import { BUILDINGS } from './data.js';
@@ -6,7 +7,7 @@ import { DIRECTIONS, tileAt } from './geometry.js';
 
 export const BREAKER_DIRECTIONS = Object.freeze(Object.fromEntries(DIRECTIONS.map(direction=>[direction,true])));
 export const BREAKER_MODES = ['manual','wet_fault','overload','wet_fault_and_overload'];
-export const BREAKER_RATINGS = Object.freeze([4,8,16,32]);
+export const BREAKER_RATINGS = PROTECTION_RATINGS;
 export const BREAKER_OVERLOAD_TICKS = 3;
 export const overloadMode=mode=>mode==='overload'||mode==='wet_fault_and_overload';
 export const wetFaultMode=mode=>mode==='wet_fault'||mode==='wet_fault_and_overload';
@@ -19,7 +20,7 @@ export function initializeBreakerTile(t) {
 // Requested enabled state survives damage and a trip. Actual contact closure
 // additionally requires an intact mechanism and a cleared latch.
 export function breakerClosed(t) {
- return !!(t?.building==='breaker'&&t.protection?.enabled&&!t.protection.tripped&&t.hp>0);
+ return t?.building==='breaker'&&protectionClosed(t);
 }
 export function breakerStatus(s,site,t) {
  return t?.building==='breaker'?power.breakerConditions(s,site,t):null;
@@ -69,6 +70,7 @@ export function validateBreakers(s) {
  const exact=(value,keys)=>value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).length===keys.length&&keys.every(k=>Object.hasOwn(value,k));
  const fields=['kind','direction','enabled','mode','tripped','cause'];
  for(const site of Object.values(s.sites))for(const t of site.tiles) {
+  if(t.building==='fuseBox')continue;
   if(t.building!=='breaker') {if(t.protection!==undefined)throw new Error('Protection belongs to a missing breaker.');continue;}
   const p=t.protection;
   if(t.terrain!=='floor'||t.cable!==null||!Number.isFinite(t.hp)||t.hp<0||t.hp>100)throw new Error('Invalid breaker placement or condition.');

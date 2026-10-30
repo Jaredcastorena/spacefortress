@@ -11,6 +11,7 @@ import { at, inside, key, isDay, roomAt } from './simulation.js';
 import { routeTime } from './expedition.js';
 import { shuttleLocation, shuttlePresence } from './outposts.js';
 import { electrical } from './power.js';
+import { protectionClosed } from './power-protection.js';
 import { buildPowerTopology, breakerContactClosed } from './power-topology.js';
 import { waterNode, waterCapacity, waterPorts } from './plumbing.js';
 import { gasNode, gasCapacity, gasPayload, pumpPorts } from './gas-networks.js';
@@ -218,7 +219,7 @@ export class Renderer {
         if (this.selection?.crew === person.id) { this.hex(x, y, null, '#baf2da'); c.fillStyle = '#d8eee1'; c.font = '10px monospace'; c.textAlign = 'center'; c.fillText(person.name.split(' ')[0], x, y - 56); }
       }
     }
-    if(this.powerOverlay||(mode==='build'&&['cable','breaker'].includes(build))){
+    if(this.powerOverlay||(mode==='build'&&['cable','breaker','fuseBox'].includes(build))){
       if(this.powerGraphSite!==site||this.powerGraphCircuits!==site.circuits){this.powerGraph=buildPowerTopology(site);this.powerGraphSite=site;this.powerGraphCircuits=site.circuits;}
       const graph=this.powerGraph,color=id=>`hsl(${(Number(id?.split('-')[1])*47+(id?.endsWith('-input')?17:id?.endsWith('-output')?83:0))%360} 65% 72%)`;
       const point=v=>{const [x,y]=this.project(v.tile.x,v.tile.y);if(!v.terminal)return [x,y];const direction=v.terminal==='input'?opposite(v.tile.protection.direction):v.tile.protection.direction,[dx,dy]=hexDirectionVector(direction,.25);return [x+dx,y+dy];};
@@ -338,6 +339,16 @@ export class Renderer {
       this.line(x-vx,y-vy-12,closed?x+vx:x-vx+vx*.6,closed?y+vy-12:y-vy-28,col,5);
       const len=Math.hypot(vx,vy),ux=vx/len,uy=vy/len;this.polygon([[x+vx+ux*7,y+vy-12+uy*7],[x+vx-uy*4,y+vy-12+ux*4],[x+vx+uy*4,y+vy-12-ux*4]],'#ece2b1','#56696d');
       if(tripped||t.hp<=0){this.line(x-4,y-24,x+4,y-16,'#ef9984',3);this.line(x+4,y-24,x-4,y-16,'#ef9984',3);}
+    }
+    else if(b==='fuseBox'){
+      const [vx,vy]=hexDirectionVector(t.protection?.direction||'ne',.30),closed=protectionClosed(t),blown=t.protection?.blown,lift=closed?0:6;
+      this.box(x,y,21,11,6,'#aab9af','#637e7c','#425c67');this.box(x,y-6,15,8,4,'#d7d9c7','#96aaa3','#697f86');
+      for(const sign of [-1,1])this.box(x+vx*sign,y+vy*sign-9,5,3,4,'#ddc487','#aa956b','#737c71');
+      if(blown){
+        this.line(x-vx,y-vy-14-lift,x-vx*.3,y-vy*.3-14-lift,'#a99177',6);this.line(x+vx*.3,y+vy*.3-14-lift,x+vx,y+vy-14-lift,'#a99177',6);
+        this.line(x-3,y-18-lift,x+3,y-12-lift,'#ef9984',2);this.line(x+3,y-18-lift,x-3,y-12-lift,'#ef9984',2);
+      }else{this.line(x-vx,y-vy-14-lift,x+vx,y+vy-14-lift,'#e2e4ca',7);this.line(x-vx*.6,y-vy*.6-14-lift,x+vx*.6,y+vy*.6-14-lift,closed?'#86d5c0':'#a4b5ac',2);}
+      if(t.hp<=0){this.line(x-6,y-10,x+6,y-4,'#ef9984',2);this.line(x+6,y-10,x-6,y-4,'#ef9984',2);}
     }
     else if(b==='waterPipe'){this.portStar(x,y,'#8bbdf0','#354e72');this.box(x,y,7,4,3,'#c7d7e1','#7a96ac','#4e6c8d');}
     else if(b==='waterReservoir'){

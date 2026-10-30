@@ -19,7 +19,7 @@ import { outpostReadiness } from './outpost-readiness.js';
 import { freightStatus } from './freight.js';
 import { departureReadiness } from './preflight.js';
 import { plumbingStatus } from './plumbing.js';
-import { breakerConditions } from './power.js';
+import { protectionConditions } from './power.js';
 import { gasStatus } from './gas-networks.js';
 import { reactorTemperature, radiatorTargets, radiatorBlock } from './reactors.js';
 import { transportStatus } from './animal-transport.js';
@@ -68,7 +68,7 @@ export function observe(s) {
     for(const t of tiles) {
       const gas=(t.pipe||t.gasStore||t.gasDevice)?gasStatus(site,t):null;
       const plumbing=(t.waterPipe||t.waterStore||t.waterDevice)?plumbingStatus(s,site,t):null;
-      const electrical=t.protection?breakerConditions(s,site,t):null,solar=solarStatus(s,site,t),extraction=extractionStatus(t);
+      const electrical=t.protection?protectionConditions(s,site,t):null,solar=solarStatus(s,site,t),extraction=extractionStatus(t);
       const previousDerived=t.reactor?{reactorTemperature:reactorTemperature(site,t),...(gas?{gasNetwork:gas}:{})}:t.radiator?{blocked:radiatorBlock(site,t),targets:radiatorTargets(site,t).map(r=>tileEntityId(site.id,r.x,r.y)),...(gas?{gasNetwork:gas}:{})}:gas;
       // Preserve established reactor/radiator and gas shapes. Independent
       // network diagnostics never overwrite another system's derived status.
