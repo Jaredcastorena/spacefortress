@@ -10,6 +10,8 @@ An early playable space colony simulator inspired by Dwarf Fortress. Keep seven 
 
 ## Local development after v0.1.12
 
+Cargo depots now have per-resource delivery limits in a collapsed inspector section. Haulers count stored stock, uncollected job reservations and incoming shipments before collecting more. Lowering a limit preserves supplies; cargo already in hand can reroute. Schema71 adds empty limits to older hex saves.
+
 Surface bristleback herds now fall silent for the 90 seconds before a debris forecast names its tile. Their calls, inspection details and structured events reflect the warning; losing the herd ends it immediately. This is a local, unreleased addition.
 
 A stored power cell can be installed by haulers into a surface battery on any floor. The bank receives 100 kJ only when they finish, and cancelling the job returns the cell. Save schema70 preserves a schema69 colony and does not add charge by itself.

@@ -2,6 +2,10 @@
 
 Updated October 30, 2026.
 
+## Local after v0.1.12: depot delivery limits
+
+Cargo depots accept optional whole-unit caps from 0 to 320 per resource, within their shared 320-unit capacity. Incoming claims and uncollected job reservations count before pickup. Lowering a cap preserves existing goods and refunds; carried shipments recheck and reroute. The inspector keeps the editor collapsed, with stock/reserved/incoming counts. Shared `depot.limit` commands, named change events and derived observations identify the actual floor. Schema71 adds empty policies to older saves and rejects malformed caps or pre71 shadow fields. Focused checks cover finite mixed shipments, concurrent claims, construction refunds, in-flight reload/rerouting, fractional bulk, stair hauling and paid native depot construction. The full run and focused compatibility repairs cover all 1,858 runnable JavaScript cases, with one historical schema36 skip; game code stayed unchanged during those repairs. Browser entry retained 36 alloy when its intake cap was reduced to 20. Longer colony endurance remains unfinished.
+
 ## Local after v0.1.12: bristleback herd warning
 
 Two or more living surface bristlebacks stop clicking during the 90 seconds before the existing debris forecast chooses a tile. The strike stays unmarked until that forecast. Calls resume when the marker appears, or if fewer than two remain. Saves from schema 70 that omit `debris.herdQuiet` still load. A forged warning, or silence stored outside that window, is rejected. Herd loss during a tick ends silence before that tick is saved. A silent save must contain at least two living surface bristlebacks; inspection and artwork share that same site scope. Six herd checks and 47 affected maintenance, hazard, simulation and recording checks pass. This does not change impact damage, repair supplies or establish colony endurance.

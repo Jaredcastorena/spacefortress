@@ -29,7 +29,7 @@ import { LABORS } from './crew.js';
 import { setRoomDesignation, ROOM_ROLES } from './rooms.js';
 import { setBunkOwner } from './housing.js';
 import { setClimate } from './thermal.js';
-import { setDepotAccepted, setDepotPriority } from './storage.js';
+import { DEPOT_CAPACITY, setDepotAccepted, setDepotPriority, setDepotLimit } from './storage.js';
 import { setProductionOrder, setProductionPriority, setProductionRecipe } from './production.js';
 import { setMachineEnabled } from './industry.js';
 import { setStairHatch } from './vertical.js';
@@ -101,6 +101,7 @@ registerTile('reactor.reset','resetReactor','Reset a cooled, repaired reactor af
 registerTile('radiator.configure','setRadiator','Enable or isolate passive reactor cooling.',{...xy,enabled},setRadiator);
 registerTile('climate.configure','setClimate','Set a climate target and enabled state.',{...xy,target:{type:'number',minimum:-20,maximum:35},enabled},setClimate);
 registerTile('depot.accept','setDepotAccepted','Change a depot filter without deleting stored supplies.',{...xy,resource:enumeration(RESOURCES),enabled},setDepotAccepted);
+registerTile('depot.limit','setDepotLimit','Limit incoming units of one resource without removing existing supplies; null clears the individual cap.',{...xy,resource:enumeration(RESOURCES),limit:{type:['integer','null'],minimum:0,maximum:DEPOT_CAPACITY}},setDepotLimit);
 registerTile('depot.priority','setDepotPriority','Set delivery priority for a depot.',{...xy,priority},setDepotPriority);
 registerTile('production.recipe','setProductionRecipe','Select the next production recipe while finishing the committed batch.',{...xy,recipe:enumeration([...Object.keys(CROPS).filter(id=>id!=='legacy_crop'),...Object.keys(MEAL_RECIPES),...Object.keys(TOOL_RECIPES)])},setProductionRecipe);
 registerTile('production.order','setProductionOrder','Set continuous production, fixed batches or a stock target.',{...xy,mode:enumeration(['continuous','batches','stock']),limit:integer(0,1000)},setProductionOrder);

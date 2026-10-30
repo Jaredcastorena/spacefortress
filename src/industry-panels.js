@@ -2,7 +2,7 @@ import {TOOL_RECIPES} from './tool-data.js';
 import { itemsDetails } from './possession-panels.js';
 import { foodDetails, foodKindName, foodComposition } from './food-panels.js';
 import { temperatureAt } from './thermal.js';
-import { DEPOT_CAPACITY, depotUsage } from './storage.js';
+import { DEPOT_CAPACITY, depotUsage, depotResourceUsage } from './storage.js';
 import { RESOURCES } from './data.js';
 import { OUTPUT_CAPACITY } from './industry.js';
 import { quantity, resourceEntries } from './inventory.js';
@@ -25,6 +25,16 @@ function recipeDetails(t,s,siteId) {
   const requirementsLabel=batch?(active.id===selected.id?'Current batch requirements':'Next batch requirements'):'Recipe requirements';
   return `<form class="production-form" data-recipe-form data-simulation-action="production.recipe"><label>${label}<select name="production-recipe" aria-label="${label}">${Object.values(choices).filter(r=>r.selectable!==false).map(r=>`<option value="${esc(r.id)}" ${r.id===selected.id?'selected':''}>${esc(r.name)} · tier ${r.tier} · Production ${r.minSkill}</option>`).join('')}</select></label><button type="submit">Apply ${label.toLowerCase()}</button></form><dl>${batch?`<dt>Current batch</dt><dd>${esc(active.name)} · finishes before a change</dd>`:''}<dt>${batch?'Next batch':'Selected '+label.toLowerCase()}</dt><dd>${esc(selected.name)} · tier ${selected.tier} · requires Production ${selected.minSkill}</dd></dl>${eligibility?`<p class="crew-hint" data-production-reason="${esc(eligibility.blockedCode||'ready')}">${esc(eligibility.message||'Qualified crew can operate this recipe.')}</p><dl aria-label="${requirementsLabel}">${eligibility.requirements.map(r=>`<dt>${esc(r.kind?foodKindName(r.kind):r.resource==='food'?'Unprepared food':r.resource)}</dt><dd>Needs ${number(r.required)} · ${number(r.delivered)} delivered · ${number(r.available)} available · ${number(r.missing)} missing</dd>`).join('')}</dl>`:''}<p class="crew-hint">Changes apply to the next batch. The current batch keeps its ingredients and work.</p>`;
 }
+function depotLimitsDetails(t, s, siteId) {
+  return `<details data-panel-key="depot-limits"><summary>Delivery limits</summary>
+    <p class="crew-hint">Blank uses the shared ${DEPOT_CAPACITY}-unit capacity. Zero stops new deliveries of that resource. Lowering a limit keeps existing stock and reservations.</p>
+    ${RESOURCES.map(resource => {
+      const usage = s ? depotResourceUsage(s, siteId, t, resource) : { stored: t.stock?.[resource] || 0, reserved: 0, incoming: 0, limit: t.storage.limits?.[resource] ?? null };
+      const label = resource === 'air' ? 'Breathing mix' : resource;
+      return `<form class="production-form" data-depot-limit-form data-resource="${resource}" data-simulation-action="depot.limit"><label>${label} limit<input name="depot-limit" aria-label="${label} delivery limit" type="number" min="0" max="${DEPOT_CAPACITY}" step="1" value="${usage.limit ?? ''}" placeholder="Shared capacity"></label><p class="crew-hint">Stored ${number(usage.stored)} · reserved ${number(usage.reserved)} · incoming ${number(usage.incoming)}</p><button type="submit">Apply limit</button></form>`;
+    }).join('')}
+  </details>`;
+}
 export function storageDetails(t, s = null, siteId = null) {
   const temp = s ? temperatureAt(s.sites[siteId],t.x,t.y,t.z) : 20;
   if (t.building === 'stockpile') {
@@ -33,6 +43,7 @@ export function storageDetails(t, s = null, siteId = null) {
       <dl><dt>Occupied</dt><dd>${Number(usage.used.toFixed(2))} / ${DEPOT_CAPACITY} units</dd><dt>Reserved for jobs</dt><dd>${Number(usage.reserved.toFixed(2))}</dd><dt>On the way</dt><dd>${Number(usage.incoming.toFixed(2))}</dd></dl>
       <div class="eyebrow">ACCEPTED RESOURCES</div><div class="storage-filters">${RESOURCES.map(r => `<button data-action="depot-filter" data-resource="${r}" aria-pressed="${t.storage.accepted.includes(r)}" class="${t.storage.accepted.includes(r) ? 'active' : ''}">${r === 'air' ? 'Breathing mix' : r}</button>`).join('')}</div>
       <p class="crew-hint">Room purpose can further restrict deliveries. Rejected stock stays usable until hauled to another accepting depot. Full depots leave excess cargo on the ground. Reserved supplies occupy space until collected.</p>
+      ${depotLimitsDetails(t, s, siteId)}
       <div class="eyebrow">HAULING PRIORITY</div><div class="job-priority">${[[1, 'Low'], [3, 'Normal'], [5, 'Urgent']].map(([n, label]) => `<button data-action="depot-priority" data-priority="${n}" aria-pressed="${t.storage.priority === n}" class="${t.storage.priority === n ? 'active' : ''}">${label}</button>`).join('')}</div>
       <p class="crew-hint">Haulers prefer urgent destinations and restock higher-priority depots from lower-priority ones. Life-support deliveries are urgent; other machine deliveries follow their production priority. The resource bar counts available depot stock.</p>`;
   }

@@ -34,7 +34,7 @@ test('genuine schema58 covered-panel save migrates only derived power without lo
 });
 test('migration validates old totals and energy before recalculation, and current stale power rejects',()=>{
  for(const mutate of [s=>s.sites.surface.energy.generated++,s=>s.sites.surface.power.output++,s=>tileAt(s.sites.surface,lower).powerStatus='invented']){const s=JSON.parse(raw);mutate(s);assert.throws(()=>deserialize(serialize(s)));}
- const bad=JSON.parse(raw);migrateRegion(bad);bad.version=VERSION;bad.resources.tools=0;assert.throws(()=>deserialize(serialize(bad)),/Power totals/);
+ const bad=JSON.parse(raw);migrateRegion(bad);bad.version=VERSION;for(const site of Object.values(bad.sites))for(const t of site.tiles)if(t.building==='stockpile')t.storage.limits={};bad.resources.tools=0;assert.throws(()=>deserialize(serialize(bad)),/Power totals/);
 });
 test('paid construction on the roof generates upstairs while the covered lower panel stays blocked',()=>{
  const {s,site}=fresh(),before=site.power.output,result=executeAction(s,'job.order',{site:'surface',...roof,kind:'build',building:'solar'});assert.equal(result.ok,true,result.message);const j=s.jobs.find(j=>j.id===result.job);assert.deepEqual(j.cost,{alloy:5});assert.equal(j.work,8);assert.equal(tileAt(site,roof).building,null);

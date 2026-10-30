@@ -1,5 +1,7 @@
 # Structured simulation interface and recordings
 
+Local schema71 adds `depot.limit` with `site`, `x`, `y`, optional `z`, `resource`, and `limit` (integer 0–320 or null to clear). Successful changes emit `depot.limit.changed` with the canonical tile entity, site, resource, previous cap and new cap. Depot tile observations expose `derived.depot` totals and `derived.depot.resources` with each resource’s stored, reserved, incoming, used, limit and free quantities. Observation/recording9 remains unchanged. Intake caps do not remove existing supplies or block reservation refunds.
+
 
 A surface herd warning emits `herd.quiet` when two or more living bristlebacks stop clicking during the 90 seconds before a debris forecast, and `herd.calling` when that marker appears or the herd falls below two. The forecast tile, impact and supplies are unchanged. Observation/recording 9 is unchanged.
 

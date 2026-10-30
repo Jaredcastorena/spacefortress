@@ -40,9 +40,9 @@ test('shared material vocabulary retains tool behavior and computes detached pai
  assert.throws(()=>constructionSpec('reactor','composite'));assert.throws(()=>constructionSpec('wall','__proto__'));
 });
 
-test('genuine65 migration changes only version and retains pending paid work, terrain and inventories',()=>{
+test('genuine65 migration adds only version and neutral depot metadata while retaining physical state',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'4c9abd7ea43f85b38c68f7987489e54bfb3f6f95f7ab9283612a038dbdf27c16');
- const expected=JSON.parse(raw);assert.equal(expected.version,65);expected.version=VERSION;
+ const expected=JSON.parse(raw);assert.equal(expected.version,65);expected.version=VERSION;for(const site of Object.values(expected.sites))for(const t of site.tiles)if(t.building==='stockpile')t.storage.limits={};
  const s=deserialize(raw);assert.equal(serialize(s),serialize(expected));valid(s);
  const copy=deserialize(serialize(s));step(s,3);step(copy,3);assert.equal(serialize(copy),serialize(s));
 });

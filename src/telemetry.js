@@ -37,6 +37,8 @@ import { airlockStatus, airlockControlOwner } from './airlock-access.js';
 import { workReadiness } from './crew.js';
 import { suitReleaseStatus } from './suit-release-status.js';
 import { resourceEntries } from './inventory.js';
+import { RESOURCES } from './data.js';
+import { depotUsage, depotResourceUsage } from './storage.js';
 // Local, opt-in recordings. WeakMap ownership keeps instrumentation out of game saves/RNG.
 export const TELEMETRY_VERSION = 9;
 const sessions = new WeakMap();
@@ -76,7 +78,8 @@ export function observe(s) {
       const flora=t.flora?floraStatus(s,site,t):null;
       const cultivation=t.terrain==='ground'||t.building==='planter'||flora?Object.fromEntries(Object.values(FLORA).filter(def=>def.foodKind).map(def=>[def.id,{planting:plantingEligibility(s,site,t,def.id),watering:wateringEligibility(s,site,t,def.id)}])):null;
       const materials=materialStatus(t),hasMaterials=Object.keys(materials).length>0;
-      const derived=hasMaterials||extraction||solar||plumbing||electrical||airlock||owned||production||flora||cultivation?{...previousDerived,...(hasMaterials?{materials}:{}),...(extraction?{extraction}:{}),...(solar?{solar}:{}),...(flora?{flora}:{}),...(cultivation?{cultivation}:{}),...(production?{production}:{}),...(plumbing?{plumbing}:{}),...(electrical?{electrical}:{}),...(airlock?{airlock}:{}),...(owned?{airlockOwnership:ownership}:{})}:previousDerived;
+      const depot=t.building==='stockpile'?{...depotUsage(s,site.id,t),resources:Object.fromEntries(RESOURCES.map(resource=>[resource,depotResourceUsage(s,site.id,t,resource)]))}:null;
+      const derived=depot||hasMaterials||extraction||solar||plumbing||electrical||airlock||owned||production||flora||cultivation?{...previousDerived,...(depot?{depot}:{}),...(hasMaterials?{materials}:{}),...(extraction?{extraction}:{}),...(solar?{solar}:{}),...(flora?{flora}:{}),...(cultivation?{cultivation}:{}),...(production?{production}:{}),...(plumbing?{plumbing}:{}),...(electrical?{electrical}:{}),...(airlock?{airlock}:{}),...(owned?{airlockOwnership:ownership}:{})}:previousDerived;
       entities[tileEntityId(site.id,t.x,t.y,t.z)]={type:'tile',site:site.id,...t,...(derived?{derived}:{})};
     }
     for(const r of rooms) {

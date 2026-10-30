@@ -3,10 +3,23 @@ import {createGame} from '../../src/simulation.js';
 import {validateRegion} from '../../src/region.js';
 import {validateMaterials} from '../../src/materials.js';
 
+// Only the new empty policy is neutral. Configured caps cannot be represented
+// by historical saves, so never hide them while comparing physical state.
+export function projectPreDepotLimits(state) {
+  const projected = structuredClone(state);
+  for (const site of Object.values(projected.sites)) for (const t of site.tiles) {
+    if (!t.storage || !Object.hasOwn(t.storage, 'limits')) continue;
+    const limits = t.storage.limits;
+    if (!limits || typeof limits !== 'object' || ![Object.prototype, null].includes(Object.getPrototypeOf(limits)) || Object.keys(limits).length) throw new Error('Cannot project configured depot limits into an older schema.');
+    delete t.storage.limits;
+  }
+  return projected;
+}
+
 // Only implicit-default alloy records are neutral in historical projections.
 // Composite choices and their different paid costs must never disappear.
 export function projectPreStructuralMaterials(state) {
-  const projected=structuredClone(state);
+  const projected=projectPreDepotLimits(state);
   validateMaterials(projected);
   for(const site of Object.values(projected.sites))for(const t of site.tiles)if(t.materials){
     if(Object.values(t.materials).some(id=>id!=='alloy'))throw new Error('Cannot project composite construction into an older schema.');
@@ -28,7 +41,7 @@ export function projectPreRegion(state, {allowUnvisited = false} = {}) {
   validateRegion(projected);
   if (!projected.region.legacy) {
     if (!allowUnvisited) throw new Error('Cannot project a generated region into an older schema.');
-    const initial = createGame(projected.seed,{regionSchema:projected.region.schema});
+    const initial = projectPreDepotLimits(createGame(projected.seed,{regionSchema:projected.region.schema}));
     for (const def of Object.values(projected.region.sites).filter(d => d.template)) {
       const id = def.id;
       if (!isDeepStrictEqual(projected.sites[id], initial.sites[id]) ||

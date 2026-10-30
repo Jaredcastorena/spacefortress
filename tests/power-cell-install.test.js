@@ -90,8 +90,9 @@ test('schema 69 preserves state and rejects a forged installation job', () => {
   assert.equal(createHash('sha256').update(raw).digest('hex'), '5da6c529da0d0326ae78160e06d6bc4f34e352344a943f2a6446820039f11747');
   const old = JSON.parse(raw), expected = structuredClone(old);
   assert.equal(old.version, 69); expected.version = VERSION;
+  for (const site of Object.values(expected.sites)) for (const t of site.tiles) if (t.building === 'stockpile') t.storage.limits = {};
   const loaded = deserialize(raw);
-  assert.ok(serialize(loaded) === JSON.stringify(expected), 'genuine schema69 changes version only');
+  assert.ok(serialize(loaded) === JSON.stringify(expected), 'genuine schema69 changes only version and neutral depot metadata');
   old.jobs.push({ id: 'job-9000', site: 'surface', x: 13, y: 7, z: 0, kind: 'chargeCell', building: null, cost: { cells: 1 }, sources: [], materials: {}, work: 4, remaining: 4, worker: null, priority: 5, blockedReason: null, missingFood: 0, foodSpoiled: 0 });
   assert.throws(() => deserialize(JSON.stringify(old)), /Legacy power-cell installation/);
 });

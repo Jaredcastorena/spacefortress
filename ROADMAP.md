@@ -4,6 +4,7 @@
 
 Release v0.1.12 adds engineering kits and a three-planet, eight-site system with hierarchical navigation. It builds on the paid material choices, repairs and finite slab heat conduction from v0.1.11, while retaining existing colony worlds. Local follow-up adds fuel synthesis from recovered solar cells and delivered water, and haulers now install those cells into surface batteries. Next checkpoints include wider industry, bounded upstairs habitation and sustained outpost supply.
 
+- [x] Local after v0.1.12: set per-resource depot delivery limits. Count shared space, reserved stock and incoming claims; preserve refunds and reroute cargo after policy changes. Shared actions, per-floor observations and schema71 migration keep physical custody intact.
 - [x] Local after v0.1.12: surface bristleback herds fall silent before a debris forecast. Reconcile herd loss in the same tick; preserve old saves and expose named transitions to local agents.
 - [x] Local after v0.1.12: haulers install one stored power cell as 100 kJ in a surface battery, including an upper floor. Injection waits for the finished job; cancellation returns the cell. Schema70 preserves schema69.
 - [x] Local after v0.1.12: add staffed, paid fuel synthesis using finite solar cells and water, shared power/hauling/orders and schema69 persistence.

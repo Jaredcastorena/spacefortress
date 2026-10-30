@@ -101,7 +101,7 @@ test('actual inspector submission dispatches one shared recipe action and retain
   inspector.onsubmit({target:{closest:selector=>selector==='[data-recipe-form]'?form:null},preventDefault:()=>prevented++});
   assert.equal(calls,1);assert.equal(prevented,1);assert.equal(blurred,1);assert.equal(results[0].ok,true);
   assert.equal(f.m.recipeId,'curd_bake');assert.equal(JSON.stringify(f.m.order),order);
-  assert.match(app,/activeElement\.closest\?\.\('\[data-recipe-form\]/);
+  assert.match(app,/activeElement\.closest\?\.\('[^']*\[data-recipe-form\]/);
   assert.match(app,/hasAttribute\('data-recipe-form'\)\?'production.recipe'/);
   assert.match(app,/openPanels\.get\(details\.dataset\.panelKey\)/);
 });

@@ -142,7 +142,7 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 | [src/simulation.js](../src/simulation.js) | Main colony state creation, player orders, job assignment/actions, expedition lifecycle, tick orchestration, save serialization and schema validation/migration. |
 | [src/spoilage.js](../src/spoilage.js) | Domain helpers for spoilage |
 | [src/sprites.js](../src/sprites.js) | Original cached canvas crew sprite generation |
-| [src/storage.js](../src/storage.js) | Domain helpers for storage |
+| [src/storage.js](../src/storage.js) | Shared depot capacity, per-resource delivery limits, incoming/reserved claims and policy validation |
 | [src/suit-release-status.js](../src/suit-release-status.js) | Pure current-compartment release limits, actor gates, exact capacity and stable destinations |
 | [src/suit-supply.js](../src/suit-supply.js) | Finite personal suit/mix conversion, local resupply, manual room release and typed gas transfers |
 | [src/telemetry.js](../src/telemetry.js) | Entity observations, structured diffs, event capture and bounded opt-in recording |

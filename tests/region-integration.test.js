@@ -23,7 +23,7 @@ const events=s=>exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>
 
 test('genuine schema64 migration keeps four physical sites and all prior state without spawning resources',()=>{
  assert.equal(createHash('sha256').update(legacy).digest('hex'),'75e2645acaea6baa19f61fc75252f840fe80d5cd03ca17af20135ffad98e4c3f');
- const before=JSON.parse(legacy),expected=structuredClone(before);expected.version=VERSION;expected.region=makeRegion(before.seed,true);
+ const before=JSON.parse(legacy),expected=structuredClone(before);expected.version=VERSION;for(const site of Object.values(expected.sites))for(const t of site.tiles)if(t.building==='stockpile')t.storage.limits={};expected.region=makeRegion(before.seed,true);
  for(const site of Object.values(expected.sites))site.kind=site.id;
  const s=deserialize(legacy);assert.ok(serialize(s)===serialize(expected));assert.equal(Object.keys(s.sites).length,4);assert.deepEqual(totalResources(s),totalResources(before));check(s);
 });

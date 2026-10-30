@@ -30,6 +30,10 @@ test('genuine schema46 migration changes only declared deck, shipment, crew and 
 
 test('migrated and newly constructed deck-zero colonies continue identically', () => {
   const migrated = deserialize(original), current = deserialize(JSON.stringify({...projectPreRegion(createGame(74219), {allowUnvisited:true}), version:64}));
+  // The historical fixture omits the optional, inactive herd flag. Match that
+  // representation without hiding any active warning or changing physical state.
+  assert.equal(migrated.debris.herdQuiet, undefined); assert.equal(current.debris.herdQuiet, false);
+  delete current.debris.herdQuiet;
   // Compare the same classic four-site boundary, then preserve the older depot's explicit resource filter when comparing colonies.
   for(const site of Object.values(current.sites))for(const t of site.tiles)if(t.storage)t.storage.accepted=t.storage.accepted.filter(r=>r!=='tools');
   assert.ok(order(current, 'surface', 5, 6, 'build', 'wall').ok);

@@ -15,9 +15,9 @@ import {projectPreRegion} from './helpers/legacy-projection.js';
 const raw=gunzipSync(readFileSync(new URL('./fixtures/planets-schema67.json.gz',import.meta.url))).toString();
 const exact=s=>{const text=serialize(s);assert.equal(serialize(deserialize(text)),text);};
 
-test('genuine six-site schema67 remains byte-equivalent apart from save version, with paid work intact',()=>{
+test('genuine six-site schema67 preserves paid work with only version and neutral depot metadata added',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'5a0542fa11df9f7b625de34faa6ff8f625b30b8e43153c01c2fa03d637ff5a91');
- const expected=JSON.parse(raw);expected.version=VERSION;const s=deserialize(raw);assert.deepEqual(s,expected);assert.equal(s.region.schema,1);assert.equal(Object.keys(s.sites).length,6);assert.equal(s.jobs[0].material,'composite');exact(s);
+ const expected=JSON.parse(raw);expected.version=VERSION;for(const site of Object.values(expected.sites))for(const t of site.tiles)if(t.building==='stockpile')t.storage.limits={};const s=deserialize(raw);assert.deepEqual(s,expected);assert.equal(s.region.schema,1);assert.equal(Object.keys(s.sites).length,6);assert.equal(s.jobs[0].material,'composite');exact(s);
  const copy=deserialize(serialize(s));step(s,3);step(copy,3);assert.equal(serialize(s),serialize(copy));
 });
 
@@ -42,6 +42,7 @@ test('planet memberships, map coordinates, route identity and schema boundaries 
 
 test('historical projections compare against their matching catalog and reject changed generated worlds',()=>{
  for(const schema of [1,2]){const s=createGame(74219,{regionSchema:schema}),before=serialize(s);const old=projectPreRegion(s,{allowUnvisited:true});assert.equal(Object.keys(old.sites).length,4);assert.equal(old.region,undefined);assert.equal(serialize(s),before);
+  const limited=structuredClone(s);limited.sites.surface.tiles.find(t=>t.building==='stockpile').storage.limits.ore=1;const limitedBefore=serialize(limited);assert.throws(()=>projectPreRegion(limited,{allowUnvisited:true}),/depot limits/);assert.equal(serialize(limited),limitedBefore);
   const d=Object.values(s.region.sites).find(d=>d.template);s.sites[d.id].tiles.find(t=>t.terrain==='ore').terrain='floor';assert.throws(()=>projectPreRegion(s,{allowUnvisited:true}),/changed generated site/);
  }
 });

@@ -143,7 +143,7 @@ test('actual inspector preserves flora information when a livestock animal share
   const context={state:s,siteId:site.id,selected:{site:site.id,x:t.x,y:t.y},mode:'inspect',at,sameCell,positionOf,roomAt,floraDetails,renderer:{},isLivestock,livestockDef,SPECIES,animalDetails:()=>'<p>Animal care controls</p>',pathTo,esc};
   vm.runInNewContext(source,context);const html=context.inspector();
   assert.match(html,/Animal care controls/);assert.match(html,/WILD FLORA/);assert.match(html,/data-action="gather"/);
-  assert.match(app,/activeElement\.closest\?\.\('\[data-recipe-form\]/);
+  assert.match(app,/activeElement\.closest\?\.\('[^']*\[data-recipe-form\]/);
 });
 
 test('actual Gather click sends exactly one shared job.order and produces no food at designation',()=>{

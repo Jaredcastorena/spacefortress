@@ -6,7 +6,7 @@ import { airlockControlOwner } from './airlock-access.js';
 import { rawFood, foodOfKind, planFoodSelection } from './food-lots.js';
 import { emitInventoryMovement, tileEntityId } from './telemetry.js';
 import { fitAmount, itemResource } from './item-lots.js';
-import { depotUsage, acceptsResource, acceptsShipment } from './storage.js';
+import { depotUsage, depotResourceUsage, acceptsResource, acceptsShipment } from './storage.js';
 import { scheduleProduction, inputBatchesWanted, releaseOperationsAt, recipeFor } from './production.js';
 import { refreshPower } from './power.js';
 import { RECIPES } from './data.js';
@@ -57,7 +57,7 @@ function pickHaul(s, c, site, pathTo) {
       let room = Math.min(CARRY_CAPACITY, depotUsage(s, c.site, depot).free); const items = {};
       for (const [r, n] of resourceEntries(inventory)) {
         if (!acceptsResource(depot, r, site) || (kind === 'stock' && acceptsResource(t, r, site) && depot.storage.priority <= t.storage.priority)) continue;
-        const picked = fitAmount(r,n,room); if (picked > 0) items[r] = picked; room -= picked;
+        const picked = fitAmount(r,n,Math.min(room, depotResourceUsage(s, c.site, depot, r).free)); if (picked > 0) items[r] = picked; room -= picked;
       }
       offer(t, kind, items, { kind: 'stock', target: xy(depot) }, depot.storage.priority, 1);
     }

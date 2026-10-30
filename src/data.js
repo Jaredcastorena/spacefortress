@@ -1,6 +1,6 @@
 import { LIVESTOCK } from './livestock-data.js';
 import { TOOL_RECIPES } from './tool-data.js';
-export const VERSION = 70;
+export const VERSION = 71;
 export const RESOURCES = ['alloy', 'ore', 'components', 'food', 'water', 'fuel', 'cells', 'air', 'medicine', 'waste', 'fertilizer', 'keepsakes', 'ice', 'tools'];
 export const BUILDINGS = {
   fuelSynthesizer:{name:'Fuel synthesizer',cost:{alloy:6,components:2},work:12,demand:6,noise:1,description:'Consumes one solar cell and two water to produce two fuel in 40 operator work. Requires wired power, safe air and a Production 2 operator. Deliver output to the shuttle or a reactor.'},

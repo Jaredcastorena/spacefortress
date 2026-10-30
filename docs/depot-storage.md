@@ -1,6 +1,6 @@
 # Depot capacity and hauling
 
-Implemented locally, September 16, 2026. These are initial storage constraints; capacities are provisional game units.
+Updated October 30, 2026; delivery limits are local after v0.1.12. These are initial storage constraints; capacities are provisional game units.
 
 ## Space and ownership
 
@@ -9,6 +9,16 @@ Each cargo depot holds **320 units**, with every resource using one unit per qua
 Incoming carried cargo and pending pickups reserve the remaining capacity. Concurrent haulers cannot promise the same free space. A recovering carrier retains their cargo reservation; death or setting the goods down releases it. These capacity claims are derived from the existing inventory owners, not a second inventory ledger.
 
 Full depots prevent new collection. Machine output then fills and stops production without spending a fresh batch. Building another accepting depot, using stock or changing policies creates space and lets hauling resume. Returned expedition piles use the same surface hauling rules.
+
+## Per-resource delivery limits
+
+Open **Delivery limits** in the depot inspector. Each resource can have a whole-unit cap from 0 to 320; leave it blank to clear the individual cap. Zero stops new deliveries of that resource. All resources still share the depot’s 320-unit capacity. Configured caps do not reserve otherwise empty space for a resource.
+
+Stored quantities, uncollected job reservations and pending/carried deliveries all use the resource’s headroom. Concurrent haulers claim space before pickup; mixed shipments fit both their resource caps and remaining shared capacity. Fractional bulk quantities still fit the remaining fraction of a whole-unit cap. Individual crafted items remain indivisible.
+
+Lowering a cap never destroys goods or cancels paid construction ownership. Already-held cargo rechecks its destination, reroutes to another accepting depot or is placed locally for later hauling. A pending pickup that no longer fits is released. Existing over-limit stock remains usable, and cancelling a reserved job returns its goods even if that exceeds the current cap. Normal priorities still govern restocking between depots.
+
+The shared `depot.limit` action accepts the depot’s full site/x/y/z address, a resource and an integer cap or null. `depot.limit.changed` identifies actual policy changes. Derived observations expose total and per-resource stored, reserved, incoming and free space without adding another inventory owner.
 
 ## Filters and priorities
 
@@ -26,12 +36,14 @@ A changed filter or exhausted destination invalidates an uncollected pickup with
 
 ## Persistence and evidence
 
-Save schema **16** supports versions 1–15. Version-13 migration gives depots all-resource acceptance and Normal priority. Existing inventories, batches, job reservations and carried goods are preserved. Legacy depots that already exceed 320 units retain everything, but accept no additional shipments until space becomes available. Old incoming shipments are rechecked before delivery. Current policy validation rejects invalid resources, duplicate filter entries, invalid priorities and policies attached to missing depots. Capacity remains a delivery rule; importing an already-overfull inventory does not delete it.
+Colony save schema **71** supports validated hex saves from schemas 40–70. Migration adds empty per-resource limit maps and preserves inventories, batches, reservation origins and carried goods. Pre71 saves containing a limit map are rejected. Current validation rejects missing/malformed maps, unknown resources and caps outside the integer 0–320 range, alongside invalid filters, priorities and policies attached to missing depots. Overfull inventories retain everything while new deliveries wait for space.
 
-**252 tests pass**, including 14 storage cases covering shared capacity claims, reserved-space refunds, mixed filters, priority transfers, evacuation, policy edits during pickup/transit, local overflow recovery, rest interruptions, supply priorities, congestion stopping/restarting production, depot loss, legacy migration and invalid policies. Tests exercise real pathfinding; the recovery scenario also compares continued simulation after saving/loading.
+Current delivery-limit verification covers 12 new core/control cases, including paid depot construction and stair hauling, plus all 1,858 runnable suite cases through the full run and focused compatibility repairs (one historical skip). The browser editor kept its configured cap and existing supplies, with no console errors.
+
+Historical capacity baseline: **252 tests passed**, including 14 storage cases covering shared capacity claims, reserved-space refunds, mixed filters, priority transfers, evacuation, policy edits during pickup/transit, local overflow recovery, rest interruptions, supply priorities, congestion stopping/restarting production, depot loss, legacy migration and invalid policies. Tests exercise real pathfinding; the recovery scenario also compares continued simulation after saving/loading.
 
 Isolated headless Firefox verified hidden default drawers, capacity readings, filter and priority buttons using pointer input, unchanged stock and saved policies. The screenshot was visually inspected, and the scoped application log reported no runtime errors. Temporary browser/server processes were stopped after QA. No dependencies were added.
 
 ## Remaining scope
 
-Local temperature is now shown in the inspector; see [temperature and climate](temperature-and-climate.md). Food spoilage and cold preservation are now implemented; see [food preservation](food-preservation.md). Remaining scope includes containers, stack-specific volume/mass, per-resource quotas, ownership and dedicated hauling roles. Machine deliveries still collect from depots; construction and meals can use loose supplies directly. Remote dock holds keep their separate expedition policy. These changes do not complete the wider conversion inventory.
+Local temperature is now shown in the inspector; see [temperature and climate](temperature-and-climate.md). Food spoilage and cold preservation are now implemented; see [food preservation](food-preservation.md). Remaining scope includes containers, stack-specific volume/mass, minimum-stock reservations, ownership and dedicated hauling roles. Machine deliveries still collect from depots; construction and meals can use loose supplies directly. Remote dock holds keep their separate expedition policy. These changes do not complete the wider conversion inventory.

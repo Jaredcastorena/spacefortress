@@ -4,6 +4,8 @@ SPACEFORTRESS is an early playable colony simulator. Release entries describe co
 
 ## Unreleased
 
+- Add per-resource depot delivery limits with a collapsed editor and shared `depot.limit` action. Haulers respect stored, reserved and incoming quantities on the selected floor; lowering a cap preserves goods and refunds. Schema71 migrates genuine schema70 custody without creating supplies.
+
 - Two or more living surface bristlebacks stop clicking together during the 90 seconds before a debris forecast names its tile. The forecast, impact, and repair supplies are unchanged. Their calls resume when that marker appears.
 - Haulers install one stored power cell into a surface battery, including an upper floor. The bank gains 100 kJ only when that work finishes. Cancelling, or a bank that cannot accept the cell, returns it. Save schema70 preserves schema69 and rejects an installation job in an older save.
 - Add a paid fuel synthesizer: one solar cell and two water produce two fuel through 40 staffed work with 6 kW, safe air, 5–40 °C and Production 2. Existing input/output hauling, batch and stock orders, blockers, repairs and actual-floor ownership apply.

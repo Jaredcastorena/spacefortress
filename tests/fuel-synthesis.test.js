@@ -37,7 +37,7 @@ function fixture(){
 
 test('genuine schema68 preserves state and older saves reject fuel equipment and queued work',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'a621fd8d8e1ed5ec52f5278612d32971eaa70db71396f68184a88e2230774df6');
- const expected=JSON.parse(raw);expected.version=VERSION;const s=deserialize(raw);assert.ok(serialize(s)===JSON.stringify(expected));exact(s);
+ const expected=JSON.parse(raw);expected.version=VERSION;for(const site of Object.values(expected.sites))for(const t of site.tiles)if(t.building==='stockpile')t.storage.limits={};const s=deserialize(raw);assert.ok(serialize(s)===JSON.stringify(expected));exact(s);
  for(const change of [s=>{s.sites.surface.tiles.find(t=>t.building==='refinery').building='fuelSynthesizer';},s=>{s.jobs.find(j=>j.kind==='build').building='fuelSynthesizer';}]){const old=JSON.parse(raw);change(old);assert.throws(()=>deserialize(JSON.stringify(old)),/Legacy fuel synthesizer/);}
 });
 

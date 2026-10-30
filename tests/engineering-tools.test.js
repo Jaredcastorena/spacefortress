@@ -39,7 +39,7 @@ test('engineering capability affects matching work only, with finite wear and br
 
 test('genuine schema66 migrates without modifying physical state and rejects premature equipment ownership',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'76398f6deffe88bba805805ce1b54cd09082c423fe7ee33daf6dce78d93c8572');
- const expected=JSON.parse(raw);expected.version=VERSION;const s=deserialize(raw);assert.deepEqual(s,expected);exact(s);
+ const expected=JSON.parse(raw);expected.version=VERSION;for(const site of Object.values(expected.sites))for(const t of site.tiles)if(t.building==='stockpile')t.storage.limits={};const s=deserialize(raw);assert.deepEqual(s,expected);exact(s);
  for(const change of [state=>{state.crew[0].possessions.inventory=cargo(kit());state.nextItemId=2;syncResources(state);},state=>{state.sites.surface.tiles.find(t=>t.machine).machine.recipeId='alloy_kit';},state=>{state.sites.surface.tiles.find(t=>t.machine).machine.batchRecipeId='composite_kit';}]){
   const old=JSON.parse(raw);change(old);assert.throws(()=>deserialize(JSON.stringify(old)),/Legacy engineering equipment/);
  }

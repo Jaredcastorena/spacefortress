@@ -68,7 +68,7 @@ export function initializeStorage(tile) {
   if (tile.building === 'sanitary') tile.sanitary ??= { output: {} };
   if (tile.building === 'stockpile') {
     if (!tile.stock) tile.stock = {};
-    if (!tile.storage) tile.storage = { accepted: [...RESOURCES], priority: 3 };
+    if (!tile.storage) tile.storage = { accepted: [...RESOURCES], priority: 3, limits: {} };
   }
   if (RECIPES[tile.building] && !tile.machine) tile.machine = { input: {}, output: {}, batch: {}, progress: 0, enabled: true, status: 'Waiting for delivery', ...(!(RECIPES[tile.building].lifeSupport || RECIPES[tile.building].automatic) ? { order: { mode: 'continuous', limit: 0, remaining: 0, priority: 1 }, completed: 0 } : {}) };
   if (tile.machine && ['farm', 'galley', 'toolbench'].includes(tile.building)) tile.machine.recipeId ??= tile.building === 'farm' ? DEFAULT_CROP : tile.building === 'galley' ? DEFAULT_MEAL : DEFAULT_TOOL_RECIPE;
