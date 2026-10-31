@@ -1,6 +1,6 @@
 import { populationStatus } from './population.js';
 import {materialStatus} from './materials.js';
-import { outpostSiteIds, planetDefinitions } from './region.js';
+import { outpostSiteIds, planetDefinitions, siteDefinition } from './region.js';
 import { planetSurveyStatus } from './satellites.js';
 import {toolStatus} from './tools.js';
 import { tileEntityId } from './spatial.js';
@@ -42,7 +42,7 @@ import { resourceEntries } from './inventory.js';
 import { RESOURCES } from './data.js';
 import { depotUsage, depotResourceUsage } from './storage.js';
 // Local, opt-in recordings. WeakMap ownership keeps instrumentation out of game saves/RNG.
-export const TELEMETRY_VERSION = 10;
+export const TELEMETRY_VERSION = 11;
 const sessions = new WeakMap();
 const clone = value => JSON.parse(JSON.stringify(value));
 export { tileEntityId } from './spatial.js';
@@ -66,7 +66,7 @@ export function observe(s) {
     const {tiles,rooms,...environment}=site;
     const launchBlocked=expeditionLaunchBlock(s,site.id);
     // Destination gates are distinct from selected-crew, supplies and route readiness.
-    entities[`site:${site.id}`]={type:'site',...environment,waterSupply:waterSupply(s,site.id),derived:{...(environment.derived||{}),expedition:{selected:destination===site.id,launchBlocked,crewLimits:expeditionCrewLimits(s,site.id)},shuttle:shuttlePresence(s,site.id),freight:freightStatus(s,site.id),outpost:outposts[site.id]||null,habitat:outposts[site.id]?outpostReadiness(s,site.id,outposts[site.id].residents):null}};
+    entities[`site:${site.id}`]={type:'site',...environment,definition:siteDefinition(s,site.id),waterSupply:waterSupply(s,site.id),derived:{...(environment.derived||{}),expedition:{selected:destination===site.id,launchBlocked,crewLimits:expeditionCrewLimits(s,site.id)},shuttle:shuttlePresence(s,site.id),freight:freightStatus(s,site.id),outpost:outposts[site.id]||null,habitat:outposts[site.id]?outpostReadiness(s,site.id,outposts[site.id].residents):null}};
     for(const t of tiles) {
       const gas=(t.pipe||t.gasStore||t.gasDevice)?gasStatus(site,t):null;
       const plumbing=(t.waterPipe||t.waterStore||t.waterDevice)?plumbingStatus(s,site,t):null;
@@ -92,12 +92,18 @@ export function observe(s) {
   for(const site of Object.values(sites))for(const t of site.tiles)if(t.fire)entities[t.fire.id]={type:'fire',...t.fire,tile:tileEntityId(site.id,t.x,t.y,t.z)};
   for(const c of crew) {const site=sites[c.site];entities[c.id]={type:'crew',...c,derived:{tool:toolStatus(c),work:workReadiness(c),suitRelease:suitReleaseStatus(s,c.id),expedition:{...expeditionCrewStatus(c),selected:selectedCrewIds.includes(c.id),selectedForReturn:returningCrewIds.includes(c.id)},residence:residences.get(c.id)||null,currentComfort:site?roomComfort(s,site,roomAt(site,c.x,c.y,c.z),c):null,homeComfort:c.housing.bunk?roomComfort(s,sites.surface,roomAt(sites.surface,c.housing.bunk.x,c.housing.bunk.y,c.housing.bunk.z),c):null}};}
   for(const j of jobs) entities[j.id]={type:'job',...j};
-  const pastures=pastureRegions(sites.surface);
-  for(const r of pastures.regions)if(r.enclosed)entities[r.id]={type:'pasture',site:'surface',...r};
-  const butcherPosts=sites.surface.tiles.filter(t=>t.building==='husbandryPost'&&t.hp>0);
-  for(const c of creatures) entities[c.id]={type:'creature',...c,...(c.husbandry?{derived:{carcass:carcassStatus(s,c),dispatch:dispatchEligibility(s,c),discard:discardEligibility(s,c),butchery:c.death?butcherPosts.map(t=>({target:tileEntityId('surface',t.x,t.y),...butcheryEligibility(s,c,t.x,t.y)})):[],traits:animalTraits(c),inheritance:c.lifecycle?.brood?.inheritance||null,health:animalHealthStatus(s,c),diet:livestockDef(c)?.feedKinds||null,productKind:livestockDef(c)?.productKind||null,husbandryStatus:husbandryStatus(s,c,pathTo),pasture:animalPasture(s,c,pastures),breeding:breedingStatus(s,c,pastures),transport:transportStatus(s,c)}}:{})};
+  const pastures=new Map(),butcherPosts=new Map();
+  for(const site of Object.values(sites)) {
+    const regions=pastureRegions(site);pastures.set(site.id,regions);
+    for(const r of regions.regions)if(r.enclosed)entities[r.id]={type:'pasture',site:site.id,...r};
+    butcherPosts.set(site.id,site.tiles.filter(t=>t.building==='husbandryPost'&&t.hp>0));
+  }
+  for(const c of creatures) {
+    const regions=pastures.get(c.site),bodySite=carcassPosition(s,c)?.site||c.site;
+    entities[c.id]={type:'creature',...c,...(c.husbandry?{derived:{carcass:carcassStatus(s,c),dispatch:dispatchEligibility(s,c),discard:discardEligibility(s,c),butchery:c.death?(butcherPosts.get(bodySite)||[]).map(t=>({target:tileEntityId(bodySite,t.x,t.y,t.z),...butcheryEligibility(s,c,t.x,t.y,t.z,bodySite)})):[],traits:animalTraits(c),inheritance:c.lifecycle?.brood?.inheritance||null,health:animalHealthStatus(s,c),diet:livestockDef(c)?.feedKinds||null,productKind:livestockDef(c)?.productKind||null,husbandryStatus:husbandryStatus(s,c,pathTo),pasture:animalPasture(s,c,regions),breeding:breedingStatus(s,c,regions),transport:transportStatus(s,c)}}:{})};
+  }
   for(const c of creatures){const position=carcassPosition(s,c);if(position)entities[`carcass:${c.id}`]={type:'carcass',animal:c.id,...c.death,...position};}
-  for(const c of creatures)if(c.lifecycle?.brood){const brood=c.lifecycle.brood;entities[brood.id]={type:'brood',...brood,carrier:c.id};}
+  for(const c of creatures)if(c.lifecycle?.brood){const brood=c.lifecycle.brood;entities[brood.id]={type:'brood',...brood,carrier:c.id,site:c.site};}
   for(const owner of itemOwners(s))for(const item of owner.inventory._items||[])entities[item.id]={type:'item',...item,location:owner.location};
   // A prepared batch can be split among several inventories and opened rations.
   const mealOwners=itemOwners(s);
@@ -110,7 +116,7 @@ export function systemFor(type,path) {
   if(root==='airlock'||root==='airlockOwner'||root==='airlockTraversal'||root==='pipe'&&path[1]==='airlockOwner')return 'airlocks';
   if(type==='tile'&&root==='derived'&&path[1]==='solar')return 'power';
   if(type==='tile'&&root==='derived'&&path[1]==='extraction')return 'geology';
-  if(type==='planet'||type==='colony'&&root==='satellites')return 'planetary_survey';
+  if(type==='planet'||type==='colony'&&['satellites','sectorSites'].includes(root)||type==='site'&&root==='definition')return 'planetary_survey';
   if(type==='tile'&&['biome','temperatureOffset'].includes(root))return 'environment';
   if(type==='tile'&&root==='basin')return 'water';
   if(root==='derived')return 'derived_conditions';

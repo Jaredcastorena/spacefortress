@@ -1,6 +1,6 @@
 # Procedural maps and satellite survey
 
-This is local development after v0.1.12. The package remains 0.1.12; colony save76, region3 and observation/recording10 describe separate formats. The independent elements laboratory is unchanged.
+This is local development after v0.1.12. The package remains 0.1.12; colony save77, region3 and observation/recording11 describe separate formats. The independent elements laboratory is unchanged.
 
 ## Larger physical maps
 
@@ -54,7 +54,7 @@ Open **Regions**, choose **Planet map** under the desired planet, then open **Co
 
 The known landing displays live ground-map ore/ice reserves, liquid water, plant patches, living animals and current temperatures. Its readings follow extraction, water movement and population changes; stored inventories are excluded. The **Open … map** button returns to that existing physical site.
 
-Other sectors show initial 48 × 48 surface surveys generated from the same terrain rules. Their biomes, resources, plants and predicted life are generated data, but those sectors have no simulated colony or travel route. Inspecting them does not grant resources or create a settlement. The system/orbital destination view remains available separately.
+Other sectors show initial 48 × 48 surface surveys generated from the same terrain rules. Their biomes, resources, plants and predicted life come from the generator. Inspecting them alone creates no physical map or inventory. Expand the selected sector’s Expedition section to prepare a supplied first landing; [sector travel](sector-travel.md) describes its kit, saved map and local settlement rules. The system/orbital destination view remains available separately.
 
 Drag or use arrow keys to pan a local map, use the mouse wheel to zoom, and press **Home** to return to the colony. Zooming out reveals the enlarged footprint; the renderer skips offscreen tile work.
 
@@ -70,4 +70,4 @@ Players and agents use `satellite.launch {site,x,y,z?}` or `job.order` with `kin
 
 [Generation](../tests/world-generation.test.js), [environment](../tests/procedural-environment.test.js), [map/save](../tests/procedural-maps.test.js), [satellite](../tests/satellites.test.js), [staffed launch](../tests/satellite-integration.test.js) and [atlas](../tests/planetary-atlas.test.js) checks cover the corresponding mechanics. The staffed launch fixture supplies one explicitly synthetic recovered cell, then uses shared orders and actual carrying/work; it covers finite spending, cancellation, saved continuation and recordings. It does not establish the complete fresh-colony cell-acquisition chain or ordinary endurance.
 
-New-sector travel/settlement, remote-to-remote travel, broader history/discovery and sustained habitation remain future work. The [verification status](verification-status.md) retains broader acceptance results and their limits.
+Supplied new-sector travel and local construction are implemented. Remote-to-remote travel, broader history/discovery and sustained habitation remain future work. The [verification status](verification-status.md) retains broader acceptance results and their limits.

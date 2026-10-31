@@ -73,15 +73,15 @@ export function initializeStorage(tile) {
   if (RECIPES[tile.building] && !tile.machine) tile.machine = { input: {}, output: {}, batch: {}, progress: 0, enabled: true, status: 'Waiting for delivery', ...(!(RECIPES[tile.building].lifeSupport || RECIPES[tile.building].automatic) ? { order: { mode: 'continuous', limit: 0, remaining: 0, priority: 1 }, completed: 0 } : {}) };
   if (tile.machine && ['farm', 'galley', 'toolbench'].includes(tile.building)) tile.machine.recipeId ??= tile.building === 'farm' ? DEFAULT_CROP : tile.building === 'galley' ? DEFAULT_MEAL : DEFAULT_TOOL_RECIPE;
 }
-export const stores = s => s.sites.surface.tiles.filter(t => t.building === 'stockpile' && t.stock);
+export const stores = (s, siteId='surface') => s.sites[siteId].tiles.filter(t => t.building === 'stockpile' && t.stock);
 export function syncResources(s) {
   s.resources = Object.fromEntries(RESOURCES.map(r => [r, 0]));
   for (const t of stores(s)) addCounts(s.resources, t.stock);
   return s.resources;
 }
 // Only unreserved depot stock is spendable. Other owners keep their own inventory.
-export function reserve(s, cost, eligible = () => true) {
-  const depots = stores(s).filter(eligible), total = {};
+export function reserve(s, cost, eligible = () => true, siteId = 'surface') {
+  const depots = stores(s,siteId).filter(eligible), total = {};
   depots.forEach(t => addCounts(total, t.stock));
   if (!contains(total, cost)) return null;
   const sources = [];
@@ -91,7 +91,7 @@ export function reserve(s, cost, eligible = () => true) {
   }
   syncResources(s); return sources;
 }
-export const spend = (s, cost, eligible) => reserve(s, cost, eligible) !== null;
+export const spend = (s, cost, eligible, siteId = 'surface') => reserve(s, cost, eligible, siteId) !== null;
 export function totalResources(s) {
   const total = Object.fromEntries(RESOURCES.map(r => [r, 0]));
   for (const site of Object.values(s.sites)) for (const t of site.tiles) {

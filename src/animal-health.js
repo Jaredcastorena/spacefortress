@@ -10,7 +10,7 @@ const EPS=1e-8;
 const recoveryReasons={none:'No active treatment credit.',needs_post:'Needs to reach its working assigned post.',needs_food:'Needs nutrition of at least 60 to recover.',unsafe_temperature:'Needs temperature within its species range.',fire:'Recovery paused by fire.',transport:'Recovery paused during transport.',recovering:'Recovering from treated injuries at the post.'};
 const thermalBand=stress=>Math.abs(stress)>70?'danger':Math.abs(stress)>=45?'stressed':'normal';
 const tileAt=(site,x,y,z=0)=>spatialTile(site,{x,y,z});
-const postTile=(s,a)=>a.husbandry?.post?spatialTile(s.sites.surface,a.husbandry.post):null;
+const postTile=(s,a)=>a.husbandry?.post?spatialTile(s.sites[a.site],a.husbandry.post):null;
 const transporting=(s,a)=>s.jobs.some(j=>j.kind==='animalLead'&&j.animal===a.id);
 const untreated=a=>Math.max(0,a.condition.injury-a.condition.treated);
 const safeTemperature=(s,a)=>{const temp=temperatureAt(s.sites[a.site],a.x,a.y,a.z),[low,high]=animalTraits(a).temperatureRange;return temp>=low&&temp<=high;};
@@ -22,7 +22,7 @@ function recoveryState(s,a){
   if(transporting(s,a))return 'transport';
   const tile=tileAt(s.sites[a.site],a.x,a.y,positionOf(a).z),post=postTile(s,a);
   if(tile?.fire)return 'fire';
-  if(a.site!=='surface'||post?.building!=='husbandryPost'||post.hp<=0||!sameCell(positionOf(a),positionOf(post)))return 'needs_post';
+  if(post?.building!=='husbandryPost'||post.hp<=0||!sameCell(positionOf(a),positionOf(post)))return 'needs_post';
   if(!safeTemperature(s,a))return 'unsafe_temperature';
   if(a.fed<60)return 'needs_food';
   return 'recovering';
@@ -42,7 +42,7 @@ export function injureAnimal(s,a,amount,cause){
 }
 export function updateAnimalHealth(s,a){
   if(!isLivestock(a)||a.health<=0)return;
-  const q=a.condition,site=s.sites[a.site],tile=tileAt(site,a.x,a.y),temp=temperatureAt(site,a.x,a.y,a.z),[low,high]=animalTraits(a).temperatureRange;
+  const q=a.condition,site=s.sites[a.site],tile=tileAt(site,a.x,a.y,positionOf(a).z),temp=temperatureAt(site,a.x,a.y,a.z),[low,high]=animalTraits(a).temperatureRange;
   const previous=thermalBand(q.thermalStress),strain=temp<low?(temp-low)*.012:temp>high?(temp-high)*.012:0;
   q.thermalStress=strain?Math.max(-100,Math.min(100,q.thermalStress+strain)):Math.sign(q.thermalStress)*Math.max(0,Math.abs(q.thermalStress)-.8);
   const current=thermalBand(q.thermalStress);
@@ -69,17 +69,17 @@ export function animalTreatmentEligibility(s,a){
   const fail=(code,message)=>({ok:false,code,message,dose:0});
   if(!a||!isLivestock(a)||a.health<=0)return fail('invalid_animal','Choose living livestock.');
   if(a.husbandry.trust!==100)return fail('untamed','Veterinary treatment needs a tame animal.');
-  const post=postTile(s,a);if(a.site!=='surface'||post?.building!=='husbandryPost'||post.hp<=0)return fail('needs_post','Assign a working surface husbandry post.');
+  const post=postTile(s,a);if(post?.building!=='husbandryPost'||post.hp<=0)return fail('needs_post','Assign a working local husbandry post.');
   if(untreated(a)<=EPS)return fail('covered','No uncovered injury needs medicine.');
   if(transporting(s,a))return fail('transport','Finish or cancel animal transport first.');
-  if(s.jobs.some(j=>(j.animal===a.id||j.site==='surface'&&sameCell(positionOf(j),positionOf(post)))&&!(j.kind==='animalCare'&&j.animal===a.id)))return fail('busy','Finish or cancel conflicting animal work first.');
+  if(s.jobs.some(j=>(j.animal===a.id||j.site===a.site&&sameCell(positionOf(j),positionOf(post)))&&!(j.kind==='animalCare'&&j.animal===a.id)))return fail('busy','Finish or cancel conflicting animal work first.');
   return {ok:true,code:'ready',message:'Ready to designate veterinary treatment.',dose:Math.min(VETERINARY.maxDose,untreated(a))};
 }
 function treatmentAnimal(s,j){
   return s.creatures.find(a=>a.id===j.animal&&isLivestock(a)&&a.health>0&&a.site===j.site&&a.husbandry.trust===100&&sameCell(a.husbandry.post,positionOf(j)));
 }
 export function animalTreatmentValid(s,j){
-  if(j.kind!=='animalTreat'||j.site!=='surface'||j.building!==null||j.work!==VETERINARY.work||!Number.isFinite(j.dose)||j.dose<=0||j.dose>VETERINARY.maxDose)return false;
+  if(j.kind!=='animalTreat'||j.building!==null||j.work!==VETERINARY.work||!Number.isFinite(j.dose)||j.dose<=0||j.dose>VETERINARY.maxDose)return false;
   const a=treatmentAnimal(s,j),post=a&&postTile(s,a);
   return !!a&&post?.building==='husbandryPost'&&post.hp>0&&untreated(a)>EPS&&!transporting(s,a);
 }

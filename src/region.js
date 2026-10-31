@@ -1,6 +1,7 @@
 import { SITES } from './data.js';
 import { distance } from './hex.js';
 import { planetEnvironment, expandedSiteLayout } from './world-generation.js';
+import { sectorDefinitions, sectorRoute, validateSectorSites } from './sector-sites.js';
 
 const CLASSIC_IDS = Object.keys(SITES);
 const SIZE = 18;
@@ -171,7 +172,8 @@ export function planetSiteIds(s,planetId){
 }
 
 export function siteDefinitions(s) {
-  return owns(s, 'region') ? s.region?.sites : SITES;
+  const base=owns(s,'region')?s.region?.sites:SITES,sectors=sectorDefinitions(s);
+  return Object.keys(sectors).length?{...base,...sectors}:base;
 }
 export function siteDefinition(s, id) {
   const definitions = siteDefinitions(s);
@@ -190,7 +192,9 @@ export function routeDefinition(s, id) {
   if (owns(s, 'region')) {
     const routes = s.region?.routes;
     if (owns(routes, id)) return routes[id];
-    return owns(routes, `route-${id}`) ? routes[`route-${id}`] : undefined;
+    if(owns(routes, `route-${id}`))return routes[`route-${id}`];
+    const destination=typeof id==='string'&&id.startsWith('route-')?id.slice(6):id;
+    return owns(sectorDefinitions(s),destination)?sectorRoute(s,destination):undefined;
   }
   const destination = typeof id === 'string' && id.startsWith('route-') ? id.slice(6) : id;
   const def = siteDefinition(s, destination);
@@ -202,8 +206,10 @@ export function validateRegion(s) {
   if (!record(s) || !validSeed(s.seed) || !record(s.region) || typeof s.region.legacy !== 'boolean') throw new Error('Invalid region.');
   const expected = makeRegion(s.seed, s.region.legacy, s.region.schema);
   if (!sameMetadata(s.region, expected)) throw new Error('Invalid immutable region metadata.');
-  if (!exactKeys(s.sites, Object.keys(expected.sites))) throw new Error('Invalid region site catalog.');
-  for (const [id, def] of Object.entries(expected.sites)) {
+  validateSectorSites(s);
+  const definitions={...expected.sites,...sectorDefinitions(s)};
+  if (!exactKeys(s.sites, Object.keys(definitions))) throw new Error('Invalid region site catalog.');
+  for (const [id, def] of Object.entries(definitions)) {
     const site = s.sites[id];
     if (!record(site) || site.id !== id || !owns(site, 'kind') || site.kind !== def.kind || site.size !== def.size) throw new Error('Invalid region site identity.');
   }

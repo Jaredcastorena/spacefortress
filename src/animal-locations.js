@@ -6,7 +6,7 @@ export function validateAnimalLocations(s,{legacy=false}={}) {
     const post=a.husbandry?.post;
     if (post != null && !(legacy
       ? Array.isArray(post) && post.length === 2 && !!tileAt(s.sites.surface,{x:post[0],y:post[1],z:0})
-      : validAnimalPosition(s.sites.surface,post) && (s.version>=58 || post.z===0)))
+      : validAnimalPosition(s.sites[a.site],post) && (s.version>=58 || post.z===0)))
       throw new Error(legacy ? 'Invalid legacy animal post location.' : 'Invalid animal post location.');
     const owner=a.death?.owner;
     if (owner?.kind === 'tile' && ((legacy ? Object.hasOwn(owner,'z') : s.version<58 && owner.z !== 0) ||

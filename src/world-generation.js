@@ -72,7 +72,7 @@ export function surfaceLayout(world,sector,size=48){
   return tiles;
 }
 
-function wildlifeFor(world,sector,tiles,originalSize=0){
+export function wildlifeFor(world,sector,tiles,originalSize=0){
   const wildlife=[],occupied=new Set();
   for(const species of ['bristleback','glazefoot']){
     const food=species==='bristleback'?'lichen':'fungalcap';

@@ -447,3 +447,11 @@ New colonies default to region3 with a 48 × 48 home grid and 32 × 32 remote gr
 - [Storage rules](browser-storage.md): player behavior, API, compatibility and lifecycle limits.
 - [Core checks](../tests/browser-storage.test.js): primary/legacy selection, corrupt or denied storage, queue ordering, atomic aborts and explicit replacement.
 - [App-handler checks](../tests/browser-storage-ui.test.js): success timing, stale completions, paused imports, failed replacement exports and coalesced lifecycle writes. [Deck UI](../tests/deck-ui.test.js) awaits actual save completion.
+
+## Surveyed-sector destinations and local wildlife
+
+- [Sector registry](../src/sector-sites.js): canonical cached definitions/routes, original-landing resolution and strict optional save records. Region readers merge those records with the unchanged base catalog.
+- [Sector factory](../src/sector-generation.js): detached site and native animal initialization; finite pools once, empty infrastructure and no mutation of old owners.
+- [Sector readiness](../src/sector-travel.js): pure survey/route/shuttle checks and first-landing kit cost. Simulation publishes a prepared site only after crew and projected-save admission; preflight delivers and consumes the kit at arrival.
+- [Sector rules](sector-travel.md), [registry checks](../tests/sector-sites.test.js), [factory checks](../tests/sector-generation.test.js), [travel checks](../tests/sector-travel.test.js), [storage guards](../tests/sector-storage.test.js), [atlas controls](../tests/sector-travel-ui.test.js).
+- [Site-local animals](../tests/site-animals.test.js) and [observations/panels](../tests/site-animal-observations.test.js): independent same-coordinate sites/floors, finite food/medicine/products, physical carriers, births, carcass ownership and pure observation11.

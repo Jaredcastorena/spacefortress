@@ -4,6 +4,10 @@ SPACEFORTRESS is an early playable colony simulator. Release entries describe co
 
 ## Unreleased
 
+- Add `expedition.surveyed` and collapsed planetary expedition controls. Prepare a 48 × 48 destination only after survey/crew/shuttle checks, then load normal travel supplies plus a finite first-landing kit of 6 alloy and 2 components. Arrival consumes that kit to deploy an empty dock. Cancelled plans retain their prepared terrain; return visits retain built structures, depletion and living populations.
+- Scope wildlife ecology, post assignments, feeding, collection, medicine, breeding, escorts, carcass work and trap bait to their actual site and floor. Preserve home identities, existing global limits and finite local custody.
+- Add optional save77 sector records without changing existing region catalogs or older maps. Reject admissions that exceed the projected save budget or existing wildlife registry bound. Observation/recording11 adds canonical site definitions and site-aware animal/pasture targets. Package remains 0.1.12; this is local development.
+
 - Store browser colonies in IndexedDB with ordered writes and success only after transaction completion. Load existing localStorage colonies when no primary save exists; retain the old copy after migration. Invalid or inaccessible primary saves block autosave instead of loading stale legacy state. Failed replacements keep the active colony exportable, and overlapping imports cannot replace a newer colony. Schema76, region3 and observation/recording10 remain unchanged.
 
 - Expand new colonies to a 48 × 48 home map and 32 × 32 remote maps while preserving the established landing cores. Seeded biomes provide native lichen, fungi, sunberries, existing wildlife species, finite ore/ice and finite surface pools. Local exterior temperature offsets affect exposure, flora and actual room boundary heat transfer; basins retain only their finite water.

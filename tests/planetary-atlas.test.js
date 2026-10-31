@@ -30,7 +30,8 @@ test('unvisited sectors use the physical generator and remain detached survey-on
   atlas.survey.resources.ore=999999;
   assert.notEqual(planetAtlasData(s,planet.id,selected).survey.resources.ore,999999);
   const html=planetaryAtlas(s,planet.id,selected);
-  assert.match(html,/initial survey only/);assert.match(html,/no colony or travel route exists here/);
+  assert.match(html,/initial survey only/);assert.match(html,/Prepare a supplied expedition to establish a landing here/);
+  assert.match(html,/data-simulation-action="expedition.surveyed"/);
   assert.doesNotMatch(html,/data-action="inspect-site"/);
   assert.equal((html.match(/data-action="atlas-sector"/g)||[]).length,288);
   assert.equal(JSON.stringify(s),before);

@@ -106,7 +106,7 @@ test('birth transfers the frozen child after policy interruption and mate death 
 
 test('metabolic pace changes readiness but keeps harvest quantities and nutrition cost fixed',()=>{
   for(const pace of [-1,0,1]){const {s,a,site}=fixture();a.genetics=genome(0,pace);a.husbandry.post={x:3,y:3,z:0};site.tiles[3*8+3].building='husbandryPost';for(let i=0;i<100;i++)animalCondition(s,a);close(a.husbandry.product,25*(1+.2*pace));
-    a.husbandry.product=100;const job={id:'job-1',kind:'animalHarvest',animal:a.id,site:'surface',x:3,y:3,building:null};assert.equal(completeAnimalJob(s,{id:'worker'},job),true);assert.equal(a.fed,80);assert.equal(a.husbandry.product,0);assert.equal(site.tiles[3*8+3].drop.food,2);assert.equal(site.tiles[3*8+3].drop.waste,.25);
+    a.husbandry.product=100;const job={id:'job-1',kind:'animalHarvest',animal:a.id,site:'surface',x:3,y:3,building:null};assert.equal(completeAnimalJob(s,{id:'worker',site:'surface',x:3,y:3,z:0},job),true);assert.equal(a.fed,80);assert.equal(a.husbandry.product,0);assert.equal(site.tiles[3*8+3].drop.food,2);assert.equal(site.tiles[3*8+3].drop.waste,.25);
   }
 });
 

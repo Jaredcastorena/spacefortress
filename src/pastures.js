@@ -20,22 +20,22 @@ export function pastureRegions(site) {
     }
     regions.push(r);
   }
-  return {byCell,regions};
+  return {site:site.id,byCell,regions};
 }
-export function animalPasture(s,a,regions=pastureRegions(s.sites.surface)) {
-  const r=a.site==='surface'?regions.byCell.get(cellKey(positionOf(a))):null,post=a.husbandry?.post;
+export function animalPasture(s,a,regions=pastureRegions(s.sites[a.site])) {
+  const r=a.site===regions.site?regions.byCell.get(cellKey(positionOf(a))):null,post=a.husbandry?.post;
   return {region:r?.id||null,enclosed:!!r?.enclosed,tiles:r?.cells.length||0,lichen:r?.lichen||0,postReachable:post?!!r&&regions.byCell.get(cellKey(post))===r:null};
 }
 export function pastureSnapshot(s) {
   if(!recordingStatus(s).active)return null;
-  const regions=pastureRegions(s.sites.surface);
-  return new Map(s.creatures.filter(a=>isLivestock(a)&&a.health>0).map(a=>[a.id,animalPasture(s,a,regions)]));
+  const regions=new Map(),local=a=>{if(!regions.has(a.site))regions.set(a.site,pastureRegions(s.sites[a.site]));return regions.get(a.site);};
+  return new Map(s.creatures.filter(a=>isLivestock(a)&&a.health>0).map(a=>[a.id,animalPasture(s,a,local(a))]));
 }
 export function recordPastureChanges(s,before) {
   if(!before)return;
-  const regions=pastureRegions(s.sites.surface);
+  const regions=new Map(),local=a=>{if(!regions.has(a.site))regions.set(a.site,pastureRegions(s.sites[a.site]));return regions.get(a.site);};
   for(const a of s.creatures.filter(a=>isLivestock(a)&&a.health>0)){
-    const previous=before.get(a.id),current=animalPasture(s,a,regions);if(!previous)continue;
+    const previous=before.get(a.id),current=animalPasture(s,a,local(a));if(!previous)continue;
     if(previous.enclosed!==current.enclosed)emitEvent(s,current.enclosed?'animal.containment.gained':'animal.containment.lost',{entity:a.id,previous:previous.region,region:current.region});
     else if(previous.region!==current.region)emitEvent(s,'animal.pasture.changed',{entity:a.id,previous:previous.region,region:current.region,enclosed:current.enclosed});
     if(previous.postReachable!==current.postReachable)emitEvent(s,'animal.post.route_changed',{entity:a.id,previous:previous.postReachable,reachable:current.postReachable});

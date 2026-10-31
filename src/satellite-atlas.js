@@ -1,19 +1,15 @@
 import { planetDefinitions, siteDefinition, planetSiteIds } from './region.js';
 import { planetSurveyStatus, satelliteStatus } from './satellites.js';
-import { WORLD_BIOMES, sectorEnvironment, surfaceSurvey, planetEnvironment } from './world-generation.js';
+import { WORLD_BIOMES, sectorEnvironment, surfaceSurvey } from './world-generation.js';
+import { sectorWorld, sectorLanding } from './sector-sites.js';
+import { surveyedSectorStatus } from './sector-travel.js';
+import { preflightDetails } from './preflight-panels.js';
 import { FLORA } from './flora-data.js';
 import { temperatureAt } from './thermal.js';
 
 const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const number=v=>Math.round(v*10)/10;
-const previewCache=new WeakMap(),legacyWorlds=new WeakMap();
-function atlasWorld(s,planet){
-  if(planet.world)return planet.world;
-  if(!legacyWorlds.has(s))legacyWorlds.set(s,new Map());
-  const worlds=legacyWorlds.get(s);
-  if(!worlds.has(planet.id))worlds.set(planet.id,planetEnvironment(s.region?.seed??s.seed??74219,planet.id));
-  return worlds.get(planet.id);
-}
+const previewCache=new WeakMap();
 function generatedSurvey(world,sector){
   if(!previewCache.has(world))previewCache.set(world,new Map());
   const cache=previewCache.get(world),key=`${sector.x},${sector.y}`;
@@ -40,13 +36,13 @@ export function planetAtlasData(s,planetId,selection=null){
   const status=planetSurveyStatus(s,planetId),planet=planetDefinitions(s)[planetId];
   if(!status.unlocked)return {...status,available:false};
   if(!planet)return {...status,available:false};
-  const world=atlasWorld(s,planet),requested=selection||world.landing;
+  const world=sectorWorld(s,planetId),requested=selection||world.landing;
   const selected=Number.isInteger(requested.x)&&Number.isInteger(requested.y)&&requested.x>=0&&requested.x<world.width&&requested.y>=0&&requested.y<world.height?{x:requested.x,y:requested.y}:{...world.landing};
   const sectors=[];
   for(let y=0;y<world.height;y++)for(let x=0;x<world.width;x++)sectors.push(sectorEnvironment(world,x,y));
-  const home=s.sites[planet.home],def=siteDefinition(s,planet.home);
-  const landing=def?.sector||world.landing,live=home&&landing.x===selected.x&&landing.y===selected.y;
-  return {...status,available:true,legacy:!planet.world,landing:{...world.landing},width:world.width,height:world.height,sectors,selected,environment:sectorEnvironment(world,selected.x,selected.y),site:live?home.id:null,live:!!live,survey:live?liveSurfaceSurvey(s,home):generatedSurvey(world,selected)};
+  const siteId=sectorLanding(s,planetId,selected.x,selected.y),site=siteId?s.sites[siteId]:null;
+  const prepared=!!site&&siteDefinition(s,siteId)?.template==='sector'&&!site.explored,live=!!site&&!prepared;
+  return {...status,available:true,legacy:!planet.world,landing:{...world.landing},width:world.width,height:world.height,sectors,selected,environment:sectorEnvironment(world,selected.x,selected.y),site:siteId,live,prepared,survey:live?liveSurfaceSurvey(s,site):generatedSurvey(world,selected)};
 }
 export function satelliteLaunchDetails(s,site,tile){
   if(!site||!tile||!['shuttle','dock'].includes(tile.building))return '';
@@ -62,6 +58,12 @@ function launchForPlanet(s,planetId){
 }
 const animalName=id=>({bristleback:'Bristlebacks',glazefoot:'Glazefeet',tibble:'Tibbles'}[id]||id);
 const counts=(values,name)=>Object.entries(values).filter(([,n])=>n>0).map(([id,n])=>`${esc(name(id))}: ${number(n)}`).join(' · ')||'None detected';
+export function surveyedSectorDetails(s,planetId,x,y){
+  const status=surveyedSectorStatus(s,planetId,x,y);
+  if(status.siteId==='surface')return '';
+  const route=status.route,kit=Object.entries(status.kit||{}).filter(([,amount])=>amount>0);
+  return `<details data-panel-key="sector-expedition-${esc(planetId)}-${x}-${y}"><summary>Expedition from home</summary><p>${esc(status.message)}</p>${route?`<dl><dt>Round-trip fuel</dt><dd>${number(route.fuel)} units</dd><dt>Travel per leg</dt><dd>${number(route.travel)} ticks</dd><dt>First-landing kit</dt><dd>${kit.length?kit.map(([resource,amount])=>`${number(amount)} ${esc(resource)}`).join(' · '):'No additional kit'}</dd></dl>${kit.length?'<p>The kit must be loaded aboard. First arrival consumes it to deploy an empty dock.</p>':''}<p>The standard eligible expedition crew is selected automatically. Crew must load finite service supplies and reach the home shuttle before liftoff.</p><button data-action="sector-launch" data-simulation-action="expedition.surveyed" data-planet="${esc(planetId)}" data-x="${x}" data-y="${y}" ${status.ok?'':'disabled'}>Prepare expedition</button>`:''}${status.siteId?preflightDetails(s,status.siteId):''}</details>`;
+}
 export function planetaryAtlas(s,planetId,selection=null){
   const atlas=planetAtlasData(s,planetId,selection),launch=launchForPlanet(s,planetId);
   if(!atlas.unlocked)return `<details data-panel-key="planet-atlas-${esc(planetId)}"><summary>Surface survey · satellite required</summary><p>Launch a supplied survey satellite from this planet to reveal its surface biomes, life and finite resources.</p>${launch}</details>`;
@@ -69,10 +71,11 @@ export function planetaryAtlas(s,planetId,selection=null){
   const {selected,survey}=atlas,cell=12,rise=Math.sqrt(3)*cell,viewWidth=(atlas.width-1)*cell*1.5+cell*2,viewHeight=(atlas.height+.5)*rise;
   const cells=atlas.sectors.map(sector=>{
     const cx=cell+sector.x*cell*1.5,cy=rise/2+(sector.y+(sector.x%2)/2)*rise,active=sector.x===selected.x&&sector.y===selected.y;
+    const known=sectorLanding(s,planetId,sector.x,sector.y),visited=known&&(known==='surface'||s.sites[known]?.explored);
     const points=Array.from({length:6},(_,i)=>`${cx+Math.cos(i*Math.PI/3)*cell},${cy+Math.sin(i*Math.PI/3)*cell}`).join(' ');
-    return `<g role="button" tabindex="${active?0:-1}" aria-label="Sector ${sector.x}, ${sector.y}: ${esc(sector.name)}" aria-pressed="${active}" data-action="atlas-sector" data-ui-action="planet.sector" data-entity="sector:${esc(planetId)}:${sector.x}:${sector.y}" data-planet="${esc(planetId)}" data-x="${sector.x}" data-y="${sector.y}" style="cursor:pointer"><title>${esc(sector.name)} · ${sector.x}, ${sector.y}</title><polygon points="${points}" fill="${sector.color}" stroke="${active?'#fff0c2':'#172936'}" stroke-width="${active?2.5:.8}"/>${sector.x===atlas.landing.x&&sector.y===atlas.landing.y?`<circle cx="${cx}" cy="${cy}" r="3" fill="#fff0c2" pointer-events="none"/>`:''}</g>`;
+    return `<g role="button" tabindex="${active?0:-1}" aria-label="Sector ${sector.x}, ${sector.y}: ${esc(sector.name)}" aria-pressed="${active}" data-action="atlas-sector" data-ui-action="planet.sector" data-entity="sector:${esc(planetId)}:${sector.x}:${sector.y}" data-planet="${esc(planetId)}" data-x="${sector.x}" data-y="${sector.y}" style="cursor:pointer"><title>${esc(sector.name)} · ${sector.x}, ${sector.y}</title><polygon points="${points}" fill="${sector.color}" stroke="${active?'#fff0c2':'#172936'}" stroke-width="${active?2.5:.8}"/>${known?`<circle cx="${cx}" cy="${cy}" r="3" fill="${visited?'#fff0c2':'none'}" stroke="#fff0c2" stroke-width="1.2" pointer-events="none"/>`:''}</g>`;
   }).join('');
-  return `<details data-panel-key="planet-atlas-${esc(planetId)}"><summary>Surface survey · satellite in orbit</summary><p>Select a hex sector, or use arrow keys on the map. The pale dot marks the known landing.</p><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${viewWidth} ${viewHeight}" role="group" aria-label="Planetary surface sectors" style="display:block;width:100%;margin:12px 0">${cells}</svg>${atlas.legacy?'<p>The known landing preserves your existing colony map. Other sectors show a newly derived orbital survey.</p>':''}<div data-entity="sector:${esc(planetId)}:${selected.x}:${selected.y}" data-atlas-selection><h3>${esc(atlas.environment.name)} · ${selected.x}, ${selected.y}</h3><p>${atlas.live?'Known landing · current ground map':'Unvisited sector · initial survey only'} · ${survey.size} × ${survey.size} tiles</p><dl><dt>Biomes</dt><dd>${counts(survey.biomes,id=>WORLD_BIOMES[id]?.name||id)}</dd><dt>Ore remaining</dt><dd>${number(survey.resources.ore)} units</dd><dt>Ice remaining</dt><dd>${number(survey.resources.ice)} units</dd><dt>Surface liquid water</dt><dd>${number(survey.resources.water)} units</dd><dt>Living plant patches</dt><dd>${counts(survey.flora,id=>FLORA[id]?.name||id)}</dd><dt>Life detected</dt><dd>${counts(survey.wildlife,animalName)}</dd><dt>${atlas.live?'Current ground temperature':'Night / day envelope'}</dt><dd>${number(survey.temperature.min)} to ${number(survey.temperature.max)}°C</dd></dl>${atlas.live?`<p>These readings follow the existing map, including extraction, water movement and living populations. Stored supplies are excluded.</p><button data-action="inspect-site" data-ui-action="site.inspect" data-site="${esc(atlas.site)}">Open ${esc(siteDefinition(s,atlas.site).name)} map</button>`:'<p>Initial amounts come from this sector’s terrain generation. This is a remote survey; no colony or travel route exists here.</p>'}</div></details>`;
+  return `<details data-panel-key="planet-atlas-${esc(planetId)}"><summary>Surface survey · satellite in orbit</summary><p>Select a hex sector, or use arrow keys on the map. Dots mark visited landings; rings mark prepared or known landings.</p><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${viewWidth} ${viewHeight}" role="group" aria-label="Planetary surface sectors" style="display:block;width:100%;margin:12px 0">${cells}</svg>${atlas.legacy?'<p>The known landing preserves your existing colony map. Other sectors show a newly derived orbital survey.</p>':''}<div data-entity="sector:${esc(planetId)}:${selected.x}:${selected.y}" data-atlas-selection data-atlas-status="${atlas.prepared?'prepared':atlas.live?'live':'survey'}"><h3>${esc(atlas.environment.name)} · ${selected.x}, ${selected.y}</h3><p>${atlas.prepared?'Prepared destination · not yet visited':atlas.live?'Known landing · current ground map':'Unvisited sector · initial survey only'} · ${survey.size} × ${survey.size} tiles</p><dl><dt>Biomes</dt><dd>${counts(survey.biomes,id=>WORLD_BIOMES[id]?.name||id)}</dd><dt>Ore remaining</dt><dd>${number(survey.resources.ore)} units</dd><dt>Ice remaining</dt><dd>${number(survey.resources.ice)} units</dd><dt>Surface liquid water</dt><dd>${number(survey.resources.water)} units</dd><dt>Living plant patches</dt><dd>${counts(survey.flora,id=>FLORA[id]?.name||id)}</dd><dt>Life detected</dt><dd>${counts(survey.wildlife,animalName)}</dd><dt>${atlas.live?'Current ground temperature':'Night / day envelope'}</dt><dd>${number(survey.temperature.min)} to ${number(survey.temperature.max)}°C</dd></dl>${atlas.live?`<p>These readings follow the existing map, including extraction, water movement and living populations. Stored supplies are excluded.</p><button data-action="inspect-site" data-ui-action="site.inspect" data-site="${esc(atlas.site)}">Open ${esc(siteDefinition(s,atlas.site).name)} map</button>`:atlas.prepared?'<p>This destination is prepared for an expedition. The readings remain initial orbital estimates until the first arrival; a dock still requires the supplied landing kit.</p>':'<p>Initial amounts come from this sector’s terrain generation. Prepare a supplied expedition to establish a landing here.</p>'}${surveyedSectorDetails(s,planetId,selected.x,selected.y)}</div></details>`;
 }
 export function naturalTileDetails(tile){
   return tile?.biome?`<dt>Biome</dt><dd>${esc(WORLD_BIOMES[tile.biome]?.name||tile.biome)}</dd><dt>Local exterior offset</dt><dd>${tile.temperatureOffset>0?'+':''}${tile.temperatureOffset??0}°C</dd>`:'';

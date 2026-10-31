@@ -84,6 +84,7 @@ register('crew.suit.release','releaseSuitOxygen','Release finite suit oxygen int
 register('crew.labor','setLabor','Enable or disable one work duty.',{crew,labor:enumeration(Object.keys(LABORS)),enabled},sim.setLabor);
 register('job.priority','setJobPriority','Set assignment priority for a pending job.',{job,priority},sim.setJobPriority);
 register('expedition.launch','launch','Plan supplied loading and boarding. Choose two crew, or one pilot for an already established wreck outpost; omitting crewIds still selects two.',{site,crewIds:optional({type:'array',items:crew,minItems:1,maxItems:2,uniqueItems:true})},sim.launch);
+register('expedition.surveyed','launchSurveyedSector','Prepare a supplied expedition to a satellite-surveyed sector. First landings require a delivered kit of 6 alloy and 2 components; maps and native life persist after preparation.',{planetId:{type:'string',entityType:'planet'},x:integer(0,23),y:integer(0,11),crewIds:optional({type:'array',items:crew,minItems:1,maxItems:2,uniqueItems:true})},sim.launchSurveyedSector);
 register('expedition.cancel_departure','cancelDeparture','Cancel preparation; loaded stores stay aboard.',{},sim.cancelDeparture);
 register('expedition.recall','recall','Order expedition crew back to their shuttle.',{},sim.recall);
 register('expedition.resume','resumeExpedition','Resume field work before return departure.',{},resumeExpedition);
