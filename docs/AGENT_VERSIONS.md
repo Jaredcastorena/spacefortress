@@ -2,10 +2,11 @@
 
 [CASTOR entry briefing](../CASTOR.md) · [Changelog](../CHANGELOG.md) · [File map](FILE_MAP.md)
 
-This ledger separates application releases, colony save schemas, grid topology and instrumentation versions. Do not infer one from another or from the browser storage-key suffix.
+This ledger separates application releases, colony save schemas, grid topology and instrumentation versions. Do not infer one from another or from the browser storage-key suffix. Rows labelled Local retain their historical checkpoint state and publication notes; the v0.1.13 row identifies the combined release.
 
 | Source/release | Colony schema and grid | Meaning |
 | --- | --- | --- |
+| v0.1.13 (October 30, 2026) | 78, hex; region3 for new worlds; observation/recording12 | Combines all updates since v0.1.12: procedural ecology and paid satellite surveys, persistent supplied sector visits, IndexedDB saves, pressure/gas heat, routed breakers/fuses, recruitment, depot limits, herd warnings, paid cells and staffed fuel synthesis. Existing worlds and physical custody remain intact. Elements laboratory remains schema3. [Release scope](../CHANGELOG.md) and [verification limits](verification-status.md). |
 | Local gas-carried heat (October 30, 2026) | 78, hex; region3 unchanged; observation/recording12 | Structural plus gas heat capacity, finite room/network energy, thermal node pressure, actual-temperature airlock forecasts and explicit old-save baselines. Packaged cargo temperatures, compression work and water phases remain pending. |
 | Local surveyed-sector travel (October 30, 2026) | 77, hex; region3 unchanged; observation/recording11 | Optional lazy sector registry, supplied first-landing kit and persistent local settlements. Animal systems, work and observations use actual site/floor ownership. Existing catalogs/maps and schema76 physical state remain intact. Package0.1.12, unpublished. [Rules](sector-travel.md) and [verification](verification-status.md). |
 | Local durable browser saves (October 30, 2026) | 76, hex; region3 and observation/recording10 unchanged | IndexedDB storage, preserved localStorage migration, ordered atomic commits and asynchronous save/import controls. Existing synchronous persistence API and JSON format unchanged. Package0.1.12, unpublished. See [save rules](browser-storage.md) and [verification status](verification-status.md). |
@@ -81,7 +82,7 @@ This ledger separates application releases, colony save schemas, grid topology a
 | v0.1.1, CHANGELOG date2026-09-29 |37, square | Separate residence, return passengers, freight and dock imports. |
 | v0.1.0, CHANGELOG date2026-09-23 |36, square | Initial playable release. |
 
-Current colony source: [data](../src/data.js), [geometry](../src/geometry.js), [simulation validation](../src/simulation.js), [package metadata](../package.json). Current elements laboratory: schema3 in [elements](../src/elements.js). Observation/recording schema10 is a third, separate version in [telemetry](../src/telemetry.js).
+Current colony source: [data](../src/data.js), [geometry](../src/geometry.js), [simulation validation](../src/simulation.js), [package metadata](../package.json). Current elements laboratory: schema3 in [elements](../src/elements.js). Observation/recording schema12 is a third, separate version in [telemetry](../src/telemetry.js).
 
 The current hex loader rejects square schemas1–39. Historical compressed square fixtures establish rejection/protection behavior; their presence does not establish migration support. Hex40–49 compatibility requires the validated hex topology marker and subsystem migration rules.
 
