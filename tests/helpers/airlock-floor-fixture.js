@@ -17,9 +17,9 @@ export function floorFixture({configure=true}={}){
  site.levels.push({z:1,name:'Upper deck'});site.tiles.push(...upper);const f=floorRefs(s);f.tile(...STAGING.outer).terrain='floor';
  site.energy.initial+=upper.reduce((sum,t)=>sum+(t.charge||0),0);
  for(const t of upper)if(t.gasStore)for(const k of ['oxygen','inert','co2'])site.gasNetwork.loaded[k]+=t.gasStore.gas[k];
- updateRooms(site);initializeThermal(s);Object.assign(f,floorRefs(s));
+ updateRooms(site);Object.assign(f,floorRefs(s));
  for(const [room,old] of [[f.chamber,base.chamber],[f.habitat,base.habitat]]){room.gas=structuredClone(old.gas);room.smoke=old.smoke;room.heat=old.heat;site.fireSafety.smokeProduced+=room.smoke;}
- refreshAtmosphere(site);s.crew[0].z=1;refreshPower(s,site);
+ initializeThermal(s);refreshAtmosphere(site);s.crew[0].z=1;refreshPower(s,site);
  if(configure){assert.equal(executeAction(s,'airlock.configure',CONFIG).ok,true);const r=executeAction(s,'airlock.configure',{...CONFIG,z:1});assert.equal(r.ok,true,r.message);}
  return f;
 }

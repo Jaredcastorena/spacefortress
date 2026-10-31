@@ -1,6 +1,6 @@
 # Room pressure and temperature
 
-Local save schema75 couples room pressure to the existing room heat model. Package 0.1.12 is unchanged; this work is not yet published.
+Schema75 introduced temperature-dependent room pressure. Local schema78 extends it to finite gas-carried heat and pipe/tank temperatures. Package0.1.12 is unchanged; these local changes are not yet published.
 
 ## Shared quantities
 
@@ -10,7 +10,7 @@ At 20 °C (293.15 K), ten gas units per floor tile produce 100% nominal pressure
 - Oxygen partial pressure: `oxygen / (10 × V) × T / 293.15`, as a fraction of nominal pressure.
 - Gas required for target P: `10 × V × P / 100 × 293.15 / T`.
 
-Temperature retains the existing game thermal mass: `T = heat / (20 × V)`. Heating a sealed room raises pressure without creating gas. Cooling lowers pressure and available oxygen partial pressure even when oxygen concentration is unchanged. Breathing still requires 55–150% total pressure, 16–30% oxygen partial pressure, at most 2% CO2 and smoke below its existing limit. At zero kelvin, pressure is zero and positive fill targets are unavailable; devices do not consume supply trying to satisfy an infinite request.
+Current room capacity includes structural mass and gas: `T = heat / (20 × V + 0.2 × N)`. Heating a sealed room raises pressure without creating gas. Cooling lowers pressure and available oxygen partial pressure even when oxygen concentration is unchanged. Breathing still requires 55–150% total pressure, 16–30% oxygen partial pressure, at most 2% CO2 and smoke below its existing limit. At zero kelvin, pressure is zero. A fixed-temperature positive target is unavailable, but incoming warm gas can supply finite energy; actual vents solve the final mixed pressure against available gas.
 
 ## Interacting systems
 
@@ -22,8 +22,8 @@ An airlock normally targets rounded habitat pressure. If that finite predicted m
 
 ## Saves and limits
 
-Schemas40–74 validate their original density-only readings before migration recalculates room pressure, room air and the site air summary. Existing gas, heat, supplies, jobs, timing and RNG are preserved. Current schema75 rejects caches inconsistent with actual gas and heat. An older colony may therefore load with different breathing conditions; no supply is created to compensate.
+Schemas40–74 validate their original density-only readings before migration recalculates room pressure, room air and the site air summary. That migration preserves existing gas, heat, supplies, jobs, timing and RNG. Schema78 then preserves structural heat and temperature while introducing an explicit baseline for previously untracked gas energy. Schema75 and later reject caches inconsistent with actual gas and heat. An older colony may therefore load with different breathing conditions; no supply is created to compensate.
 
-Gas and heat remain separate conserved ledgers. Flowing gas does not yet carry heat. Pipes and tanks use a fixed 20 °C reference, including their capacity and passive equalization. Water heat, steam and broader thermodynamics remain future work. These are game-scale quantities, not an engineering model.
+Flowing gas now carries energy, and node pressure uses actual temperature. The combined thermal ledger covers rooms and network contents. [Gas heat rules](gas-heat.md) explain migration, topology and the explicit20°C packaged-gas boundary. Water heat, steam, compression work and broader thermodynamics remain future work. These are game-scale quantities, not an engineering model.
 
 Focused coverage is in [core pressure](../tests/room-pressure.test.js), [gas devices and suits](../tests/room-pressure-devices.test.js) and [airlocks](../tests/room-pressure-airlocks.test.js). The [verification index](verification-status.md) states executed evidence and remaining acceptance work.

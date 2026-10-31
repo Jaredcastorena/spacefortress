@@ -13,7 +13,8 @@ import { initializeAirlocks } from '../src/airlock-persistence.js';
 import { updateRooms, roomAt, fillRoom, refreshAtmosphere } from '../src/atmosphere.js';
 import { initializeThermal } from '../src/thermal.js';
 import { gasAtRoomPressure } from '../src/room-pressure.js';
-import { newPipe } from '../src/gas-networks.js';
+import { newPipe, gasNode } from '../src/gas-networks.js';
+import { roomHeatCapacity, gasEnergy, GAS_REFERENCE_KELVIN } from '../src/gas-thermal.js';
 import { executeAction } from '../src/controls.js';
 import { PLACEMENTS } from '../tools/paid-airlock-example.mjs';
 import { physicalMaterialOwners, physicalBalances } from '../tools/paid-air-recovery.mjs';
@@ -53,6 +54,13 @@ function synthetic() {
   updateRooms(site); initializeThermal(state); fillRoom(roomAt(site, 10, 11)); fillRoom(roomAt(site, 10, 13));
   refreshAtmosphere(site); initializePower(state, site, 120); refreshPower(state, site); syncResources(state);
   return deserialize(serialize(state));
+}
+
+// These fixtures prepare finite gas before any native tick or recording. The
+// initial energy baseline includes both prepared room and network contents.
+function preparedHeatBaseline(state) {
+  assert.equal(state.tick,0);
+  for(const site of Object.values(state.sites))site.thermal.initial=site.rooms.reduce((n,r)=>n+r.heat,0)+site.tiles.reduce((n,t)=>n+(gasNode(t)?.heat||0),0);
 }
 
 async function preserve(name, output) {
@@ -140,10 +148,10 @@ test('synthetic first new harm stops on its full tick without restoration', asyn
 
 test('synthetic finite refill status includes its pocket but rejects an insufficient reserve', () => {
   const state = synthetic(), site = state.sites.surface, chamber = roomAt(site, 10, 13), node = tileAt(site, 10, 13).gasStore;
-  const original = Object.fromEntries(Object.entries(chamber.gas).map(([key, n]) => [key, n / 2])); fillRoom(chamber, 0); node.gas = original; site.gasNetwork.extracted = { ...original }; refreshAtmosphere(site);
-  const save = serialize(state); assert.equal(serialize(deserialize(save)), save);
+  const original = Object.fromEntries(Object.entries(chamber.gas).map(([key, n]) => [key, n / 2])); fillRoom(chamber, 0); node.gas = original; node.heat = gasEnergy(original,GAS_REFERENCE_KELVIN); site.gasNetwork.extracted = { ...original }; refreshAtmosphere(site);
+  preparedHeatBaseline(state);const save = serialize(state); assert.equal(serialize(deserialize(save)), save);
   const status = commissioningStatus(state); assert.equal(status.r.supply, Object.values(original).reduce((n, q) => n + q, 0));
-  assert.ok(status.r.supply > 0 && status.r.supply < status.r.fillNeeded); assert.equal(status.r.blocker, 'supply_empty');
+  assert.ok(status.r.supply > 0);assert.equal(status.r.fillNeeded,status.r.supply);assert.equal(status.r.fillReachable,false); assert.equal(status.r.blocker, 'supply_empty');
   assert.equal(status.readyToBind, false); assert.equal(serialize(state), save);
 });
 
@@ -152,10 +160,10 @@ test('synthetic finite refill uses the actual rounded target and only available 
     const state = synthetic(), site = state.sites.surface;
     fillRoom(roomAt(site, 10, 13), 0);
     const gas = { oxygen: volume * .16, inert: volume * .84, co2: 0 };
-    tileAt(site, 10, 16).gasStore.gas = { ...gas }; site.gasNetwork.loaded = { ...gas }; refreshAtmosphere(site);
+    tileAt(site, 10, 16).gasStore.gas = { ...gas };tileAt(site, 10, 16).gasStore.heat=gasEnergy(gas,GAS_REFERENCE_KELVIN); site.gasNetwork.loaded = { ...gas }; refreshAtmosphere(site);preparedHeatBaseline(state);
     const before = serialize(state); assert.equal(serialize(deserialize(before)), before);
     const status = commissioningStatus(state);
-    assert.equal(status.r.supply, volume); assert.equal(status.r.fillNeeded, 19.6);
+    assert.equal(status.r.supply, volume); assert.ok(Math.abs(status.r.fillNeeded-19.6)<1e-8);assert.equal(status.r.fillReachable,true);
     assert.equal(status.r.predicted.breathable, breathable);
     assert.equal(status.r.blocker, breathable ? null : 'contaminated_mix');
     assert.equal(status.readyToBind, breathable); assert.equal(serialize(state), before);
@@ -164,10 +172,10 @@ test('synthetic finite refill uses the actual rounded target and only available 
 
 for (const celsius of [8, 35]) test(`synthetic commissioning shares the finite alternate target at ${celsius}C`, () => {
   const state = synthetic(), site = state.sites.surface, chamber = roomAt(site, 10, 13), habitat = roomAt(site, 10, 11);
-  chamber.heat = chamber.volume * 20 * (273.15 + celsius); fillRoom(chamber, 0);
+  chamber.heat = roomHeatCapacity(chamber) * (273.15 + celsius); fillRoom(chamber, 0);
   habitat.heat *= .994; // Live99.4% pressure deliberately differs from its cache.
   const supply = gasAtRoomPressure(chamber, 100);
-  tileAt(site, 10, 16).gasStore.gas = { oxygen: supply * .161, inert: supply * .839, co2: 0 };
+  tileAt(site, 10, 16).gasStore.gas = { oxygen: supply * .161, inert: supply * .839, co2: 0 };tileAt(site, 10, 16).gasStore.heat=gasEnergy(tileAt(site,10,16).gasStore.gas,273.15+celsius);
   const before = serialize(state), status = commissioningStatus(state);
   assert.equal(status.r.target, 100, 'rounded99% would fall below the oxygen floor');
   assert.ok(Math.abs(status.r.fillNeeded - gasAtRoomPressure(chamber, 97.4)) < 1e-8);
@@ -175,11 +183,11 @@ for (const celsius of [8, 35]) test(`synthetic commissioning shares the finite a
   assert.ok(Math.abs(status.r.predicted.pressure - 100) < 1e-8); assert.equal(serialize(state), before);
 });
 
-test('synthetic commissioning reports an impossible zero-K fill without spending supply', () => {
+test('synthetic commissioning reports unsafe zero-K gas without spending supply', () => {
   const state = synthetic(), chamber = roomAt(state.sites.surface, 10, 13); chamber.heat = 0;
   const before = serialize(state), status = commissioningStatus(state);
-  assert.equal(status.r.blocker, 'unsafe_temperature'); assert.equal(status.r.fillNeeded, null);
-  assert.equal(status.r.predicted, null); assert.equal(status.readyToBind, false); assert.equal(serialize(state), before);
+  assert.equal(status.r.blocker, 'unsafe_temperature'); assert.equal(status.r.fillNeeded, 0);assert.equal(status.r.fillReachable,false);
+  assert.equal(status.r.predicted.fillAmount,0);assert.equal(status.r.predicted.pressure,0);assert.equal(status.r.predicted.thermalSafe,false); assert.equal(status.readyToBind, false); assert.equal(serialize(state), before);
 });
 
 test('options and CLI enforce lower-only caps and distinct canonical destinations', () => {

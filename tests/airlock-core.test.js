@@ -15,6 +15,7 @@ import { continueCrewTraversal, advanceCrewRoute } from '../src/crew-traversal.j
 import { neighbors } from '../src/geometry.js';
 import { prepareAirlocks } from '../src/airlocks.js';
 import { initializeStorage } from '../src/inventory.js';
+import { roomHeatCapacity, gasEnergy, GAS_REFERENCE_KELVIN } from '../src/gas-thermal.js';
 
 // Every installation here is a labeled synthetic fixture; paid acceptance is separate.
 test('synthetic real-physics outward and inward cycles conserve species, smoke and allocated energy',()=>{
@@ -59,12 +60,12 @@ test('power loss stops actual transfers, retains cargo and closes clear doors be
 
 for(const [label,modify,reason] of [
  ['reachable recovery capacity',f=>{for(const t of [...airlockLayout(f.site,f.controller).recoveryNodes,...airlockLayout(f.site,f.controller).storageNodes])gasNode(t).gas=mix(gasCapacity(t));},'reservoir_full'],
- ['empty refill reserve',f=>{f.chamber.gas=mix(0);refreshRoom(f.chamber);for(const t of f.site.tiles)if(gasNode(t))gasNode(t).gas=mix(0);},'supply_empty'],
- ['dirty refill reserve',f=>{f.chamber.gas=mix(0);refreshRoom(f.chamber);f.reservoir.gasStore.gas={oxygen:0,inert:0,co2:35};},'contaminated_mix'],
- ['unsafe real temperature',f=>{f.chamber.heat=f.chamber.volume*20*(273.15-10);},'unsafe_temperature'],
+ ['empty refill reserve',f=>{f.chamber.gas=mix(0);f.chamber.heat=roomHeatCapacity(f.chamber)*GAS_REFERENCE_KELVIN;refreshRoom(f.chamber);for(const t of f.site.tiles)if(gasNode(t))gasNode(t).gas=mix(0);},'supply_empty'],
+ ['dirty refill reserve',f=>{f.chamber.gas=mix(0);f.chamber.heat=roomHeatCapacity(f.chamber)*GAS_REFERENCE_KELVIN;refreshRoom(f.chamber);f.reservoir.gasStore.gas={oxygen:0,inert:0,co2:35};},'contaminated_mix'],
+ ['unsafe real temperature',f=>{f.chamber.heat=roomHeatCapacity(f.chamber)*(273.15-10);},'unsafe_temperature'],
  ['insufficient suit reserve',f=>{f.crew.oxygen=1;},'insufficient_suit'],
 ])test(`synthetic ${label} pauses admission with a measured blocker`,()=>{
- const f=fixture();modify(f);request(f);const before=ledger(f);physicalTick(f);
+ const f=fixture();modify(f);for(const t of f.site.tiles)if(gasNode(t))gasNode(t).heat=gasEnergy(gasNode(t).gas,GAS_REFERENCE_KELVIN);request(f);const before=ledger(f);physicalTick(f);
  assert.equal(f.controller.airlock.phase,'paused');assert.equal(f.controller.airlock.reason,reason);
  assert.equal(f.controller.airlock.party,null);assert.equal(f.inner.doorMode,'closed');assert.equal(f.outer.doorMode,'closed');assertLedger(f,before);
 });
@@ -174,9 +175,9 @@ function finiteRefillFixture(reserve) {
  const f=fixture({chamberGas:.2,reserveGas:reserve,smoke:0});
  const lean=amount=>({oxygen:amount*.161,inert:amount*.839,co2:0});
  f.chamber.gas=lean(.2);f.habitat.gas=mix(f.habitat.volume*10);
- for(const room of [f.chamber,f.habitat]){room.smoke=0;room.heat=room.volume*20*293.15;refreshRoom(room);}
- for(const t of f.site.tiles)if(gasNode(t)){gasNode(t).gas=mix(0);gasNode(t).smoke=0;}
- f.reservoir.gasStore.gas=lean(reserve);f.site.gasNetwork.loaded=lean(reserve);
+ for(const room of [f.chamber,f.habitat]){room.smoke=0;room.heat=roomHeatCapacity(room)*293.15;refreshRoom(room);}
+ for(const t of f.site.tiles)if(gasNode(t)){gasNode(t).gas=mix(0);gasNode(t).smoke=0;gasNode(t).heat=0;}
+ f.reservoir.gasStore.gas=lean(reserve);f.reservoir.gasStore.heat=gasEnergy(f.reservoir.gasStore.gas,GAS_REFERENCE_KELVIN);f.site.gasNetwork.loaded=lean(reserve);
  [f.crew.x,f.crew.y]=CONFIG.chamber;
  return f;
 }
@@ -215,10 +216,10 @@ test('synthetic lean reserve 19.7 remains contained when cooling exhausts its sa
   assert.equal(JSON.stringify(f.controller.airlock.party),party);assert.equal(f.controller.airlock.cycle,cycle);
  }});
  assert.equal(f.controller.airlock.phase,'paused');assert.deepEqual([f.crew.x,f.crew.y],CONFIG.chamber);
- const layout=airlockLayout(f.site,f.controller),all={...f.chamber.gas};let remaining=0;
- for(const t of layout.phaseNodes.refill){const gas=gasNode(t).gas;for(const k of Object.keys(all))all[k]+=gas[k];remaining+=Object.values(gas).reduce((a,b)=>a+b,0);}
+ const layout=airlockLayout(f.site,f.controller),all={...f.chamber.gas};let remaining=0,heat=f.chamber.heat;
+ for(const t of layout.phaseNodes.refill){const gas=gasNode(t).gas;heat+=gasNode(t).heat;for(const k of Object.keys(all))all[k]+=gas[k];remaining+=Object.values(gas).reduce((a,b)=>a+b,0);}
  assert.ok(remaining>0&&remaining<19.7);close(Object.values(all).reduce((a,b)=>a+b,0),19.9,'finite refill gas');
- assert.equal(airlockRoomReading({...f.chamber,gas:all}).breathable,false,'even every remaining gas parcel cannot make a safe mixture');
+ assert.equal(airlockRoomReading({...f.chamber,gas:all,heat}).breathable,false,'even every remaining gas parcel cannot make a safe mixture');
  assert.equal(airlockSideBlock(f.site,f.controller,'inner'),'contaminated_mix');assertLedger(f,before);
 });
 
@@ -229,7 +230,7 @@ test('synthetic finite refill rejects reserve that cannot reach safe oxygen part
 });
 
 test('synthetic refill keeps the rounded habitat target and status remains read-only',()=>{
- const f=finiteRefillFixture(20);f.habitat.gas=mix(f.habitat.volume*10*.996);refreshRoom(f.habitat);
+ const f=finiteRefillFixture(20);f.habitat.gas=mix(f.habitat.volume*10*.996);f.habitat.heat=roomHeatCapacity(f.habitat)*GAS_REFERENCE_KELVIN;refreshRoom(f.habitat);
  request(f,'inward');until(f,()=>f.site.gasNetwork.delivered.oxygen>0,{max:20,label:'physical vent starts'});
  assert.equal(f.controller.airlock.reason,null);assert.equal(f.vent.gasDevice.target,100);
  const before=snapshot(f.s);airlockStatus(f.s,f.site,f.controller);assert.equal(snapshot(f.s),before);

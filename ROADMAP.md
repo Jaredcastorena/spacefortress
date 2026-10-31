@@ -2,14 +2,15 @@
 
 ## Current systems work
 
-- [x] Local after v0.1.12: move browser colony saves to IndexedDB, with ordered transactional writes, preserved legacy saves and commit-aware save/import controls. This prepares storage for larger persistent worlds; sector travel remains pending.
+- [x] Local after v0.1.12: move browser colony saves to IndexedDB, with ordered transactional writes, preserved legacy saves and commit-aware save/import controls. This supports larger persistent worlds and the supplied sector travel below.
 - [x] Local after v0.1.12: generate 48 × 48 home and 32 × 32 remote maps with connected terrain, native ecology, finite ore/ice/water and local exterior temperatures. Save76/region3 preserves existing worlds without regeneration.
 - [x] Local after v0.1.12: assemble and launch a paid survey satellite through ordinary delivered engineering work; reveal a selectable planet atlas with live known-landing readings and same-generator unvisited-sector previews. Observation10 records planet identity and launch. [Mechanics and limits](docs/procedural-maps.md).
 - [x] Local after v0.1.12: prepare actual supplied trips to surveyed sectors, deploy paid first-landing docks, ship construction materials, build locally and revisit persistent maps. Native animals and their services use the actual settlement and floor. Save77 preserves old worlds; observation/recording11 exposes canonical destination metadata. [Rules](docs/sector-travel.md).
 - [ ] Add remote-to-remote travel and broader history/discovery; establish sustained ordinary habitation at new settlements.
 
 - [x] Local after v0.1.12: couple room pressure to temperature across breathing, gas flow, life support, vents, exhaust, suit transfers, airlocks, fire and reactor cooling. Schema75 preserves old physical state and updates derived readings. Automatic supplies batch tiny deficits while retaining finite partial deliveries.
-- [ ] Extend thermal transport to carried gas and pipe/tank contents; add finite water heat and phase changes.
+- [x] Local after v0.1.12: carry finite gas energy through rooms, pipes, tanks, vents, exhaust and leaks; couple node pressure and airlock predictions to actual temperature. Save78 preserves prior physical quantities and room temperatures; observation12 exposes thermal diagnostics. [Model and limits](docs/gas-heat.md).
+- [ ] Add finite water heat and phase changes, compression work and thermal histories of packaged cargo.
 
 Release v0.1.12 adds engineering kits and a three-planet, eight-site system with hierarchical navigation. It builds on the paid material choices, repairs and finite slab heat conduction from v0.1.11, while retaining existing colony worlds. Local follow-up adds fuel synthesis from recovered solar cells and delivered water, and haulers now install those cells into surface batteries. Next checkpoints include wider industry, bounded upstairs habitation and sustained outpost supply.
 

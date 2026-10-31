@@ -1,12 +1,31 @@
+import {roomKelvin,roomStructureCapacity} from '../../src/gas-thermal.js';
 import {isDeepStrictEqual} from 'node:util';
 import {createGame} from '../../src/simulation.js';
 import {validateRegion} from '../../src/region.js';
 import {validateMaterials} from '../../src/materials.js';
 
+// Synthetic historical fixtures retain structural heat while omitting gas
+// energy that those formats could not represent. Adjust only their baseline;
+// all recorded transfers and physical gas quantities remain explicit.
+export function projectPreGasHeat(state){
+  const projected=structuredClone(state);
+  for(const site of Object.values(projected.sites)){
+    let omitted=0;
+    for(const room of site.rooms){if(room.gasThermal===true){const structural=roomStructureCapacity(room)*roomKelvin(room);omitted+=room.heat-structural;room.heat=structural;delete room.gasThermal;}}
+    for(const tile of site.tiles)for(const node of [tile.pipe,tile.gasStore])if(node&&Object.hasOwn(node,'heat')){omitted+=node.heat;delete node.heat;}
+    if(Object.hasOwn(site.thermal,'gasInitial')){
+      const correction=site.thermal.gasInitial+site.thermal.gasLoaded-site.thermal.gasVented-omitted;
+      if(Math.abs(correction)>Number.EPSILON*Math.max(1,Math.abs(site.thermal.initial))*4)site.thermal.initial+=correction;
+      delete site.thermal.gasInitial;delete site.thermal.gasLoaded;delete site.thermal.gasVented;
+    }
+  }
+  return projected;
+}
+
 // Only the new empty policy is neutral. Configured caps cannot be represented
 // by historical saves, so never hide them while comparing physical state.
 export function projectPreDepotLimits(state) {
-  const projected = structuredClone(state);
+  const projected = projectPreGasHeat(state);
   for (const site of Object.values(projected.sites)) for (const t of site.tiles) {
     if (!t.storage || !Object.hasOwn(t.storage, 'limits')) continue;
     const limits = t.storage.limits;

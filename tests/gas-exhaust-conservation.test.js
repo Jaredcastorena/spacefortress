@@ -4,6 +4,7 @@ import { createGame, at } from '../src/simulation.js';
 import { initializeStorage } from '../src/inventory.js';
 import { initializeElectrical, refreshPower, updatePower } from '../src/power.js';
 import { GASES, gasAmount, mix, roomAt, refreshAtmosphere } from '../src/atmosphere.js';
+import { exportRoomHeat, importRoomHeat, parcelHeat, GAS_REFERENCE_KELVIN } from '../src/gas-thermal.js';
 import { validateFire } from '../src/fire.js';
 import {
   newPipe, gasNode, gasPayload, gasCapacity, gasPressure, gasStatus,
@@ -42,7 +43,8 @@ function contaminate(site, room, co2, smoke) {
 }
 function retain(site, room, tile, gas, smoke) {
   // A fixture representing a completed extraction, not a free resource grant.
-  plus(room.gas, gas, -1); plus(gasNode(tile).gas, gas);
+  const heat=exportRoomHeat(site,room,gasAmount(gas));
+  plus(room.gas, gas, -1); plus(gasNode(tile).gas, gas);gasNode(tile).heat+=heat;
   plus(site.gasNetwork.extracted, gas);
   room.smoke -= smoke; gasNode(tile).smoke += smoke;
   site.gasNetwork.smoke.captured += smoke;
@@ -55,15 +57,17 @@ function totals(site) {
   for (const t of site.tiles) if (gasNode(t)) {
     plus(gas, gasNode(t).gas); smoke += gasNode(t).smoke;
   }
-  return { gas, smoke };
+  const heat=site.rooms.reduce((n,r)=>n+r.heat,0)+site.tiles.reduce((n,t)=>n+(gasNode(t)?.heat||0),0)+site.thermal.gasVented-site.thermal.gasLoaded;
+  return { gas, smoke, heat };
 }
 function conserved(s, before) {
   const site = s.sites.surface, after = totals(site);
   for (const k of GASES) close(after.gas[k], before.gas[k], k);
-  close(after.smoke, before.smoke, 'smoke');
+  close(after.smoke, before.smoke, 'smoke');close(after.heat,before.heat,'combined heat and boundary energy');
   for (const t of site.tiles) if (gasNode(t)) {
     for (const k of GASES) assert.ok(gasNode(t).gas[k] >= 0, `${k} nonnegative`);
-    assert.ok(gasNode(t).smoke >= 0, 'smoke nonnegative');
+    assert.ok(gasNode(t).smoke >= 0, 'smoke nonnegative');assert.ok(gasNode(t).heat>=0,'heat nonnegative');
+    if(gasAmount(gasNode(t).gas)===0)assert.equal(gasNode(t).heat,0,'empty gas owns no heat');
     assert.ok(gasPayload(t) <= gasCapacity(t) + 1e-8, 'finite payload capacity');
   }
   validateGasNetworks(s); validateFire(s);
@@ -119,7 +123,7 @@ test('smoke-only filter output occupies storage and crosses pipes and pumps with
     close(gasPayload(t), gasNode(t).smoke);
   }
   for (const k of GASES) close(room.gas[k], originalGas[k]);
-  close(room.heat, heat, 'gas storage does not model habitat heat transfer');
+  close(room.heat, heat, 'massless smoke carries no heat');
   close(site.fireSafety.smokeCleared, 0);
 });
 
@@ -170,6 +174,7 @@ test('a mostly-smoke supply respects its gas pressure target without losing reta
   // at the target. Most gas and smoke must therefore remain in the vent.
   at(site, 8, 10).stock.air -= 2.9;
   plus(room.gas, mix(2.9)); plus(site.atmosphere.injected, mix(2.9));
+  importRoomHeat(site,room,parcelHeat(2.9,GAS_REFERENCE_KELVIN),{boundary:true});
   refreshAtmosphere(site);
   const before = totals(site);
   refreshPower(s, site); updatePower(s, site);

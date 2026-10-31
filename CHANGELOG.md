@@ -4,6 +4,9 @@ SPACEFORTRESS is an early playable colony simulator. Release entries describe co
 
 ## Unreleased
 
+- Track finite gas heat through room flow, pipe networks, pumps, vents, exhaust, leaks, dismantling and suit boundaries. Node pressure and airlock forecasts use actual temperature; enclosed partition pipes exchange heat with adjacent rooms.
+- Add save78 migration with explicit gas-energy baselines and preserved original quantities, structural heat and room temperatures. Observation/recording12 exposes temperatures, capacities and carried energy.
+
 - Add `expedition.surveyed` and collapsed planetary expedition controls. Prepare a 48 × 48 destination only after survey/crew/shuttle checks, then load normal travel supplies plus a finite first-landing kit of 6 alloy and 2 components. Arrival consumes that kit to deploy an empty dock. Cancelled plans retain their prepared terrain; return visits retain built structures, depletion and living populations.
 - Scope wildlife ecology, post assignments, feeding, collection, medicine, breeding, escorts, carcass work and trap bait to their actual site and floor. Preserve home identities, existing global limits and finite local custody.
 - Add optional save77 sector records without changing existing region catalogs or older maps. Reject admissions that exceed the projected save budget or existing wildlife registry bound. Observation/recording11 adds canonical site definitions and site-aware animal/pasture targets. Package remains 0.1.12; this is local development.

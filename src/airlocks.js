@@ -2,10 +2,10 @@ import { tileAt, positionOf, sameCell } from './spatial.js';
 import { airlockConfig, airlockCells } from './airlock-locations.js';
 import { emitEvent } from './telemetry.js';
 import { refreshAtmosphere } from './atmosphere.js';
-import { roomPressure, gasAtRoomPressure } from './room-pressure.js';
+import { roomPressure } from './room-pressure.js';
 import { refreshPower } from './power.js';
 import { opposite as oppositeDirection } from './geometry.js';
-import { airlockTile as at, airlockId as id, airlockKey as key, airlockRoom, airlockNode as node, airlockGas as gas, airlockPayload as payload, airlockCapacity as capacity, airlockOpen as open, airlockLayout, airlockRouteInfo, airlockPhysicalPath, airlockSideBlock, airlockPermittedSide, airlockRoomReading, airlockGasQuantities as quantities } from './airlock-access.js';
+import { airlockTile as at, airlockId as id, airlockKey as key, airlockRoom, airlockNode as node, airlockGas as gas, airlockPayload as payload, airlockCapacity as capacity, airlockOpen as open, airlockLayout, airlockRouteInfo, airlockPhysicalPath, airlockSideBlock, airlockPermittedSide, airlockRoomReading, airlockGasQuantities as quantities, airlockFillPlan } from './airlock-access.js';
 
 const opposite=side=>side==='inner'?'outer':'inner';
 const members=entry=>entry?[entry.crew,...(entry.patient?[entry.patient]:[])]:[];
@@ -51,20 +51,20 @@ function partyBlock(s,site,t) {
  return null;
 }
 function predictedRefill(layout,q,target) {
- const room=layout.room,quantity=gasAtRoomPressure(room,target);if(quantity===null)return null;
- const total=q.supply,needed=Math.min(total,Math.max(0,quantity-gas(room.gas))),mix={...room.gas};let smoke=room.smoke||0;
- if(total>0)for(const t of q.refill){const n=node(t);for(const k of ['oxygen','inert','co2'])mix[k]+=n.gas[k]*needed/total;smoke+=n.smoke*needed/total;}
- return airlockRoomReading({...room,gas:mix,smoke});
+ const room=layout.room,plan=airlockFillPlan(room,q,target),total=q.supply,mix={...room.gas};let smoke=room.smoke||0;
+ if(total>0)for(const t of q.refill){const n=node(t);for(const k of ['oxygen','inert','co2'])mix[k]+=n.gas[k]*plan.amount/total;smoke+=n.smoke*plan.amount/total;}
+ return {...airlockRoomReading({...room,gas:mix,smoke,heat:room.heat+plan.heat}),fillAmount:plan.amount,fillHeat:plan.heat,targetReachable:plan.reachable};
 }
 function refillTarget(layout,q=quantities(layout)) {
  const pressure=roomPressure(layout.habitat),rounded=Math.max(0,Math.min(150,Math.round(pressure)));
- if(predictedRefill(layout,q,rounded)?.breathable)return rounded;
+ const preferred=predictedRefill(layout,q,rounded);
+ if(preferred.breathable&&preferred.thermalSafe)return rounded;
  // A rounded target can cross the oxygen floor after modest cooling. Prefer
  // it when safe; otherwise try the nearest legal finite fill, lower on ties.
  const candidates=[];
  for(let target=Math.max(0,Math.ceil(pressure-2));target<=Math.min(150,Math.floor(pressure+2));target++)if(target!==rounded)candidates.push(target);
  candidates.sort((a,b)=>Math.abs(a-pressure)-Math.abs(b-pressure)||a-b);
- return candidates.find(target=>{const predicted=predictedRefill(layout,q,target);return predicted?.breathable&&Math.abs(predicted.pressure-pressure)<=2+1e-9;})??rounded;
+ return candidates.find(target=>{const predicted=predictedRefill(layout,q,target);return predicted?.breathable&&predicted.thermalSafe&&Math.abs(predicted.pressure-pressure)<=2+1e-9;})??rounded;
 }
 // Pure finite diagnostics shared by controller admission and commissioning.
 export function airlockResourceStatus(layout,mode=null,admission=true) {
@@ -72,16 +72,15 @@ export function airlockResourceStatus(layout,mode=null,admission=true) {
  const target=needsFill?refillTarget(layout,q):null,predicted=needsFill?predictedRefill(layout,q,target):null;
  const habitat=airlockRoomReading(layout.habitat),chamber=airlockRoomReading(layout.room);
  let blocker=null;
- if(needsFill&&(q.fillNeeded===null||predicted===null))blocker='unsafe_temperature';
- else if((mode==='recover'||admission)&&q.headroom+1e-8<q.recoverNeeded)blocker='reservoir_full';
- else if(needsFill&&q.supply+1e-8<q.fillNeeded)blocker='supply_empty';
- else if(needsFill&&(!habitat.thermalSafe||!chamber.thermalSafe))blocker='unsafe_temperature';
+ if((mode==='recover'||admission)&&q.headroom+1e-8<q.recoverNeeded)blocker='reservoir_full';
+ else if(needsFill&&(!habitat.thermalSafe||!chamber.thermalSafe||!predicted.thermalSafe))blocker='unsafe_temperature';
+ else if(needsFill&&!q.fillReachable)blocker='supply_empty';
  else if(needsFill&&(!habitat.breathable||!predicted.breathable))blocker='contaminated_mix';
- return {blocker,headroom:q.headroom,recoverNeeded:q.recoverNeeded,supply:q.supply,fillNeeded:q.fillNeeded,target,predicted,habitat,chamber};
+ return {blocker,headroom:q.headroom,recoverNeeded:q.recoverNeeded,supply:q.supply,supplyHeat:q.supplyHeat,fillNeeded:q.fillNeeded,fillReachable:q.fillReachable,target,predicted,habitat,chamber};
 }
 const resources=(layout,mode,admission=false)=>airlockResourceStatus(layout,mode,admission).blocker;
 function estimatedTicks(layout) {
- const target=gasAtRoomPressure(layout.room,refillTarget(layout));if(target===null)return null;
+ const q=quantities(layout),target=gas(layout.room.gas)+airlockFillPlan(layout.room,q,refillTarget(layout,q)).amount;
  const nodes=[...layout.recoveryNodes,...layout.storageNodes],deviceRate=Math.min(2,...nodes.filter(t=>['gasExtractor','gasVent'].includes(t.building)).map(t=>2*t.hp/100));
  return Math.ceil((gas(layout.room.gas)+target)/Math.max(.01,deviceRate))+layout.room.cells.length+6+2*nodes.length;
 }

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {gasEnergy,GAS_REFERENCE_KELVIN} from '../../src/gas-thermal.js';
 import { createHash } from 'node:crypto';
 import { createGame, at, serialize } from '../../src/simulation.js';
 import { initializeStorage, syncResources } from '../../src/inventory.js';
@@ -52,10 +53,10 @@ export function fixture({configure=true,chamberGas=20,reserveGas=35,smoke=.02}={
  // Physical cables connect every load and the finite battery bank.
  for(let x=3;x<=8;x++)for(let y=2;y<=7;y++)tile(x,y).cable={enabled:true,hp:100};
  site.rooms=[];site.atmosphere={tick:0,vented:mix(0),injected:mix(0),breathed:0,refilled:0};
- updateRooms(site);initializeThermal(s);
+ updateRooms(site);
  const r=roomAt(site,...CONFIG.chamber),h=roomAt(site,...STAGING.inner);r.gas=finiteMix(chamberGas);r.smoke=smoke;h.gas=finiteMix(10);
  site.fireSafety.smokeProduced=smoke;site.fireSafety.smokeCleared=0;site.fireSafety.smokeVented=0;
- tile(7,3).gasStore.gas=finiteMix(reserveGas);site.gasNetwork.loaded=finiteMix(reserveGas);
+ tile(7,3).gasStore.gas=finiteMix(reserveGas);tile(7,3).gasStore.heat=gasEnergy(tile(7,3).gasStore.gas,GAS_REFERENCE_KELVIN);site.gasNetwork.loaded=finiteMix(reserveGas);initializeThermal(s);
  refreshAtmosphere(site);initializeAirlocks(s);initializePower(s,site,600);
  for(let i=0;i<s.crew.length;i++){const c=s.crew[i];[c.x,c.y]=i?[18,13+i]:STAGING.inner;c.job=null;c.intent=null;for(const k of Object.keys(c.labors))c.labors[k]=false;}
  s.creatures=[];syncResources(s);

@@ -1,5 +1,6 @@
+import {roomPressure} from './room-pressure.js';
 import { SUIT_PER_POINT, gasAmount, roomAt } from './atmosphere.js';
-import { gasAtRoomPressure } from './room-pressure.js';
+import {parcelHeat,GAS_REFERENCE_KELVIN} from './gas-thermal.js';
 import { tileEntityId } from './spatial.js';
 import { immobile } from './mobility.js';
 
@@ -25,11 +26,9 @@ export function suitReleaseStatus(s, crewId) {
   status.destination = { site: `site:${site.id}`, tile: tileEntityId(site.id, c.x, c.y, c.z ?? 0),
     room: `room:${site.id}:${anchor}${room.z ? `:${room.z}` : ''}` };
   if (!(c.oxygen >= 1)) return blocked('insufficient_suit_oxygen', 'Less than one point of suit oxygen remains.');
-  const capacity = gasAtRoomPressure(room, 100);
-  if (capacity === null) return blocked('room_temperature', 'Room temperature cannot support a positive pressure target.');
   for (let points = 100; points >= 1; points--) {
-    const candidate = { ...room.gas, oxygen: room.gas.oxygen + points * SUIT_PER_POINT };
-    if (c.oxygen >= points && gasAmount(candidate) <= capacity) {
+    const oxygen=points*SUIT_PER_POINT,candidate={...room.gas,oxygen:room.gas.oxygen+oxygen};
+    if (c.oxygen >= points && roomPressure({...room,gas:candidate,heat:room.heat+parcelHeat(oxygen,GAS_REFERENCE_KELVIN)})<=100) {
       return { ...status, available: true, maxPoints: points };
     }
   }

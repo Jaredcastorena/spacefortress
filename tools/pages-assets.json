@@ -53,6 +53,7 @@
     "src/fuses.js",
     "src/gas-networks.js",
     "src/gas-panels.js",
+    "src/gas-thermal.js",
     "src/geometry.js",
     "src/hazard-locations.js",
     "src/hex.js",

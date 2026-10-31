@@ -1,4 +1,5 @@
 import test from 'node:test';
+import {roomHeatCapacity} from '../src/gas-thermal.js';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
 import { createGame, at, updateRooms, roomAt, step, order, serialize, deserialize, setLabor } from '../src/simulation.js';
@@ -11,7 +12,7 @@ import { temperature, initializeClimate, updateThermal, setClimate, HEAT_CAPACIT
 const close = (a, b, tolerance = 1e-7) => assert.ok(Math.abs(a - b) < tolerance, `${a} should equal ${b}`);
 const totalHeat = site => site.rooms.reduce((n, r) => n + r.heat, 0);
 function setTemp(site, room, temp) {
-  const heat = (temp + 273.15) * HEAT_CAPACITY * room.volume, change = heat - room.heat;
+  const heat = (temp + 273.15) * roomHeatCapacity(room), change = heat - room.heat;
   site.thermal[change >= 0 ? 'added' : 'removed'] += Math.abs(change); room.heat = heat;
 }
 function fixture() {
@@ -40,9 +41,11 @@ test('room split, merge, new floors and removed volumes account for their therma
   const { s, site, r } = fixture(); setTemp(site, r, 50); const before = totalHeat(site), removed = site.thermal.removed;
   split(site); assert.equal(site.rooms.length, 2); site.rooms.forEach(r => close(temperature(r), 50));
   close(before - totalHeat(site), site.thermal.removed - removed);
+  const retainedHeat=totalHeat(site),retainedCapacity=site.rooms.reduce((n,r)=>n+roomHeatCapacity(r),0);
   for (let y = 7; y <= 11; y++) at(site, 10, y).building = null;
   updateRooms(site); assert.equal(site.rooms.length, 1);
-  close(temperature(site.rooms[0]), (30 * 50 + 5 * 8) / 35);
+  const mergedCapacity=roomHeatCapacity(site.rooms[0]);
+  close(temperature(site.rooms[0]),(retainedHeat+(mergedCapacity-retainedCapacity)*(8+273.15))/mergedCapacity-273.15);
   check(s);
   // Removing every room records all remaining stored heat.
   site.tiles.filter(t => t.terrain === 'floor').forEach(t => t.terrain = 'ground'); updateRooms(site);

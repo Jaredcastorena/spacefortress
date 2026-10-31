@@ -1,4 +1,5 @@
 import { HEAT_CAPACITY, KELVIN_ZERO } from './thermal-units.js';
+import {roomHeatCapacity,roomKelvin,gasEnergy,gasHeatCapacity,nodeKelvin} from './gas-thermal.js';
 export { HEAT_CAPACITY } from './thermal-units.js';
 import { refreshAtmosphere } from './atmosphere.js';
 import {materialProfile} from './materials.js';
@@ -12,12 +13,29 @@ import { neighbors } from './geometry.js';
 import { refreshPower } from './power.js';
 import { BUILDINGS } from './data.js';
 
-// Abstract habitat thermal mass, separate from the gas inventory. Values are game balance units.
+// Structural and gas energy share the room temperature; units remain game-scale.
 const ZERO = KELVIN_ZERO;
-const capacity = r => r.volume * HEAT_CAPACITY;
+const capacity = roomHeatCapacity;
 export const temperature = r => r ? r.heat / capacity(r) - ZERO : null;
-export const thermalSafe = r => !!r && temperature(r) >= 5 && temperature(r) <= 35;
+export function thermalSafe(r){
+  if(!r)return false;
+  const low=capacity(r)*(5+ZERO),high=capacity(r)*(35+ZERO);
+  // Mixed parcels can round a mathematically exact boundary by one floating
+  // point step. This allowance is numerical precision, not a wider safe range.
+  return r.heat>=low-Number.EPSILON*Math.max(low,Math.abs(r.heat)) && r.heat<=high+Number.EPSILON*Math.max(high,Math.abs(r.heat));
+}
 const roomHere = (site,x,y,z=0) => roomAtPosition(site,{x,y,z});
+function nodeContacts(site,tile){
+  const room=roomHere(site,tile.x,tile.y,positionOf(tile).z);if(room)return [room];
+  if(!['wall','door'].includes(tile.building))return [null];
+  const contacts=[];
+  for(const [x,y] of neighbors(tile.x,tile.y)){
+    const adjacent=tileAt(site,{x,y,z:positionOf(tile).z}),room=adjacent&&roomHere(site,x,y,positionOf(tile).z);
+    const contact=room||(!adjacent||(!['wall','door'].includes(adjacent.building)&&!['floor','rock'].includes(adjacent.terrain))?null:undefined);
+    if(contact!==undefined&&!contacts.includes(contact))contacts.push(contact);
+  }
+  return contacts;
+}
 export function outsideTemperature(site, tick) {
   const kind = siteKind(typeof site === 'string' ? { id: site } : site);
   return kind === 'surface' ? (tick % 300 < 220 ? 8 : -35) : ({ wreck: -60, comet: -100, solar: 90 }[kind] ?? 8);
@@ -30,8 +48,8 @@ export function initializeClimate(t) {
 }
 export function initializeThermal(s) {
   for (const site of Object.values(s.sites)) {
-    for (const r of site.rooms) r.heat = capacity(r) * (20 + ZERO);
-    site.thermal = { ambient: outsideTemperature(site, s.tick), initial: site.rooms.reduce((n, r) => n + r.heat, 0), added: 0, removed: 0, environmentIn: 0, environmentOut: 0, equipment: 0, combustion:0, heating: 0, cooling: 0 };
+    for (const r of site.rooms) { r.gasThermal=true; r.heat = capacity(r) * (20 + ZERO); }
+    site.thermal = { ambient: outsideTemperature(site, s.tick), initial: site.rooms.reduce((n, r) => n + r.heat, 0)+site.tiles.reduce((n,t)=>n+(t.pipe?.heat||0)+(t.gasStore?.heat||0),0), added: 0, removed: 0, environmentIn: 0, environmentOut: 0, equipment: 0, combustion:0, heating: 0, cooling: 0, gasInitial:0, gasLoaded:0, gasVented:0 };
     site.tiles.forEach(initializeClimate); refreshAtmosphere(site);
   }
   for (const c of s.crew) c.thermalStress = 0;
@@ -39,17 +57,29 @@ export function initializeThermal(s) {
 // Each retained floor cell keeps its share. New thermal mass enters at exterior temperature.
 export function remapThermal(site, old, rooms) {
   if (!site.thermal) return;
-  const energy = new Map(); old.forEach(r => r.cells.forEach(k => energy.set(roomCellKey(r,k), r.heat / r.volume)));
-  for (const r of rooms) {
-    r.heat = 0;
-    for (const cell of r.cells) {
-      const k=roomCellKey(r,cell);
-      if (energy.has(k)) { r.heat += energy.get(k); energy.delete(k); }
-      else { const p=roomCellPosition(r,cell),added = HEAT_CAPACITY * (outsideTemperatureAt(site,p.x,p.y,p.z) + ZERO); r.heat += added; site.thermal.added += added; }
+  const energy = new Map(), owners=new Map();
+  rooms.forEach((room,i)=>room.cells.forEach(cell=>owners.set(roomCellKey(room,cell),i)));
+  old.forEach(room=>room.cells.forEach(cell=>energy.set(roomCellKey(room,cell),HEAT_CAPACITY*roomKelvin(room))));
+  for (const room of rooms) {
+    room.heat=0;room.gasThermal=true;
+    for (const cell of room.cells) {
+      const key=roomCellKey(room,cell);
+      if(energy.has(key)){room.heat+=energy.get(key);energy.delete(key);}
+      else {const p=roomCellPosition(room,cell),added=HEAT_CAPACITY*(outsideTemperatureAt(site,p.x,p.y,p.z)+ZERO);room.heat+=added;site.thermal.added+=added;}
     }
   }
-  for (const amount of energy.values()) site.thermal.removed += amount;
+  for(const amount of energy.values())site.thermal.removed+=amount;
+  // Gas follows the same retained overlap as updateRooms, rather than being
+  // removed with a demolished slab. A completely lost room vents its parcel.
+  for(const room of old){
+    const heat=room.gasThermal===true?gasEnergy(room.gas,roomKelvin(room)):0,overlap=new Map();
+    for(const cell of room.cells){const owner=owners.get(roomCellKey(room,cell));if(owner!==undefined)overlap.set(owner,(overlap.get(owner)||0)+1);}
+    const retained=[...overlap.values()].reduce((a,b)=>a+b,0);
+    if(!retained)site.thermal.gasVented+=heat;
+    else for(const [i,count] of overlap)rooms[i].heat+=heat*count/retained;
+  }
 }
+
 function links(site) {
   const owners = new Map(); site.rooms.forEach((r, i) => r.cells.forEach(k => owners.set(roomCellKey(r,k), i)));
   const at = (x,y,z) => tileAt(site,{x,y,z});
@@ -107,6 +137,18 @@ export function updateThermal(s) {
       if (b === null) ledger.environmentOut += moved; else changes[b] += moved;
     }
     site.rooms.forEach((r, i) => r.heat += changes[i]);
+    for(const tile of site.tiles){
+      const node=tile.pipe||tile.gasStore;if(!node||gasHeatCapacity(node.gas)<=0)continue;
+      const contacts=nodeContacts(site,tile),nodeCapacity=gasHeatCapacity(node.gas);
+      for(const room of contacts){
+        const destination=room?roomKelvin(room):outsideTemperatureAt(site,tile.x,tile.y,positionOf(tile).z)+ZERO;
+        const difference=nodeKelvin(node)-destination;
+        const exchange=difference/(1/nodeCapacity+(room?1/capacity(room):0))*.02/contacts.length;
+        node.heat-=exchange;
+        if(room)room.heat+=exchange;
+        else if(exchange>=0)ledger.environmentOut+=exchange;else ledger.environmentIn-=exchange;
+      }
+    }
     for (const t of site.tiles) {
       initializeClimate(t); const r = roomHere(site, t.x, t.y, positionOf(t).z);
       if (t.building === 'climate') {
@@ -141,13 +183,13 @@ export function setClimate(s, siteId, x, y, target, enabled,z=0) {
   if (t?.building !== 'climate' || !Number.isInteger(target) || target < -20 || target > 35 || typeof enabled !== 'boolean') return { ok: false, message: 'Choose a climate unit and a target from -20 to 35 °C.' };
   t.climate.target = target; t.climate.enabled = enabled; t.climate.status = enabled ? 'Waiting for climate control' : 'Paused by player'; refreshPower(s, s.sites[siteId]); return { ok: true };
 }
-export function validateThermal(s) {
+export function validateThermal(s, {legacyHeat=false}={}) {
   const nonnegative = n => Number.isFinite(n) && n >= 0;
   for (const site of Object.values(s.sites)) {
-    const h = site.thermal, keys = ['initial', 'added', 'removed', 'environmentIn', 'environmentOut', 'equipment', 'combustion', 'heating', 'cooling'];
-    if (!h || !keys.every(k => nonnegative(h[k])) || h.ambient !== outsideTemperature(site, s.tick) || site.rooms.some(r => !nonnegative(r.heat))) throw new Error('Invalid thermal state.');
-    const expected = h.initial + h.added - h.removed + h.environmentIn - h.environmentOut + h.equipment + h.combustion + h.heating - h.cooling;
-    const actual = site.rooms.reduce((n, r) => n + r.heat, 0);
+    const h = site.thermal, keys = ['initial', 'added', 'removed', 'environmentIn', 'environmentOut', 'equipment', 'combustion', 'heating', 'cooling',...(legacyHeat?[]:['gasInitial','gasLoaded','gasVented'])];
+    if (!h || !keys.every(k => nonnegative(h[k])) || h.ambient !== outsideTemperature(site, s.tick) || site.rooms.some(r => !nonnegative(r.heat)||(!legacyHeat&&r.gasThermal!==true))) throw new Error('Invalid thermal state.');
+    const expected = h.initial + h.added - h.removed + h.environmentIn - h.environmentOut + h.equipment + h.combustion + h.heating - h.cooling + (legacyHeat?0:h.gasInitial+h.gasLoaded-h.gasVented);
+    const actual = site.rooms.reduce((n, r) => n + r.heat, 0) + (legacyHeat?0:site.tiles.reduce((n,t)=>n+(t.pipe?.heat||0)+(t.gasStore?.heat||0),0));
     if (Math.abs(actual - expected) > 1e-6 + Math.abs(expected) * 1e-9) throw new Error('Stored heat does not balance.');
     for (const t of site.tiles) {
       const c = t.climate;

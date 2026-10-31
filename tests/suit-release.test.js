@@ -1,3 +1,4 @@
+import {roomHeatCapacity,parcelHeat,GAS_REFERENCE_KELVIN} from '../src/gas-thermal.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, at, updateRooms, serialize, deserialize } from '../src/simulation.js';
@@ -12,9 +13,13 @@ import { observe, startRecording, exportRecording, stopRecording } from '../src/
 const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} != ${b}`);
 const rows = s => exportRecording(s).trim().split('\n').map(JSON.parse);
 const releases = s => rows(s).filter(r => r.event?.id === 'crew.suit.released').map(r => r.event);
+function setGas({site,room},gas){
+ const before=room.heat;room.gas=gas;room.heat=roomHeatCapacity(room)*GAS_REFERENCE_KELVIN;
+ const change=room.heat-before;site.thermal[change>=0?'added':'removed']+=Math.abs(change);refreshAtmosphere(site);
+}
 function fixture() {
   const s = createGame(), c = s.crew[0], site = s.sites.surface, room = roomAt(site, c.x, c.y);
-  room.gas = emptyGas(); refreshAtmosphere(site); c.oxygen = 25;
+  setGas({site,room},emptyGas()); c.oxygen = 25;
   return { s, c, site, room };
 }
 const act = ({ s, c }, points, source = 'test') => executeAction(s, 'crew.suit.release', { crew: c.id, points }, source);
@@ -91,7 +96,7 @@ const gates = [
   ['no_site', f => { f.c.site = 'missing'; f.c.oxygen = 0; }],
   ['no_sealed_room', f => { f.c.x = 0; f.c.y = 0; f.c.oxygen = 0; }],
   ['insufficient_suit_oxygen', f => { f.c.oxygen = .9999999999999999; f.room.gas = mix(f.room.volume * GAS_PER_TILE); }],
-  ['room_full', f => { f.room.gas = mix(f.room.volume * GAS_PER_TILE); refreshAtmosphere(f.site); }],
+  ['room_full', f => { setGas(f,mix(f.room.volume * GAS_PER_TILE)); }],
 ];
 for (const [code, setup] of gates) test(`ordered ${code} gate rejects atomically`, () => {
   const f = fixture(), id = setup(f)?.id || f.c.id;
@@ -128,7 +133,7 @@ test('invalid points and forged crew arguments fail without mutation', () => {
 });
 
 test('requested reserve shortage precedes requested capacity shortage and neither clamps', () => {
-  const f = fixture(); f.c.oxygen = 5.5; f.room.gas = { oxygen: 0, inert: f.room.volume * GAS_PER_TILE - .15, co2: 0 }; refreshAtmosphere(f.site);
+  const f = fixture(); f.c.oxygen = 5.5; setGas(f,{ oxygen: 0, inert: f.room.volume * GAS_PER_TILE - .15, co2: 0 });
   assert.equal(suitReleaseStatus(f.s, f.c.id).maxPoints, 1);
   assert.equal(unchanged(f.s, () => act(f, 6)).reason, 'insufficient_suit_oxygen');
   assert.equal(unchanged(f.s, () => act(f, 2)).reason, 'room_full');
@@ -155,7 +160,7 @@ test('status and execution use actual prospective species addition at fractional
   ];
   for (const [gas, maximum] of cases) {
     const f = fixture(); assert.equal(f.room.volume * GAS_PER_TILE, 350); f.c.oxygen = 100;
-    f.room.gas = { ...gas }; refreshAtmosphere(f.site);
+    setGas(f,{ ...gas });
     assert.equal(suitReleaseStatus(f.s, f.c.id).maxPoints, maximum);
     assert.equal(unchanged(f.s, () => act(f, maximum + 1)).reason, 'room_full');
     if (maximum) {
@@ -172,7 +177,7 @@ test('status and execution use actual prospective species addition at fractional
 test('status and command recheck current reserve and capacity after a prior observation', () => {
   const f = fixture(); assert.equal(suitReleaseStatus(f.s, f.c.id).maxPoints, 25);
   f.c.oxygen = .5; assert.equal(unchanged(f.s, () => act(f, 1)).reason, 'insufficient_suit_oxygen');
-  f.c.oxygen = 25; f.room.gas = mix(350); refreshAtmosphere(f.site);
+  f.c.oxygen = 25; setGas(f,mix(350));
   assert.equal(unchanged(f.s, () => act(f, 1)).reason, 'room_full');
 });
 
@@ -207,7 +212,7 @@ test('every gas species and whole gas remain owned across inventories, nodes, su
   site.gasNetwork.loaded = mix(2);
   site.atmosphere.vented = { oxygen: .3, inert: .8, co2: .2 };
   s.shuttle.freight.air = .75; f.c.carry = { air: .4 };
-  f.room.gas = { oxygen: .7, inert: 2.3, co2: .15 }; refreshAtmosphere(site); syncResources(s);
+  setGas(f,{ oxygen: .7, inert: 2.3, co2: .15 }); syncResources(s);
   const before = gasOwners(s), ledger = structuredClone(site.gasNetwork), nodes = structuredClone(nodeTile.pipe);
   const resources = structuredClone(totalResources(s)), vented = structuredClone(site.atmosphere.vented);
   assert.equal(act(f, 13).ok, true);
@@ -217,7 +222,7 @@ test('every gas species and whole gas remain owned across inventories, nodes, su
 });
 
 test('manual enrichment can produce existing high oxygen status without an added safety gate', () => {
-  const f = fixture(); f.c.oxygen = 100; f.room.gas = { oxygen: 104.9, inert: 100, co2: 0 }; refreshAtmosphere(f.site);
+  const f = fixture(); f.c.oxygen = 100; setGas(f,{ oxygen: 104.9, inert: 100, co2: 0 });
   assert.equal(breathingStatus(f.room).block, null);
   assert.equal(suitReleaseStatus(f.s, f.c.id).maxPoints, 100);
   assert.equal(act(f, 2).ok, true); assert.equal(breathingStatus(f.room).block, 'high_oxygen');
@@ -228,7 +233,7 @@ test('typed transfer event identifies both physical owners and rejected attempts
   const f = fixture(); startRecording(f.s); assert.equal(act(f, 3).ok, true);
   const event = releases(f.s)[0], destination = suitReleaseStatus(f.s, f.c.id).destination;
   assert.deepEqual(event, { id: 'crew.suit.released', entity: f.c.id, actor: f.c.id, site: destination.site, target: destination.tile,
-    room: destination.room, points: 3, oxygen: 3 * SUIT_PER_POINT, suitBefore: 25, suitAfter: 22,
+    room: destination.room, points: 3, oxygen: 3 * SUIT_PER_POINT, heat:parcelHeat(3*SUIT_PER_POINT,GAS_REFERENCE_KELVIN), suitBefore: 25, suitAfter: 22,
     from: { entity: f.c.id, slot: 'oxygen' }, to: { entity: destination.room, slot: 'gas.oxygen' } });
   assert.equal(act(f, 23).reason, 'insufficient_suit_oxygen');
   assert.equal(releases(f.s).length, 1);

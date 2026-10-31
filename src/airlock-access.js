@@ -5,7 +5,8 @@ import { tileAt, cellKey, sameCell, horizontalNeighbors, positionOf } from './sp
 import { airlockCells, airlockCellFromKey } from './airlock-locations.js';
 import {walkingNeighbors} from './vertical.js';
 import { breathable } from './atmosphere.js';
-import { roomPressure, gasAtRoomPressure } from './room-pressure.js';
+import { roomPressure, roomOxygenPressure, gasAtRoomPressure } from './room-pressure.js';
+import { GAS_HEAT_CAPACITY, GAS_REFERENCE_KELVIN, nodeKelvin, parcelHeat, roomFillAmount, pressureAfterGas, roomHeatCapacity } from './gas-thermal.js';
 import { temperature, thermalSafe } from './thermal.js';
 export const AIRLOCK_PHASES = ['idle','prepare_entry','admit','seal_entry','recover','refill','release','paused'];
 export const AIRLOCK_DIRECTIONS = Object.freeze(Object.fromEntries(DIRECTIONS.map(direction=>[direction,true])));
@@ -104,11 +105,21 @@ export function airlockLayout(site,t,checkOwnership=true) {
  const recoveryDirection=opposite(hexDirection(positionOf(pump),recoveryPort));
  return {ok:true,reason:null,route,room,habitat,recoveryNodes,storageNodes,phaseNodes,ownedNodes,recoveryDirection};
 }
+// The finite reserve is mixed by its actual species and energy. Packaged tank
+// input is not a reserve parcel until the network physically loads it at 20C.
+export function airlockFillPlan(room,q,target) {
+ const inletKelvin=q.supply>0?q.supplyHeat/(GAS_HEAT_CAPACITY*q.supply):GAS_REFERENCE_KELVIN;
+ const amount=roomFillAmount(room,target,inletKelvin,q.supply),heat=parcelHeat(amount,inletKelvin);
+ return {amount,heat,reachable:pressureAfterGas(room,amount,heat)>=target-1e-9};
+}
 export function airlockGasQuantities(layout) {
  const {recover,refill}=layout.phaseNodes;
- const room=layout.room,amount=airlockGas(room.gas),residual=gasAtRoomPressure(room,1),target=gasAtRoomPressure(room,Math.max(0,roomPressure(layout.habitat)-2));
+ const room=layout.room,amount=airlockGas(room.gas),residual=gasAtRoomPressure(room,1);
  const recovered=roomPressure(room)<=1?0:Math.max(0,amount-residual);
- return {recover,refill,headroom:recover.reduce((n,t)=>n+Math.max(0,airlockCapacity(t)-airlockPayload(t)),0),recoverNeeded:recovered*(amount?(amount+(room.smoke||0))/amount:1),supply:refill.reduce((n,t)=>n+airlockGas(airlockNode(t).gas),0),fillNeeded:target===null?null:Math.max(0,target-amount)};
+ const q={recover,refill,headroom:recover.reduce((n,t)=>n+Math.max(0,airlockCapacity(t)-airlockPayload(t)),0),recoverNeeded:recovered*(amount?(amount+(room.smoke||0))/amount:1),supply:0,supplyHeat:0};
+ for(const t of refill){const n=airlockNode(t),quantity=airlockGas(n.gas);q.supply+=quantity;if(quantity>0)q.supplyHeat+=parcelHeat(quantity,nodeKelvin(n));}
+ const plan=airlockFillPlan(room,q,Math.max(0,roomPressure(layout.habitat)-2));
+ return {...q,fillNeeded:plan.amount,fillReachable:plan.reachable};
 }
 // Loading is a pure allowance; passage remains owned by the controller gates.
 export function airlockTankMakeupAllowance(site,t) {
@@ -125,7 +136,7 @@ export function airlockTankMakeupAllowance(site,t) {
 }
 export function airlockRoomReading(room) {
  if(!room)return null;
- return {pressure:roomPressure(room),gas:{...room.gas},smoke:room.smoke||0,temperature:temperature(room),breathable:breathable(room),thermalSafe:thermalSafe(room)};
+ return {pressure:roomPressure(room),oxygenPressure:roomOxygenPressure(room),gas:{...room.gas},smoke:room.smoke||0,heat:room.heat,heatCapacity:roomHeatCapacity(room),temperature:temperature(room),breathable:breathable(room),thermalSafe:thermalSafe(room)};
 }
 export function airlockSideBlock(site,t,side) {
  const a=t.airlock,route=airlockRouteInfo(site,t),chamber=airlockRoomReading(airlockRoom(site,a.config.chamber));

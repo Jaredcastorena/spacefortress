@@ -4,6 +4,10 @@
 
 Navigation review of the tracked checkout at e330c6f. Text was fully decoded for structural extraction, with selected direct excerpts; compressed fixtures were decoded as JSON and PNG headers inspected. Roles are navigation aids, not proof of correctness. No test suite or browser was run. Private administration is not part of this public map. Read only the section and files needed for your task.
 
+## Gas-carried heat
+
+[gas-thermal.js](../src/gas-thermal.js) defines finite energy, capacities and pressure predictions; [thermal.js](../src/thermal.js) handles structural/node exchange and accounting; [atmosphere.js](../src/atmosphere.js) and [gas-networks.js](../src/gas-networks.js) preserve gas-energy custody. [Rules](gas-heat.md), [core checks](../tests/gas-thermal.test.js), [network checks](../tests/gas-heat-network.test.js), [airlock checks](../tests/gas-heat-airlocks.test.js) and [integration checks](../tests/gas-heat-integration.test.js).
+
 ## Application and delivery
 
 23 files.

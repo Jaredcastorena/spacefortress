@@ -2,6 +2,16 @@
 
 Updated October 30, 2026. This is the compact evidence index for implemented and proposed systems. **Verified** means the named scope passed its stated check. **Pending** means evidence is not yet complete. **Failed** means a known check contradicts the requirement. None of these rows declares the whole game finished.
 
+## Local gas-carried heat — schema78 / observations12
+
+**Verified, bounded systems scope:** 38 new focused cases cover energy/capacity calculations, actual network transfers, temperature-aware airlock forecasts, topology, migration, exact saves, inspection and player/agent parity. The selected compatibility gate ran 240 cases: 190 passed initially and 50 failed. All 50 failures are covered by passing targeted repairs. Most affected fixtures assumed fixed structural-only room heat or untracked 20°C node gas; the updated checks preserve finite supplies, conservation, costs, safety bounds and tick caps. First failures remain recorded; there was no second full compatibility run.
+
+Independent review found that pipes embedded in internal walls were incorrectly exchanging heat with the exterior. The repair uses actual adjacent compartments and exposed sides, and a regression verifies no artificial exterior heat sink. Additional checks preserve the strict 5–35°C safe range despite machine roundoff and calculate suit-release admission from the actual resulting species values. Initial recording-fixture budget failures and a life-support status-variable failure were repaired and retained in the evidence.
+
+Genuine schemas 77, 74 and 59 fixtures preserve physical owners, gas quantities and structural temperatures. Explicit energy baselines account for gas that old formats did not track; exact current save continuation passes. Short native tick checks and supplied synthetic airlock cycles establish these mechanics, not ordinary colony endurance. Eight browser-export checks pass. A native browser rendered the actual inspector with empty, −100°C and 100°C synthetic pipe contents: the same two gas units displayed 47.3% and 101.8% nominal pressure respectively, without observed JavaScript errors or inspection mutations.
+
+[Gas heat rules](gas-heat.md) describe the combined ledger and explicit 20°C packaged-gas/suit boundary. Compression work, species-specific capacities, water/steam phases, packaged-cargo thermal histories and sustained ordinary habitation remain pending.
+
 ## Local surveyed-sector travel — schema77 / observations11
 
 **Verified, bounded travel scope:** 38 new focused checks cover canonical sector identities, detached generation, site-local animal work and observations, atlas controls, migration, rejected admissions, finite first-landing kits, saved construction and persistent revisits. The affected compatibility gate ran 438 checks: 435 passed initially and three failed. All three failures are covered by passing targeted repairs: legacy validation now preserves the earlier genetic-shadow diagnosis, a direct animal-job fixture supplies the worker’s actual position, and the capacity fixture uses valid settlement floors. The first failures remain recorded; this is not a claim of a second clean full-suite run.

@@ -10,6 +10,8 @@ An early playable space colony simulator inspired by Dwarf Fortress. Keep seven 
 
 ## Local development after v0.1.12
 
+Gas now carries heat through rooms, pipes and tanks. Vents and airlocks account for hot or cold supply; pipe inspection shows its temperature. Save78 preserves older colonies’ quantities and room temperatures. [Gas heat and limits](docs/gas-heat.md).
+
 Surveyed sectors are now destinations. In a planet’s **Surface survey**, select a sector and expand **Expedition** to prepare a supplied shuttle trip. The first landing needs **6 alloy and 2 components** to deploy an empty dock, plus normal travel fuel, food and suit air. Ship building materials, construct locally, return home and revisit the same persistent map. Local wildlife, care, breeding and carcass handling use that settlement’s supplies and floor. Save77 and observation/recording11 preserve existing worlds. [Sector travel and limits](docs/sector-travel.md).
 
 Browser saves now use IndexedDB to accommodate larger colonies. Existing browser saves load automatically and are copied on the first successful save; their old copy stays intact. Save/import success appears only after storage finishes. JSON export/import remains the portable backup. [Save behavior and limits](docs/browser-storage.md).

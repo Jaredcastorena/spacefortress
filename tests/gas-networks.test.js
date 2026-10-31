@@ -6,6 +6,7 @@ import { initializeStorage, totalResources, syncResources } from '../src/invento
 import { initializeElectrical, refreshPower, updatePower } from '../src/power.js';
 import { haul, setMachineEnabled } from '../src/industry.js';
 import { GASES, emptyGas, gasAmount, mix, roomAt } from '../src/atmosphere.js';
+import { gasEnergy, GAS_REFERENCE_KELVIN } from '../src/gas-thermal.js';
 import { newPipe, gasNode, gasPressure, gasStatus, updateGasNetworks, setGasValve, setGasDevice, validateGasNetworks } from '../src/gas-networks.js';
 import { startRecording, exportRecording, observe } from '../src/telemetry.js';
 import { executeAction, actionCatalog } from '../src/controls.js';
@@ -24,7 +25,7 @@ function install(s,kind,x,y){const t=at(s.sites.surface,x,y);assert.equal(t.buil
 function pipe(site,x,y){const t=at(site,x,y);t.pipe=newPipe();return t;}
 function seed(s,t,gas){
  // Fixture ownership transfer: finite packaged air becomes gas stored in a physical node.
- at(s.sites.surface,8,10).stock.air-=gasAmount(gas);addGas(gasNode(t).gas,gas);addGas(s.sites.surface.gasNetwork.loaded,gas);syncResources(s);
+ at(s.sites.surface,8,10).stock.air-=gasAmount(gas);addGas(gasNode(t).gas,gas);addGas(s.sites.surface.gasNetwork.loaded,gas);const heat=gasEnergy(gas,GAS_REFERENCE_KELVIN);gasNode(t).heat+=heat;s.sites.surface.thermal.gasLoaded+=heat;syncResources(s);
 }
 function buffer(s,t,n){at(s.sites.surface,8,10).stock.air-=n;t.machine.input.air=(t.machine.input.air||0)+n;syncResources(s);}
 function network(){

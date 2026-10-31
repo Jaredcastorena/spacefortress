@@ -1,3 +1,4 @@
+import { initializeGasHeat } from './gas-thermal.js';
 import { sectorDefinition, sectorSiteId } from './sector-sites.js';
 import { createSectorSite } from './sector-generation.js';
 import { surveyedSectorStatus, SECTOR_SAVE_HEADROOM } from './sector-travel.js';
@@ -984,13 +985,14 @@ function legacyMeatShadow(value){
 }
 export function deserialize(text) {
   if (text.length > MAX_SAVE_BYTES) throw new Error('Save is too large.');
-  const s = JSON.parse(text),legacySolarModel=s?.version<59, legacyRoomPressure=s?.version<75;
+  const s = JSON.parse(text),legacySolarModel=s?.version<59, legacyRoomPressure=s?.version<75,legacyGasHeat=s?.version<78;
   if (Number.isInteger(s?.version) && s.version >= 1 && s.version <= 39) throw new Error('Legacy square-grid saves (schemas 1–39) cannot be loaded into the hex colony. Export the original save and use the preserved square version to continue it.');
-  if (![40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, VERSION].includes(s?.version) || s.grid !== GRID) throw new Error('Unsupported save topology: schemas 40–77 require grid hex-odd-q-v1.');
+  if (![40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, VERSION].includes(s?.version) || s.grid !== GRID) throw new Error('Unsupported save topology: schemas 40–78 require grid hex-odd-q-v1.');
   if ( !Number.isSafeInteger(s.tick) || s.tick < 0 || !Number.isInteger(s.rng) || !Number.isSafeInteger(s.nextId)) throw new Error('Unsupported or invalid save.');
   if (!s.sites || !Array.isArray(s.crew) || s.crew.length < 7 || s.crew.length > MAX_CREW || (s.version < 72 && s.crew.length !== 7) || !Array.isArray(s.jobs) || !Array.isArray(s.log) || !s.stats || !s.comet || !s.flags || !s.objectives) throw new Error('Incomplete save.');
   if(s.version<76&&(s.region?.schema===3||Object.hasOwn(s,'satellites')||s.jobs.some(j=>j.kind==='launchSatellite')||Object.values(s.sites).some(site=>Object.hasOwn(site.liquids||{},'initial')||site.tiles?.some(t=>['biome','temperatureOffset','basin','initialWater'].some(k=>Object.hasOwn(t,k))))))throw new Error('Legacy procedural environment or satellite state.');
   if(s.version<77&&(Object.hasOwn(s,'sectorSites')||(Array.isArray(s.creatures)&&s.creatures.some(c=>c&&Object.hasOwn(c,'site')&&c.site!=='surface'))))throw new Error('Legacy sector or off-site wildlife state.');
+  if(legacyGasHeat&&Object.values(s.sites).some(site=>site.rooms?.some(r=>Object.hasOwn(r,'gasThermal'))||['gasInitial','gasLoaded','gasVented'].some(k=>Object.hasOwn(site.thermal||{},k))||site.tiles?.some(t=>[t.pipe,t.gasStore].some(n=>n&&Object.hasOwn(n,'heat')))))throw new Error('Legacy save contains gas thermal state.');
   if(s.version<72&&Object.hasOwn(s,'population'))throw new Error('Legacy population state.');
   if(s.version<64&&s.resources){if((s.resources.tools||0)!==0)throw new Error('Legacy tools.');s.resources.tools=0;}
   for (const r of RESOURCES) if (!Number.isFinite(s.resources?.[r]) || s.resources[r] < 0) throw new Error('Invalid resources.');
@@ -1069,7 +1071,7 @@ export function deserialize(text) {
   if(s.version===71)s.version=VERSION;
   if(s.version===72)s.version=VERSION;
   if(s.version===73)s.version=VERSION;
-  if(s.version===74||s.version===75||s.version===76)s.version=VERSION;
+  if(s.version===74||s.version===75||s.version===76||s.version===77)s.version=VERSION;
   const ids = new Set();
   for (const c of s.crew) {
     if (ids.has(c.id) || typeof c.name !== 'string' || c.name.length > 80 || !(c.site==='transit'||Object.hasOwn(s.sites,c.site)) || ![c.health, c.oxygen, c.energy, c.hunger, c.skill].every(Number.isFinite) || !Number.isInteger(c.x) || !Number.isInteger(c.y) || (c.site !== 'transit' && !inside(s.sites[c.site], c.x, c.y))) throw new Error('Invalid crew.');
@@ -1201,12 +1203,14 @@ export function deserialize(text) {
   if (!Array.isArray(s.creatures) || s.creatures.length > 100 || !s.creatures.every(c => c && typeof c.id === 'string' && (isLivestock(c)||c.species==='tibble') && settlementSite(s.sites[c.site]) && Number.isInteger(c.x) && Number.isInteger(c.y) && inside(s.sites[c.site], c.x, c.y) && percent(c.health) && percent(c.fed) && amount(c.age))) throw new Error('Invalid wildlife.');
   if (s.anomaly !== null && (typeof s.anomaly.title !== 'string' || typeof s.anomaly.description !== 'string' || typeof s.anomaly.resolved !== 'boolean')) throw new Error('Invalid signal.');
   if (s.log.length > 60 || !s.log.every(e => amount(e.tick) && typeof e.message === 'string' && e.message.length < 4000)) throw new Error('Invalid event log.');
-  validateAnimalHealth(s); validateFlora(s); validateCultivation(s); validateAirlocks(s); validateFreightState(s); validateBreakers(s); validateFuses(s); validateFuseWork(s); validateSatellites(s); validateEnvironment(s); validatePlumbing(s); validateGasNetworks(s); validateLiquids(s); validateReactors(s); validateFire(s); validateTransport(s); validateHusbandry(s); validateBreeding(s); validateAnimalTraits(s); validateCarcasses(s); validatePastures(s); validateWater(s); validateHousing(s); validateComfort(s); validatePossessions(s);validateToolPickups(s); validateDesignations(s); validateHygiene(s); validateSanitation(s); validateFood(s); validateThermal(s); validateStorage(s); validateProduction(s); validateMedicine(s); validateNursing(s); validateCrewLife(s); validateShuttle(s); validatePreflight(s);
+  validateAnimalHealth(s); validateFlora(s); validateCultivation(s); validateAirlocks(s); validateFreightState(s); validateBreakers(s); validateFuses(s); validateFuseWork(s); validateSatellites(s); validateEnvironment(s); validatePlumbing(s); validateGasNetworks(s,{legacyHeat:legacyGasHeat}); validateLiquids(s); validateReactors(s); validateFire(s); validateTransport(s); validateHusbandry(s); validateBreeding(s); validateAnimalTraits(s); validateCarcasses(s); validatePastures(s); validateWater(s); validateHousing(s); validateComfort(s); validatePossessions(s);validateToolPickups(s); validateDesignations(s); validateHygiene(s); validateSanitation(s); validateFood(s); validateThermal(s,{legacyHeat:legacyGasHeat}); validateStorage(s); validateProduction(s); validateMedicine(s); validateNursing(s); validateCrewLife(s); validateShuttle(s); validatePreflight(s);
   validateReliability(s); validatePopulation(s);
   for (const site of Object.values(s.sites)){if(legacySolarModel){validatePower({...s,version:58},site);refreshPower(s,site,false);}validatePower(s,site);}
   const recorded = s.resources; syncResources(s);
   if (RESOURCES.some(r => Math.abs(recorded[r] - s.resources[r]) > 1e-9)) throw new Error('Depot totals do not match stored materials.');
-  if(legacyRoomPressure)for(const site of Object.values(s.sites))refreshAtmosphere(site);
+  if(legacyGasHeat)initializeGasHeat(s,{legacy:true});
+  if(legacyRoomPressure||legacyGasHeat)for(const site of Object.values(s.sites))refreshAtmosphere(site);
+  if(legacyGasHeat){validateThermal(s);validateGasNetworks(s);}
   return s;
 }
 

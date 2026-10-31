@@ -1,5 +1,6 @@
+import {roomPressure} from './room-pressure.js';
 import { SUIT_PER_POINT, gasAmount, roomAt, refreshAtmosphere } from './atmosphere.js';
-import { gasAtRoomPressure } from './room-pressure.js';
+import {parcelHeat,importRoomHeat,GAS_REFERENCE_KELVIN} from './gas-thermal.js';
 import { suitReleaseStatus } from './suit-release-status.js';
 import { tileAt, positionOf, sameCell } from './spatial.js';
 import { take } from './inventory.js';
@@ -54,18 +55,17 @@ export function releaseSuitOxygen(s, crewId, points) {
   if (!(c.oxygen >= points)) return reject('insufficient_suit_oxygen', 'Not enough suit oxygen for the requested release.');
   const site = s.sites[c.site], room = roomAt(site,c.x,c.y,c.z), oxygen = points * SUIT_PER_POINT;
   const candidate = { ...room.gas, oxygen: room.gas.oxygen + oxygen };
-  const capacity = gasAtRoomPressure(room, 100);
-  if (capacity === null) return reject('room_temperature', 'Room temperature cannot support a positive pressure target.');
-  if (!(gasAmount(candidate) <= capacity)) {
+  const heat=parcelHeat(oxygen,GAS_REFERENCE_KELVIN);
+  if (roomPressure({...room,gas:candidate,heat:room.heat+heat})>100) {
     return reject('room_full', 'This room cannot hold the requested oxygen release.');
   }
   const suitBefore = c.oxygen;
   c.oxygen -= points;
-  room.gas.oxygen = candidate.oxygen;
+  room.gas.oxygen = candidate.oxygen;importRoomHeat(site,room,heat,{boundary:true});
   site.atmosphere.injected.oxygen += oxygen;
   refreshAtmosphere(site);
   emitEvent(s, 'crew.suit.released', { entity: c.id, actor: c.id, site: status.destination.site,
-    target: status.destination.tile, room: status.destination.room, points, oxygen,
+    target: status.destination.tile, room: status.destination.room, points, oxygen, heat,
     suitBefore, suitAfter: c.oxygen, from: { entity: c.id, slot: 'oxygen' },
     to: { entity: status.destination.room, slot: 'gas.oxygen' } });
   return { ok: true };

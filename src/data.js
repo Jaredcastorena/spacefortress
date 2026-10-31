@@ -1,7 +1,7 @@
 import { FUSE_BUILD_COST, FUSE_BUILD_WORK } from './power-protection.js';
 import { LIVESTOCK } from './livestock-data.js';
 import { TOOL_RECIPES } from './tool-data.js';
-export const VERSION = 77;
+export const VERSION = 78;
 export const MAX_SAVE_BYTES = 16_000_000;
 export const RESOURCES = ['alloy', 'ore', 'components', 'food', 'water', 'fuel', 'cells', 'air', 'medicine', 'waste', 'fertilizer', 'keepsakes', 'ice', 'tools'];
 export const BUILDINGS = {

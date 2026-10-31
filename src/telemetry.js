@@ -1,3 +1,4 @@
+import {roomHeatCapacity} from './gas-thermal.js';
 import { populationStatus } from './population.js';
 import {materialStatus} from './materials.js';
 import { outpostSiteIds, planetDefinitions, siteDefinition } from './region.js';
@@ -42,7 +43,7 @@ import { resourceEntries } from './inventory.js';
 import { RESOURCES } from './data.js';
 import { depotUsage, depotResourceUsage } from './storage.js';
 // Local, opt-in recordings. WeakMap ownership keeps instrumentation out of game saves/RNG.
-export const TELEMETRY_VERSION = 11;
+export const TELEMETRY_VERSION = 12;
 const sessions = new WeakMap();
 const clone = value => JSON.parse(JSON.stringify(value));
 export { tileEntityId } from './spatial.js';
@@ -86,7 +87,7 @@ export function observe(s) {
       entities[tileEntityId(site.id,t.x,t.y,t.z)]={type:'tile',site:site.id,...t,...(derived?{derived}:{})};
     }
     for(const r of rooms) {
-      entities[roomEntityId(site.id,r)]={type:'room',site:site.id,...r,derived:{purpose:roomStatus(s,site,r),comfort:roomComfort(s,site,r),temperature:temperature(r),breathable:breathable(r),breathing:breathingStatus(r)}};
+      entities[roomEntityId(site.id,r)]={type:'room',site:site.id,...r,derived:{purpose:roomStatus(s,site,r),comfort:roomComfort(s,site,r),temperature:temperature(r),heatCapacity:roomHeatCapacity(r),breathable:breathable(r),breathing:breathingStatus(r)}};
     }
   }
   for(const site of Object.values(sites))for(const t of site.tiles)if(t.fire)entities[t.fire.id]={type:'fire',...t.fire,tile:tileEntityId(site.id,t.x,t.y,t.z)};

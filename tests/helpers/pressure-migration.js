@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 // Expected schema75 readings and explicit synthetic old-schema caches. These
 // copies change only derived pressure/air; all physical quantities stay exact.
 function withReadings(state, temperatureAware) {
@@ -20,3 +21,17 @@ function withReadings(state, temperatureAware) {
 
 export const withTemperaturePressureReadings = state => withReadings(state, true);
 export const withLegacyDensityReadings = state => withReadings(state, false);
+
+// Gas-energy migration recomputes structural heat and temperature-derived
+// readings. Normalize only machine roundoff; every other physical field still
+// participates in the caller's exact comparison against the original fixture.
+export function withThermalRoundoff(actual,expected){
+ const copy=structuredClone(actual);
+ for(const [id,site] of Object.entries(copy.sites))for(let i=0;i<site.rooms.length;i++)for(const field of ['heat','pressure','air']){
+  const before=expected.sites[id].rooms[i][field],value=site.rooms[i][field];
+  if(before===undefined&&value===undefined)continue;
+  assert.ok(Number.isFinite(before)&&Number.isFinite(value)&&Math.abs(value-before)<=8*Number.EPSILON*Math.max(1,Math.abs(before)),`migration ${id} room${i} ${field} changed beyond roundoff`);
+  site.rooms[i][field]=before;
+ }
+ return copy;
+}

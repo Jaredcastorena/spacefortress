@@ -1,4 +1,5 @@
 import { roomPressure, roomOxygenPressure, roomPressureFactor, gasAtRoomPressure } from './room-pressure.js';
+import {roomKelvin,roomHeatCapacity,roomEqualizeAmount,parcelHeat,roomFillAmount,exportRoomHeat,importRoomHeat,GAS_REFERENCE_KELVIN} from './gas-thermal.js';
 export { GAS_PER_TILE } from './room-pressure.js';
 import { neighbors } from './geometry.js';
 import { stairDestination, touchStairHatch, stairLinks, stairOpen, STAIR } from './vertical.js';
@@ -145,10 +146,10 @@ export function updateRooms(site) {
   remapThermal(site, old, rooms);
   site.rooms = rooms; refreshAtmosphere(site);
 }
-export function fillRoom(r, pressure = 100) { const amount=gasAtRoomPressure(r,pressure);if(amount===null)throw new Error('Room pressure target cannot be reached at this temperature.');r.gas=mix(amount);refreshRoom(r); }
+export function fillRoom(r, pressure = 100) { const amount=gasAtRoomPressure(r,pressure);if(amount===null)throw new Error('Room pressure target cannot be reached at this temperature.');const kelvin=roomKelvin(r);r.gas=mix(amount);if(r.heat!==undefined)r.heat=roomHeatCapacity(r)*kelvin;refreshRoom(r); }
 
 function flow(site, links) {
-  const smokeSnapshot=site.rooms.map(r=>r.smoke||0), factors=site.rooms.map(roomPressureFactor);
+  const smokeSnapshot=site.rooms.map(r=>r.smoke||0), factors=site.rooms.map(roomPressureFactor), kelvins=site.rooms.map(roomKelvin);
   const snapshot = site.rooms.map(r => ({ ...r.gas })), outgoing = site.rooms.map(() => 0), transfers = [];
   for (const link of links) {
     let { a, b } = link;
@@ -157,7 +158,7 @@ function flow(site, links) {
     if (pressureDensity(a) < pressureDensity(b)) [a, b] = [b, a];
     if (a === null) continue;
     const difference = pressureDensity(a) - pressureDensity(b);
-    const equalization = b === null ? Infinity : difference / (factors[a] / site.rooms[a].volume + factors[b] / site.rooms[b].volume);
+    const equalization = b === null ? Infinity : roomEqualizeAmount(site.rooms[a],site.rooms[b]);
     const amount = Math.min(difference * link.conductance, equalization);
     if (amount > 0) { transfers.push({ a, b, amount }); outgoing[a] += amount; }
     // Diffusion mixes composition even when both compartments have equal pressure.
@@ -170,6 +171,8 @@ function flow(site, links) {
     const total = gasAmount(snapshot[a]);
     const moved = amount * Math.min(1, total * .5 / outgoing[a]);
     const portion = moved / total;
+    const heat=parcelHeat(moved,kelvins[a]);site.rooms[a].heat-=heat;
+    if(b===null)site.thermal.gasVented+=heat;else site.rooms[b].heat+=heat;
     addGas(site.rooms[a].gas, snapshot[a], -portion);
     const smoke=smokeSnapshot[a]*portion;site.rooms[a].smoke-=smoke;if(b===null){if(site.fireSafety)site.fireSafety.smokeVented+=smoke;}else site.rooms[b].smoke+=smoke;
     addGas(b === null ? site.atmosphere.vented : site.rooms[b].gas, snapshot[a], portion);
@@ -187,16 +190,14 @@ function lifeSupport(site) {
     const filtered=Math.min(r.smoke||0,FIRE.filterRate*t.hp/100);r.smoke-=filtered;if(site.fireSafety)site.fireSafety.smokeCleared+=filtered;
     const recycled = Math.min(r.gas.co2, .15 * t.hp / 100);
     r.gas.co2 -= recycled; r.gas.oxygen += recycled;
-    const nominal = gasAtRoomPressure(r,100), amount = gasAmount(r.gas);
-    if(nominal===null){m.status='Room pressure target unavailable at this temperature';continue;}
     const deficientOxygen = roomOxygenPressure(r) < .195;
-    const requested = Math.min(2 * t.hp / 100, Math.max(0, nominal - amount) + (deficientOxygen ? 2 : 0));
-    const supplied = Math.min(requested, m.input.air || 0);
+    const rate=2*t.hp/100,requested=deficientOxygen?rate:roomFillAmount(r,100,GAS_REFERENCE_KELVIN,rate);
+    const supplied=Math.min(requested,m.input.air||0);
     if (supplied > 0) {
       m.input.air -= supplied; if (m.input.air < 1e-12) delete m.input.air;
-      const fresh = mix(supplied); addGas(r.gas, fresh); addGas(site.atmosphere.injected, fresh);
-      const excess = Math.max(0, gasAmount(r.gas) - nominal);
-      if (excess) { const vent = { ...r.gas }, fraction = excess / gasAmount(r.gas); addGas(r.gas, vent, -fraction); addGas(site.atmosphere.vented, vent, fraction);const smoke=(r.smoke||0)*fraction;r.smoke-=smoke;if(site.fireSafety)site.fireSafety.smokeVented+=smoke; }
+      const fresh = mix(supplied); addGas(r.gas, fresh); addGas(site.atmosphere.injected, fresh);importRoomHeat(site,r,parcelHeat(supplied,GAS_REFERENCE_KELVIN),{boundary:true});
+      const nominal=gasAtRoomPressure(r,100),excess=nominal===null?0:Math.max(0,gasAmount(r.gas)-nominal);
+      if (excess) { exportRoomHeat(site,r,excess,{boundary:true}); const vent = { ...r.gas }, fraction = excess / gasAmount(r.gas); addGas(r.gas, vent, -fraction); addGas(site.atmosphere.vented, vent, fraction);const smoke=(r.smoke||0)*fraction;r.smoke-=smoke;if(site.fireSafety)site.fireSafety.smokeVented+=smoke; }
     }
     m.status = requested > 1e-8 ? supplied ? 'Supplying breathing mix' : 'Breathing mix empty; recycling only' : 'Recycling exhaled gas';
   }
@@ -218,6 +219,7 @@ function safeOxygenBudget(r, requested, breathing) {
   const safe = transfer => {
     const probe = { ...r, gas: { ...r.gas, oxygen: r.gas.oxygen - transfer,
       co2: r.gas.co2 + (breathing ? transfer : 0) } };
+    if(!breathing)probe.heat-=parcelHeat(transfer,roomKelvin(r));
     refreshRoom(probe); return breathable(probe);
   };
   // Preserve the existing one-ULP oxygen allowance when a complete breath is
@@ -273,7 +275,7 @@ export function breatheBatch(site, crew) {
     const requested = occupants.reduce((sum, entry) => sum + request(entry), 0);
     const refilled = shareOxygen(occupants, 'refillOxygen', safeOxygenBudget(r, requested, false), request);
     for (const { c, result } of occupants) c.oxygen = Math.min(100, c.oxygen + result.refillOxygen / SUIT_PER_POINT);
-    r.gas.oxygen -= refilled; site.atmosphere.refilled += refilled;
+    exportRoomHeat(site,r,refilled,{boundary:true});r.gas.oxygen -= refilled; site.atmosphere.refilled += refilled;
     refreshRoom(r);
   }
   return new Map(entries.map(({ c, result }) => [c.id, result]));
