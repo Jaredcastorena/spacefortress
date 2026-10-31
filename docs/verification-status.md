@@ -2,6 +2,14 @@
 
 Updated October 30, 2026. This is the compact evidence index for implemented and proposed systems. **Verified** means the named scope passed its stated check. **Pending** means evidence is not yet complete. **Failed** means a known check contradicts the requirement. None of these rows declares the whole game finished.
 
+## Local durable browser saves — schema76 unchanged
+
+**Verified, bounded storage scope:** 14 core checks cover committed reload, legacy migration, corrupt and inaccessible primary storage, malformed non-text records, ordered overlapping writes, aborted transactions, retry and protected replacement/export behavior. One actual-app-handler check covers commit-aware notices, stale completions, paused imports and lifecycle coalescing. All58 affected legacy persistence and interface checks pass; eight Pages export checks pass. The first13-case core result is retained, with a later14-case run after fixing malformed primary handling. No full simulation-suite rerun was needed for this adapter-only change.
+
+A native browser first migrated a2,303,338-byte legacy colony exactly and retained its original copy. The previous localStorage path rejected a9,049,840-byte synthetic colony with QuotaExceededError. The game's actual Import save control committed that colony to IndexedDB; reload retained all eight home floors, tick0 and exact serialized bytes, while legacy bytes stayed unchanged. No browser errors were recorded. The file-picker control took an unusually long time to return; that is not a save-latency measurement. The fixture adds empty declared floors solely to exercise storage size and does not establish construction or ordinary endurance.
+
+[Storage rules](browser-storage.md) describe protection, fallback, transaction ordering and shutdown limits. Browser quotas/availability remain platform-dependent; export remains the portable backup. New-sector travel and the wider simulation gaps below remain pending.
+
 ## Local procedural maps and satellite survey — schema76
 
 **Verified:** 52 focused checks cover deterministic larger maps, finite native ecology and pools, local temperature effects, old-save preservation, paid satellite jobs/refunds, saved continuation, shared actions/recordings and the gated atlas. New worlds use48×48 home and32×32 remote maps; older worlds retain their physical layouts. Cold recovery now stores canonical zero for exact crew/animal save continuation, and generated edible patches can begin both mature and immature.

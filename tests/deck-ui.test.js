@@ -64,13 +64,13 @@ function dom(saved){
     querySelector:selector=>selector==='dialog[open]'?null:get(selector),querySelectorAll:()=>[],
     addEventListener:(name,handler)=>documentEvents[name]=handler};document.activeElement=document.body;
   const window={addEventListener:(name,handler)=>windowEvents[name]=handler};
-  const globals={document,window,localStorage:{getItem:()=>storage,setItem:(_key,value)=>storage=value},
+  const globals={document,window,indexedDB:undefined,localStorage:{getItem:()=>storage,setItem:(_key,value)=>storage=value},
     requestAnimationFrame:fn=>frames.push(fn),ResizeObserver:class{observe(){}},devicePixelRatio:1,
     location:{search:'?preview'},setTimeout:()=>0,clearTimeout:()=>{}};
   const old=Object.fromEntries(Object.keys(globals).map(key=>[key,globalThis[key]]));Object.assign(globalThis,globals);
   function node(dataset,parent){const n={...element(),dataset,parent};n.closest=()=>n;return n;}
   return {get,window,document,frames,node,keydown:key=>documentEvents.keydown({key,code:key,preventDefault(){}}),
-    save:()=>{get('save').onclick();return deserialize(storage);},restore:()=>Object.assign(globalThis,old)};
+    save:async()=>{await get('save').onclick();return deserialize(storage);},restore:()=>Object.assign(globalThis,old)};
 }
 
 test('actual UI follows floors, routes upper orders/controls and rejects clicks held across a floor change',async()=>{
@@ -83,20 +83,20 @@ test('actual UI follows floors, routes upper orders/controls and rejects clicks 
     const point=p=>{const o=camera.origin(f.site),[x,y]=camera.project(p.x,p.y);return {offsetX:o.x+x*camera.zoom,offsetY:o.y+y*camera.zoom,button:0,pointerId:1};};
     const click=p=>{const e=point(p);world.events.pointerdown(e);world.events.pointerup(e);};
     const choose=z=>get('floor-list').onclick({target:node({floor:String(z)},get('floor-list'))});
-    const before=serialize(ui.save());choose(1);assert.equal(get('floor-label').textContent,'Floor 1');assert.equal(serialize(ui.save()),before,'viewing does not tick or change the colony');
+    const before=serialize(await ui.save());choose(1);assert.equal(get('floor-label').textContent,'Floor 1');assert.equal(serialize(await ui.save()),before,'viewing does not tick or change the colony');
     click(f.bunk);assert.match(inspector.innerHTML,new RegExp(`TILE ${f.bunk.x} / ${f.bunk.y} / 1`));
     const owner=f.s.crew[1].id,button=node({action:'bunk-owner',owner},inspector);
-    inspector.onclick({target:button});let saved=ui.save();assert.deepEqual(saved.crew.find(c=>c.id===owner).housing.bunk,f.bunk);
+    inspector.onclick({target:button});let saved=await ui.save();assert.deepEqual(saved.crew.find(c=>c.id===owner).housing.bunk,f.bunk);
     assert.deepEqual(tileAt(saved.sites.surface,{...f.bunk,z:0}),tileAt(f.site,{...f.bunk,z:0}),'ground tile is untouched');
     world.events.pointerdown(point(f.bunk));choose(0);world.events.pointerup(point(f.bunk));assert.doesNotMatch(inspector.innerHTML,/TILE /,'held map click expires');
-    inspector.onclick({target:button});assert.deepEqual(ui.save().crew.find(c=>c.id===owner).housing.bunk,f.bunk,'stale inspector command does not retarget');
+    inspector.onclick({target:button});assert.deepEqual((await ui.save()).crew.find(c=>c.id===owner).housing.bunk,f.bunk,'stale inspector command does not retarget');
     choose(1);get('build-menu').events.click({target:node({building:'floor'},get('build-menu'))});click(f.extension);
-    saved=ui.save();assert.ok(saved.jobs.some(j=>j.kind==='build'&&j.building==='floor'&&j.z===1&&j.x===f.extension.x&&j.y===f.extension.y));
+    saved=await ui.save();assert.ok(saved.jobs.some(j=>j.kind==='build'&&j.building==='floor'&&j.z===1&&j.x===f.extension.x&&j.y===f.extension.y));
     ui.keydown('1');choose(0);click({...f.upper,z:0});
     inspector.onclick({target:node({action:'stair-repair'},inspector)});
-    const repair=ui.save().jobs.find(j=>j.connection===f.site.verticalLinks[0].id);assert.ok(repair);assert.equal(repair.z,0);
+    const repair=(await ui.save()).jobs.find(j=>j.connection===f.site.verticalLinks[0].id);assert.ok(repair);assert.equal(repair.z,0);
     choose(1);click(f.upper);assert.ok(inspector.innerHTML.includes(repair.id),'opposite landing shows shared work and cancellation');
-    inspector.onclick({target:node({action:'cancel',job:repair.id},inspector)});assert.ok(!ui.save().jobs.some(j=>j.id===repair.id));
+    inspector.onclick({target:node({action:'cancel',job:repair.id},inspector)});assert.ok(!(await ui.save()).jobs.some(j=>j.id===repair.id));
     choose(0);const upperCrew=saved.crew.find(c=>c.z===1);assert.ok(upperCrew);
     get('crew-list').onclick({target:node({crew:upperCrew.id},get('crew-list'))});assert.equal(get('floor-label').textContent,'Floor 1');
     ui.document.activeElement={tagName:'INPUT'};ui.keydown('PageDown');assert.equal(get('floor-label').textContent,'Floor 1','editing a field blocks floor shortcuts');

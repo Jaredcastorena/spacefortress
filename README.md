@@ -10,6 +10,8 @@ An early playable space colony simulator inspired by Dwarf Fortress. Keep seven 
 
 ## Local development after v0.1.12
 
+Browser saves now use IndexedDB to accommodate larger colonies. Existing browser saves load automatically and are copied on the first successful save; their old copy stays intact. Save/import success appears only after storage finishes. JSON export/import remains the portable backup. [Save behavior and limits](docs/browser-storage.md).
+
 New colonies now have a **48 × 48 home map and 32 × 32 remote maps**. Seeded lichen plains, fungal groves, sunberry scrub, ice barrens and water basins contain real plant patches, wildlife, finite deposits and liquid water. Local exterior temperatures affect exposure, plant growth and room heat exchange. Existing colonies keep their original maps and supplies.
 
 Inspect the shuttle and open **Survey satellite** to assemble and launch a satellite for **6 alloy, 2 components, 1 recovered power cell and 2 fuel**, plus **16 engineering work**. Crew must deliver the supplies before launch. The planet’s collapsed **Surface survey** then reveals a selectable sector map. The known landing reports live terrain, life and water; unvisited sectors show generated initial surveys without creating a colony or travel route. Drag or use arrow keys to pan the local map, scroll to zoom, and press **Home** to return to the colony. These additions use save76, region3 and observation/recording10; the package remains 0.1.12. [Procedural maps and satellite survey](docs/procedural-maps.md).

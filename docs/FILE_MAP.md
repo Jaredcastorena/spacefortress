@@ -116,7 +116,7 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 | [src/outpost-readiness.js](../src/outpost-readiness.js) | Domain helpers for outpost readiness |
 | [src/outposts.js](../src/outposts.js) | Domain helpers for outposts |
 | [src/pastures.js](../src/pastures.js) | Domain helpers for pastures |
-| [src/persistence.js](../src/persistence.js) | Browser save load/store/export with preservation of unreadable original bytes |
+| [src/persistence.js](../src/persistence.js) | Synchronous legacy storage adapter and shared export with protection of unreadable text |
 | [src/plumbing-panels.js](../src/plumbing-panels.js) | HTML panel renderers and UI formatting for plumbing |
 | [src/plumbing.js](../src/plumbing.js) | Domain helpers for plumbing |
 | [src/possession-panels.js](../src/possession-panels.js) | HTML panel renderers and UI formatting for possession |
@@ -440,3 +440,10 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 - [Satellite module checks](../tests/satellites.test.js), [staffed integration checks](../tests/satellite-integration.test.js), [atlas checks](../tests/planetary-atlas.test.js): paid completion/refunds, shared player/agent commands, saves/recordings and read-only survey/UI behavior. The staffed launch fixture explicitly supplies one recovered cell.
 
 New colonies default to region3 with a 48 × 48 home grid and 32 × 32 remote grids. `createGame(seed, {regionSchema: 1})` and regionSchema2 retain earlier generator catalogs for reproducibility. Loaded region1/2 maps retain their dimensions and physical contents. Save76 accepts canonical stored catalogs; observation/recording10 adds planet entities. Planet/sector selection is transient UI state; satellite completion is persisted. New survey sectors do not become simulated sites or travel destinations.
+
+## Durable browser colony storage
+
+- [Browser adapter](../src/browser-storage.js): asynchronous IndexedDB startup, deferred legacy migration, ordered writes, commit completion and protected failures.
+- [Storage rules](browser-storage.md): player behavior, API, compatibility and lifecycle limits.
+- [Core checks](../tests/browser-storage.test.js): primary/legacy selection, corrupt or denied storage, queue ordering, atomic aborts and explicit replacement.
+- [App-handler checks](../tests/browser-storage-ui.test.js): success timing, stale completions, paused imports, failed replacement exports and coalesced lifecycle writes. [Deck UI](../tests/deck-ui.test.js) awaits actual save completion.

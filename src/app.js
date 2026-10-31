@@ -47,7 +47,8 @@ import { suitReleaseStatus } from './suit-release-status.js';
 import { constructionResources, reservedAt, siteWorkAllowed } from './construction.js';
 import { quantity } from './inventory.js';
 import { storageDetails, inventoryText } from './industry-panels.js';
-import { loadColony, storeColony, exportColony } from './persistence.js';
+import { exportColony } from './persistence.js';
+import { loadBrowserColony, storeBrowserColony, flushBrowserColony } from './browser-storage.js';
 import { atmosphereDetails, doorDetails } from './atmosphere-panels.js';
 import { preflightDetails } from './preflight-panels.js';
 import { expeditionDetails, shuttleDetails, missionStatus } from './expedition-panels.js';
@@ -65,7 +66,7 @@ window.addEventListener('error', event => {
 const esc = v => String(v).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 let buildMaterial='alloy';
 let state, siteId = 'surface', mode = 'inspect', building = null, selected = null, speed = 1, previousSpeed = 1;
-const saveSession = loadColony(() => localStorage);
+const saveSession = await loadBrowserColony();
 state = saveSession.state; const fresh = saveSession.fresh;
 const { contactRecruits, respondToRecruit, loadFreight, unloadFreight, setReturnCrew, setOutpostResidents, setBreaker, resetBreaker, setFuse, setWaterValve, setWaterPump, setWaterIntake, setWaterOutlet, setGasValve, setGasDevice, setGasExtractor, setTank, setReactor, resetReactor, setRadiator, setFireResponse, transportAnimalToPost, setBreeding, setPastureGate, setAnimalPost, setAnimalPolicy, setAnimalTreatment, setPossessionCollection, releasePossession, order, cancelJob, launch, cancelDeparture, recall, dischargeCell, resolveSignal, setLabor, setJobPriority, setBunkOwner, setRoomDesignation, setClimate, setDepotAccepted, setDepotPriority, setDepotLimit, setProductionOrder, setProductionRecipe, setProductionPriority, setMachineEnabled, setDoorMode, setCargoAccepted, resumeExpedition, setAutoService, setCableEnabled, setPowerPriority, setLifePolicy } = controlBindings(()=>state);
 window.spacefortress = createAgentInterface(()=>state,()=>setSpeed(0),()=>refresh());
@@ -116,11 +117,22 @@ window.addEventListener('pointercancel',finishWarningPress);
 window.addEventListener('blur',finishWarningPress);
 function toast(message, error = false) { $('toast').textContent = message; $('toast').className = `toast show${error ? ' error' : ''}`; clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').className = 'toast', 4500); }
 function result(r, success) { if (!r.ok) toast(r.message, true); else if (success) toast(success); refresh(); }
-function save(silent = false, replace = false) {
-  if (replace && state !== saveSession.state) $('export').textContent = 'Export save';
+let saveRequest = 0, colonyRequest = 0;
+async function save(silent = false, replace = false) {
+  const target = state;
+  if (replace && target !== saveSession.state) $('export').textContent = 'Export save';
   if (saveSession.error && !replace) { if (!silent) toast('Previous save could not be loaded. Export it or choose New colony before replacing it.', true); return false; }
-  try { storeColony(() => localStorage, saveSession, state, replace); $('save').disabled = false; $('save').title = 'Save in this browser'; $('export').textContent = 'Export save'; if (!silent) toast('Colony saved on this device.'); return true; }
-  catch { toast('Browser storage unavailable. Use Export save to keep your colony.', true); return false; }
+  const request = ++saveRequest;
+  try {
+    await storeBrowserColony(saveSession, target, replace);
+    if (state !== target || request !== saveRequest) return false;
+    $('save').disabled = false; $('save').title = 'Save in this browser'; $('export').textContent = 'Export save';
+    if (!silent) toast('Colony saved on this device.');
+    return true;
+  } catch {
+    if (state === target && request === saveRequest) toast('Browser storage unavailable. Use Export save to keep your colony.', true);
+    return false;
+  }
 }
 function setSpeed(value) { speed = value; if (value) previousSpeed = value; document.querySelectorAll('[data-speed]').forEach(b => { const active = Number(b.dataset.speed) === value; b.classList.toggle('active', active); b.setAttribute('aria-pressed', active); }); }
 function closeDrawer(side) {
@@ -197,7 +209,12 @@ $('guide').addEventListener('close', () => setSpeed(previousSpeed));
 $('new-game').onclick = () => { setSpeed(0); $('confirm-new').showModal(); };
 $('cancel-new').onclick = () => $('confirm-new').close();
 $('confirm-new').addEventListener('close', () => setSpeed(previousSpeed));
-$('confirm-new-button').onclick = () => { state = createGame(Math.floor(Math.random() * 2147483647) + 1); lastSave = 0; accumulator = 0; setSite('surface'); const stored = save(true, true); $('confirm-new').close(); if (stored) toast('A new foothold. A new history.'); };
+$('confirm-new-button').onclick = async () => {
+  const request = ++colonyRequest, replacement = createGame(Math.floor(Math.random() * 2147483647) + 1);
+  state = replacement; lastSave = 0; accumulator = 0; setSite('surface');
+  const pending = save(true, true); $('confirm-new').close();
+  if (await pending && state === replacement && request === colonyRequest) toast('A new foothold. A new history.');
+};
 $('export').onclick = () => { const exported = exportColony(saveSession, state); const url = URL.createObjectURL(new Blob([exported.contents], { type: 'application/json' })); const a = document.createElement('a'); a.href = url; a.download = exported.protectedOriginal ? 'spacefortress-unreadable-save.json' : `spacefortress-cycle-${Math.floor(state.tick / 300) + 1}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); toast('Save exported.'); };
 $('record-simulation').onclick = () => {
   if (recordingStatus(state).active) { stopRecording(state); toast('Simulation recording stopped. Export it from this menu.'); }
@@ -211,7 +228,23 @@ $('export-recording').onclick = () => {
 let importSpeed = speed;
 $('import').onclick = () => { importSpeed = speed; setSpeed(0); $('save-file').click(); };
 $('save-file').addEventListener('cancel', () => setSpeed(importSpeed));
-$('save-file').onchange = async e => { const restoreSpeed = importSpeed, file = e.target.files[0]; if (!file) { setSpeed(restoreSpeed); return; } try { if (file.size > MAX_SAVE_BYTES) throw new Error('Save is too large.'); const imported = deserialize(await file.text()); state = imported; lastSave = state.tick; accumulator = 0; setSite('surface'); if (save(true, true)) toast('Colony restored.'); } catch (error) { toast(`Could not import: ${error.message}`, true); } finally { e.target.value = ''; setSpeed(restoreSpeed); } };
+$('save-file').onchange = async e => {
+  const request = ++colonyRequest, restoreSpeed = importSpeed, input = e.target, file = input.files[0], previousState = state;
+  let imported = null;
+  if (!file) { setSpeed(restoreSpeed); return; }
+  setSpeed(0);
+  try {
+    if (file.size > MAX_SAVE_BYTES) throw new Error('Save is too large.');
+    const contents = await file.text();
+    if (request !== colonyRequest || state !== previousState) return;
+    imported = deserialize(contents); state = imported; lastSave = state.tick; accumulator = 0; setSite('surface');
+    if (await save(true, true) && request === colonyRequest && state === imported) toast('Colony restored.');
+  } catch (error) {
+    if (request === colonyRequest && state === (imported || previousState)) toast(`Could not import: ${error.message}`, true);
+  } finally {
+    if (request === colonyRequest && state === (imported || previousState)) { input.value = ''; setSpeed(restoreSpeed); }
+  }
+};
 $('crew-list').onclick = e => { const row = e.target.closest('[data-crew]'); if (!row) return; const c = state.crew.find(c => c.id === row.dataset.crew); setMode('inspect'); if (c.site !== 'transit') { if(c.site !== siteId)setSite(c.site); deckView.select(c.z ?? 0); renderer.focus(state.sites[c.site],c); } selected = { crew: c.id }; renderer.selection = selected; openDrawer('right', 'inspect'); refresh(); };
 $('inspector').addEventListener('focusin', () => suitReleaseView.remember($('inspector'), document.activeElement));
 $('inspector').addEventListener('input', e => {
@@ -529,9 +562,24 @@ function frame(now) {
   if (state.tick - lastSave >= 30) { save(true); lastSave = state.tick; }
   renderer.draw(state, siteId, mode, building, deckView.z); requestAnimationFrame(frame);
 }
-document.addEventListener('visibilitychange', () => { previousTime = performance.now(); if (document.hidden) save(true); });
-window.addEventListener('beforeunload', () => save(true));
+let lifecycleSave = null, lifecycleState = null, lifecycleTick = null;
+function saveLifecycle() {
+  // Hidden/pagehide/beforeunload can describe one departure. Share that write;
+  // browsers may still terminate before an asynchronous transaction completes.
+  if (!lifecycleSave || lifecycleState !== state || lifecycleTick !== state.tick) {
+    lifecycleState = state; lifecycleTick = state.tick;
+    lifecycleSave = save(true).then(() => flushBrowserColony(saveSession)).catch(() => {});
+  }
+  return lifecycleSave;
+}
+document.addEventListener('visibilitychange', () => {
+  previousTime = performance.now();
+  if (document.hidden) void saveLifecycle();
+  else lifecycleSave = null;
+});
+window.addEventListener('pagehide', () => { void saveLifecycle(); });
+window.addEventListener('beforeunload', () => { void saveLifecycle(); });
 refresh(); renderer.draw(state, siteId, mode, building, deckView.z); requestAnimationFrame(frame);
-if (saveSession.error) { setSpeed(0); $('save').disabled = true; $('save').title = 'Original save protected. Export it or choose New colony.'; if (saveSession.original !== null) $('export').textContent = 'Export previous save'; toast('Could not load the saved colony. Your original is preserved. Use the ⋯ menu to export it, import a save, or start a new colony.', true); }
+if (saveSession.error) { setSpeed(0); $('save').disabled = true; $('save').title = 'Original save protected. Export it or choose New colony.'; if (saveSession.original !== null) $('export').textContent = 'Export previous save'; toast(saveSession.original !== null ? 'Could not load the saved colony. Your original is preserved. Use the ⋯ menu to export it, import a save, or start a new colony.' : 'Could not read the saved colony. Automatic saving is paused. Use the ⋯ menu to import a save or start a new colony.', true); }
 else if (new URLSearchParams(location.search).has('preview')) setSpeed(0);
 else if (fresh) openGuide();

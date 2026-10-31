@@ -2,6 +2,7 @@
 
 ## Current systems work
 
+- [x] Local after v0.1.12: move browser colony saves to IndexedDB, with ordered transactional writes, preserved legacy saves and commit-aware save/import controls. This prepares storage for larger persistent worlds; sector travel remains pending.
 - [x] Local after v0.1.12: generate 48 × 48 home and 32 × 32 remote maps with connected terrain, native ecology, finite ore/ice/water and local exterior temperatures. Save76/region3 preserves existing worlds without regeneration.
 - [x] Local after v0.1.12: assemble and launch a paid survey satellite through ordinary delivered engineering work; reveal a selectable planet atlas with live known-landing readings and same-generator unvisited-sector previews. Observation10 records planet identity and launch. [Mechanics and limits](docs/procedural-maps.md).
 - [ ] Add actual travel and settlement at newly surveyed sectors; larger history/discovery and sustained ordinary habitation remain unfinished.

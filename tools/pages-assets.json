@@ -16,6 +16,7 @@
     "src/breaker-panels.js",
     "src/breakers.js",
     "src/breeding.js",
+    "src/browser-storage.js",
     "src/comfort-panels.js",
     "src/comfort.js",
     "src/construction.js",

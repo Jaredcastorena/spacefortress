@@ -4,6 +4,8 @@ SPACEFORTRESS is an early playable colony simulator. Release entries describe co
 
 ## Unreleased
 
+- Store browser colonies in IndexedDB with ordered writes and success only after transaction completion. Load existing localStorage colonies when no primary save exists; retain the old copy after migration. Invalid or inaccessible primary saves block autosave instead of loading stale legacy state. Failed replacements keep the active colony exportable, and overlapping imports cannot replace a newer colony. Schema76, region3 and observation/recording10 remain unchanged.
+
 - Expand new colonies to a 48 × 48 home map and 32 × 32 remote maps while preserving the established landing cores. Seeded biomes provide native lichen, fungi, sunberries, existing wildlife species, finite ore/ice and finite surface pools. Local exterior temperature offsets affect exposure, flora and actual room boundary heat transfer; basins retain only their finite water.
 - Add supplied survey-satellite assembly and launch: 6 alloy, 2 components, 1 recovered power cell, 2 fuel and 16 engineering work at an eligible real shuttle or settled dock. Shared orders preserve reservation, hauling, cancellation and refund ownership; only completion unlocks the planet’s atlas.
 - Add a collapsed, keyboard-accessible planetary sector survey, generated from the same terrain rules as local maps. Known landings show live resources and populations; unvisited sectors are initial previews with no new settlement or travel route. Expand map navigation and viewport culling for the larger grids.
