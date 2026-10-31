@@ -1,6 +1,6 @@
 # Procedural maps and satellite survey
 
-This is local development after v0.1.12. The package remains 0.1.12; colony save77, region3 and observation/recording11 describe separate formats. The independent elements laboratory is unchanged.
+This is local development after v0.1.12. The package remains 0.1.12; colony save78, region3 and observation/recording12 describe separate formats. The independent elements laboratory is unchanged.
 
 ## Larger physical maps
 
@@ -28,7 +28,7 @@ New-map construction initializes each generated pool once and records its water 
 
 Ground temperature offsets range from −25 to +25°C relative to the site's exterior cycle. They affect exposed crew, plants and actual exterior room-boundary heat transfer. Indoor readings still come from room heat. Legacy and upper-floor tiles without natural metadata retain their previous behavior.
 
-Water temperature, freezing/melting, heat carried by gas and pipe temperature remain unfinished. The generated temperature envelope is a survey description, not a guarantee of safe habitation.
+Rooms and gas pipes carry finite heat and use actual temperature for pressure and heat exchange; see the [gas heat model](gas-heat.md). Water temperature, freezing/melting and steam remain unfinished. The generated temperature envelope is a survey description, not a guarantee of safe habitation.
 
 ## Launch a survey satellite
 
@@ -50,11 +50,11 @@ Only completed supplied work records the launch and unlocks the survey. Cancella
 
 ## Use the planetary atlas
 
-Open **Regions**, choose **Planet map** under the desired planet, then open **Colony** and expand **Surface survey**. The launch inspector also provides **View planet surface survey**. Before launch, this section shows the satellite requirement. After launch, select a hex sector or use the arrow keys while the sector map has focus. The pale dot marks the known landing.
+Open **Regions**, choose **Planet map** under the desired planet, then open **Colony** and expand **Surface survey**. The launch inspector also provides **View planet surface survey**. Before launch, this section shows the satellite requirement. After launch, select a hex sector or use the arrow keys while the sector map has focus. Dots mark visited landings; rings mark prepared or known landings.
 
-The known landing displays live ground-map ore/ice reserves, liquid water, plant patches, living animals and current temperatures. Its readings follow extraction, water movement and population changes; stored inventories are excluded. The **Open … map** button returns to that existing physical site.
+Established and visited landings display live ground-map ore/ice reserves, liquid water, plant patches, living animals and current temperatures. Their readings follow extraction, water movement and population changes; stored inventories are excluded. The **Open … map** button returns to the selected existing physical site.
 
-Other sectors show initial 48 × 48 surface surveys generated from the same terrain rules. Their biomes, resources, plants and predicted life come from the generator. Inspecting them alone creates no physical map or inventory. Expand the selected sector’s Expedition section to prepare a supplied first landing; [sector travel](sector-travel.md) describes its kit, saved map and local settlement rules. The system/orbital destination view remains available separately.
+Unvisited sectors show initial 48 × 48 surface surveys generated from the same terrain rules. Their biomes, resources, plants and predicted life come from the generator. Inspecting them alone creates no physical map or inventory. Preparing a first landing creates a persistent map, but its survey remains an initial estimate until arrival; the panel labels this prepared state. Expand the selected sector’s Expedition section to prepare a supplied first landing; [sector travel](sector-travel.md) describes its kit, saved map and local settlement rules. The system/orbital destination view remains available separately.
 
 Drag or use arrow keys to pan a local map, use the mouse wheel to zoom, and press **Home** to return to the colony. Zooming out reveals the enlarged footprint; the renderer skips offscreen tile work.
 
