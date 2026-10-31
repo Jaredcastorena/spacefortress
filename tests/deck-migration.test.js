@@ -1,3 +1,4 @@
+import {withTemperaturePressureReadings,withLegacyDensityReadings} from './helpers/pressure-migration.js';
 import { VERSION as CURRENT_SAVE_VERSION } from '../src/data.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,7 +14,7 @@ const original = gunzipSync(readFileSync(new URL('./fixtures/decks-schema46-buil
 const fresh = () => JSON.parse(original);
 const primary = s => [...Object.values(s.sites).flatMap(site => site.tiles), ...s.crew, ...s.jobs, ...s.creatures];
 
-test('genuine schema46 migration changes only declared deck, shipment, crew and animal fields and preserves all ownership', () => {
+test('genuine schema46 migration updates declared deck, shipment, crew, animal fields and derived room readings and preserves all ownership', () => {
   assert.equal(createHash('sha256').update(original).digest('hex'), 'b0365416427dbff85fd009314c9345a476c9eae7d697d637a6e91915f81dfe66');
   const old = fresh(), migrated = deserialize(original);
   assert.equal(old.version, 46); assert.equal(migrated.version, CURRENT_SAVE_VERSION);
@@ -23,13 +24,13 @@ test('genuine schema46 migration changes only declared deck, shipment, crew and 
   }
   assert.ok(primary(migrated).every(entity => entity.z === 0));
   const projected = projectPreDecks(migrated); projected.version = 46;
-  assert.deepEqual(projected, old, 'complete prior state, including RNG, timing and nested references');
+  assert.deepEqual(projected, withTemperaturePressureReadings(old), 'complete prior state, including RNG, timing and nested references');
   const saved = serialize(migrated); assert.equal(serialize(deserialize(saved)), saved);
   assert.equal(JSON.stringify(old), original, 'input is untouched');
 });
 
 test('migrated and newly constructed deck-zero colonies continue identically', () => {
-  const migrated = deserialize(original), current = deserialize(JSON.stringify({...projectPreRegion(createGame(74219), {allowUnvisited:true}), version:64}));
+  const migrated = deserialize(original), current = deserialize(JSON.stringify({...withLegacyDensityReadings(projectPreRegion(createGame(74219), {allowUnvisited:true})), version:64}));
   // The historical fixture omits the optional, inactive herd flag. Match that
   // representation without hiding any active warning or changing physical state.
   assert.equal(migrated.debris.herdQuiet, undefined); assert.equal(current.debris.herdQuiet, false);

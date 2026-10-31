@@ -1,3 +1,4 @@
+import {withTemperaturePressureReadings} from './helpers/pressure-migration.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -92,7 +93,7 @@ test('schema 69 preserves state and rejects a forged installation job', () => {
   assert.equal(old.version, 69); expected.version = VERSION;
   for (const site of Object.values(expected.sites)) for (const t of site.tiles) if (t.building === 'stockpile') t.storage.limits = {};
   const loaded = deserialize(raw);
-  assert.ok(serialize(loaded) === JSON.stringify(expected), 'genuine schema69 changes only version and neutral depot metadata');
+  assert.ok(serialize(loaded) === JSON.stringify(withTemperaturePressureReadings(expected)), 'genuine schema69 changes only version, neutral depot metadata and derived room readings');
   old.jobs.push({ id: 'job-9000', site: 'surface', x: 13, y: 7, z: 0, kind: 'chargeCell', building: null, cost: { cells: 1 }, sources: [], materials: {}, work: 4, remaining: 4, worker: null, priority: 5, blockedReason: null, missingFood: 0, foodSpoiled: 0 });
   assert.throws(() => deserialize(JSON.stringify(old)), /Legacy power-cell installation/);
 });

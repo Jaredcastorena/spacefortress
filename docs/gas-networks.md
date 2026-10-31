@@ -19,7 +19,7 @@ Pipes are a separate overlay from cables. Gas equipment has its own ports and ca
 
 Each pipe and tank owns its gas mixture. Network edits do not replace gas with a new network total. Passive flow follows pressure differences, with bounded equalization and mixing between connected neighbors. Closed valves preserve the gas in their segment. Powered pumps can move gas against the pressure gradient, bounded by actual source contents and destination capacity.
 
-Pressure uses the colony's existing game units: gas amount divided by volume relative to ten gas units per volume at 100% nominal pressure. It is not displayed as kPa. Temperature-dependent pressure and pipe heat exchange remain future work.
+Pipe and tank pressure uses gas amount divided by volume relative to ten gas units per volume at 100% nominal pressure and a fixed 20 °C reference. Room pressure now also scales with absolute temperature. Vents and exhaust calculate room targets using the receiving or source room’s current heat; hot and cold rooms need different gas quantities for the same pressure. Readings remain game percentages, not kPa. Gas-carried heat and pipe heat exchange remain future work. See [room pressure](room-pressure.md).
 
 The regulated vent supplies its room only while enabled, powered, intact, open, supplied and below its target. It does not extract gas or recycle carbon dioxide. Existing life support owns the baseline's recycling and smoke-clearing behavior. The separate extractor retains CO2 and smoke; see [retained exhaust](exhaust-and-filtration.md). Disabled devices release their electrical demand; enabled idle devices retain their rated load, matching other colony equipment.
 

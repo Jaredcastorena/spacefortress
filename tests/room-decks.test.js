@@ -1,3 +1,4 @@
+import {withTemperaturePressureReadings,withLegacyDensityReadings} from './helpers/pressure-migration.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -32,14 +33,15 @@ function stacked() {
 test('schema51 room migration preserves every prior value and exact reload',()=>{
   assert.equal(hash(original),'ec6da3ae9b4233d5f11ab1ca05af04517f5e62f52a50095637f3e176cbb1fd38');const old=JSON.parse(original),s=deserialize(original);
   assert.equal(old.version,51);assert.equal(s.version,VERSION);assert.ok(Object.values(s.sites).every(site=>site.rooms.every(r=>r.z===0)));
-  const projected=projectPreRoomDecks(s);projected.version=51;assert.deepEqual(projected,old);
+  const projected=projectPreRoomDecks(s);projected.version=51;assert.deepEqual(projected,withTemperaturePressureReadings(old));
   const text=serialize(s);assert.equal(serialize(deserialize(text)),text);
   const observation=observe(s);assert.equal(observation.schemaVersion,TELEMETRY_VERSION);
   assert.ok(Object.values(observation.entities).filter(e=>e.type==='room').every(e=>e.z===0));
 });
 
+// Compare the unchanged physical state against historical hashes using their original density-only display readings.
 test('eight subsystem ticks retain the schema51 physical and RNG results',()=>{
-  const f=refs(deserialize(original));for(const expected of ["b172e852b7c08476a7ae92050dff2b7eb07f12b62f84fc733471acf3f2b3fd5a", "540e178d9dd7885a7798733afd4f524c88944b0653f5b3b1c876d5db78cfc643", "1b0f82a1ba96ea57952be94f3421caa877fe685e0700efafb0b429ff789c1017", "1643752daeb3612dfece2f45f1128d6a87e0ad20afe1845f8764cbca1038235f", "d04d310de56283b4246a3bcb012f6660385020db85223ef0daebfc428178bea1", "bea1e45af8795978e55c1d6d10cfa48443a47658f764bdec2c5490236c96796b", "cacdb2a5b90b7def20283a7298216d7ffb74b79e4d2c1db2fdd865b8d37895a0", "16b49c509ff2f42e79d527d1e79fbcfdd8092ca135dea93089af2f6644c7a821"]){physicalTick(f);const projected=projectPreRoomDecks(f.s);projected.version=51;assert.equal(hash(serialize(projected)),expected);}
+  const f=refs(deserialize(original));for(const expected of ["b172e852b7c08476a7ae92050dff2b7eb07f12b62f84fc733471acf3f2b3fd5a", "540e178d9dd7885a7798733afd4f524c88944b0653f5b3b1c876d5db78cfc643", "1b0f82a1ba96ea57952be94f3421caa877fe685e0700efafb0b429ff789c1017", "1643752daeb3612dfece2f45f1128d6a87e0ad20afe1845f8764cbca1038235f", "d04d310de56283b4246a3bcb012f6660385020db85223ef0daebfc428178bea1", "bea1e45af8795978e55c1d6d10cfa48443a47658f764bdec2c5490236c96796b", "cacdb2a5b90b7def20283a7298216d7ffb74b79e4d2c1db2fdd865b8d37895a0", "16b49c509ff2f42e79d527d1e79fbcfdd8092ca135dea93089af2f6644c7a821"]){physicalTick(f);const projected=withLegacyDensityReadings(projectPreRoomDecks(f.s));projected.version=51;assert.equal(hash(serialize(projected)),expected);}
 });
 
 test('save room ownership rejects missing, malformed and unsupported decks and legacy shadows',()=>{

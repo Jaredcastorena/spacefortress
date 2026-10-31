@@ -10,6 +10,8 @@ An early playable space colony simulator inspired by Dwarf Fortress. Keep seven 
 
 ## Local development after v0.1.12
 
+Room temperature now changes total and oxygen pressure. Heating or cooling a sealed room changes breathing, gas flow and equipment targets without adding gas. Airlocks choose achievable safe refill targets from their finite reserves. Automatic supplies use useful refill batches so tiny air top-ups do not monopolize haulers. Schema75 updates older saves’ derived readings while retaining their physical state. Pipe gas still uses a fixed reference temperature; transported gas does not yet carry heat. [Room pressure rules](docs/room-pressure.md).
+
 Disposable fuse boxes now use the existing physical power routes. They blow immediately on overload and need one delivered alloy plus engineering work to replace. Repairs preserve spent cartridges; replacement preserves box damage and leaves the switch open. Schema74 retains older breaker settings. [Fuse controls and replacement](docs/fuses.md).
 
 Breakers now support delayed overload protection with 4/8/16/32 kW settings. Measurements follow finite power routed through actual contacts, including charging and battery backfeed. Three consecutive overloaded ticks open the contact; damage lowers its effective rating. Open a breaker to configure it, reduce the load, then reset and reclose after a trip. Schema73 preserves existing unconfigured breakers. [Overload protection](docs/breaker-overloads.md).

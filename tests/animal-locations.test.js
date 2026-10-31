@@ -1,3 +1,4 @@
+import {withTemperaturePressureReadings} from './helpers/pressure-migration.js';
 import { TELEMETRY_VERSION as CURRENT_OBSERVATION_VERSION } from '../src/telemetry.js';
 import { VERSION as CURRENT_SAVE_VERSION } from '../src/data.js';
 import test from 'node:test';
@@ -24,7 +25,7 @@ test('genuine schema49 migration preserves animal health, body yield and every u
   const old=fresh(),current=deserialize(original);assert.equal(old.version,49);assert.equal(current.version,CURRENT_SAVE_VERSION);
   const post=assigned(old).husbandry.post;assert.deepEqual(assigned(current).husbandry.post,{x:post[0],y:post[1],z:0});
   assert.deepEqual(body(current).death.owner,{...body(old).death.owner,z:0});
-  const projected=projectPreAnimalLocations(current);projected.version=49;assert.deepEqual(projected,old);
+  const projected=projectPreAnimalLocations(current);projected.version=49;assert.deepEqual(projected,withTemperaturePressureReadings(old));
   const saved=serialize(current);assert.equal(serialize(deserialize(saved)),saved);
 });
 

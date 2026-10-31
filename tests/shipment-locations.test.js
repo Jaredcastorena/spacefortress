@@ -1,3 +1,4 @@
+import {withTemperaturePressureReadings} from './helpers/pressure-migration.js';
 import { TELEMETRY_VERSION as CURRENT_OBSERVATION_VERSION } from '../src/telemetry.js';
 import { VERSION as CURRENT_SAVE_VERSION } from '../src/data.js';
 import test from 'node:test';
@@ -25,7 +26,7 @@ test('genuine schema47 migration preserves complete state outside named shipment
   assert.ok(current.jobs.every(j => j.sources.every(source => source.z === 0)));
   assert.deepEqual(carrier(current).delivery.target, {x:carrier(old).delivery.target[0], y:carrier(old).delivery.target[1], z:0});
   const projected = projectPreShipments(current); projected.version = 47;
-  assert.deepEqual(projected, old, 'includes every resource owner, metadata, RNG and tick');
+  assert.deepEqual(projected, withTemperaturePressureReadings(old), 'includes every resource owner, metadata, RNG and tick');
   const saved = serialize(current); assert.equal(serialize(deserialize(saved)), saved);
 });
 

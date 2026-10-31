@@ -15,12 +15,12 @@ Research used official web pages only. No external game code, assets, engine, pa
 
 | System | Implemented | Principal missing pieces |
 | --- | --- | --- |
-| Gas | Conserved room O2/inert/CO2, smoke, door exchange, breaches, supplied life support; physical supply and retained exhaust pipes/tanks/pumps/vents/extractors; cell gas in the separate lab | Waste processing, sensor/controller airlocks, temperature-dependent pressure |
+| Gas | Temperature-dependent room pressure, conserved room O2/inert/CO2, smoke, door exchange, breaches, supplied life support; physical supply and retained exhaust pipes/tanks/pumps/vents/extractors; cell gas in the separate lab | Additional contaminants, gas-carried heat and pipe temperature |
 | Water | Delivered tanks, finite plumbing/storage and reserved inventory adapters, leaks, floor flow, doors, powered recovery, fire quenching | Liquid mixtures, water heat, steam, treatment and vertical flow in the colony |
 | Electricity | Connected wires, priorities, batteries, solar, reactors, heat, wet faults and two-terminal manual/wet-fault/overload breakers and disposable fuses with routed throughput | separated distribution tiers, device-specific partial-power behavior |
 | Agent interface | Shared player/agent commands, stable entity IDs, named events, local bounded recording | New devices must extend these existing interfaces |
 
-See [atmosphere](atmosphere.md), [floor water](floor-water.md), [power](power-networks.md), [reactors](reactors.md) and the [elements lab](elements-lab.md) for exact rules and limitations. Colony pressure currently uses gas density relative to nominal, not a temperature-coupled gas law. Fire quenching currently records water as consumed without creating steam.
+See [atmosphere](atmosphere.md), [floor water](floor-water.md), [power](power-networks.md), [reactors](reactors.md) and the [elements lab](elements-lab.md) for exact rules and limitations. Colony room pressure now scales gas density by absolute room temperature; pipe/tank pressure retains a fixed reference temperature. See [room pressure](room-pressure.md). Fire quenching currently records water as consumed without creating steam.
 
 ## Proposed implementation sequence
 

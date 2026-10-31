@@ -2,6 +2,7 @@ import { tileAt, positionOf, sameCell } from './spatial.js';
 import { airlockConfig, airlockCells } from './airlock-locations.js';
 import { emitEvent } from './telemetry.js';
 import { refreshAtmosphere } from './atmosphere.js';
+import { roomPressure, gasAtRoomPressure } from './room-pressure.js';
 import { refreshPower } from './power.js';
 import { opposite as oppositeDirection } from './geometry.js';
 import { airlockTile as at, airlockId as id, airlockKey as key, airlockRoom, airlockNode as node, airlockGas as gas, airlockPayload as payload, airlockCapacity as capacity, airlockOpen as open, airlockLayout, airlockRouteInfo, airlockPhysicalPath, airlockSideBlock, airlockPermittedSide, airlockRoomReading, airlockGasQuantities as quantities } from './airlock-access.js';
@@ -49,44 +50,57 @@ function partyBlock(s,site,t) {
  if(a.party){const c=s.crew.find(c=>c.id===a.party.crew);if(!c||c.site!==site.id||c.health<=0)return 'traveler_missing';if(a.party.patient){const patient=s.crew.find(c=>c.id===a.party.patient);if(!patient||patient.health<=0||patient.site!==site.id||c.rescue?.patient!==patient.id||!c.rescue.carrying)return 'party_separated';}}
  return null;
 }
-const refillTarget=layout=>Math.max(0,Math.min(150,Math.round(layout.habitat.pressure)));
-function resources(layout,mode,admission=false) {
- const q=quantities(layout),room=layout.room;
- if((mode==='recover'||admission)&&q.headroom+1e-8<q.recoverNeeded)return 'reservoir_full';
- if((mode==='refill'||admission)&&q.supply+1e-8<q.fillNeeded)return 'supply_empty';
- if(mode==='refill'||admission) {
-  const habitat=airlockRoomReading(layout.habitat),chamber=airlockRoomReading(room);
-  if(!habitat.thermalSafe||!chamber.thermalSafe)return 'unsafe_temperature';
-  if(!habitat.breathable)return 'contaminated_mix';
-  const total=q.supply,target=room.volume*10*refillTarget(layout)/100;
-  const needed=Math.min(total,Math.max(0,target-gas(room.gas))),mix={...room.gas};let smoke=room.smoke||0;
-  if(total>0)for(const t of q.refill){const n=node(t);for(const k of ['oxygen','inert','co2'])mix[k]+=n.gas[k]*needed/total;smoke+=n.smoke*needed/total;}
-  // Assess only finite gas available toward the commanded vent target. This
-  // anticipates contamination without claiming mixing or purification occurred.
-  const predicted=airlockRoomReading({...room,gas:mix,smoke});
-  if(!predicted.breathable)return 'contaminated_mix';
- }
- return null;
+function predictedRefill(layout,q,target) {
+ const room=layout.room,quantity=gasAtRoomPressure(room,target);if(quantity===null)return null;
+ const total=q.supply,needed=Math.min(total,Math.max(0,quantity-gas(room.gas))),mix={...room.gas};let smoke=room.smoke||0;
+ if(total>0)for(const t of q.refill){const n=node(t);for(const k of ['oxygen','inert','co2'])mix[k]+=n.gas[k]*needed/total;smoke+=n.smoke*needed/total;}
+ return airlockRoomReading({...room,gas:mix,smoke});
 }
+function refillTarget(layout,q=quantities(layout)) {
+ const pressure=roomPressure(layout.habitat),rounded=Math.max(0,Math.min(150,Math.round(pressure)));
+ if(predictedRefill(layout,q,rounded)?.breathable)return rounded;
+ // A rounded target can cross the oxygen floor after modest cooling. Prefer
+ // it when safe; otherwise try the nearest legal finite fill, lower on ties.
+ const candidates=[];
+ for(let target=Math.max(0,Math.ceil(pressure-2));target<=Math.min(150,Math.floor(pressure+2));target++)if(target!==rounded)candidates.push(target);
+ candidates.sort((a,b)=>Math.abs(a-pressure)-Math.abs(b-pressure)||a-b);
+ return candidates.find(target=>{const predicted=predictedRefill(layout,q,target);return predicted?.breathable&&Math.abs(predicted.pressure-pressure)<=2+1e-9;})??rounded;
+}
+// Pure finite diagnostics shared by controller admission and commissioning.
+export function airlockResourceStatus(layout,mode=null,admission=true) {
+ const q=quantities(layout),needsFill=mode==='refill'||admission;
+ const target=needsFill?refillTarget(layout,q):null,predicted=needsFill?predictedRefill(layout,q,target):null;
+ const habitat=airlockRoomReading(layout.habitat),chamber=airlockRoomReading(layout.room);
+ let blocker=null;
+ if(needsFill&&(q.fillNeeded===null||predicted===null))blocker='unsafe_temperature';
+ else if((mode==='recover'||admission)&&q.headroom+1e-8<q.recoverNeeded)blocker='reservoir_full';
+ else if(needsFill&&q.supply+1e-8<q.fillNeeded)blocker='supply_empty';
+ else if(needsFill&&(!habitat.thermalSafe||!chamber.thermalSafe))blocker='unsafe_temperature';
+ else if(needsFill&&(!habitat.breathable||!predicted.breathable))blocker='contaminated_mix';
+ return {blocker,headroom:q.headroom,recoverNeeded:q.recoverNeeded,supply:q.supply,fillNeeded:q.fillNeeded,target,predicted,habitat,chamber};
+}
+const resources=(layout,mode,admission=false)=>airlockResourceStatus(layout,mode,admission).blocker;
 function estimatedTicks(layout) {
+ const target=gasAtRoomPressure(layout.room,refillTarget(layout));if(target===null)return null;
  const nodes=[...layout.recoveryNodes,...layout.storageNodes],deviceRate=Math.min(2,...nodes.filter(t=>['gasExtractor','gasVent'].includes(t.building)).map(t=>2*t.hp/100));
- return Math.ceil((gas(layout.room.gas)+layout.room.volume*10*layout.habitat.pressure/100)/Math.max(.01,deviceRate))+layout.room.cells.length+6+2*nodes.length;
+ return Math.ceil((gas(layout.room.gas)+target)/Math.max(.01,deviceRate))+layout.room.cells.length+6+2*nodes.length;
 }
 function admissionBlock(s,site,t,layout,request) {
  const c=s.crew.find(c=>c.id===request.crew),side=request.direction==='outward'?'inner':'outer';
  if(!c||c.health<=0||c.site!==site.id)return 'traveler_missing';
  if(!inside(t.airlock,c)&&!airlockPhysicalPath(site,positionOf(c),layout.route[side].outside))return 'route_unavailable';
  const resource=resources(layout,null,true);if(resource)return resource;
- const required=.18*(Math.ceil(1.25*estimatedTicks(layout))+20);
+ const ticks=estimatedTicks(layout);if(ticks===null)return 'unsafe_temperature';
+ const required=.18*(Math.ceil(1.25*ticks)+20);
  if(members(request).some(pid=>(s.crew.find(c=>c.id===pid)?.oxygen??0)<required))return 'insufficient_suit';
  return null;
 }
 function desiredTransfer(site,t,layout,current) {
- if(current==='recover')return 'recover';if(current==='refill')return layout.room.pressure>layout.habitat.pressure+2?'recover':'refill';if(current!=='prepare_entry')return null;
+ if(current==='recover')return 'recover';if(current==='refill')return roomPressure(layout.room)>roomPressure(layout.habitat)+2?'recover':'refill';if(current!=='prepare_entry')return null;
  const side=entrySide(t.airlock);if(!airlockSideBlock(site,t,side))return null;
  // Pressure excess must be recovered before returning reserve gas, even when
  // matching habitat for an outward admission.
- return side==='outer'||layout.room.pressure>layout.habitat.pressure+2?'recover':'refill';
+ return side==='outer'||roomPressure(layout.room)>roomPressure(layout.habitat)+2?'recover':'refill';
 }
 // Physiology can change pressure after an exit first matches. Re-enter the
 // existing finite transfer phase only while the whole party can be sealed in.
@@ -157,7 +171,8 @@ export function requestAirlock(s,args) {
  if(patient&&controllers(s).some(([,other])=>[...other.airlock.queue,...(other.airlock.party?[other.airlock.party]:[])].some(entry=>members(entry).includes(patient))))return error('already_requested');
  const layout=airlockLayout(site,t);if(!layout.ok)return error(layout.reason);if(!a.enabled)return error('disabled');
  const side=args.direction==='outward'?'inner':'outer';if(!inside(a,c)&&!airlockPhysicalPath(site,positionOf(c),layout.route[side].outside))return error('route_unavailable');
- const entry={crew:c.id,patient,direction:args.direction,destination:null,requestTick:s.tick,emergency:Math.min(c.oxygen,p?.oxygen??100)<.18*(Math.ceil(1.25*estimatedTicks(layout))+20)};
+ const ticks=estimatedTicks(layout);
+ const entry={crew:c.id,patient,direction:args.direction,destination:null,requestTick:s.tick,emergency:ticks!==null&&Math.min(c.oxygen,p?.oxygen??100)<.18*(Math.ceil(1.25*ticks)+20)};
  a.queue.push(entry);a.queue.sort((l,r)=>Number(r.emergency)-Number(l.emergency)||l.requestTick-r.requestTick||l.crew.localeCompare(r.crew));
  for(const member of members(entry))s.crew.find(c=>c.id===member).airlockTraversal={controller:id(site,t),binding:a.binding,cycle:null,requestTick:s.tick,destination:null};
  event(s,site,t,'requested',{crew:c.id,party:members(entry),direction:entry.direction,requestTick:s.tick,destination:null,emergency:entry.emergency});return {ok:true,queued:true};

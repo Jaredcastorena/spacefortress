@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { breathable, breathingBlock, breathingStatus, refreshRoom } from '../src/atmosphere.js';
 import { FIRE } from '../src/fire.js';
 
+// Set physical contents rather than the derived display cache.
+function setPressure(r, pressure) { r.gas.inert=r.volume*10*pressure/100-r.gas.oxygen-r.gas.co2; }
+function setCO2(r, fraction) { const total=r.gas.oxygen+r.gas.inert+r.gas.co2;r.gas.co2=total*fraction;r.gas.inert=total-r.gas.oxygen-r.gas.co2; }
 function adjacent(value, delta) {
   const view = new DataView(new ArrayBuffer(8));
   view.setFloat64(0, value);
@@ -35,11 +38,11 @@ test('breathing status distinguishes exterior from a safe room with nominal limi
 
 const failures = [
   ['smoke', r => { r.smoke = FIRE.smokeLimit * r.volume; }],
-  ['low_pressure', r => { r.pressure = adjacent(55, -1); }],
-  ['high_pressure', r => { r.pressure = adjacent(150, 1); }],
+  ['low_pressure', r => { setPressure(r, adjacent(55, -1)); }],
+  ['high_pressure', r => { setPressure(r, adjacent(150, 1)); }],
   ['low_oxygen', r => { r.gas.oxygen = adjacent(.16, -2) * 40; }],
   ['high_oxygen', r => { r.gas.oxygen = adjacent(.3, 1) * 40; }],
-  ['high_co2', r => { r.co2Fraction = adjacent(.02, 1); }],
+  ['high_co2', r => { setCO2(r, adjacent(.02, 1)); }],
 ];
 for (const [code, change] of failures) test(`breathing status identifies ${code} without changing the room`, () => {
   const r = room(); change(r); const before = structuredClone(r); immutable(r);
@@ -61,12 +64,12 @@ test('first breathing failure follows the stable smoke, pressure, oxygen, CO2 pr
 
 test('breathing status preserves inclusive limits and the one-ULP oxygen allowance', () => {
   for (const change of [
-    r => { r.pressure = 55; },
-    r => { r.pressure = 150; },
+    r => { setPressure(r, 55); },
+    r => { setPressure(r, 150); },
     r => { r.gas.oxygen = adjacent(.16, -1) * 40; },
     r => { r.gas.oxygen = .16 * 40; },
     r => { r.gas.oxygen = .3 * 40; },
-    r => { r.co2Fraction = .02; },
+    r => { setCO2(r, .02); },
     r => { r.smoke = adjacent(FIRE.smokeLimit, -1) * r.volume; },
   ]) {
     const r = room(); change(r); immutable(r);
@@ -76,8 +79,8 @@ test('breathing status preserves inclusive limits and the one-ULP oxygen allowan
   }
 });
 
-test('unordered pressure readings remain unbreathable under the original comparison semantics', () => {
-  const r = room(); r.pressure = NaN; immutable(r);
+test('unordered physical temperature keeps pressure unbreathable', () => {
+  const r = room(); r.heat = NaN; immutable(r);
   assert.equal(breathingBlock(r), 'low_pressure');
   assert.equal(breathingStatus(r).breathable, false);
   assert.equal(breathable(r), false);

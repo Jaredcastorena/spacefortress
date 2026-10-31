@@ -1,3 +1,4 @@
+import {withTemperaturePressureReadings,withLegacyDensityReadings} from './helpers/pressure-migration.js';
 import {VERSION} from '../src/data.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,7 +26,7 @@ test('genuine schema64 migration keeps four physical sites and all prior state w
  assert.equal(createHash('sha256').update(legacy).digest('hex'),'75e2645acaea6baa19f61fc75252f840fe80d5cd03ca17af20135ffad98e4c3f');
  const before=JSON.parse(legacy),expected=structuredClone(before);expected.version=VERSION;for(const site of Object.values(expected.sites))for(const t of site.tiles)if(t.building==='stockpile')t.storage.limits={};expected.region=makeRegion(before.seed,true);
  for(const site of Object.values(expected.sites))site.kind=site.id;
- const s=deserialize(legacy);assert.ok(serialize(s)===serialize(expected));assert.equal(Object.keys(s.sites).length,4);assert.deepEqual(totalResources(s),totalResources(before));check(s);
+ const s=deserialize(legacy);assert.ok(serialize(s)===serialize(withTemperaturePressureReadings(expected)));assert.equal(Object.keys(s.sites).length,4);assert.deepEqual(totalResources(s),totalResources(before));check(s);
 });
 
 test('dynamic commands, observations and compact route panels expose all persistent destinations',()=>{
@@ -44,7 +45,7 @@ test('dynamic commands, observations and compact route panels expose all persist
 test('generated site metadata, routes and cross-settlement resident aliases reject without repair',()=>{
  const s=createGame(74219),ids=generated(s).map(d=>d.id),good=JSON.parse(serialize(s));
  for(const edit of [x=>delete x.region,x=>x.region.sites[ids[0]].fuel++,x=>x.sites[ids[1]].kind='surface',x=>{x.version=64;}]){
-  const bad=structuredClone(good);edit(bad);assert.throws(()=>deserialize(JSON.stringify(bad)));
+  const bad=structuredClone(good);edit(bad);const fixture=bad.version<VERSION?withLegacyDensityReadings(bad):bad;assert.throws(()=>deserialize(JSON.stringify(fixture)));
  }
  const duplicate=structuredClone(good);for(const id of ids){duplicate.outposts[id].established=true;duplicate.outposts[id].residents=['crew-0'];}assert.throws(()=>deserialize(JSON.stringify(duplicate)),/multiple outpost residences/);
 });

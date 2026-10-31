@@ -935,9 +935,9 @@ function legacyMeatShadow(value){
 }
 export function deserialize(text) {
   if (text.length > 5_000_000) throw new Error('Save is too large.');
-  const s = JSON.parse(text),legacySolarModel=s?.version<59;
+  const s = JSON.parse(text),legacySolarModel=s?.version<59, legacyRoomPressure=s?.version<75;
   if (Number.isInteger(s?.version) && s.version >= 1 && s.version <= 39) throw new Error('Legacy square-grid saves (schemas 1–39) cannot be loaded into the hex colony. Export the original save and use the preserved square version to continue it.');
-  if (![40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, VERSION].includes(s?.version) || s.grid !== GRID) throw new Error('Unsupported save topology: schemas 40–74 require grid hex-odd-q-v1.');
+  if (![40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, VERSION].includes(s?.version) || s.grid !== GRID) throw new Error('Unsupported save topology: schemas 40–75 require grid hex-odd-q-v1.');
   if ( !Number.isSafeInteger(s.tick) || s.tick < 0 || !Number.isInteger(s.rng) || !Number.isSafeInteger(s.nextId)) throw new Error('Unsupported or invalid save.');
   if (!s.sites || !Array.isArray(s.crew) || s.crew.length < 7 || s.crew.length > MAX_CREW || (s.version < 72 && s.crew.length !== 7) || !Array.isArray(s.jobs) || !Array.isArray(s.log) || !s.stats || !s.comet || !s.flags || !s.objectives) throw new Error('Incomplete save.');
   if(s.version<72&&Object.hasOwn(s,'population'))throw new Error('Legacy population state.');
@@ -1018,6 +1018,7 @@ export function deserialize(text) {
   if(s.version===71)s.version=VERSION;
   if(s.version===72)s.version=VERSION;
   if(s.version===73)s.version=VERSION;
+  if(s.version===74)s.version=VERSION;
   const ids = new Set();
   for (const c of s.crew) {
     if (ids.has(c.id) || typeof c.name !== 'string' || c.name.length > 80 || !(c.site==='transit'||Object.hasOwn(s.sites,c.site)) || ![c.health, c.oxygen, c.energy, c.hunger, c.skill].every(Number.isFinite) || !Number.isInteger(c.x) || !Number.isInteger(c.y) || (c.site !== 'transit' && !inside(s.sites[c.site], c.x, c.y))) throw new Error('Invalid crew.');
@@ -1040,8 +1041,8 @@ export function deserialize(text) {
     for (const r of site.rooms) {
       if (!r.cells.length || r.volume !== r.cells.length || !gasValid(r.gas) || !Number.isFinite(gasAmount(r.gas))) throw new Error('Invalid room gas or volume.');
       for (const k of r.cells) { if (occupied.has(roomCellKey(r,k))) throw new Error('Overlapping room volumes.'); occupied.add(roomCellKey(r,k)); }
-      const derived = { ...r }; refreshRoom(derived);
-      if (!['pressure', 'oxygenFraction', 'co2Fraction', 'air'].every(k => close(r[k], derived[k]))) throw new Error('Room readings do not match stored gas.');
+      const derived = { ...r, ...(legacyRoomPressure?{heat:undefined}:{}) }; refreshRoom(derived);
+      if (!['pressure', 'oxygenFraction', 'co2Fraction', 'air'].every(k => close(r[k], derived[k]))) throw new Error('Room readings do not match stored gas and heat.');
     }
     for (const t of site.tiles) if (t.building === 'door' && (!['auto', 'open', 'closed'].includes(t.doorMode) || !Number.isSafeInteger(t.doorUntil) || t.doorUntil < 0 || t.doorUntil > s.tick + 3)) throw new Error('Invalid pressure door.');
     const topology = { ...site, thermal: { ...site.thermal }, rooms: [], atmosphere: { ...atmosphere, vented: { ...atmosphere.vented } } }; updateRooms(topology);
@@ -1154,6 +1155,7 @@ export function deserialize(text) {
   for (const site of Object.values(s.sites)){if(legacySolarModel){validatePower({...s,version:58},site);refreshPower(s,site,false);}validatePower(s,site);}
   const recorded = s.resources; syncResources(s);
   if (RESOURCES.some(r => Math.abs(recorded[r] - s.resources[r]) > 1e-9)) throw new Error('Depot totals do not match stored materials.');
+  if(legacyRoomPressure)for(const site of Object.values(s.sites))refreshAtmosphere(site);
   return s;
 }
 

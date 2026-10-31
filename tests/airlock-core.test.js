@@ -181,7 +181,7 @@ function finiteRefillFixture(reserve) {
  return f;
 }
 
-for(const reserve of [20,19.7])test(`synthetic finite refill with reserve ${reserve} reaches a live safe exit`,()=>{
+for(const reserve of [20])test(`synthetic finite refill with reserve ${reserve} reaches a live safe exit`,()=>{
  const f=finiteRefillFixture(reserve),before=ledger(f),initial=snapshot(f.s);
  airlockStatus(f.s,f.site,f.controller);assert.equal(snapshot(f.s),initial,'status must not transfer or change finite gas');
  request(f,'inward');prepareAirlocks(f.s);
@@ -202,6 +202,24 @@ for(const reserve of [20,19.7])test(`synthetic finite refill with reserve ${rese
  assert.ok(matched,'the real inner door must open');assert.deepEqual([f.crew.x,f.crew.y],STAGING.inner);
  assert.ok(f.site.gasNetwork.delivered.oxygen>0,'actual vent transfers must occur');assertLedger(f,before);
  assert.equal(f.controller.airlock.phase,'idle');assert.equal(f.inner.doorMode,'closed');assert.equal(f.outer.doorMode,'closed');
+});
+
+// With temperature-aware pressure, this same finite reserve loses its narrow
+// oxygen margin during native cooling. No legal vent target can create oxygen.
+test('synthetic lean reserve 19.7 remains contained when cooling exhausts its safe fill margin',()=>{
+ const f=finiteRefillFixture(19.7),before=ledger(f);request(f,'inward');prepareAirlocks(f.s);
+ assert.equal(f.controller.airlock.reason,null,'initial finite mixture is breathable at 20 C');
+ const party=JSON.stringify(f.controller.airlock.party),cycle=f.controller.airlock.cycle;
+ until(f,()=>f.controller.airlock.reason==='contaminated_mix',{max:200,label:'temperature-aware lean-gas safe stop',onTick:()=>{
+  assert.equal(airlockOpen(f.site,f.inner),false);assert.equal(airlockOpen(f.site,f.outer),false);
+  assert.equal(JSON.stringify(f.controller.airlock.party),party);assert.equal(f.controller.airlock.cycle,cycle);
+ }});
+ assert.equal(f.controller.airlock.phase,'paused');assert.deepEqual([f.crew.x,f.crew.y],CONFIG.chamber);
+ const layout=airlockLayout(f.site,f.controller),all={...f.chamber.gas};let remaining=0;
+ for(const t of layout.phaseNodes.refill){const gas=gasNode(t).gas;for(const k of Object.keys(all))all[k]+=gas[k];remaining+=Object.values(gas).reduce((a,b)=>a+b,0);}
+ assert.ok(remaining>0&&remaining<19.7);close(Object.values(all).reduce((a,b)=>a+b,0),19.9,'finite refill gas');
+ assert.equal(airlockRoomReading({...f.chamber,gas:all}).breathable,false,'even every remaining gas parcel cannot make a safe mixture');
+ assert.equal(airlockSideBlock(f.site,f.controller,'inner'),'contaminated_mix');assertLedger(f,before);
 });
 
 test('synthetic finite refill rejects reserve that cannot reach safe oxygen partial pressure',()=>{

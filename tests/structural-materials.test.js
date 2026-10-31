@@ -1,3 +1,4 @@
+import {withTemperaturePressureReadings,withLegacyDensityReadings} from './helpers/pressure-migration.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -40,10 +41,10 @@ test('shared material vocabulary retains tool behavior and computes detached pai
  assert.throws(()=>constructionSpec('reactor','composite'));assert.throws(()=>constructionSpec('wall','__proto__'));
 });
 
-test('genuine65 migration adds only version and neutral depot metadata while retaining physical state',()=>{
+test('genuine65 migration updates version, neutral depot metadata and derived room readings while retaining physical state',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'4c9abd7ea43f85b38c68f7987489e54bfb3f6f95f7ab9283612a038dbdf27c16');
  const expected=JSON.parse(raw);assert.equal(expected.version,65);expected.version=VERSION;for(const site of Object.values(expected.sites))for(const t of site.tiles)if(t.building==='stockpile')t.storage.limits={};
- const s=deserialize(raw);assert.equal(serialize(s),serialize(expected));valid(s);
+ const s=deserialize(raw);assert.equal(serialize(s),serialize(withTemperaturePressureReadings(expected)));valid(s);
  const copy=deserialize(serialize(s));step(s,3);step(copy,3);assert.equal(serialize(copy),serialize(s));
 });
 
@@ -114,7 +115,7 @@ test('material metadata cannot forge owners, omit paid components or enter pre66
   x=>{x.sites.surface.tiles.find(t=>t.terrain==='floor').materials={extra:'alloy'};},
   x=>{x.sites.surface.tiles.find(t=>t.building==='wall').materials={structure:'__proto__'};},
  ];
- for(const edit of edits){const bad=structuredClone(good);edit(bad);assert.throws(()=>deserialize(JSON.stringify(bad)));}
+ for(const edit of edits){const bad=structuredClone(good);edit(bad);const fixture=bad.version<VERSION?withLegacyDensityReadings(bad):bad;assert.throws(()=>deserialize(JSON.stringify(fixture)));}
  const old=JSON.parse(raw);old.sites.surface.tiles.find(t=>t.terrain==='floor').materials={floor:'alloy'};assert.throws(()=>deserialize(JSON.stringify(old)),/Legacy structural material/);
  assert.equal(s.jobs[0].id,r.job);valid(s);
 });

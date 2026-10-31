@@ -1,3 +1,5 @@
+import { roomPressure, roomOxygenPressure, roomPressureFactor, gasAtRoomPressure } from './room-pressure.js';
+export { GAS_PER_TILE } from './room-pressure.js';
 import { neighbors } from './geometry.js';
 import { stairDestination, touchStairHatch, stairLinks, stairOpen, STAIR } from './vertical.js';
 import { horizontalStep, tileAt, cellKey, positionOf } from './spatial.js';
@@ -8,7 +10,6 @@ import { immobile, impaired } from './mobility.js';
 import { airlockDoorPermit, airlockControlOwner } from './airlock-access.js';
 // Game-scale gas units, not a chemistry or engineering model.
 export const GASES = ['oxygen', 'inert', 'co2'];
-export const GAS_PER_TILE = 10;
 export const SUIT_PER_POINT = .1;
 export const emptyGas = () => ({ oxygen: 0, inert: 0, co2: 0 });
 export const gasAmount = gas => GASES.reduce((n, k) => n + gas[k], 0);
@@ -22,32 +23,33 @@ export function initializeAtmosphere(site) {
   for (const t of site.tiles) if (t.building === 'door') { t.doorMode ??= 'auto'; t.doorUntil ??= 0; }
 }
 export function refreshRoom(r) {
-  const amount = gasAmount(r.gas), nominal = r.volume * GAS_PER_TILE;
-  r.pressure = amount / nominal * 100;
+  const amount = gasAmount(r.gas);
+  r.pressure = roomPressure(r);
   r.oxygenFraction = amount ? r.gas.oxygen / amount : 0;
   r.co2Fraction = amount ? r.gas.co2 / amount : 0;
-  r.air = Math.max(0, Math.min(100, r.pressure, r.gas.oxygen / (nominal * .21) * 100, (1 - r.co2Fraction / .04) * 100));
+  r.air = Math.max(0, Math.min(100, r.pressure, roomOxygenPressure(r) / .21 * 100, (1 - r.co2Fraction / .04) * 100));
   if ((r.smoke||0)/r.volume>=FIRE.smokeLimit)r.air=0;
-  if (r.pressure > 150 || r.gas.oxygen / nominal > .3) r.air = 0;
+  if (r.pressure > 150 || roomOxygenPressure(r) > .3) r.air = 0;
 }
 export function breathingBlock(r) {
   if (!r) return 'exterior';
-  const oxygenPressure = r.gas.oxygen / (r.volume * GAS_PER_TILE);
+  const oxygenPressure = roomOxygenPressure(r), pressure = roomPressure(r);
   // Recycling/refill arithmetic can leave the .16 floor one adjacent double
   // low. Allow only that comparison roundoff; never clamp the stored gas.
   const minimumOxygenPressure = .16 - Number.EPSILON * .16;
   if (!((r.smoke||0)/r.volume < FIRE.smokeLimit)) return 'smoke';
-  if (!(r.pressure >= 55)) return 'low_pressure';
-  if (!(r.pressure <= 150)) return 'high_pressure';
+  if (!(pressure >= 55)) return 'low_pressure';
+  if (!(pressure <= 150)) return 'high_pressure';
   if (!(oxygenPressure >= minimumOxygenPressure)) return 'low_oxygen';
   if (!(oxygenPressure <= .3)) return 'high_oxygen';
-  if (!(r.co2Fraction <= .02)) return 'high_co2';
+  const amount=gasAmount(r.gas),co2Fraction=amount?r.gas.co2/amount:0;
+  if (!(co2Fraction <= .02)) return 'high_co2';
   return null;
 }
 export const breathable = r => breathingBlock(r) === null;
 export function breathingStatus(r) {
   const block = breathingBlock(r);
-  return { breathable: block === null, block, oxygenPressure: r ? r.gas.oxygen / (r.volume * GAS_PER_TILE) : null,
+  return { breathable: block === null, block, oxygenPressure: roomOxygenPressure(r),
     minimumOxygenPressure: .16, maximumOxygenPressure: .3 };
 }
 export const roomAt = (site,x,y,z=0) => roomAtPosition(site,{x,y,z});
@@ -143,18 +145,19 @@ export function updateRooms(site) {
   remapThermal(site, old, rooms);
   site.rooms = rooms; refreshAtmosphere(site);
 }
-export function fillRoom(r, pressure = 100) { r.gas = mix(r.volume * GAS_PER_TILE * pressure / 100); refreshRoom(r); }
+export function fillRoom(r, pressure = 100) { const amount=gasAtRoomPressure(r,pressure);if(amount===null)throw new Error('Room pressure target cannot be reached at this temperature.');r.gas=mix(amount);refreshRoom(r); }
 
 function flow(site, links) {
-  const smokeSnapshot=site.rooms.map(r=>r.smoke||0);
+  const smokeSnapshot=site.rooms.map(r=>r.smoke||0), factors=site.rooms.map(roomPressureFactor);
   const snapshot = site.rooms.map(r => ({ ...r.gas })), outgoing = site.rooms.map(() => 0), transfers = [];
   for (const link of links) {
     let { a, b } = link;
     const density = i => i === null ? 0 : gasAmount(snapshot[i]) / site.rooms[i].volume;
-    if (density(a) < density(b)) [a, b] = [b, a];
+    const pressureDensity = i => i === null ? 0 : density(i) * factors[i];
+    if (pressureDensity(a) < pressureDensity(b)) [a, b] = [b, a];
     if (a === null) continue;
-    const difference = density(a) - density(b);
-    const equalization = b === null ? Infinity : difference / (1 / site.rooms[a].volume + 1 / site.rooms[b].volume);
+    const difference = pressureDensity(a) - pressureDensity(b);
+    const equalization = b === null ? Infinity : difference / (factors[a] / site.rooms[a].volume + factors[b] / site.rooms[b].volume);
     const amount = Math.min(difference * link.conductance, equalization);
     if (amount > 0) { transfers.push({ a, b, amount }); outgoing[a] += amount; }
     // Diffusion mixes composition even when both compartments have equal pressure.
@@ -184,8 +187,9 @@ function lifeSupport(site) {
     const filtered=Math.min(r.smoke||0,FIRE.filterRate*t.hp/100);r.smoke-=filtered;if(site.fireSafety)site.fireSafety.smokeCleared+=filtered;
     const recycled = Math.min(r.gas.co2, .15 * t.hp / 100);
     r.gas.co2 -= recycled; r.gas.oxygen += recycled;
-    const nominal = r.volume * GAS_PER_TILE, amount = gasAmount(r.gas);
-    const deficientOxygen = r.gas.oxygen < nominal * .195;
+    const nominal = gasAtRoomPressure(r,100), amount = gasAmount(r.gas);
+    if(nominal===null){m.status='Room pressure target unavailable at this temperature';continue;}
+    const deficientOxygen = roomOxygenPressure(r) < .195;
     const requested = Math.min(2 * t.hp / 100, Math.max(0, nominal - amount) + (deficientOxygen ? 2 : 0));
     const supplied = Math.min(requested, m.input.air || 0);
     if (supplied > 0) {
@@ -207,10 +211,10 @@ export function updateAtmosphere(s) {
 // rounds outward, reduce the transfer rather than repairing stored gas afterward.
 function safeOxygenBudget(r, requested, breathing) {
   if (!breathable(r)) return 0;
-  const nominal = r.volume * GAS_PER_TILE, amount = gasAmount(r.gas);
-  const maximum = Math.max(0, Math.min(requested, r.gas.oxygen - nominal * .16,
+  const amount = gasAmount(r.gas);
+  const maximum = Math.max(0, Math.min(requested, r.gas.oxygen - gasAtRoomPressure(r,16),
     breathing ? amount * .02 - r.gas.co2 : amount - r.gas.co2 / .02,
-    breathing ? Infinity : amount - nominal * .55));
+    breathing ? Infinity : amount - gasAtRoomPressure(r,55)));
   const safe = transfer => {
     const probe = { ...r, gas: { ...r.gas, oxygen: r.gas.oxygen - transfer,
       co2: r.gas.co2 + (breathing ? transfer : 0) } };

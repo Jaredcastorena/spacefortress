@@ -1,3 +1,4 @@
+import {withTemperaturePressureReadings,withLegacyDensityReadings} from './helpers/pressure-migration.js';
 import {projectPreRegion} from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -27,7 +28,7 @@ const manual=s=>{const r=executeAction(s,'job.order',{...target,kind:'extinguish
 test('genuine schema60 migrates without resetting the fire, resources or physical state',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'8590df3a0edfc034fa62ec77c5a88cf2ae84f66883846f41c3a8254a581eb89e');
  const old=JSON.parse(raw),{s,t}=fresh(false);assert.equal(old.version,60);old.version=VERSION;old.resources.tools=0;
- assert.deepEqual(projectPreRegion(s),old);assert.match(t.fire.blocked,/not available/);valid(s);
+ assert.deepEqual(projectPreRegion(s),withTemperaturePressureReadings(old));assert.match(t.fire.blocked,/not available/);valid(s);
 });
 
 for(const automatic of [false,true])test(`${automatic?'automatic':'manual'} upstairs suppression delivers two water through stairs and labels the actual floor`,()=>{
@@ -73,9 +74,9 @@ for(const kind of ['repair','service'])test(`automatic upper ${kind} consumes on
 });
 
 test('legacy schemas cannot claim new upper response jobs and current fire jobs cannot alias ground tiles',()=>{
- const {s}=fresh();manual(s);const legacy=projectPreRegion(s);legacy.version=60;assert.throws(()=>deserialize(JSON.stringify(legacy)),/Legacy upper hazard response/);
+ const {s}=fresh();manual(s);const legacy=withLegacyDensityReadings(projectPreRegion(s));legacy.version=60;assert.throws(()=>deserialize(JSON.stringify(legacy)),/Legacy upper hazard response/);
  const wrong=JSON.parse(serialize(s));wrong.jobs.find(j=>j.kind==='extinguish').z=0;assert.throws(()=>deserialize(JSON.stringify(wrong)));
  const f=fresh();extinguish(f.s,f.site,f.t,'fixture_setup');damage(f.s,f.site,f.t,'structure',55,'debris');f.t.maintenance.auto=true;scheduleMaintenance(f.s,order);
- const automatic=projectPreRegion(f.s);automatic.version=60;assert.throws(()=>deserialize(JSON.stringify(automatic)),/Legacy upper hazard response/);
+ const automatic=withLegacyDensityReadings(projectPreRegion(f.s));automatic.version=60;assert.throws(()=>deserialize(JSON.stringify(automatic)),/Legacy upper hazard response/);
  delete automatic.jobs.find(j=>j.automaticMaintenance).automaticMaintenance;assert.doesNotThrow(()=>deserialize(JSON.stringify(automatic)));
 });

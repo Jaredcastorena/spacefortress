@@ -1,3 +1,4 @@
+import {withTemperaturePressureReadings,withLegacyDensityReadings} from './helpers/pressure-migration.js';
 import {projectPreRegion} from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -31,7 +32,7 @@ function planted(){const f=built(),j=job(f.s,'plant');until(f.s,()=>!f.s.jobs.in
 // The inherited enclosure/air setup is synthetic; no ordinary endurance claim.
 test('genuine schema61 migration preserves in-flight gathering and every physical field',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'992c66b058bea180e62a05d251ddab6427990dc8464eeff2d9d75bae59b0179f');
- const before=JSON.parse(raw),s=deserialize(raw);assert.equal(before.version,61);before.version=VERSION;before.resources.tools=0;assert.deepEqual(projectPreRegion(s),before);valid(s);
+ const before=JSON.parse(raw),s=deserialize(raw);assert.equal(before.version,61);before.version=VERSION;before.resources.tools=0;assert.deepEqual(projectPreRegion(s),withTemperaturePressureReadings(before));valid(s);
 });
 
 test('paid upstairs planter, propagation and water use actual stair delivery and floor events',()=>{
@@ -75,9 +76,9 @@ test('native gathering from a mature upstairs bed leaves typed food at that bed'
 });
 
 test('new planter and upper plant work cannot be relabeled as legacy schema61',()=>{
- const f=built();let old=projectPreRegion(f.s);old.version=61;assert.throws(()=>deserialize(JSON.stringify(old)),/Legacy planter/);
+ const f=built();let old=withLegacyDensityReadings(projectPreRegion(f.s));old.version=61;assert.throws(()=>deserialize(JSON.stringify(old)),/Legacy planter/);
  const unsupported=structuredClone(f.s);tileAt(unsupported.sites.surface,target).terrain='void';assert.throws(()=>validateFlora(unsupported),/Invalid planter foundation/);assert.throws(()=>deserialize(serialize(unsupported)));
- const j=job(f.s,'plant');valid(f.s);old=projectPreRegion(f.s);old.version=61;tileAt(old.sites.surface,target).building=null;assert.throws(()=>deserialize(JSON.stringify(old)),/Legacy planter/);
+ const j=job(f.s,'plant');valid(f.s);old=withLegacyDensityReadings(projectPreRegion(f.s));old.version=61;tileAt(old.sites.surface,target).building=null;assert.throws(()=>deserialize(JSON.stringify(old)),/Legacy planter/);
  const wrong=JSON.parse(serialize(f.s));wrong.jobs.find(k=>k.id===j.id).z=0;assert.throws(()=>deserialize(JSON.stringify(wrong)),/Invalid cultivation/);
 });
 

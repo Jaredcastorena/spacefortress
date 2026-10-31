@@ -2,13 +2,14 @@ import {activeUtilityLinks} from './utility-links.js';
 import { tileAt, positionOf } from './spatial.js';
 import { DIRECTIONS, neighbors, forwardNeighbors, step, opposite } from './geometry.js';
 import { GASES, emptyGas, gasAmount, mix, roomAt, refreshAtmosphere, GAS_PER_TILE } from './atmosphere.js';
+import { roomPressure, gasAtRoomPressure } from './room-pressure.js';
 import { take } from './inventory.js';
 import { refreshPower } from './power.js';
 import { emitEvent, tileEntityId, roomEntityId } from './telemetry.js';
 import { airlockControlOwner, airlockTankMakeupAllowance } from './airlock-access.js';
 
 // Rates and capacities are total payload (gas + suspended smoke). Pressure uses
-// only gas density; smoke is a separate conserved tracer, not a fourth gas.
+// only gas, with pipe stores at reference20C; smoke is a separate tracer.
 export const GAS_NETWORK = { pipeVolume:.25, pipeCapacity:10, tankVolume:2, tankCapacity:80, flow:2, pump:2, vent:2, extract:2, load:2, leak:2, diffusion:.02 };
 export const GAS_DIRECTIONS = Object.freeze(Object.fromEntries(DIRECTIONS.map(direction => [direction, true])));
 const STORES=['gasTank','gasVent','gasExtractor','gasReservoir'];
@@ -142,12 +143,12 @@ export function gasStatus(site,t){
  }
  if(t.building==='gasVent'){
   const room=roomAt(site,t.x,t.y,t.z);
-  const blocked=t.fire?'Fire at vent':!t.gasDevice.enabled?'Vent disabled':t.hp<=0?'Needs repair':!node.open?'Port valve closed':!t.powered?'No power':!room?'No habitat compartment':gasAmount(room.gas)>=room.volume*GAS_PER_TILE*t.gasDevice.target/100-1e-9?'Room at target pressure':gasPayload(t)<=1e-9?'Pipe supply empty':null;
+  const blocked=t.fire?'Fire at vent':!t.gasDevice.enabled?'Vent disabled':t.hp<=0?'Needs repair':!node.open?'Port valve closed':!t.powered?'No power':!room?'No habitat compartment':gasAtRoomPressure(room,t.gasDevice.target)===null?'Room temperature cannot reach target pressure':roomPressure(room)>=t.gasDevice.target-1e-9?'Room at target pressure':gasPayload(t)<=1e-9?'Pipe supply empty':null;
   return {blocked,status:blocked||'Supplying room',...readings};
  }
  if(t.building==='gasExtractor'){
   const room=roomAt(site,t.x,t.y,t.z),filter=t.gasDevice.mode==='filter';
-  const blocked=t.fire?'Fire at extractor':!t.gasDevice.enabled?'Extractor disabled':t.hp<=0?'Needs repair':!node.open?'Port valve closed':!t.powered?'No power':!room?'No habitat compartment':free(t)<=1e-9?'Extraction storage full':filter?(room.gas.co2+room.smoke<=1e-9?'No CO2 or smoke to filter':null):gasAmount(room.gas)<=room.volume*GAS_PER_TILE*t.gasDevice.target/100+1e-9?'Room at target pressure':null;
+  const blocked=t.fire?'Fire at extractor':!t.gasDevice.enabled?'Extractor disabled':t.hp<=0?'Needs repair':!node.open?'Port valve closed':!t.powered?'No power':!room?'No habitat compartment':free(t)<=1e-9?'Extraction storage full':filter?(room.gas.co2+room.smoke<=1e-9?'No CO2 or smoke to filter':null):roomPressure(room)<=t.gasDevice.target+1e-9?'Room at target pressure':null;
   return {blocked,status:blocked||(filter?'Filtering into storage':'Exhausting into storage'),...readings,room:room?roomId(site,room):null,mode:t.gasDevice.mode,target:t.gasDevice.target};
  }
  if(node)return {blocked:!t.pipe&&t.hp<=0?'Needs repair':!node.open?'Valve closed':null,status:t.pipe?.hp===0?'Ruptured pipe — repair needed':condition(t)<50?'Leaking — repair needed':!node.open?'Valve closed':gasPayload(t)<=1e-9?'Empty':'Connected',...readings};
@@ -160,8 +161,9 @@ function capture(s,site,t){
   n=Math.min(n,room.gas.co2+room.smoke);const fraction=n/(room.gas.co2+room.smoke);
   gas.co2=room.gas.co2*fraction;smoke=room.smoke*fraction;
  }else{
-  const roomGas=gasAmount(room.gas),payload=roomGas+room.smoke;
-  n=Math.min(n,payload,Math.max(0,roomGas-room.volume*GAS_PER_TILE*t.gasDevice.target/100)*payload/roomGas);
+  const roomGas=gasAmount(room.gas),payload=roomGas+room.smoke,target=gasAtRoomPressure(room,t.gasDevice.target);
+  if(target===null)return;
+  n=Math.min(n,payload,Math.max(0,roomGas-target)*payload/roomGas);
   ({gas,smoke}=payloadPortion(room,n));
  }
  if(n<=1e-9)return;
@@ -186,7 +188,9 @@ export function updateGasNetworks(s){
   for(const t of nodes){
    if(condition(t)<50)releaseGas(s,site,t,GAS_NETWORK.leak*(1-condition(t)/50),'damaged');
    if(t.building==='gasVent'&&!gasStatus(site,t).blocked){
-    const room=roomAt(site,t.x,t.y,t.z),gas=gasAmount(gasNode(t).gas),needed=Math.max(0,room.volume*GAS_PER_TILE*t.gasDevice.target/100-gasAmount(room.gas));
+    const room=roomAt(site,t.x,t.y,t.z),gas=gasAmount(gasNode(t).gas),target=gasAtRoomPressure(room,t.gasDevice.target);
+    if(target===null)continue;
+    const needed=Math.max(0,target-gasAmount(room.gas));
     releaseGas(s,site,t,Math.min(GAS_NETWORK.vent*t.hp/100,gas?needed*gasPayload(t)/gas:Infinity),'vent');
    }
    if(t.building==='gasExtractor'&&!gasStatus(site,t).blocked)capture(s,site,t);

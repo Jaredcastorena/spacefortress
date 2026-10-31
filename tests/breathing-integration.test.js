@@ -1,3 +1,5 @@
+import { gasAtRoomPressure } from '../src/room-pressure.js';
+import { initializeClimate } from '../src/thermal.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, step, serialize, deserialize } from '../src/simulation.js';
@@ -19,9 +21,17 @@ function colony() {
   return { s, site, room: site.rooms[0], c: s.crew[0] };
 }
 
+// Isolate exact breathing boundaries using powered climate at the reference
+// temperature. This synthetic fixture does not test paid construction.
+function steadyColony() {
+  const f=colony(),t=f.site.tiles.find(t=>t.x===12&&t.y===10);
+  t.building='climate';t.cable={hp:100,enabled:true};initializeClimate(t);
+  refreshPower(f.s,f.site);return f;
+}
+
 test('fully supplied breaths avoid false empty-suit injury while actual unmet demand injures', () => {
-  const inside = colony();
-  Object.assign(inside.room.gas, { oxygen: 60, inert: 132.5, co2: 0 });
+  const inside = steadyColony();
+  Object.assign(inside.room.gas, { oxygen: 60, inert: gasAtRoomPressure(inside.room,55)-60, co2: 0 });
   inside.c.oxygen = 0; refreshAtmosphere(inside.site); step(inside.s);
   assert.equal(inside.c.oxygen, 0, 'pressure floor prevents an optional refill');
   assert.equal(inside.c.health, 100); assert.equal(inside.c.medical.injury, 0);
@@ -62,8 +72,8 @@ test('ordinary room-only breaths run once before crew actions without allocation
 
 test('home warnings distinguish actual suit-assisted breathing from safe charging and outdoor suit use', () => {
   for (const scenario of ['home shortage', 'safe charging', 'outside']) {
-    const f = colony();
-    if (scenario === 'home shortage') { f.room.gas.oxygen = f.room.volume * 10 * .16; refreshAtmosphere(f.site); }
+    const f = steadyColony();
+    if (scenario === 'home shortage') { f.room.gas.oxygen = gasAtRoomPressure(f.room,16); refreshAtmosphere(f.site); }
     else f.c.oxygen = 90;
     if (scenario === 'outside') { f.c.x = 1; f.c.y = 1; }
     startRecording(f.s); step(f.s); const events = airEvents(f.s);

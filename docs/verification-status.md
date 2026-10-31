@@ -2,6 +2,16 @@
 
 Updated October 30, 2026. This is the compact evidence index for implemented and proposed systems. **Verified** means the named scope passed its stated check. **Pending** means evidence is not yet complete. **Failed** means a known check contradicts the requirement. None of these rows declares the whole game finished.
 
+## Local room temperature and pressure — schema75
+
+**Verified:** shared temperature-adjusted pressure and oxygen partial pressure, finite inverse fill targets, room exchange, breathing, suits, gas devices, fire, reactor cooling and wet-fault heat refresh. Thirty-nine new pressure checks passed. Genuine schema74 and older fixture migrations preserve physical quantities while updating derived pressure/air readings; both existing eight-tick historical hash sequences still match after projecting only those readings to their old form.
+
+The full compatibility run produced **1,949 passes, 36 failures and one historical skip**. All36 failures are now covered by passing targeted reruns. Repairs include automatic supply batching, shared commissioning/controller prediction, stable-temperature boundary fixtures, heat-before-fill setup and explicit cache refresh after test heat edits. The affected production/care run passed206/207; its remaining bounded-recording failure passed when capture was scoped to the actual harvest stage. No simulation tick budget, breathing threshold or default recording limit was raised. Separate industry/batching checks pass21/21, airlock/commissioning checks65/65, and clinic/food checks32/32.
+
+A near-floor synthetic freight scenario now starts at stable8 °C with the same intended pressure and composition; its original20 °C input became unsafe after cooling and is not claimed to succeed unchanged. The adjusted scenario completes at tick97, the rich-gas scenario at87, and two supply-tank rounds at220. All finite cargo, gas and safety assertions remain. These are mechanics checks, not ordinary colony endurance.
+
+The137-file local browser export includes both new shared modules and has no missing imports. Source syntax, changed documentation links and publication exclusions were checked. No new browser journey was run. Gas-carried heat, pipe temperature, water heat/phase changes and ordinary long-term operation remain pending. [Rules and limits](room-pressure.md).
+
 ## Local disposable fuses — schema74
 
 **Verified:** 32 new focused checks cover shared controls and strict state, physical replacement/refunds, separate repairs and salvage, immediate opening, mixed breaker/fuse replans, reverse battery flow, reactor fuel, wet faults, upper risers and genuine prior-schema preservation. Ninety-two affected electrical checks also pass. Full compatibility gate: **1,946 passed, zero failed, one historical skip**.

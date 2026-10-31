@@ -1,3 +1,4 @@
+import {withTemperaturePressureReadings} from './helpers/pressure-migration.js';
 import {projectPreRegion} from './helpers/legacy-projection.js';
 import test from 'node:test';import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';import {gunzipSync} from 'node:zlib';import {createHash} from 'node:crypto';
@@ -25,7 +26,7 @@ const doCycle=(f,d)=>{const r=upperCommand(f,'request',{crew:f.crew.id,direction
 
 test('genuine schema59 in-flight cycle migrates without changing physical state',()=>{
  assert.equal(createHash('sha256').update(original).digest('hex'),'7e5360c0294595a467ac0d2148a686179e125ec4d2ab8e611c1ec8727cbd3f14');
- const old=JSON.parse(original),s=deserialize(original);assert.equal(old.version,59);assert.equal(s.version,VERSION);old.version=VERSION;old.resources.tools=0;assert.deepEqual(projectPreRegion(s),old);assert.equal(serialize(reload(s)),serialize(s));
+ const old=JSON.parse(original),s=deserialize(original);assert.equal(old.version,59);assert.equal(s.version,VERSION);old.version=VERSION;old.resources.tools=0;assert.deepEqual(projectPreRegion(s),withTemperaturePressureReadings(old));assert.equal(serialize(reload(s)),serialize(s));
 });
 test('stacked assemblies bind distinct floor ownership with pure matching observations and UI',()=>{
  const f=floorFixture(),ground=floorRefs(f.s,0),before=serialize(f.s),status=airlockStatus(f.s,f.site,f.controller);

@@ -1,5 +1,7 @@
 # Structured simulation interface and recordings
 
+Local schema75 derives room pressure and oxygen partial pressure from actual gas, volume and room heat. Existing observations expose the updated values; actions, IDs and observation/recording schema9 stay unchanged. Old saves retain every physical quantity while derived readings update. [Room pressure](room-pressure.md) documents finite targets and thermal limits.
+
 Local schema74 adds `power.fuse` (`site,x,y,z?,enabled,direction,rating`) and supplied `job.order` kind `replaceFuse`. Protection observations retain actual-floor IDs and expose immediate blow predictions and last committed flow. Events `power.fuse.changed`, `power.fuse.blown`, `power.fuse.replaced` identify configuration, overload and paid work. Observation/recording schema9 remains unchanged. [Fuse rules](fuses.md).
 
 Local schema73 extends `power.breaker` with optional `rating` (4/8/16/32), plus `overload` and `wet_fault_and_overload` modes. Optional `z` continues to select the actual floor. Definitions expose breaker ratings and the three-tick delay. `derived.electrical` reports planned/signed contact flow, last delivered flow/tick, effective rating and counter state. `power.breaker.overload.changed` records counter transitions; overload `power.breaker.tripped` events identify attempted throughput and effective rating. Only final settled transfers spend energy/fuel or damage wet wiring. Observation/recording9 is unchanged. [Rules and scope](breaker-overloads.md).

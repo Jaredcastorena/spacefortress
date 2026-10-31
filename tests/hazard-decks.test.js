@@ -1,3 +1,4 @@
+import {withTemperaturePressureReadings} from './helpers/pressure-migration.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -44,7 +45,7 @@ test('schema52 hazard migration preserves forecast timing, damage and every unre
   assert.equal(createHash('sha256').update(original).digest('hex'),'b66097e34db8ad11e7d55c4c74b8e4192316012b6d76c649bb786c7dd26dd0d6');
   const old=JSON.parse(original),s=deserialize(original);assert.equal(old.version,52);assert.equal(s.version,VERSION);
   assert.deepEqual(s.debris.target,{...old.debris.target,z:0});assert.deepEqual(s.sites.surface.incidents[0],{...old.sites.surface.incidents[0],z:0});
-  const projected=projectPreHazardLocations(s);projected.version=52;assert.deepEqual(projected,old);
+  const projected=projectPreHazardLocations(s);projected.version=52;assert.deepEqual(projected,withTemperaturePressureReadings(old));
   const raw=serialize(s);assert.equal(serialize(deserialize(raw)),raw);const observation=observe(s);assert.equal(observation.schemaVersion,TELEMETRY_VERSION);
 });
 

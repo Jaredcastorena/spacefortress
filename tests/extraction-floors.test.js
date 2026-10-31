@@ -1,3 +1,4 @@
+import {withTemperaturePressureReadings,withLegacyDensityReadings} from './helpers/pressure-migration.js';
 import {projectPreRegion} from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -28,7 +29,7 @@ function mine(s,p=target){const r=executeAction(s,'job.order',{...p,kind:'mine'}
 // flight. The inherited enclosed upper-room fixture is synthetic, not endurance.
 test('genuine schema62 migration preserves a paid upper planter and partial ground mining exactly',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'5511a56c1d751bcdf2cb58afafd8b9b1567ed87f6f936a0dcbaefcb180c7b7a2');
- const old=JSON.parse(raw),s=deserialize(raw);assert.equal(old.version,62);old.version=VERSION;old.resources.tools=0;assert.deepEqual(projectPreRegion(s),old);assert.ok(s.jobs.some(j=>j.kind==='mine'&&j.remaining<j.work));valid(s);
+ const old=JSON.parse(raw),s=deserialize(raw);assert.equal(old.version,62);old.version=VERSION;old.resources.tools=0;assert.deepEqual(projectPreRegion(s),withTemperaturePressureReadings(old));assert.ok(s.jobs.some(j=>j.kind==='mine'&&j.remaining<j.work));valid(s);
 });
 
 test('an actual impact deposits finite upper ore, miners preserve the paid fitting, and hauling crosses stairs',()=>{
@@ -86,7 +87,7 @@ test('inspection and recording expose source, work, floor and original raw-input
 });
 
 test('new upper orders and impact reserves reject legacy labels, malformed quantities and void ownership',()=>{
- const f=fresh();impact(f);let old=projectPreRegion(f.s);old.version=62;assert.throws(()=>deserialize(JSON.stringify(old)),/Legacy impact ore/);mine(f.s);old=projectPreRegion(f.s);old.version=62;delete tileAt(old.sites.surface,target).deposit;assert.throws(()=>deserialize(JSON.stringify(old)),/Legacy impact ore/);
+ const f=fresh();impact(f);let old=withLegacyDensityReadings(projectPreRegion(f.s));old.version=62;assert.throws(()=>deserialize(JSON.stringify(old)),/Legacy impact ore/);mine(f.s);old=withLegacyDensityReadings(projectPreRegion(f.s));old.version=62;delete tileAt(old.sites.surface,target).deposit;assert.throws(()=>deserialize(JSON.stringify(old)),/Legacy impact ore/);
  for(const mutate of [t=>t.deposit.remaining=-1,t=>t.deposit.remaining=.5,t=>t.deposit.remaining=13,t=>t.deposit.extra=true,t=>t.terrain='void']){const copy=JSON.parse(serialize(f.s));mutate(tileAt(copy.sites.surface,target));assert.throws(()=>deserialize(JSON.stringify(copy)));}
  const covered={terrain:'ore',building:'wall',hp:100};assert.equal(extractionStatus(covered),null);assert.equal(extractTile(covered),null);assert.equal(covered.building,'wall');
 });

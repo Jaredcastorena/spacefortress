@@ -2,6 +2,9 @@
 
 ## Current systems work
 
+- [x] Local after v0.1.12: couple room pressure to temperature across breathing, gas flow, life support, vents, exhaust, suit transfers, airlocks, fire and reactor cooling. Schema75 preserves old physical state and updates derived readings. Automatic supplies batch tiny deficits while retaining finite partial deliveries.
+- [ ] Extend thermal transport to carried gas and pipe/tank contents; add finite water heat and phase changes.
+
 Release v0.1.12 adds engineering kits and a three-planet, eight-site system with hierarchical navigation. It builds on the paid material choices, repairs and finite slab heat conduction from v0.1.11, while retaining existing colony worlds. Local follow-up adds fuel synthesis from recovered solar cells and delivered water, and haulers now install those cells into surface batteries. Next checkpoints include wider industry, bounded upstairs habitation and sustained outpost supply.
 
 - [x] Local after v0.1.12: add disposable two-terminal fuses with immediate overload opening, paid physical replacement, separate box repairs, finite salvage and actual-floor controls. Schema74 preserves existing breakers.

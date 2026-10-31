@@ -1,3 +1,4 @@
+import {withTemperaturePressureReadings,withLegacyDensityReadings} from './helpers/pressure-migration.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -15,9 +16,9 @@ import {projectPreRegion} from './helpers/legacy-projection.js';
 const raw=gunzipSync(readFileSync(new URL('./fixtures/planets-schema67.json.gz',import.meta.url))).toString();
 const exact=s=>{const text=serialize(s);assert.equal(serialize(deserialize(text)),text);};
 
-test('genuine six-site schema67 preserves paid work with only version and neutral depot metadata added',()=>{
+test('genuine six-site schema67 preserves paid work with version, neutral depot metadata and derived room readings updated',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'5a0542fa11df9f7b625de34faa6ff8f625b30b8e43153c01c2fa03d637ff5a91');
- const expected=JSON.parse(raw);expected.version=VERSION;for(const site of Object.values(expected.sites))for(const t of site.tiles)if(t.building==='stockpile')t.storage.limits={};const s=deserialize(raw);assert.deepEqual(s,expected);assert.equal(s.region.schema,1);assert.equal(Object.keys(s.sites).length,6);assert.equal(s.jobs[0].material,'composite');exact(s);
+ const expected=JSON.parse(raw);expected.version=VERSION;for(const site of Object.values(expected.sites))for(const t of site.tiles)if(t.building==='stockpile')t.storage.limits={};const s=deserialize(raw);assert.deepEqual(s,withTemperaturePressureReadings(expected));assert.equal(s.region.schema,1);assert.equal(Object.keys(s.sites).length,6);assert.equal(s.jobs[0].material,'composite');exact(s);
  const copy=deserialize(serialize(s));step(s,3);step(copy,3);assert.equal(serialize(s),serialize(copy));
 });
 
@@ -36,7 +37,7 @@ test('new planetary generation preserves classic physical state, RNG and invento
 test('planet memberships, map coordinates, route identity and schema boundaries are strict and never repaired',()=>{
  const s=createGame(),planet=Object.keys(s.region.planets)[1],site=s.region.planets[planet].home;
  const edits=[x=>x.version=67,x=>x.region.schema=3,x=>x.region.legacy=true,x=>x.region.planets[planet].home='surface',x=>x.region.planets[planet].map.x=.01,x=>x.region.sites[site].planetId=x.region.sites.surface.planetId,x=>delete x.region.planets[planet],x=>x.region.planets[planet].extra=[],x=>x.region.routes['route-'+site].from=site,x=>delete x.sites[site]];
- for(const edit of edits){const changed=JSON.parse(serialize(s));edit(changed);const text=JSON.stringify(changed);assert.throws(()=>deserialize(text),/region|site|schema/i);assert.equal(JSON.stringify(changed),text);}
+ for(const edit of edits){let changed=JSON.parse(serialize(s));edit(changed);if(changed.version<VERSION)changed=withLegacyDensityReadings(changed);const text=JSON.stringify(changed);assert.throws(()=>deserialize(text),/region|site|schema/i);assert.equal(JSON.stringify(changed),text);}
  assert.throws(()=>makeRegion(74219,true,2),/schema/);assert.throws(()=>makeRegion(74219,false,99),/schema/);
 });
 

@@ -1,3 +1,4 @@
+import {withTemperaturePressureReadings} from './helpers/pressure-migration.js';
 import { TELEMETRY_VERSION as CURRENT_OBSERVATION_VERSION } from '../src/telemetry.js';
 import { VERSION as CURRENT_SAVE_VERSION } from '../src/data.js';
 import test from 'node:test';
@@ -25,7 +26,7 @@ test('genuine schema48 migration preserves every field outside named crew and an
   assert.deepEqual(current.crew[1].medical.bed,{x:9,y:7,z:0});
   assert.deepEqual(current.crew[1].intent.target,current.crew[1].medical.bed);
   const projected=projectPreCrewLocations(current);projected.version=48;
-  assert.deepEqual(projected,old,'includes health, injury, food, RNG, timing and job ownership');
+  assert.deepEqual(projected,withTemperaturePressureReadings(old),'includes health, injury, food, RNG, timing and job ownership');
   const saved=serialize(current);assert.equal(serialize(deserialize(saved)),saved);
 });
 

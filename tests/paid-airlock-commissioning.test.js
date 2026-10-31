@@ -12,6 +12,7 @@ import { initializeProduction } from '../src/production.js';
 import { initializeAirlocks } from '../src/airlock-persistence.js';
 import { updateRooms, roomAt, fillRoom, refreshAtmosphere } from '../src/atmosphere.js';
 import { initializeThermal } from '../src/thermal.js';
+import { gasAtRoomPressure } from '../src/room-pressure.js';
 import { newPipe } from '../src/gas-networks.js';
 import { executeAction } from '../src/controls.js';
 import { PLACEMENTS } from '../tools/paid-airlock-example.mjs';
@@ -159,6 +160,26 @@ test('synthetic finite refill uses the actual rounded target and only available 
     assert.equal(status.r.blocker, breathable ? null : 'contaminated_mix');
     assert.equal(status.readyToBind, breathable); assert.equal(serialize(state), before);
   }
+});
+
+for (const celsius of [8, 35]) test(`synthetic commissioning shares the finite alternate target at ${celsius}C`, () => {
+  const state = synthetic(), site = state.sites.surface, chamber = roomAt(site, 10, 13), habitat = roomAt(site, 10, 11);
+  chamber.heat = chamber.volume * 20 * (273.15 + celsius); fillRoom(chamber, 0);
+  habitat.heat *= .994; // Live99.4% pressure deliberately differs from its cache.
+  const supply = gasAtRoomPressure(chamber, 100);
+  tileAt(site, 10, 16).gasStore.gas = { oxygen: supply * .161, inert: supply * .839, co2: 0 };
+  const before = serialize(state), status = commissioningStatus(state);
+  assert.equal(status.r.target, 100, 'rounded99% would fall below the oxygen floor');
+  assert.ok(Math.abs(status.r.fillNeeded - gasAtRoomPressure(chamber, 97.4)) < 1e-8);
+  assert.equal(status.r.blocker, null); assert.equal(status.r.predicted.breathable, true);
+  assert.ok(Math.abs(status.r.predicted.pressure - 100) < 1e-8); assert.equal(serialize(state), before);
+});
+
+test('synthetic commissioning reports an impossible zero-K fill without spending supply', () => {
+  const state = synthetic(), chamber = roomAt(state.sites.surface, 10, 13); chamber.heat = 0;
+  const before = serialize(state), status = commissioningStatus(state);
+  assert.equal(status.r.blocker, 'unsafe_temperature'); assert.equal(status.r.fillNeeded, null);
+  assert.equal(status.r.predicted, null); assert.equal(status.readyToBind, false); assert.equal(serialize(state), before);
 });
 
 test('options and CLI enforce lower-only caps and distinct canonical destinations', () => {

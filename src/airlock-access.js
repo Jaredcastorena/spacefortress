@@ -4,6 +4,9 @@ import { DIRECTIONS, step, opposite, directionBetween, tileAt as legacyTileAt } 
 import { tileAt, cellKey, sameCell, horizontalNeighbors, positionOf } from './spatial.js';
 import { airlockCells, airlockCellFromKey } from './airlock-locations.js';
 import {walkingNeighbors} from './vertical.js';
+import { breathable } from './atmosphere.js';
+import { roomPressure, gasAtRoomPressure } from './room-pressure.js';
+import { temperature, thermalSafe } from './thermal.js';
 export const AIRLOCK_PHASES = ['idle','prepare_entry','admit','seal_entry','recover','refill','release','paused'];
 export const AIRLOCK_DIRECTIONS = Object.freeze(Object.fromEntries(DIRECTIONS.map(direction=>[direction,true])));
 export const airlockTile = legacyTileAt;
@@ -103,8 +106,9 @@ export function airlockLayout(site,t,checkOwnership=true) {
 }
 export function airlockGasQuantities(layout) {
  const {recover,refill}=layout.phaseNodes;
- const room=layout.room,amount=airlockGas(room.gas),residual=room.volume*.1;
- return {recover,refill,headroom:recover.reduce((n,t)=>n+Math.max(0,airlockCapacity(t)-airlockPayload(t)),0),recoverNeeded:Math.max(0,amount-residual)*(amount?(amount+(room.smoke||0))/amount:1),supply:refill.reduce((n,t)=>n+airlockGas(airlockNode(t).gas),0),fillNeeded:Math.max(0,room.volume*10*Math.max(0,layout.habitat.pressure-2)/100-amount)};
+ const room=layout.room,amount=airlockGas(room.gas),residual=gasAtRoomPressure(room,1),target=gasAtRoomPressure(room,Math.max(0,roomPressure(layout.habitat)-2));
+ const recovered=roomPressure(room)<=1?0:Math.max(0,amount-residual);
+ return {recover,refill,headroom:recover.reduce((n,t)=>n+Math.max(0,airlockCapacity(t)-airlockPayload(t)),0),recoverNeeded:recovered*(amount?(amount+(room.smoke||0))/amount:1),supply:refill.reduce((n,t)=>n+airlockGas(airlockNode(t).gas),0),fillNeeded:target===null?null:Math.max(0,target-amount)};
 }
 // Loading is a pure allowance; passage remains owned by the controller gates.
 export function airlockTankMakeupAllowance(site,t) {
@@ -120,8 +124,8 @@ export function airlockTankMakeupAllowance(site,t) {
  const q=airlockGasQuantities(layout);return Math.max(0,q.headroom-q.recoverNeeded);
 }
 export function airlockRoomReading(room) {
- if(!room)return null;const gas=airlockGas(room.gas),nominal=room.volume*10,pressure=gas/nominal*100,oxygen=room.gas.oxygen/nominal,co2=gas?room.gas.co2/gas:0,temperature=room.heat/(room.volume*20)-273.15;
- return {pressure,gas:{...room.gas},smoke:room.smoke||0,temperature,breathable:(room.smoke||0)/room.volume<.04&&pressure>=55&&pressure<=150&&oxygen>=.16-Number.EPSILON*.16&&oxygen<=.3&&co2<=.02,thermalSafe:temperature>=5&&temperature<=35};
+ if(!room)return null;
+ return {pressure:roomPressure(room),gas:{...room.gas},smoke:room.smoke||0,temperature:temperature(room),breathable:breathable(room),thermalSafe:thermalSafe(room)};
 }
 export function airlockSideBlock(site,t,side) {
  const a=t.airlock,route=airlockRouteInfo(site,t),chamber=airlockRoomReading(airlockRoom(site,a.config.chamber));

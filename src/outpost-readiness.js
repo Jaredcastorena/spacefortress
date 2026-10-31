@@ -1,9 +1,10 @@
+import { roomOxygenPressure } from './room-pressure.js';
 import { isProtectionDevice } from './power-protection.js';
 import { settlementSite } from './region.js';
 import { roomTiles } from './room-locations.js';
 import { positionOf, cellKey } from './spatial.js';
 import { tileEntityId, roomEntityId } from './telemetry.js';
-import { GAS_PER_TILE, breathable, refreshAtmosphere } from './atmosphere.js';
+import { breathable, refreshAtmosphere } from './atmosphere.js';
 import { temperature, thermalSafe } from './thermal.js';
 import { previewPower, protectionConditions } from './power.js';
 import { crewPathToPosition as crewPathTo, passablePosition } from './navigation.js';
@@ -111,7 +112,7 @@ export function outpostReadiness(s, siteId = 'wreck', crewIds = []) {
     if (!warmControl || climates.some(t => t.climate.target < 5 || t.climate.target > 35)) issues.push(note('climate_unavailable', 'Provide powered climate control with safe temperature targets.'));
     const reading = {
       entity: roomId(site, room), volume: room.volume, pressure: measured.pressure,
-      oxygenPartialPressure: measured.gas.oxygen / (room.volume * GAS_PER_TILE) * 100,
+      oxygenPartialPressure: roomOxygenPressure(measured) * 100,
       co2Fraction: measured.co2Fraction, smoke: amount(room.smoke), temperature: temperature(measured),
       sealed: room.sealed, breathable: safe, thermalSafe: temperate, reachable: reached,
       lifeSupport: support.map(t => entity(site, t)), climate: climates.map(t => entity(site, t)),

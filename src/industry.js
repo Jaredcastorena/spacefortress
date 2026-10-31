@@ -72,7 +72,9 @@ function pickHaul(s, c, site, pathTo) {
       const delivered = r === 'food' && t.building === 'galley' ? rawFood(m.input) : m.input[r] || 0;
       const needed = n * batches - delivered - incomingInventory(s, c.site, claimDestination, r);
       const neededKinds = r === 'food' && recipe.foodKinds && Object.fromEntries(Object.entries(recipe.foodKinds).map(([kind, amount]) => [kind, Math.max(0, amount * batches - foodOfKind(m.input, kind) - incomingInventory(s, c.site, claimDestination, r, kind))]));
-      if (neededKinds ? !Object.values(neededKinds).some(n => n > 1e-9) : needed <= 1e-9 || (recipe.automatic && ['reactor','waterTank','gasTank'].includes(t.building) && needed < n - 1e-9)) continue;
+      // Continuous consumers refill by recipe-sized deficits, rather than reserving
+      // the shared source for every tiny consumption. Partial finite sources still qualify.
+      if (neededKinds ? !Object.values(neededKinds).some(n => n > 1e-9) : needed <= 1e-9 || ((recipe.automatic || recipe.lifeSupport) && needed < n - 1e-9)) continue;
       for (const source of site.tiles) for (const kind of ['stock', 'imports']) {
         const inventory = buffer(source, kind);
         if ((inventory?.[r] || 0) <= 0 || claimed(source, kind)) continue;

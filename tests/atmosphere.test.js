@@ -1,3 +1,4 @@
+import {roomPressureFactor} from '../src/room-pressure.js';
 import { depart as launch } from './helpers/depart.js';
 import { releaseBatteryEnergy } from '../src/power.js';
 import test from 'node:test';
@@ -30,7 +31,7 @@ test('splitting, merging and expanding compartments conserve their stored gas', 
   assert.equal(site.rooms.length, 2); close(gasInRooms(site), before);
   assert.ok(site.rooms.every(r => r.pressure > 100));
   for (let y = 7; y <= 11; y++) at(site, 10, y).building = null; updateRooms(site);
-  assert.equal(site.rooms.length, 1); close(gasInRooms(site), before); close(site.rooms[0].pressure, 100);
+  assert.equal(site.rooms.length, 1); close(gasInRooms(site), before); close(site.rooms[0].pressure, 100*roomPressureFactor(site.rooms[0]));
   at(site, 9, 6).building = null; updateRooms(site);
   close(gasInRooms(site), before); assert.ok(site.rooms[0].pressure < 100); assert.equal(site.rooms[0].sealed, false);
 });
@@ -95,7 +96,7 @@ test('power loss reaches the CO2 breathing limit and stops crops; restored power
   farm.machine.input.water = 1;
   for (const t of site.tiles) if (t.building === 'solar') t.hp = 0;
   releaseBatteryEnergy(site, at(site, 13, 7)); step(s, 160);
-  close(r.pressure, 100); close(r.co2Fraction, .02); assert.equal(breathable(r), true);
+  close(gasAmount(r.gas), r.volume*10); close(r.pressure, 100*roomPressureFactor(r)); close(r.co2Fraction, .02); assert.equal(breathable(r), true);
   assert.equal(farm.machine.progress, 0); assert.ok(s.crew.some(c => c.oxygen < 100)); assert.equal(s.flags.airWarning, true);
   for (const t of site.tiles) if (t.building === 'solar') t.hp = 100;
   until(s, () => breathable(r) && s.resources.food > 24, 180);

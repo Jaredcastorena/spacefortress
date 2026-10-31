@@ -1,3 +1,6 @@
+import { HEAT_CAPACITY, KELVIN_ZERO } from './thermal-units.js';
+export { HEAT_CAPACITY } from './thermal-units.js';
+import { refreshAtmosphere } from './atmosphere.js';
 import {materialProfile} from './materials.js';
 import {SOLID_FLOOR_CONDUCTANCE} from './material-data.js';
 import { siteKind } from './region.js';
@@ -9,8 +12,7 @@ import { refreshPower } from './power.js';
 import { BUILDINGS } from './data.js';
 
 // Abstract habitat thermal mass, separate from the gas inventory. Values are game balance units.
-export const HEAT_CAPACITY = 20;
-const ZERO = 273.15;
+const ZERO = KELVIN_ZERO;
 const capacity = r => r.volume * HEAT_CAPACITY;
 export const temperature = r => r ? r.heat / capacity(r) - ZERO : null;
 export const thermalSafe = r => !!r && temperature(r) >= 5 && temperature(r) <= 35;
@@ -28,7 +30,7 @@ export function initializeThermal(s) {
   for (const site of Object.values(s.sites)) {
     for (const r of site.rooms) r.heat = capacity(r) * (20 + ZERO);
     site.thermal = { ambient: outsideTemperature(site, s.tick), initial: site.rooms.reduce((n, r) => n + r.heat, 0), added: 0, removed: 0, environmentIn: 0, environmentOut: 0, equipment: 0, combustion:0, heating: 0, cooling: 0 };
-    site.tiles.forEach(initializeClimate);
+    site.tiles.forEach(initializeClimate); refreshAtmosphere(site);
   }
   for (const c of s.crew) c.thermalStress = 0;
 }
@@ -113,6 +115,7 @@ export function updateThermal(s) {
         const heat = BUILDINGS[t.building].demand * .35; r.heat += heat; ledger.equipment += heat;
       }
     }
+    refreshAtmosphere(site);
   }
 }
 // Pressure suits protect exterior work; indoor exposure slowly accumulates and recovers in safe shelter.

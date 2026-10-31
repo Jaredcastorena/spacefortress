@@ -1,3 +1,4 @@
+import {gasAtRoomPressure} from '../src/room-pressure.js';
 import {roomComfort} from '../src/comfort.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -125,7 +126,7 @@ test('normal colony ticks refill reactor fuel in useful batches, with no tiny id
 
 test('radiator near-vacuum threshold uses colony pressure percentages correctly',()=>{
  const {site}=fixture();const rad=install({sites:{surface:site}},'radiator',11,11);
- const withPressure=pressure=>({...site,rooms:site.rooms.map(r=>({...r,pressure}))});
+ const withPressure=pressure=>({...site,rooms:site.rooms.map(r=>({...r,gas:{oxygen:0,inert:gasAtRoomPressure(r,pressure),co2:0}}))});
  assert.equal(radiatorBlock(withPressure(5),rad),null);assert.match(radiatorBlock(withPressure(5.01),rad),/near-vacuum/);
 });
 

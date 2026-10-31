@@ -1,3 +1,4 @@
+import { refreshAtmosphere } from '../src/atmosphere.js';
 import { projectPreAirlock } from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,6 +24,7 @@ const check = s => { syncResources(s); return deserialize(serialize(s)); };
 const tickFood = s => { updateFood(s, pathTo); check(s); };
 function temp(site, value) {
   for (const r of site.rooms) { const heat = (value + 273.15) * HEAT_CAPACITY * r.volume, delta = heat - r.heat; site.thermal[delta >= 0 ? 'added' : 'removed'] += Math.abs(delta); r.heat = heat; }
+  refreshAtmosphere(site);
 }
 function feedJob(f) {
   const { s, c } = f; injure(s, c, 60, 'test'); c.hunger = 20;

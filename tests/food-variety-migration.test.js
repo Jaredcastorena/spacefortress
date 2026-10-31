@@ -1,3 +1,4 @@
+import {withTemperaturePressureReadings,withLegacyDensityReadings} from './helpers/pressure-migration.js';
 import {TOOL_RECIPES} from '../src/tool-data.js';
 import { VERSION as CURRENT_SAVE_VERSION } from '../src/data.js';
 import { projectPreDecks } from './helpers/legacy-projection.js';
@@ -14,7 +15,7 @@ import { observe, startRecording, exportRecording } from '../src/telemetry.js';
 
 // Explicit legacy schema construction: no historical/private colony is replayed.
 function legacy40(waterOnly=false) {
-  const s=projectPreDecks(createGame(701));s.version=40;s.creatures=s.creatures.filter(a=>a.species!=='glazefoot');
+  const s=withLegacyDensityReadings(projectPreDecks(createGame(701)));s.version=40;s.creatures=s.creatures.filter(a=>a.species!=='glazefoot');
   const farm=at(s.sites.surface,7,9),galley=at(s.sites.surface,10,10);
   galley.building='galley';initializeStorage(galley);initializeReliability(s);refreshPower(s,s.sites.surface);
   farm.machine.batch=waterOnly?{water:1}:{water:1,fertilizer:.25};farm.machine.progress=11;
@@ -38,11 +39,11 @@ function withoutFoodSchema(s) {
   return copy;
 }
 
-test('schema40 hex migration changes only food schema defaults, retaining old batches, portions and animals',()=>{
+test('schema40 hex migration updates food schema defaults and derived readings, retaining old batches, portions and animals',()=>{
   for(const waterOnly of [false,true]){
     const old=legacy40(waterOnly),text=serialize(old),before=totalResources(old),loaded=deserialize(text);
     assert.equal(loaded.version,CURRENT_SAVE_VERSION);assert.deepEqual(totalResources(loaded),before);
-    assert.deepEqual(withoutFoodSchema(loaded),old);assert.equal(serialize(old),text);
+    assert.deepEqual(withoutFoodSchema(loaded),withTemperaturePressureReadings(old));assert.equal(serialize(old),text);
     const farm=at(loaded.sites.surface,7,9),galley=at(loaded.sites.surface,10,10);
     assert.equal(farm.machine.recipeId,'fungalcap');assert.equal(farm.machine.batchRecipeId,'legacy_crop');
     assert.equal(galley.machine.recipeId,'basic_ration');assert.equal(galley.machine.batchRecipeId,'basic_ration');

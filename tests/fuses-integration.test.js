@@ -1,3 +1,4 @@
+import {withTemperaturePressureReadings} from './helpers/pressure-migration.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -22,7 +23,7 @@ function tick(f){f.s.tick++;updatePower(f.s,f.site);refreshPower(f.s,f.site,fals
 // construction, carriage and replacement are covered separately in fuse-work.
 test('genuine schema73 preserves pending breaker history and rejects future fuse records',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'4d719dd30dd3048143d10581da72bbb77f1b5d88afc7ad5f46f95b8f7113ba9b');
- const expected=JSON.parse(raw);expected.version=VERSION;const s=deserialize(raw);assert.equal(serialize(s),JSON.stringify(expected));
+ const expected=JSON.parse(raw);expected.version=VERSION;const s=deserialize(raw);assert.equal(serialize(s),JSON.stringify(withTemperaturePressureReadings(expected)));
  assert.equal(at(s.sites.surface,12,10).protection.overload.ticks,2);step(s);assert.equal(at(s.sites.surface,12,10).protection.cause,'overload');
  for(const mutate of [t=>t.building='fuseBox',t=>t.protection.kind='fuse']){const old=JSON.parse(raw);mutate(at(old.sites.surface,12,10));assert.throws(()=>deserialize(JSON.stringify(old)),/fuse/i);}
 });

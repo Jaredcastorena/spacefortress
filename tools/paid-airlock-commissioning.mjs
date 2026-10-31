@@ -13,45 +13,21 @@ import { tileAt } from '../src/geometry.js';
 import { roomAt } from '../src/atmosphere.js';
 import { crewPathTo } from '../src/navigation.js';
 import { constructionSupplyLocations } from '../src/construction.js';
-import { airlockLayout, airlockRoomReading, airlockSideBlock, airlockCapacity, airlockPayload, airlockNode, airlockGas as gas } from '../src/airlock-access.js';
+import { airlockLayout, airlockSideBlock, airlockPayload, airlockNode } from '../src/airlock-access.js';
+import { airlockResourceStatus } from '../src/airlocks.js';
 import { physicalMaterialOwners, physicalBalances } from './paid-air-recovery.mjs';
 import { startRecording, stopRecording, exportRecording, recordingStatus } from '../src/telemetry.js';
 
 export const LIMITS = Object.freeze({ ticks: 47, attempts: 90, commands: 35, gasTicks: 47 });
 const CONFIG = Object.freeze({ site: 'surface', x: 10, y: 10, chamber: [10, 13], inner: [10, 12], outer: [12, 14], extractor: [10, 13], pump: [10, 15], reservoir: [10, 16], vent: [11, 13] });
 const PRODUCTION = ['crew-0', 'crew-1', 'crew-2', 'crew-4', 'crew-5'];
-const keys = ['oxygen', 'inert', 'co2'];
 const clone = value => JSON.parse(JSON.stringify(value));
 const hash = value => createHash('sha256').update(value).digest('hex');
 const empty = inv => !Object.values(inv || {}).some(n => typeof n === 'number' && n > 0);
 class Stop extends Error { constructor(code, message) { super(message); this.code = code; } }
 
-// The supply/headroom and safety conditions retain their original ordering.
-// Prediction uses only finite supply toward the actual rounded vent target.
-function resourceBlock(layout) {
-  const recover = layout.phaseNodes.recover, refill = layout.phaseNodes.refill, room = layout.room, amount = gas(room.gas);
-  const headroom = recover.reduce((n, q) => n + Math.max(0, airlockCapacity(q) - airlockPayload(q)), 0);
-  const recoverNeeded = Math.max(0, amount - room.volume * .1) * (amount ? (amount + (room.smoke || 0)) / amount : 1);
-  const supply = refill.reduce((n, q) => n + gas(airlockNode(q).gas), 0);
-  const fillNeeded = Math.max(0, room.volume * 10 * Math.max(0, layout.habitat.pressure - 2) / 100 - amount);
-  const habitat = airlockRoomReading(layout.habitat), chamber = airlockRoomReading(room);
-  let blocker = null;
-  if (headroom + 1e-8 < recoverNeeded) blocker = 'reservoir_full';
-  else if (supply + 1e-8 < fillNeeded) blocker = 'supply_empty';
-  else if (!habitat.thermalSafe || !chamber.thermalSafe) blocker = 'unsafe_temperature';
-  else if (!habitat.breathable) blocker = 'contaminated_mix';
-  const target = room.volume * 10 * Math.max(0, Math.min(150, Math.round(layout.habitat.pressure))) / 100;
-  const needed = Math.min(supply, Math.max(0, target - amount)), mix = { ...room.gas };
-  let smoke = room.smoke || 0;
-  if (supply > 0) for (const q of refill) {
-    const node = airlockNode(q);
-    for (const k of keys) mix[k] += node.gas[k] * needed / supply;
-    smoke += node.smoke * needed / supply;
-  }
-  const predicted = airlockRoomReading({ ...room, gas: mix, smoke });
-  if (!blocker && !predicted.breathable) blocker = 'contaminated_mix';
-  return { blocker, headroom, recoverNeeded, supply, fillNeeded, predicted, habitat, chamber };
-}
+// The helper uses the controller's actual finite targets and admission rules.
+const resourceBlock = layout => airlockResourceStatus(layout);
 
 function context(state) {
   const s = state, site = s.sites.surface, t = (x, y) => tileAt(site, x, y), at = p => tileAt(site,p.x,p.y,p.z), controller = t(10, 10);

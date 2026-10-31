@@ -1,3 +1,5 @@
+import { roomPressure } from './room-pressure.js';
+import { refreshAtmosphere } from './atmosphere.js';
 import { tileAt, positionOf } from './spatial.js';
 import { DIRECTIONS, step } from './geometry.js';
 import { REACTOR_RULES } from './reactor-rules.js';
@@ -54,7 +56,7 @@ export function radiatorTargets(site,t){
 }
 export function radiatorBlock(site,t){
  if(t.hp<=0)return 'Needs repair';if(t.fire)return 'Fire at radiator';if(!t.radiator.enabled)return 'Paused by player';
- if((roomAt(site,t.x,t.y,t.z)?.pressure||0)/100>REACTOR.vacuumLimit)return 'Needs exterior or near-vacuum';
+ if(roomPressure(roomAt(site,t.x,t.y,t.z))/100>REACTOR.vacuumLimit)return 'Needs exterior or near-vacuum';
  if(!radiatorTargets(site,t).length)return 'No reactor thermal connection';return null;
 }
 export function updateReactorCooling(s){
@@ -62,7 +64,7 @@ export function updateReactorCooling(s){
   for(const t of site.tiles)if(t.building==='reactor'){
    const room=roomAt(site,t.x,t.y,t.z);
    if(room){const heat=Math.min(t.reactor.heat,Math.max(0,coreTemperature(t)-temperatureAt(site,t.x,t.y,t.z))*REACTOR.conductance);
-    if(heat>1e-9){t.reactor.heat-=heat;room.heat+=heat;site.thermal.equipment+=heat;site.reactorLedger.toRooms+=heat;emitEvent(s,'reactor.heat.transferred',{entity:tileEntityId(site.id,t.x,t.y,positionOf(t).z),heat,destination:'compartment'});}
+    if(heat>1e-9){t.reactor.heat-=heat;room.heat+=heat;site.thermal.equipment+=heat;refreshAtmosphere(site);site.reactorLedger.toRooms+=heat;emitEvent(s,'reactor.heat.transferred',{entity:tileEntityId(site.id,t.x,t.y,positionOf(t).z),heat,destination:'compartment'});}
    }
   }
   for(const t of site.tiles)if(t.building==='radiator'){
@@ -81,7 +83,7 @@ export function updateReactorCooling(s){
 export function releaseReactorHeat(s,site,t){
  if(!t.reactor)return;
  const heat=t.reactor.heat,room=roomAt(site,t.x,t.y,t.z);
- if(room){room.heat+=heat;site.thermal.equipment+=heat;site.reactorLedger.toRooms+=heat;}else site.reactorLedger.discarded+=heat;
+ if(room){room.heat+=heat;site.thermal.equipment+=heat;refreshAtmosphere(site);site.reactorLedger.toRooms+=heat;}else site.reactorLedger.discarded+=heat;
  emitEvent(s,'reactor.removed',{entity:tileEntityId(site.id,t.x,t.y,positionOf(t).z),heat,destination:room?'compartment':'space'});delete t.reactor;
 }
 export function setReactor(s,siteId,x,y,percent,enabled,z=0){

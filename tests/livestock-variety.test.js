@@ -11,7 +11,7 @@ import { completeAnimalJob } from '../src/husbandry.js';
 import { breedingStatus, adult, newLifecycle } from '../src/breeding.js';
 import { animalPath } from '../src/navigation.js';
 import { animalPasture } from '../src/pastures.js';
-import { startRecording, exportRecording, observe } from '../src/telemetry.js';
+import { startRecording, exportRecording, observe, recordingStatus } from '../src/telemetry.js';
 
 // Fixtures provision finite fungal caps and build a pen directly; all animal work
 // below uses the same controls, supplied jobs and ticks as the player.
@@ -47,16 +47,19 @@ test('glazefoot care requires delivered fungal caps and harvest creates typed eg
   const husbandryXp=s.crew.reduce((n,c)=>n+c.skills.husbandry.xp,0);
   assert.ok(executeAction(s,'husbandry.assign',{creature:a.id,x:10,y:15}).ok);
   const initial=totalResources(s).food;step(s,20);assert.equal(care(s,a),undefined);assert.equal(a.husbandry.trust,0);assert.equal(totalResources(s).food,initial);
-  add(depot.stock,typedFood('fungalcap',3));syncResources(s);startRecording(s);
+  add(depot.stock,typedFood('fungalcap',3));syncResources(s);
   until(s,()=>care(s,a)?.materials.food===1);assert.equal(foodOfKind(care(s,a).materials,'fungalcap'),1);
   const copy=check(s);step(s,5);step(copy,5);assert.deepEqual(s,copy);
   until(s,()=>a.husbandry.trust===100);assert.equal(totalResources(s).food,initial);assert.equal(totalResources(s).waste,.375);
   until(s,()=>s.jobs.some(j=>j.kind==='animalHarvest'&&j.animal===a.id),Math.ceil(100/animalTraits(a).productRate)+50);
+  // Record the asserted harvest stage within the default bounded recorder.
+  startRecording(s);
   until(s,()=>foodOfKind(post.drop,'glazeegg')===2);assert.equal(totalResources(s).food,initial+2);
   const eggs=foodLots(post.drop).filter(l=>l.kind==='glazeegg');assert.equal(eggs.length,1);assert.equal(eggs[0].amount,2);check(s);
   assert.ok(Math.abs(s.crew.reduce((n,c)=>n+c.skills.husbandry.xp,0)-husbandryXp-(3*livestockDef(a).careWork+livestockDef(a).harvestWork))<1e-9);
   for(const c of s.crew)setLabor(s,c.id,'hauling',true);until(s,()=>site.tiles.reduce((n,t)=>n+foodOfKind(t.stock,'glazeegg'),0)===2);
   assert.equal(site.tiles.reduce((n,t)=>n+foodOfKind(t.stock,'glazeegg'),0),2);
+  assert.equal(recordingStatus(s).active,true,'harvest evidence must not be truncated');
   const events=exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>r.event).map(r=>r.event);
   assert.ok(events.some(e=>e.id==='animal.harvested'&&e.productKind==='glazeegg'&&e.foodKinds.glazeegg===2));
 });

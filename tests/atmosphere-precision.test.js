@@ -7,6 +7,9 @@ import { totalResources } from '../src/inventory.js';
 import { outpostReadiness } from '../src/outpost-readiness.js';
 
 // Adjacent doubles are constructed independently of the production comparison.
+// Set physical contents rather than the derived display cache.
+function setPressure(r, pressure) { r.gas.inert=r.volume*10*pressure/100-r.gas.oxygen-r.gas.co2; }
+function setCO2(r, fraction) { const total=r.gas.oxygen+r.gas.inert+r.gas.co2;r.gas.co2=total*fraction;r.gas.inert=total-r.gas.oxygen-r.gas.co2; }
 function adjacent(value, delta) {
   const view = new DataView(new ArrayBuffer(8));
   view.setFloat64(0, value);
@@ -43,10 +46,10 @@ test('synthetic oxygen boundary accepts exactly the adjacent floor without chang
 
 test('oxygen rounding allowance leaves every other breathing limit exact', () => {
   for (const corrupt of [
-    r => { r.pressure = adjacent(55, -1); },
-    r => { r.pressure = adjacent(150, 1); },
+    r => { setPressure(r, adjacent(55, -1)); },
+    r => { setPressure(r, adjacent(150, 1)); },
     r => { r.gas.oxygen = adjacent(.3, 1) * 40; },
-    r => { r.co2Fraction = adjacent(.02, 1); },
+    r => { setCO2(r, adjacent(.02, 1)); },
     r => { r.smoke = FIRE.smokeLimit * r.volume; },
   ]) {
     const r = room(); corrupt(r); freeze(r);

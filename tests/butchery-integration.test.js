@@ -1,3 +1,4 @@
+import {withLegacyDensityReadings} from './helpers/pressure-migration.js';
 import { VERSION as CURRENT_SAVE_VERSION } from '../src/data.js';
 import { projectPreDecks } from './helpers/legacy-projection.js';
 import test from 'node:test';
@@ -16,7 +17,7 @@ const action=(s,id,args)=>{const result=executeAction(s,id,args,'test');assert.e
 const job=(s,result)=>s.jobs.find(j=>j.id===result.job);
 const rows=s=>exportRecording(s).trim().split('\n').map(JSON.parse);
 function until(s,predicate,max=100){let ticks=0;while(!predicate()&&ticks<max){step(s);ticks++;}assert.ok(predicate(),`condition not reached within ${max} ticks`);return ticks;}
-function legacy45(s){const old=projectPreDecks(s);old.version=45;for(const a of old.creatures)delete a.death;return old;}
+function legacy45(s){const old=withLegacyDensityReadings(projectPreDecks(s));old.version=45;for(const a of old.creatures)delete a.death;return old;}
 // Supplied local unit-test fixtures: post, tame adult and single novice handler.
 // The physical movement/work below uses the shared simulation; no old trial is replayed.
 function fixture(dead=false,species='bristleback'){
@@ -49,7 +50,7 @@ test('current shared carcass definitions and detached physical observations expo
   assert.equal(observe(s).entities[a.id].derived.carcass.edibleYield,4);checked(s);
 });
 
-test('schema45 migration changes only version and death bookkeeping, including exhausted legacy dead',()=>{
+test('schema45 migration updates version, death bookkeeping and derived readings, including exhausted legacy dead',()=>{
   const original=legacy45(createGame(744)),a=original.creatures[0];a.health=0;a.husbandry.product=7;a.husbandry.enabled=true;a.lifecycle.enabled=true;
   const text=serialize(original),physical=totalResources(original),loaded=deserialize(text);
   assert.equal(loaded.version,CURRENT_SAVE_VERSION);assert.deepEqual(legacy45(loaded),original);assert.deepEqual(totalResources(loaded),physical);assert.equal(serialize(original),text);

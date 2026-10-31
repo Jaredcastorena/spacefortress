@@ -1,4 +1,6 @@
-import { SUIT_PER_POINT, GAS_PER_TILE, gasAmount, roomAt } from './atmosphere.js';
+import { SUIT_PER_POINT, gasAmount, roomAt } from './atmosphere.js';
+import { gasAtRoomPressure } from './room-pressure.js';
+import { tileEntityId } from './spatial.js';
 import { immobile } from './mobility.js';
 
 // Manual release uses only the actor's present reserve and physical room.
@@ -20,12 +22,14 @@ export function suitReleaseStatus(s, crewId) {
     const [ax, ay] = a.split(',').map(Number), [bx, by] = b.split(',').map(Number);
     return ay - by || ax - bx;
   })[0];
-  status.destination = { site: `site:${site.id}`, tile: `tile:${site.id}:${c.x}:${c.y}`,
-    room: `room:${site.id}:${anchor}` };
+  status.destination = { site: `site:${site.id}`, tile: tileEntityId(site.id, c.x, c.y, c.z ?? 0),
+    room: `room:${site.id}:${anchor}${room.z ? `:${room.z}` : ''}` };
   if (!(c.oxygen >= 1)) return blocked('insufficient_suit_oxygen', 'Less than one point of suit oxygen remains.');
+  const capacity = gasAtRoomPressure(room, 100);
+  if (capacity === null) return blocked('room_temperature', 'Room temperature cannot support a positive pressure target.');
   for (let points = 100; points >= 1; points--) {
     const candidate = { ...room.gas, oxygen: room.gas.oxygen + points * SUIT_PER_POINT };
-    if (c.oxygen >= points && gasAmount(candidate) <= room.volume * GAS_PER_TILE) {
+    if (c.oxygen >= points && gasAmount(candidate) <= capacity) {
       return { ...status, available: true, maxPoints: points };
     }
   }

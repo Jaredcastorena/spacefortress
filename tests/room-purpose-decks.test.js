@@ -1,3 +1,4 @@
+import {withTemperaturePressureReadings} from './helpers/pressure-migration.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -34,7 +35,7 @@ test('schema53 purpose migration preserves all previous state and exact current 
   assert.equal(createHash('sha256').update(raw).digest('hex'),'10b7c6cfc385428af34b6891330cd9a1d09b03ce1c34b0810409239629fb1ecf');
   const old=JSON.parse(raw),s=deserialize(raw);assert.equal(old.version,53);assert.equal(s.version,VERSION);
   assert.deepEqual(s.sites.surface.designations,old.sites.surface.designations.map(d=>({...d,z:0})));
-  const projected=projectPreDesignationLocations(s);projected.version=53;assert.deepEqual(projected,old);
+  const projected=projectPreDesignationLocations(s);projected.version=53;assert.deepEqual(projected,withTemperaturePressureReadings(old));
   assert.equal(serialize(deserialize(serialize(s))),serialize(s));assert.equal(observe(s).schemaVersion,TELEMETRY_VERSION);
 });
 

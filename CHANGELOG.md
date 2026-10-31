@@ -4,6 +4,10 @@ SPACEFORTRESS is an early playable colony simulator. Release entries describe co
 
 ## Unreleased
 
+- Batch automatic/life-support input requests by recipe-sized deficits so tiny air top-ups cannot monopolize shared haulers. Existing incoming claims, priorities, carry limits and finite partial supplies remain authoritative.
+
+- Couple room pressure and oxygen partial pressure to absolute temperature. Shared live readings and inverse gas targets govern breathing, flow, life support, gas devices, suits, airlocks, fire and reactor radiators. Heating/cooling refreshes derived atmosphere readings. Schema75 validates older caches before changing only derived pressure/air readings; gas, heat, supplies and jobs remain intact. Pipe temperature and heat carried by gas remain future work.
+
 - Add disposable fuse boxes, immediate overload protection and physically supplied cartridge replacement. Structure repair preserves spent fuses, replacement preserves damage, and demolition excludes spent-cartridge salvage. Shared controls, events and schema74 preserve prior colonies.
 - Add deterministic routed power and three-tick breaker overloads, including combined wet-fault protection, configurable ratings, condition-adjusted thresholds and charging/backfeed measurements. Replans settle before energy/fuel/fault effects commit. Collapsed diagnostics distinguish planned from last delivered flow. Schema73 preserves older breakers without adding ratings until configured.
 

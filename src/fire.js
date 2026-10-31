@@ -1,3 +1,4 @@
+import { roomOxygenPressure } from './room-pressure.js';
 import { tileAt, positionOf, sameCell, horizontalNeighbors } from './spatial.js';
 import { stairLinks, stairOpen } from './vertical.js';
 import { neighbors } from './geometry.js';
@@ -13,7 +14,7 @@ export const FIRE={faultTicks:120,smokeLimit:.04,filterRate:.08,suppressionWater
 const adjacent=t=>neighbors(t.x,t.y);
 const at=(site,x,y,z=0)=>tileAt(site,{x,y,z});
 export const combustible=t=>t?.hp>0&&!!BUILDINGS[t.building]&&!['floor','wall','door','fence','pastureGate','cable','solar','advanced','sculpture'].includes(t.building);
-const oxygen=r=>!!r&&r.gas.oxygen/(r.volume*10)>=.12;
+const oxygen=r=>!!r&&roomOxygenPressure(r)>=.12;
 export function initializeFire(s){for(const site of Object.values(s.sites)){site.fireSafety??={automatic:true,smokeProduced:0,smokeCleared:0,smokeVented:0,oxygenBurned:0};site.thermal.combustion??=0;for(const r of site.rooms)r.smoke??=0;}}
 export function ignite(s,site,t,cause='electrical_fault',parent=null,connection=null){
  if((t.liquid||0)>=LIQUID.wet||t.fire||!combustible(t)||!oxygen(roomAt(site,t.x,t.y,t.z)))return false;

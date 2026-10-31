@@ -11,6 +11,7 @@ import { initializeProduction } from '../src/production.js';
 import { initializeAirlocks } from '../src/airlock-persistence.js';
 import { updateRooms, roomAt, fillRoom, refreshAtmosphere } from '../src/atmosphere.js';
 import { initializeThermal } from '../src/thermal.js';
+import { roomPressureFactor } from '../src/room-pressure.js';
 import { gasNode, newPipe } from '../src/gas-networks.js';
 import { executeAction } from '../src/controls.js';
 import { freightStatus } from '../src/freight.js';
@@ -68,11 +69,16 @@ function synthetic(nearThreshold, supplyTank = false) {
   updateRooms(site); initializeThermal(state);
   fillRoom(roomAt(site, 10, 11)); fillRoom(roomAt(site, 10, 13));
   if (nearThreshold) {
-    // Finite synthetic mixture matching the inspected ordinary pressure and
-    // near-threshold O2 fraction. Prepared needs remain explicit fixture scope.
+    // Finite synthetic near-floor pressure/composition at the initial ambient
+    // temperature. The original20C boundary cools below breathable pressure;
+    // this separate8C setup isolates freight, without later gas/heat changes.
+    for (const room of site.rooms) room.heat = room.volume * 20 * (site.thermal.ambient + 273.15);
+    site.thermal.initial = site.rooms.reduce((sum, room) => sum + room.heat, 0);
     const habitat = roomAt(site, 10, 11), chamber = roomAt(site, 10, 13);
-    habitat.gas = { oxygen: 52.800000000000004, inert: 277.0263378661494, co2: .051891004317951676 };
-    chamber.gas = { oxygen: 3.2000012535583635, inert: 16.789462193476677, co2: .0031412554525990922 };
+    for (const [room, original] of [[habitat, { oxygen: 52.800000000000004, inert: 277.0263378661494, co2: .051891004317951676 }],
+      [chamber, { oxygen: 3.2000012535583635, inert: 16.789462193476677, co2: .0031412554525990922 }]]) {
+      room.gas = Object.fromEntries(Object.entries(original).map(([species, amount]) => [species, amount / roomPressureFactor(room)]));
+    }
   }
   refreshAtmosphere(site); initializePower(state, site, 120); refreshPower(state, site); syncResources(state);
   return deserialize(serialize(state));

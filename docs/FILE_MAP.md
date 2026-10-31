@@ -53,6 +53,7 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 | [src/animal-transport.js](../src/animal-transport.js) | Domain helpers for animal transport |
 | [src/app.js](../src/app.js) | Browser application orchestration, UI bindings, update and render loop |
 | [src/atmosphere-panels.js](../src/atmosphere-panels.js) | HTML panel renderers and UI formatting for atmosphere |
+| [src/room-pressure.js](../src/room-pressure.js), [src/thermal-units.js](../src/thermal-units.js) | Shared temperature-adjusted room pressure, oxygen partial pressure and inverse gas targets; common thermal constants. |
 | [src/atmosphere.js](../src/atmosphere.js) | Compartment discovery and gas redistribution, door movement/control, pressure/breathability, life support and shared room/suit oxygen allocation. |
 | [src/breaker-panels.js](../src/breaker-panels.js) | HTML panel renderers and UI formatting for breaker |
 | [src/breakers.js](../src/breakers.js) | Domain helpers for breakers |
@@ -378,6 +379,7 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 | [docs/simulation-interface.md](../docs/simulation-interface.md) | Structured simulation interface and recordings |
 | [docs/staffed-orbital-outpost-design.md](../docs/staffed-orbital-outpost-design.md) | Staffed orbital outpost |
 | [docs/station-systems-reference.md](../docs/station-systems-reference.md) | Station simulation reference and next steps |
+| [docs/room-pressure.md](room-pressure.md) | Temperature-adjusted pressure, finite targets, save migration and remaining thermal limits |
 | [docs/temperature-and-climate.md](../docs/temperature-and-climate.md) | Temperature and climate control |
 | [docs/verification-status.md](../docs/verification-status.md) | Verification status |
 | [docs/vertical-slice-design.md](../docs/vertical-slice-design.md) | First playable local levels |

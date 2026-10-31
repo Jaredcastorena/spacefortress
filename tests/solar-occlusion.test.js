@@ -1,3 +1,4 @@
+import {withTemperaturePressureReadings} from './helpers/pressure-migration.js';
 import {migrateRegion} from '../src/region.js';
 import {projectPreRegion} from './helpers/legacy-projection.js';
 import test from 'node:test';import assert from 'node:assert/strict';
@@ -26,15 +27,15 @@ test('nearest opaque overhead tile blocks sunlight while empty gaps and utility 
  far.terrain='rock';assert.deepEqual(solarExposure(f.site,f.panel).blockedBy,positionOf(far));near.terrain='floor';assert.deepEqual(solarExposure(f.site,f.panel).blockedBy,positionOf(near));
  near.terrain='void';near.building='wall';assert.deepEqual(solarExposure(f.site,f.panel).blockedBy,positionOf(near));near.hp=0;assert.deepEqual(solarExposure(f.site,f.panel).blockedBy,positionOf(far));far.terrain='void';assert.equal(solarStatus(f.s,f.site,f.panel).output,4);
 });
-test('genuine schema58 covered-panel save migrates only derived power without losing stored energy or supplies',()=>{
+test('genuine schema58 covered-panel save migrates derived power and room readings without losing stored energy or supplies',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'e06a3e4a48abe2a92112733104d8a2b0b465f1754bbc285c411a3e1da86ebebd');
- const old=JSON.parse(raw),{s,site}=fresh();old.resources.tools=0;assert.equal(old.version,58);assert.equal(s.version,VERSION);assert.deepEqual(physical(projectPreRegion(s)),physical(old));
+ const old=JSON.parse(raw),{s,site}=fresh();old.resources.tools=0;assert.equal(old.version,58);assert.equal(s.version,VERSION);assert.deepEqual(physical(projectPreRegion(s)),physical(withTemperaturePressureReadings(old)));
  assert.equal(site.power.output,old.sites.surface.power.output-4);assert.equal(solarStatus(s,site,tileAt(site,lower)).output,0);assert.match(tileAt(site,lower).powerStatus,/Blocked above.*floor 1/);
  assert.equal(serialize(deserialize(serialize(s))),serialize(s));
 });
 test('migration validates old totals and energy before recalculation, and current stale power rejects',()=>{
  for(const mutate of [s=>s.sites.surface.energy.generated++,s=>s.sites.surface.power.output++,s=>tileAt(s.sites.surface,lower).powerStatus='invented']){const s=JSON.parse(raw);mutate(s);assert.throws(()=>deserialize(serialize(s)));}
- const bad=JSON.parse(raw);migrateRegion(bad);bad.version=VERSION;for(const site of Object.values(bad.sites))for(const t of site.tiles)if(t.building==='stockpile')t.storage.limits={};bad.resources.tools=0;assert.throws(()=>deserialize(serialize(bad)),/Power totals/);
+ const bad=withTemperaturePressureReadings(JSON.parse(raw));migrateRegion(bad);bad.version=VERSION;for(const site of Object.values(bad.sites))for(const t of site.tiles)if(t.building==='stockpile')t.storage.limits={};bad.resources.tools=0;assert.throws(()=>deserialize(serialize(bad)),/Power totals/);
 });
 test('paid construction on the roof generates upstairs while the covered lower panel stays blocked',()=>{
  const {s,site}=fresh(),before=site.power.output,result=executeAction(s,'job.order',{site:'surface',...roof,kind:'build',building:'solar'});assert.equal(result.ok,true,result.message);const j=s.jobs.find(j=>j.id===result.job);assert.deepEqual(j.cost,{alloy:5});assert.equal(j.work,8);assert.equal(tileAt(site,roof).building,null);

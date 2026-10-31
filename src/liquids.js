@@ -2,7 +2,7 @@ import { stairLinks, stairOpen, STAIR } from './vertical.js';
 import { tileAt, positionOf } from './spatial.js';
 import { neighbors as hexNeighbors, forwardNeighbors } from './geometry.js';
 import { take, add, quantity, OUTPUT_CAPACITY } from './inventory.js';
-import { roomAt } from './atmosphere.js';
+import { roomAt, refreshAtmosphere } from './atmosphere.js';
 import { refreshPower } from './power.js';
 import { damage } from './maintenance.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
@@ -77,7 +77,7 @@ export function pumpLiquids(s){
 export const wetCable=t=>!!(t.cable?.enabled&&t.cable.hp>0&&(t.liquid||0)>=LIQUID.wet);
 export function shortCable(s,site,t){
  const energy=LIQUID.faultPower;site.liquids.faultEnergy+=energy;
- const room=roomAt(site,t.x,t.y,t.z);if(room){room.heat+=energy;site.thermal.equipment+=energy;}else site.liquids.faultHeatVented+=energy;
+ const room=roomAt(site,t.x,t.y,t.z);if(room){room.heat+=energy;site.thermal.equipment+=energy;refreshAtmosphere(site);}else site.liquids.faultHeatVented+=energy;
  damage(s,site,t,'cable',LIQUID.faultDamage,'water');
  emitEvent(s,'power.wet_short',{entity:tileEntityId(site.id,t.x,t.y,t.z),energy,condition:t.cable.hp});
 }

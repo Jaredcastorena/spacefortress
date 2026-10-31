@@ -4,7 +4,7 @@ Original atmosphere implementation: September 16, 2026. Updated October 9 for v0
 
 ## Stored quantities
 
-Each compartment stores oxygen, inert gas, and exhaled gas (`co2`). Each floor tile contributes one volume unit; nominal pressure corresponds to ten gas units per tile. Pressure, composition and the summary air reading are derived from those quantities.
+Each compartment stores oxygen, inert gas, and exhaled gas (`co2`). Each floor tile contributes one volume unit; at 20 °C, nominal pressure corresponds to ten gas units per tile. Local schema75 multiplies gas density by absolute room temperature relative to 293.15 K. Pressure and oxygen partial pressure therefore change with heat; composition stays a fraction of actual gas. See [room pressure](room-pressure.md) for the law, migration and remaining thermal limits.
 
 Changing a room's shape preserves its gas. Splitting distributes it between the resulting volumes; joining adds quantities; expanding into empty floor lowers pressure. Building walls into a room can compress its remaining gas. Removing its last volume records the gas as escaped. A topology rebuild never resets a room to full air.
 
@@ -19,7 +19,7 @@ Crew breathe ambient oxygen when they are inside a compartment that meets all cu
 - Oxygen partial pressure from 16% through 30% of nominal total pressure.
 - Exhaled gas no more than 2% of the mixture.
 
-**Oxygen concentration alone does not show whether a room is breathable.** Pressure-adjusted oxygen is the oxygen fraction multiplied by room pressure, expressed against nominal total pressure. A room can contain roughly 21% oxygen in its mixture yet hold too little gas for that oxygen to reach the 16% minimum. In the measured tick-144 stop, concentration was 20.736% but total pressure was 76.4248% of nominal: pressure-adjusted oxygen was only 15.8476%. Its 55.46668 oxygen units were below the 56 required for that room.
+**Oxygen concentration alone does not show whether a room is breathable.** Pressure-adjusted oxygen is the oxygen fraction multiplied by room pressure, expressed against nominal total pressure. A room can contain roughly 21% oxygen in its mixture yet hold too little gas for that oxygen to reach the 16% minimum. In the historical density-only tick-144 stop, concentration was 20.736% but total pressure was 76.4248% of nominal: pressure-adjusted oxygen was only 15.8476%. Its 55.46668 oxygen units were below the 56 required for that room.
 
 The shared breathing check reports the first failed limit in the order below. The inspector and local-agent observations use the same classification as crew breathing; a clear result means every listed limit passes.
 
@@ -59,7 +59,7 @@ Only suit oxygen and room oxygen change ownership. The existing atmosphere `inje
 
 ## Leakage and doors
 
-Exposed floor edges, damaged hull seals and open doors create gas connections. Flow depends on the difference in gas density, opening conductance and compartment volume. Transfers use a snapshot of source mixtures and bounded outgoing quantities, preventing negative inventories when several openings drain one room. Connected rooms also exchange mixture at equal pressure, so contamination can spread without a pressure imbalance.
+Exposed floor edges, damaged hull seals and open doors create gas connections. Flow depends on the difference in temperature-adjusted pressure, opening conductance and compartment volume. Transfers use a snapshot of source mixtures and bounded outgoing quantities, preventing negative inventories when several openings drain one room. Connected rooms also exchange mixture at equal pressure, so contamination can spread without a pressure imbalance.
 
 Pressure doors have three inspector controls:
 
@@ -130,8 +130,8 @@ Three checkpoints reloaded exactly. The complete trace contained 2,174 records; 
 
 The original atmosphere release passed 252 tests, including 20 atmosphere cases. This historical evidence covers conserved room edits, pressure equalization, composition mixing, breathing and suit refill, contamination, finite supplies, recycling, an outage/recovery chain, breach area and room size, damage, door modes, whole-system gas accounting, preflight supplies, processor-to-life-support deliveries, deterministic saves, migration and malformed state. Source syntax and documentation links passed at that checkpoint. Current integrated results are in [verification status](verification-status.md).
 
-The original atmosphere checkpoint did not include browser verification of its inspector, door controls and sprites; later scoped browser checks are listed in verification status. Initial [fire, smoke and supplied suppression](fire-and-smoke.md) are now implemented. Temperature-dependent pressure, additional contaminants, decompression injuries and species-specific breathing remain unfinished. Cycling airlock controllers and supplied orbital construction exist within their documented scopes; ordinary paid airlock commissioning and full outpost endurance/resupply acceptance remain unfinished. Connected circuits and per-bank reserves now determine which equipment receives power; see [electrical networks](power-networks.md).
+The original atmosphere checkpoint did not include browser verification of its inspector, door controls and sprites; later scoped browser checks are listed in verification status. Initial [fire, smoke and supplied suppression](fire-and-smoke.md) are now implemented. Room temperature now affects pressure. Gas-carried heat, additional contaminants, decompression injuries and species-specific breathing remain unfinished. Cycling airlock controllers and supplied orbital construction exist within their documented scopes; ordinary paid airlock commissioning and full outpost endurance/resupply acceptance remain unfinished. Connected circuits and per-bank reserves now determine which equipment receives power; see [electrical networks](power-networks.md).
 
-Room thermal energy and climate control are now implemented separately from gas quantities; see [temperature and climate](temperature-and-climate.md). Gas-temperature pressure coupling remains unfinished.
+Room thermal energy and climate control are now implemented separately from gas quantities; see [temperature and climate](temperature-and-climate.md). Shared room-temperature pressure is now implemented; gas-carried heat and pipe temperature remain unfinished.
 
-Initial [gas supply networks](gas-networks.md) add finite tanks, pipes/valves, directional powered pumps and regulated vents. Existing life support remains automatic and supplied. [Retained exhaust and filtration](exhaust-and-filtration.md) is implemented and verified in schema 34: selective CO2/smoke collection or proportional bulk exhaust into finite physical storage, with dirty networks able to contaminate supply. Gas-temperature pressure coupling remains future work.
+Initial [gas supply networks](gas-networks.md) add finite tanks, pipes/valves, directional powered pumps and regulated vents. Existing life support remains automatic and supplied. [Retained exhaust and filtration](exhaust-and-filtration.md) is implemented and verified in schema 34: selective CO2/smoke collection or proportional bulk exhaust into finite physical storage, with dirty networks able to contaminate supply. These devices now use room-temperature pressure targets; pipe gas still uses a fixed 20 °C reference.

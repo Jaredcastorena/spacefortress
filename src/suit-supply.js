@@ -1,4 +1,5 @@
-import { SUIT_PER_POINT, GAS_PER_TILE, gasAmount, roomAt, refreshAtmosphere } from './atmosphere.js';
+import { SUIT_PER_POINT, gasAmount, roomAt, refreshAtmosphere } from './atmosphere.js';
+import { gasAtRoomPressure } from './room-pressure.js';
 import { suitReleaseStatus } from './suit-release-status.js';
 import { tileAt, positionOf, sameCell } from './spatial.js';
 import { take } from './inventory.js';
@@ -53,7 +54,9 @@ export function releaseSuitOxygen(s, crewId, points) {
   if (!(c.oxygen >= points)) return reject('insufficient_suit_oxygen', 'Not enough suit oxygen for the requested release.');
   const site = s.sites[c.site], room = roomAt(site,c.x,c.y,c.z), oxygen = points * SUIT_PER_POINT;
   const candidate = { ...room.gas, oxygen: room.gas.oxygen + oxygen };
-  if (!(gasAmount(candidate) <= room.volume * GAS_PER_TILE)) {
+  const capacity = gasAtRoomPressure(room, 100);
+  if (capacity === null) return reject('room_temperature', 'Room temperature cannot support a positive pressure target.');
+  if (!(gasAmount(candidate) <= capacity)) {
     return reject('room_full', 'This room cannot hold the requested oxygen release.');
   }
   const suitBefore = c.oxygen;
