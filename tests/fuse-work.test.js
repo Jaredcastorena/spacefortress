@@ -82,14 +82,14 @@ test('schema74 validates exact replacement, repair and removal contracts; schema
   const bad=JSON.parse(serialize(f.s));alter(bad.jobs.find(j=>j.id===job.id));assert.throws(()=>deserialize(JSON.stringify(bad)));
  }
  for(const kind of ['repair','remove']){const g=fixture(),r=order(g.s,'surface',11,9,kind);assert.equal(r.ok,true);const bad=JSON.parse(serialize(g.s));bad.jobs.find(j=>j.id===r.job.id).work=bad.jobs.find(j=>j.id===r.job.id).remaining=7;assert.throws(()=>deserialize(JSON.stringify(bad)),/Invalid fuse work/);}
- for(const shadow of ['tile','cartridge','build','replacement']){const old=createGame();old.version=73;
+ for(const shadow of ['tile','cartridge','build','replacement']){const old=createGame(74219,{regionSchema:2});old.version=73;
   if(shadow==='tile')at(old.sites.surface,11,9).building='fuseBox';
   if(shadow==='cartridge')at(old.sites.surface,11,9).protection={kind:'fuse'};
   if(shadow==='build')old.jobs.push({kind:'build',building:'fuseBox'});
   if(shadow==='replacement')old.jobs.push({kind:'replaceFuse'});
   assert.throws(()=>deserialize(JSON.stringify(old)),/Legacy fuse/);
  }
- const old=createGame();old.version=73;const expected=structuredClone(old);expected.version=VERSION;assert.equal(serialize(deserialize(JSON.stringify(old))),JSON.stringify(expected));
+ const old=createGame(74219,{regionSchema:2});old.version=73;const expected=structuredClone(old);expected.version=VERSION;assert.equal(serialize(deserialize(JSON.stringify(old))),JSON.stringify(expected));
 });
 
 test('upper-floor fuse replacement consumes actual-floor material and preserves the ground tile',()=>{

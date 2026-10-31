@@ -2,6 +2,14 @@
 
 Updated October 30, 2026. This is the compact evidence index for implemented and proposed systems. **Verified** means the named scope passed its stated check. **Pending** means evidence is not yet complete. **Failed** means a known check contradicts the requirement. None of these rows declares the whole game finished.
 
+## Local procedural maps and satellite survey — schema76
+
+**Verified:** 52 focused checks cover deterministic larger maps, finite native ecology and pools, local temperature effects, old-save preservation, paid satellite jobs/refunds, saved continuation, shared actions/recordings and the gated atlas. New worlds use48×48 home and32×32 remote maps; older worlds retain their physical layouts. Cold recovery now stores canonical zero for exact crew/animal save continuation, and generated edible patches can begin both mature and immature.
+
+The full compatibility run produced **1,993 passes, 51 failures and one historical skip**. All51 failures are covered by passing focused repairs: old fixed-size synthetic layouts stay explicit, population/coordinate/resource checks use the actual new maps, camera tests focus their inspected tiles, and copied upper-floor fixtures no longer duplicate natural ground ponds or metadata. Ordinary gameplay tests keep the larger maps. Original hashes, costs, route requirements, simulation tick caps and default recording limits remain unchanged; long mining recordings start at the work stage they verify. The original failures remain accounted for rather than claiming an unchanged clean full run.
+
+The supplied launch fixture completes actual crew delivery and16 engineering work at tick45 using one explicitly synthetic recovered cell. Browser checks confirmed the complete48×48 map, locked survey before launch, imported launched-state atlas, live landing counts and selectable unvisited previews, with no console errors. Eight browser-build checks pass; the141-file export includes all four new modules. These checks do not establish ordinary fresh-colony cell acquisition, new-sector travel, liquid phase changes or colony endurance. [Rules and limits](procedural-maps.md).
+
 ## Local room temperature and pressure — schema75
 
 **Verified:** shared temperature-adjusted pressure and oxygen partial pressure, finite inverse fill targets, room exchange, breathing, suits, gas devices, fire, reactor cooling and wet-fault heat refresh. Thirty-nine new pressure checks passed. Genuine schema74 and older fixture migrations preserve physical quantities while updating derived pressure/air readings; both existing eight-tick historical hash sequences still match after projecting only those readings to their old form.

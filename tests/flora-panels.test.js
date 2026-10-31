@@ -18,8 +18,10 @@ import { Renderer } from '../src/render.js';
 const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function fixture(species='fungalcap') {
-  const s=createGame(),site=s.sites.surface,t=site.tiles.find(t=>t.flora?.[species]?.biomass===100);
-  assert.ok(t,`New colony has mature ${species}`);return {s,site,t};
+  const s=createGame(),site=s.sites.surface;
+  // Inspect an actual ripe patch reachable by the colony, wherever the new world placed it.
+  const t=site.tiles.find(t=>t.flora?.[species]?.biomass===100&&gatheringEligibility(s,site,t,species).ok&&s.crew.some(c=>c.site===site.id&&c.health>0&&pathTo(site,c,[[t.x,t.y]])!==null));
+  assert.ok(t,`New colony has reachable mature ${species}`);return {s,site,t};
 }
 function cultivationFixture(species='fungalcap',bed=false) {
   const s=createGame(),site=s.sites.surface,t=at(site,10,15),depot=at(site,8,10);
@@ -173,10 +175,11 @@ test('map lichen rendering uses only canonical biomass while edible plant art st
   const {s,site,t}=fixture();s.crew=[];
   for(const tile of site.tiles)if(tile.flora)delete tile.flora.lichen;
   t.lichen=100;
-  const empty=graphics();empty.renderer.draw(s,site.id,'inspect',null);
+  // This assertion concerns the selected patch, so keep it inside the culled viewport.
+  const empty=graphics();empty.renderer.focus(site,t);empty.renderer.draw(s,site.id,'inspect',null);
   const lichenMarks=g=>g.commands.filter(c=>c.name==='rect'&&['#98a076','#788765','#a6a778','#748468'].includes(c.fill));
   assert.equal(lichenMarks(empty).length,0);
-  t.flora.lichen={biomass:60,harvests:0};const grown=graphics();grown.renderer.draw(s,site.id,'inspect',null);
+  t.flora.lichen={biomass:60,harvests:0};const grown=graphics();grown.renderer.focus(site,t);grown.renderer.draw(s,site.id,'inspect',null);
   assert.equal(lichenMarks(grown).length,3);
   assert.ok(grown.commands.some(c=>c.name==='polygon'&&c.args.includes('#ab98d6')));
 });

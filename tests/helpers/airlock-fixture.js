@@ -33,7 +33,7 @@ export const refs = s => {
 // True odd-q hex geometry: each door has four sealing side walls. The independent
 // chamber feed remains connected with either device's physical valve closed.
 export function fixture({configure=true,chamberGas=20,reserveGas=35,smoke=.02}={}) {
- const s=createGame(74219), site=s.sites.surface;
+ const s=createGame(74219,{regionSchema:2}), site=s.sites.surface;
  const stock=structuredClone(at(site,8,10).stock),shuttle=structuredClone(at(site,16,11));
  const blank=structuredClone(site.tiles.find(t=>!t.building&&!t.flora&&!t.machine));
  site.tiles=site.tiles.map((_,i)=>({...structuredClone(blank),x:i%site.size,y:Math.floor(i/site.size),terrain:'ground',building:null,hp:100,drop:null,cable:null,powered:false}));

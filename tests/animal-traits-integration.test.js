@@ -31,8 +31,8 @@ function legacy(s,version){
   return old;
 }
 // Declared supplied family fixture. No historical colony or gameplay is used.
-function family(){
-  const s=createGame(901),[a,b]=s.creatures;s.nextId=100;
+function family(options){
+  const s=createGame(901,options),[a,b]=s.creatures;s.nextId=100;
   const child={...structuredClone(a),id:'bristleback-98',age:0,fed:40,husbandry:{...a.husbandry,post:null,product:0},lifecycle:newLifecycle(0,[a.id,b.id],a.species),genetics:inheritGenome(s.seed,a,b,'brood-97')};
   s.creatures.push(child);
   a.health=90;a.condition={injury:10,treated:4,thermalStress:0,cause:'cold',recovery:'none'};
@@ -66,7 +66,7 @@ test('schema46 founders and detached definitions persist without changing reprod
 
 test('all hex legacy migration stages add balanced genes and preserve complete physical state',()=>{
   for(const version of [40,41,42,43,44]){
-    const old=legacy(createGame(903),version),text=serialize(old),physical=totalResources(old),loaded=deserialize(text);
+    const old=legacy(createGame(903,{regionSchema:2}),version),text=serialize(old),physical=totalResources(old),loaded=deserialize(text);
     assert.equal(loaded.version,CURRENT_SAVE_VERSION);assert.deepEqual(legacy(loaded,version),old);assert.deepEqual(totalResources(loaded),physical);assert.equal(serialize(old),text);
     for(const a of loaded.creatures){assert.deepEqual(a.genetics,neutralGenome());const profile=animalTraits(a),def=livestockDef(a);assert.deepEqual(profile.temperatureRange,def.temperature);assert.equal(profile.productRate,def.productRate);assert.equal(profile.metabolism,def.metabolism);}
     checked(loaded);
@@ -74,7 +74,7 @@ test('all hex legacy migration stages add balanced genes and preserve complete p
 });
 
 test('schema44 supplied injured carrier, pending brood and offspring migrate without stepping or repair',()=>{
-  const old=legacy(family().s,44),text=serialize(old),loaded=deserialize(text);
+  const old=legacy(family({regionSchema:2}).s,44),text=serialize(old),loaded=deserialize(text);
   assert.deepEqual(legacy(loaded,44),old);assert.equal(serialize(old),text);assert.equal(loaded.tick,0);assert.equal(loaded.nextId,100);assert.equal(loaded.rng,old.rng);
   const [a,b]=loaded.creatures,inheritance=a.lifecycle.brood.inheritance;
   assert.deepEqual(a.condition,old.creatures[0].condition);assert.equal(a.health,90);assert.deepEqual(inheritance,{parents:[a,b].map(p=>({id:p.id,genetics:neutralGenome()})),child:neutralGenome()});
@@ -84,7 +84,7 @@ test('schema44 supplied injured carrier, pending brood and offspring migrate wit
 
 test('legacy schemas reject genetic and pending inheritance shadows before migration',()=>{
   for(const version of [40,41,42,43,44])for(const mutate of [s=>s.creatures[0].genetics=null,s=>s.creatures[0].lifecycle.brood.inheritance=null,s=>s.creatures.push({id:'pest-shadow',species:'tibble',genetics:null})]){
-    const bad=legacy(family().s,version);mutate(bad);const text=serialize(bad);assert.throws(()=>deserialize(text),/genetics shadow/);assert.equal(serialize(bad),text);
+    const bad=legacy(family({regionSchema:2}).s,version);mutate(bad);const text=serialize(bad);assert.throws(()=>deserialize(text),/genetics shadow/);assert.equal(serialize(bad),text);
   }
 });
 

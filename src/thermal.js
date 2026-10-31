@@ -6,7 +6,8 @@ import {SOLID_FLOOR_CONDUCTANCE} from './material-data.js';
 import { siteKind } from './region.js';
 import { stairLinks, stairOpen, STAIR } from './vertical.js';
 import { tileAt, cellKey, positionOf } from './spatial.js';
-import { roomAtPosition, roomCellKey } from './room-locations.js';
+import { roomAtPosition, roomCellKey, roomCellPosition } from './room-locations.js';
+import { localTemperatureOffset } from './environment.js';
 import { neighbors } from './geometry.js';
 import { refreshPower } from './power.js';
 import { BUILDINGS } from './data.js';
@@ -21,7 +22,8 @@ export function outsideTemperature(site, tick) {
   const kind = siteKind(typeof site === 'string' ? { id: site } : site);
   return kind === 'surface' ? (tick % 300 < 220 ? 8 : -35) : ({ wreck: -60, comet: -100, solar: 90 }[kind] ?? 8);
 }
-export const temperatureAt = (site, x, y, z=0) => temperature(roomHere(site, x, y, z)) ?? site.thermal.ambient;
+export const outsideTemperatureAt = (site, x, y, z=0) => site.thermal.ambient + localTemperatureOffset(tileAt(site,{x,y,z}));
+export const temperatureAt = (site, x, y, z=0) => temperature(roomHere(site, x, y, z)) ?? outsideTemperatureAt(site,x,y,z);
 export function initializeClimate(t) {
   if (t.building === 'climate') t.climate ??= { enabled: true, target: 20, status: 'Waiting for climate control' };
   else delete t.climate;
@@ -43,7 +45,7 @@ export function remapThermal(site, old, rooms) {
     for (const cell of r.cells) {
       const k=roomCellKey(r,cell);
       if (energy.has(k)) { r.heat += energy.get(k); energy.delete(k); }
-      else { const added = HEAT_CAPACITY * (site.thermal.ambient + ZERO); r.heat += added; site.thermal.added += added; }
+      else { const p=roomCellPosition(r,cell),added = HEAT_CAPACITY * (outsideTemperatureAt(site,p.x,p.y,p.z) + ZERO); r.heat += added; site.thermal.added += added; }
     }
   }
   for (const amount of energy.values()) site.thermal.removed += amount;
@@ -55,15 +57,23 @@ function links(site) {
   const result = [];
   for (const [cell, a] of owners) {
     const [x, y, z] = cell.split(',').map(Number);
-    for (const [nx, ny] of neighbors(x, y)) if (external(at(nx, ny, z))) result.push({ a, b: null, rate: .6 });
+    for (const [nx, ny] of neighbors(x, y)) {
+      const outside=at(nx,ny,z);
+      if (external(outside)) result.push({ a, b: null, rate: .6, offset: localTemperatureOffset(outside ?? at(x,y,z)) });
+    }
   }
   for (const t of site.tiles) if (['wall', 'door'].includes(t.building)) {
-    const sides = new Set();
-    for (const [x, y] of neighbors(t.x, t.y)) { const z=positionOf(t).z,owner = owners.get(cellKey({x,y,z})); if (owner !== undefined) sides.add(owner); else if (external(at(x, y, z))) sides.add(null); }
+    const sides = new Set(), exteriorOffsets=[];
+    for (const [x, y] of neighbors(t.x, t.y)) {
+      const z=positionOf(t).z,owner = owners.get(cellKey({x,y,z})),outside=at(x,y,z);
+      if (owner !== undefined) sides.add(owner);
+      else if (external(outside)) { sides.add(null); exteriorOffsets.push(localTemperatureOffset(outside ?? t)); }
+    }
+    const offset=exteriorOffsets.length?exteriorOffsets.reduce((sum,value)=>sum+value,0)/exteriorOffsets.length:0;
     const open = t.hp <= 0 || (t.building === 'door' && (t.doorMode === 'open' || (t.doorMode !== 'closed' && t.doorUntil > site.atmosphere.tick)));
     const rate = open ? .8 : .015 * materialProfile(t,'structure').structure.conductivity + .4 * (1 - t.hp / 100) ** 2, ids = [...sides];
     for (let a = 0; a < ids.length; a++) for (let b = a + 1; b < ids.length; b++) {
-      result.push({ a: ids[a] === null ? ids[b] : ids[a], b: ids[a] === null ? null : ids[b], rate: rate / Math.max(1, ids.length - 1) });
+      result.push({ a: ids[a] === null ? ids[b] : ids[a], b: ids[a] === null ? null : ids[b], rate: rate / Math.max(1, ids.length - 1), offset });
     }
   }
   // A constructed slab conducts heat between the rooms it separates. It
@@ -74,7 +84,7 @@ function links(site) {
   }
   for(const link of stairLinks(site))if(stairOpen(site,link)){
     const a=owners.get(cellKey(link.lower))??null,b=owners.get(cellKey(link.upper))??null;
-    if(a!==b)result.push({a:a===null?b:a,b:a===null?null:b,rate:STAIR.heatConductance});
+    if(a!==b)result.push({a:a===null?b:a,b:a===null?null:b,rate:STAIR.heatConductance,offset:localTemperatureOffset(tileAt(site,a===null?link.lower:link.upper))});
   }
   return result;
 }
@@ -84,7 +94,7 @@ export function updateThermal(s) {
     const temps = site.rooms.map(temperature), changes = site.rooms.map(() => 0), outgoing = site.rooms.map(() => 0), transfers = [];
     for (const link of links(site)) {
       let { a, b, rate } = link;
-      const temp = i => i === null ? ledger.ambient : temps[i];
+      const temp = i => i === null ? ledger.ambient + (link.offset ?? 0) : temps[i];
       if (temp(a) < temp(b)) [a, b] = [b, a];
       const difference = temp(a) - temp(b);
       const equalization = difference / ((a === null ? 0 : 1 / capacity(site.rooms[a])) + (b === null ? 0 : 1 / capacity(site.rooms[b])));
@@ -123,6 +133,7 @@ export function thermalExposure(c, site, suited) {
   const temp = temperatureAt(site, c.x, c.y, positionOf(c).z), low = suited ? -120 : 5, high = suited ? 100 : 35;
   const strain = temp < low ? (temp - low) * .012 : temp > high ? (temp - high) * .012 : 0;
   c.thermalStress = strain ? Math.max(-100, Math.min(100, c.thermalStress + strain)) : Math.sign(c.thermalStress) * Math.max(0, Math.abs(c.thermalStress) - .8);
+  if(c.thermalStress===0)c.thermalStress=0; // JSON stores zero without a sign.
   return Math.abs(c.thermalStress) > 70 ? (Math.abs(c.thermalStress) - 70) * .006 : 0;
 }
 export function setClimate(s, siteId, x, y, target, enabled,z=0) {

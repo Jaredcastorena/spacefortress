@@ -35,9 +35,13 @@ function pen(){
 const care=(s,a)=>s.jobs.find(j=>j.kind==='animalCare'&&j.animal===a.id);
 const childOf=(s,a)=>s.creatures.find(c=>c.lifecycle?.parents.includes(a.id));
 
-test('new colonies contain two wild glazefoot adults with distinct registered feed and products',()=>{
+test('new colonies retain wild glazefoot founders and registered feed and products for generated adults',()=>{
   const s=createGame(),animals=s.creatures.filter(a=>a.species==='glazefoot');
-  assert.equal(animals.length,2);assert.equal(s.creatures.filter(a=>a.species==='bristleback').length,3);
+  // Region3 adds seeded wildlife outside the established colony footprint.
+  // Preserve the original founders without treating them as the whole planet.
+  assert.deepEqual(animals.filter(a=>['glazefoot-0','glazefoot-1'].includes(a.id)).map(a=>a.id),['glazefoot-0','glazefoot-1']);
+  assert.equal(s.creatures.filter(a=>a.species==='bristleback'&&['grazer-0','grazer-1','grazer-2'].includes(a.id)).length,3);
+  assert.equal(new Set(s.creatures.map(a=>a.id)).size,s.creatures.length);
   for(const a of animals){assert.ok(isLivestock(a)&&adult(a));assert.equal(a.husbandry.trust,0);assert.equal(a.lifecycle.enabled,false);assert.deepEqual(livestockDef(a).feedKinds,{fungalcap:1});assert.equal(livestockDef(a).productKind,'glazeegg');}
   assert.equal(isLivestock('tibble'),false);assert.equal(livestockDef('bristleback').productKind,'curd');check(s);
 });

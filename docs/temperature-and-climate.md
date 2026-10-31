@@ -2,13 +2,13 @@
 
 Implemented locally, September 16, 2026. This is a game-scale habitat model; the constants are provisional balancing values.
 
-Latest extension: [colony reactors and exterior radiators](reactors.md) add fueled generation, core-to-room heat and manual overheat recovery in schema 31. Historical evidence below describes the earlier foundational release.
+Earlier extension: [colony reactors and exterior radiators](reactors.md) add fueled generation, core-to-room heat and manual overheat recovery in schema 31. Historical evidence below describes the earlier foundational release.
 
 ## Stored heat and room changes
 
 Each compartment owns `heat`, with thermal capacity of 20 units per floor cell. Displayed Celsius temperature is `heat / capacity − 273.15`. This represents habitat structure and contents separately from the existing gas inventory. Removing air does not instantly remove the room's stored heat.
 
-Splitting a room assigns each retained floor cell its previous share of heat. Merging rooms mixes those shares. New room cells enter at the site's exterior temperature; cells removed from room volumes remove their share. The site ledger records this added/removed thermal mass. Room edits do not silently reset existing cells to a comfortable temperature.
+Splitting a room assigns each retained floor cell its previous share of heat. Merging rooms mixes those shares. New room cells enter at their local exterior temperature; cells removed from room volumes remove their share. The site ledger records this added/removed thermal mass. Room edits do not silently reset existing cells to a comfortable temperature.
 
 The thermal ledger also records heat entering/leaving through boundaries, powered equipment heat, heating and cooling. Validation compares those flows with actual stored heat. Thermal and electrical ledgers describe different stages of the same system; do not add their totals together as if they were separate supplies.
 
@@ -16,7 +16,7 @@ The thermal ledger also records heat entering/leaving through boundaries, powere
 
 Intact bulkheads conduct slowly. Damaged hulls conduct faster, and open/broken doors exchange heat quickly. Open room edges exchange directly with the exterior. Internal exchanges subtract from one room and add to another. Transfer amounts are bounded to avoid overdrawing a room's heat.
 
-Surface exterior temperature is 8 °C during daylight and −35 °C at night. The authored orbital sites have fixed thermal reference temperatures: wreck −60, comet −100 and solar region 90 °C. These are environmental gameplay values, not realistic vacuum air temperatures or an orbital physics model.
+Surface exterior temperature is 8 °C during daylight and −35 °C at night. The authored orbital sites have fixed thermal reference temperatures: wreck −60, comet −100 and solar region 90 °C. New procedural tiles add a bounded biome and latitude offset to that reference. Exterior crew and plants use the local reading, and exterior room boundaries use neighboring tile conditions. Existing maps without an offset retain their reference temperature. These are environmental gameplay values, not realistic vacuum air temperatures or an orbital physics model. See [procedural maps](procedural-maps.md).
 
 Powered equipment other than climate units adds 0.35 thermal units per rated kW each tick to its compartment. Enabled idle machines retain their existing rated power demand and therefore still emit this heat. Unpowered or paused machinery does not. There is no free heat from disconnected equipment.
 

@@ -32,6 +32,7 @@
     "src/deck-view.js",
     "src/elements-app.js",
     "src/elements.js",
+    "src/environment.js",
     "src/expedition-panels.js",
     "src/expedition-readiness.js",
     "src/expedition.js",
@@ -110,6 +111,8 @@
     "src/rooms.js",
     "src/sanitation-panels.js",
     "src/sanitation.js",
+    "src/satellite-atlas.js",
+    "src/satellites.js",
     "src/shipment-locations.js",
     "src/simulation.js",
     "src/solar.js",
@@ -129,6 +132,7 @@
     "src/utility-links.js",
     "src/vertical.js",
     "src/water-panels.js",
-    "src/water.js"
+    "src/water.js",
+    "src/world-generation.js"
   ]
 }

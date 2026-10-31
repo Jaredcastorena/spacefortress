@@ -59,7 +59,7 @@ test('tool and keepsake slots coexist and death releases both onto the actual fl
 });
 
 test('malformed tools, duplicate ownership and unsupported legacy tool state reject saves',()=>{
- const s=createGame();pocket(s);const stable=JSON.parse(serialize(s));
+ const s=createGame(74219,{regionSchema:2});pocket(s);const stable=JSON.parse(serialize(s));
  for(const edit of [x=>x.crew[0].possessions.inventory._items[0].condition=-1,x=>x.crew[0].possessions.inventory._items[0].material='unknown',x=>x.crew[1].possessions.inventory=structuredClone(x.crew[0].possessions.inventory),x=>x.version=63]){
   let invalid=structuredClone(stable);edit(invalid);if(invalid.version===63)invalid=withLegacyDensityReadings(projectPreRegion(invalid,{allowUnvisited:true}));assert.throws(()=>deserialize(JSON.stringify(invalid)));
  }

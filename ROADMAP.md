@@ -2,6 +2,10 @@
 
 ## Current systems work
 
+- [x] Local after v0.1.12: generate 48 × 48 home and 32 × 32 remote maps with connected terrain, native ecology, finite ore/ice/water and local exterior temperatures. Save76/region3 preserves existing worlds without regeneration.
+- [x] Local after v0.1.12: assemble and launch a paid survey satellite through ordinary delivered engineering work; reveal a selectable planet atlas with live known-landing readings and same-generator unvisited-sector previews. Observation10 records planet identity and launch. [Mechanics and limits](docs/procedural-maps.md).
+- [ ] Add actual travel and settlement at newly surveyed sectors; larger history/discovery and sustained ordinary habitation remain unfinished.
+
 - [x] Local after v0.1.12: couple room pressure to temperature across breathing, gas flow, life support, vents, exhaust, suit transfers, airlocks, fire and reactor cooling. Schema75 preserves old physical state and updates derived readings. Automatic supplies batch tiny deficits while retaining finite partial deliveries.
 - [ ] Extend thermal transport to carried gas and pipe/tank contents; add finite water heat and phase changes.
 
@@ -268,7 +272,9 @@ Implement the [local-level design](docs/vertical-slice-design.md): two decks in 
 
 **Planet grouping in v0.1.12:** new worlds contain three planets and eight sites, including a resource landing and derelict at each frontier planet. Every generated destination passes bounded native supplied extraction, paid construction, return and persistent-revisit checks. Planet/site navigation is view-only, and prior four-/six-site worlds remain exact under schema68.
 
-**Still pending:** a larger discovery/history system, travel between remote destinations and sustained ordinary habitation. The bounded route check pauses production to retain starter air for travel; it does not prove a self-sustaining colony.
+**Local larger maps and satellite survey:** new region3 worlds retain three planets/eight sites while enlarging the home grid to 48 × 48 and remote grids to 32 × 32. Biomes add real native flora, bounded wildlife, finite resources/pools and exterior temperature variation. Paid satellite assembly unlocks a 24 × 12 sector atlas; the known landing reads current physical state, and other sectors use the same generator for initial surveys. Existing worlds remain intact under save76. The bounded paid-launch fixture starts with one explicitly synthetic recovered cell; it does not establish the complete fresh-colony acquisition chain.
+
+**Still pending:** travel or settlement at unvisited survey sectors, a larger discovery/history system, travel between remote destinations and sustained ordinary habitation. The bounded route check pauses production to retain starter air for travel; it does not prove a self-sustaining colony.
 
 Expand the [upward/outward progression](docs/orbital-progression.md) into generated destinations, persistent planetary identities, multiple settlements per planet, resource bodies and varied debris/solar hazards.
 

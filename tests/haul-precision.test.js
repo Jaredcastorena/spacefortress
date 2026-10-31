@@ -38,8 +38,10 @@ test('roundoff after a real air delivery does not displace a useful ore shipment
   assert.equal(depot.stock.air, 6);
 });
 
-test('real air deficits still outrank ore and refill through ordinary hauling', () => {
-  for (const air of [9.75, 10 - 1e-8]) {
+test('recipe-sized air deficits still outrank ore and refill through ordinary hauling', () => {
+  // Automatic life support batches input requests by its five-air recipe.
+  // These five/six-unit deficits retain priority; smaller top-ups now wait.
+  for (const air of [5, 4]) {
     const f = fixture(air), { s, site, c, depot, scrubber, ore } = f, deficit = 10 - air;
     haul(s, c, site, pathTo);
     assert.deepEqual(c.carry, { air: deficit });

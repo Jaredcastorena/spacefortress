@@ -18,8 +18,8 @@ const until=(s,p,limit=80)=>{for(let i=0;i<limit&&!p();i++){step(s);checked(s);}
 const native=biomass=>({biomass,harvests:0,origin:'native',generation:'native'});
 // Supplied integration fixture: one worker, a ground bed and one propagule.
 // Air is transferred from stock into the existing scrubber; other work is paused.
-function fixture({food=true,age=120,species='fungalcap'}={}){
-  const s=createGame(821),site=s.sites.surface,t=at(site,10,15),c=s.crew[3],depot=at(site,8,10);
+function fixture({food=true,age=120,species='fungalcap',regionSchema}={}){
+  const s=createGame(821,regionSchema===undefined?undefined:{regionSchema}),site=s.sites.surface,t=at(site,10,15),c=s.crew[3],depot=at(site,8,10);
   s.creatures=[];t.terrain='ground';t.building=null;t.flora={lichen:native(10)};
   for(const tile of site.tiles)if(tile.machine&&tile.building!=='scrubber')tile.machine.enabled=false;
   for(const crew of s.crew)for(const labor of Object.keys(crew.labors))crew.labors[labor]=false;
@@ -128,17 +128,17 @@ function legacy(s,version){
 }
 test('schema40–43 migration adds only neutral cultivation state and preserves physical bytes after demotion',()=>{
   for(const version of [40,41,42,43]){
-    const old=legacy(createGame(822),version),text=serialize(old),before=totalResources(old),loaded=deserialize(text);assert.equal(loaded.version,CURRENT_SAVE_VERSION);assert.equal(serialize(old),text);assert.deepEqual(legacy(loaded,version),old);assert.deepEqual(totalResources(loaded),before);checked(loaded);
+    const old=legacy(createGame(822,{regionSchema:2}),version),text=serialize(old),before=totalResources(old),loaded=deserialize(text);assert.equal(loaded.version,CURRENT_SAVE_VERSION);assert.equal(serialize(old),text);assert.deepEqual(legacy(loaded,version),old);assert.deepEqual(totalResources(loaded),before);checked(loaded);
   }
-  const s=createGame(823),site=s.sites.surface,t=site.tiles.find(tile=>tile.flora?.fungalcap?.biomass===100);for(const crew of s.crew)for(const labor of Object.keys(crew.labors))crew.labors[labor]=false;
+  const s=createGame(823,{regionSchema:2}),site=s.sites.surface,t=site.tiles.find(tile=>tile.flora?.fungalcap?.biomass===100);for(const crew of s.crew)for(const labor of Object.keys(crew.labors))crew.labors[labor]=false;
   assert.ok(executeAction(s,'job.order',{site:'surface',x:t.x,y:t.y,kind:'gather',building:'fungalcap'},'test').ok);const old=legacy(s,43),loaded=deserialize(serialize(old));assert.equal(loaded.jobs[0].plantGeneration,'native');assert.deepEqual(legacy(loaded,43),old);checked(loaded);
 });
 
 test('strict loading rejects malformed legacy patches and forged typed cultivation reservations',()=>{
-  const f=fixture(),{s}=f;order(f);checked(s);
+  const f=fixture({regionSchema:2}),{s}=f;order(f);checked(s);
   const mutations=[state=>state.jobs[0].work++,state=>state.jobs[0].cost.food=2,state=>state.jobs[0].foodKinds={sunberry:1},state=>state.jobs[0].sources[0].items._food[0].kind='sunberry',state=>state.jobs[0].plantGeneration='native',state=>state.jobs[0].plantHarvests=0,state=>state.jobs[0].building='fungalcap',state=>state.jobs[0].plantSpecies='lichen',state=>state.jobs.push({...state.jobs[0],id:`job-${state.nextId++}`})];
   for(const mutate of mutations){const bad=structuredClone(s);mutate(bad);assert.throws(()=>deserialize(serialize(bad)));}
-  const old=legacy(createGame(824),43),patch=Object.values(old.sites.surface.tiles.find(t=>t.flora)?.flora)[0];patch.origin='native';assert.throws(()=>deserialize(serialize(old)));
+  const old=legacy(createGame(824,{regionSchema:2}),43),patch=Object.values(old.sites.surface.tiles.find(t=>t.flora)?.flora)[0];patch.origin='native';assert.throws(()=>deserialize(serialize(old)));
   assert.throws(()=>deserialize(serialize(legacy(s,43))),/Legacy cultivation order/);
 });
 

@@ -8,6 +8,7 @@ import { damage } from './maintenance.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
 import { absorbCultivationWater } from './flora.js';
 import { CULTIVATION } from './flora-data.js';
+import { retainedWaterDepth } from './environment.js';
 export const LIQUID = { capacity:4, flow:.5, release:.5, pump:.5, wet:.25, quench:.25, faultPower:5, faultDamage:.25 };
 const at=(site,x,y,z=0)=>tileAt(site,{x,y,z});
 const neighbors=(site,t)=>hexNeighbors(t.x,t.y).map(([x,y])=>at(site,x,y,positionOf(t).z)).filter(Boolean);
@@ -30,8 +31,9 @@ export function releaseWater(s,site,t,amount,cause){
 }
 function transfer(s,site,a,b){
  if(!liquidOpen(site,a,s.tick)||!liquidOpen(site,b,s.tick))return;
- if(a.liquid<b.liquid)[a,b]=[b,a];
- const n=Math.min(LIQUID.flow,(a.liquid-b.liquid)*.25,LIQUID.capacity-b.liquid);if(n<=1e-9)return;
+ const mobile=t=>Math.max(0,t.liquid-retainedWaterDepth(t));
+ if(mobile(a)<mobile(b))[a,b]=[b,a];
+ const n=Math.min(LIQUID.flow,(mobile(a)-mobile(b))*.25,mobile(a),LIQUID.capacity-b.liquid);if(n<=1e-9)return;
  a.liquid-=n;b.liquid+=n;emitEvent(s,'water.flowed',{from:tileEntityId(site.id,a.x,a.y,positionOf(a).z),to:tileEntityId(site.id,b.x,b.y,positionOf(b).z),amount:n});
 }
 export function flowLiquids(s){
@@ -54,7 +56,8 @@ export function flowLiquids(s){
   }
   for(const t of site.tiles)if(t.liquid>0&&liquidOpen(site,t,s.tick)){
    const space=t.terrain==='void',edge=t.x===0||t.y===0||t.x===site.size-1||t.y===site.size-1;
-   const soil=['ground','ore'].includes(t.terrain),drainage=space?t.liquid:edge?Math.min(.5,t.liquid):soil?Math.min(CULTIVATION.absorptionRate,t.liquid):0;
+   const soil=['ground','ore'].includes(t.terrain),excess=Math.max(0,t.liquid-retainedWaterDepth(t));
+   const drainage=space?t.liquid:edge?Math.min(.5,excess):soil?Math.min(CULTIVATION.absorptionRate,excess):0;
    const absorbed=!space&&!edge?absorbCultivationWater(s,site,t,soil?drainage:CULTIVATION.absorptionRate):0,n=Math.max(0,drainage-absorbed);
    if(n>0){t.liquid-=n;site.liquids.lost+=n;emitEvent(s,'water.lost',{entity:tileEntityId(site.id,t.x,t.y,positionOf(t).z),amount:n,cause:space?'space':edge?'map_edge':'ground_drainage'});}
   }
@@ -94,13 +97,13 @@ export function setTank(s,siteId,x,y,fill,drain,z=0){
 export function validateLiquids(s){
  const amount=n=>Number.isFinite(n)&&n>=0;
  for(const site of Object.values(s.sites)){
-  const l=site.liquids;if(!l||!['released','recovered','lost','quenched','absorbed','faultEnergy','faultHeatVented'].every(k=>amount(l[k]))||l.faultHeatVented>l.faultEnergy+1e-8)throw new Error('Invalid liquid ledger.');
+  const l=site.liquids;if(!l||Object.hasOwn(l,'initial')&&(!amount(l.initial)||l.initial>site.tiles.length*LIQUID.capacity)||!['released','recovered','lost','quenched','absorbed','faultEnergy','faultHeatVented'].every(k=>amount(l[k]))||l.faultHeatVented>l.faultEnergy+1e-8)throw new Error('Invalid liquid ledger.');
   let stored=0;
   for(const t of site.tiles){
    if(!amount(t.liquid)||t.liquid>LIQUID.capacity+1e-8||typeof t.wetShort!=='boolean')throw new Error('Invalid floor water.');stored+=t.liquid;
    if(t.building==='waterTank'?!t.tank||typeof t.tank.drain!=='boolean':t.tank!==undefined)throw new Error('Invalid water tank controls.');
   }
-  const expected=l.released-l.recovered-l.lost-l.quenched-l.absorbed;
-  if(!Number.isFinite(expected)||Math.abs(stored-expected)>1e-6+Math.abs(l.released)*1e-9)throw new Error('Floor water does not balance.');
+  const expected=(l.initial??0)+l.released-l.recovered-l.lost-l.quenched-l.absorbed;
+  if(!Number.isFinite(expected)||Math.abs(stored-expected)>1e-6+(Math.abs(l.released)+(l.initial??0))*1e-9)throw new Error('Floor water does not balance.');
  }
 }

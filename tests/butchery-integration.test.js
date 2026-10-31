@@ -51,7 +51,7 @@ test('current shared carcass definitions and detached physical observations expo
 });
 
 test('schema45 migration updates version, death bookkeeping and derived readings, including exhausted legacy dead',()=>{
-  const original=legacy45(createGame(744)),a=original.creatures[0];a.health=0;a.husbandry.product=7;a.husbandry.enabled=true;a.lifecycle.enabled=true;
+  const original=legacy45(createGame(744,{regionSchema:2})),a=original.creatures[0];a.health=0;a.husbandry.product=7;a.husbandry.enabled=true;a.lifecycle.enabled=true;
   const text=serialize(original),physical=totalResources(original),loaded=deserialize(text);
   assert.equal(loaded.version,CURRENT_SAVE_VERSION);assert.deepEqual(legacy45(loaded),original);assert.deepEqual(totalResources(loaded),physical);assert.equal(serialize(original),text);
   const dead=loaded.creatures[0];assert.equal(dead.death.disposition,'legacy');assert.equal(dead.death.cause,'legacy');assert.equal(dead.death.yield,0);assert.equal(dead.death.age,0);assert.equal(dead.death.owner,null);assert.equal(dead.death.reservedBy,null);
@@ -62,7 +62,7 @@ test('schema45 migration updates version, death bookkeeping and derived readings
 
 test('old saves reject mortality, new orders, meat and meal shadows before migration',()=>{
   const mutations=[...['death','body','carcass'].map(key=>s=>s.creatures[0][key]=null),s=>s.jobs.push({kind:'animalDispatch'}),s=>s.jobs.push({kind:'animalButcher'}),s=>s.jobs.push({kind:'animalDiscard'}),s=>at(s.sites.surface,8,10).stock._food=[{kind:'bristlemeat',amount:1,age:0}],s=>at(s.sites.surface,8,10).stock._food=[{kind:'glazemeat',amount:1,age:0}],s=>at(s.sites.surface,7,9).machine.recipeId='bristlecap_braise',s=>at(s.sites.surface,7,9).machine.batchRecipeId='sunberry_glaze_roast'];
-  for(const version of [40,41,42,43,44,45])for(const mutate of mutations){const old=legacy45(createGame(745));old.version=version;mutate(old);const text=serialize(old);assert.throws(()=>deserialize(text),/shadow/);assert.equal(serialize(old),text);}
+  for(const version of [40,41,42,43,44,45])for(const mutate of mutations){const old=legacy45(createGame(745,{regionSchema:2}));old.version=version;mutate(old);const text=serialize(old);assert.throws(()=>deserialize(text),/shadow/);assert.equal(serialize(old),text);}
 });
 
 test('current schema rejects malformed ownership, missing mortality and inconsistent phases without repair',()=>{

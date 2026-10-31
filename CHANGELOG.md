@@ -4,6 +4,11 @@ SPACEFORTRESS is an early playable colony simulator. Release entries describe co
 
 ## Unreleased
 
+- Expand new colonies to a 48 × 48 home map and 32 × 32 remote maps while preserving the established landing cores. Seeded biomes provide native lichen, fungi, sunberries, existing wildlife species, finite ore/ice and finite surface pools. Local exterior temperature offsets affect exposure, flora and actual room boundary heat transfer; basins retain only their finite water.
+- Add supplied survey-satellite assembly and launch: 6 alloy, 2 components, 1 recovered power cell, 2 fuel and 16 engineering work at an eligible real shuttle or settled dock. Shared orders preserve reservation, hauling, cancellation and refund ownership; only completion unlocks the planet’s atlas.
+- Add a collapsed, keyboard-accessible planetary sector survey, generated from the same terrain rules as local maps. Known landings show live resources and populations; unvisited sectors are initial previews with no new settlement or travel route. Expand map navigation and viewport culling for the larger grids.
+- Add save76/region3 and observation/recording10 with stable planet entities and satellite launch records. Preserve older region1/2 maps and physical state without adding supplies or unlocking surveys; legacy colonies can purchase a satellite and view a detached atlas. Browser import and save admission share a 16,000,000-byte limit. Package remains 0.1.12; no new dependency or release is implied.
+
 - Batch automatic/life-support input requests by recipe-sized deficits so tiny air top-ups cannot monopolize shared haulers. Existing incoming claims, priorities, carry limits and finite partial supplies remain authoritative.
 
 - Couple room pressure and oxygen partial pressure to absolute temperature. Shared live readings and inverse gas targets govern breathing, flow, life support, gas devices, suits, airlocks, fire and reactor radiators. Heating/cooling refreshes derived atmosphere readings. Schema75 validates older caches before changing only derived pressure/air readings; gas, heat, supplies and jobs remain intact. Pipe temperature and heat carried by gas remain future work.

@@ -1,3 +1,4 @@
+import { WORLD_BIOMES } from './world-generation.js';
 import { herdMemberQuiet } from './maintenance.js';
 import {regionViewNodes,visibleMissionRoute} from './region-view.js';
 import {materialId} from './materials.js';
@@ -53,7 +54,30 @@ export class Renderer {
     this.resizeObserver = new ResizeObserver(() => this.resize()); this.resizeObserver.observe(canvas); this.resize();
   }
   resize() { const r = this.canvas.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2); this.w = r.width; this.h = r.height; this.dpr = dpr; this.canvas.width = Math.round(r.width * dpr); this.canvas.height = Math.round(r.height * dpr); }
-  center() { this.pan = { x: 0, y: 0 }; this.zoom = Math.min(1.1, Math.max(.5, this.w / 900)); }
+  minimumZoom(site) {
+    if(!site)return .35;
+    const b=projectedBounds(site.size);
+    return Math.max(.04,Math.min(.35,Math.max(80,this.w-80)/(b.right-b.left+128),Math.max(80,this.h-240)/(b.bottom-b.top+128)));
+  }
+  center(site=null,focus=null) {
+    this.pan = { x: 0, y: 0 }; this.zoom = Math.min(1.1, Math.max(.5, this.w / 900));
+    if(site&&focus)this.focus(site,focus);
+  }
+  focus(site,position) {
+    const b=projectedBounds(site.size),[x,y]=projectTile(position.x,position.y);
+    this.pan={x:((b.left+b.right)/2-x)*this.zoom,y:((b.top+b.bottom)/2-y)*this.zoom};
+  }
+  zoomAt(site,factor,px=this.w/2,py=this.h/2) {
+    const minimum=this.minimumZoom(site),next=Math.max(minimum,Math.min(2.2,this.zoom*factor));
+    if(!site){this.zoom=next;return;}
+    const before=this.origin(site),ratio=next/this.zoom;this.zoom=next;
+    if(next===minimum){this.pan={x:0,y:0};return;}
+    const after=this.origin(site);this.pan.x+=px-(px-before.x)*ratio-after.x;this.pan.y+=py-(py-before.y)*ratio-after.y;
+  }
+  inViewport(tile,origin,padding=128) {
+    const [x,y]=projectTile(tile.x,tile.y),sx=origin.x+x*this.zoom,sy=origin.y+y*this.zoom,margin=padding*this.zoom;
+    return sx>=-margin&&sx<=this.w+margin&&sy>=-margin&&sy<=this.h+margin;
+  }
   origin(site) { const b=projectedBounds(site.size);return {x:this.w/2-(b.left+b.right)*this.zoom/2+this.pan.x,y:this.h/2-(b.top+b.bottom)*this.zoom/2+this.pan.y}; }
   project(x, y) { return projectTile(x,y); }
   screenToTile(px, py, site, z = 0) { const o=this.origin(site),[x,y]=unprojectTile((px-o.x)/this.zoom,(py-o.y)/this.zoom);return tileAt(site,x,y,z)?{x,y,z}:null; }
@@ -122,8 +146,8 @@ export class Renderer {
   draw(s, siteId, mode, build, viewZ = 0) {
     const c = this.ctx; c.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); c.imageSmoothingEnabled = false; this.backdrop(siteId);
     if (siteId === 'universe') { this.universe(s); return; }
-    const site = s.sites[siteId], visibleTiles=site.tiles.filter(t=>(t.z??0)===viewZ), origin = this.origin(site), shuttle = shuttlePresence(s, siteId); c.save(); c.translate(origin.x, origin.y); c.scale(this.zoom, this.zoom);
-    const airlocks=visibleTiles.filter(t=>t.airlock).map(t=>airlockStatus(s,site,t));
+    const site = s.sites[siteId], origin = this.origin(site), floorTiles=site.tiles.filter(t=>(t.z??0)===viewZ), visibleTiles=floorTiles.filter(t=>this.inViewport(t,origin)), shuttle = shuttlePresence(s, siteId); c.save(); c.translate(origin.x, origin.y); c.scale(this.zoom, this.zoom);
+    const airlocks=floorTiles.filter(t=>t.airlock).map(t=>airlockStatus(s,site,t));
     const airlockCells=new Set(airlocks.flatMap(a=>a.chamberCells));
     const airlockDoors=new Map(airlocks.flatMap(a=>['inner','outer'].map(side=>[cellKey(a.doors[side].tile),{...a.doors[side],permitted:a.permissions[side]}])));
     const airlockWaiting=new Set(airlocks.flatMap(a=>a.queue.flatMap(q=>[q.crew,q.patient]).filter(Boolean)));
@@ -135,6 +159,7 @@ export class Renderer {
       const [x, y] = this.project(t.x, t.y);
       this.hexPrism(x, y + 5, 5, tileColors[t.terrain][t.variant], t.terrain === 'ice' ? '#4c718e' : '#3e4140', '#343b3c');
       this.hex(x, y, tileColors[t.terrain][t.variant], t.terrain === 'floor' ? '#8f9d923d' : '#a5aa9417');
+      if(WORLD_BIOMES[t.biome]&&['ground','ore','rock','ice'].includes(t.terrain))this.hex(x,y,`${WORLD_BIOMES[t.biome].color}35`);
       if(materialId(t,'floor')==='composite')this.hex(x,y,'#7f8dc52b','#b3c2df66');
       if(airlockCells.has(cellKey(positionOf(t))))this.hex(x,y,'#8ddce622','#82cbd580');
       if (selectedCells.has(key(t.x, t.y))) this.hex(x, y, '#93d5c218');

@@ -78,7 +78,8 @@ test('actual UI follows floors, routes upper orders/controls and rejects clicks 
   try{
     await import('../src/app.js');
     const {get,node}=ui,world=get('world'),inspector=get('inspector');
-    const camera=new Renderer(world);camera.center();
+    // Match the app's colony-focused initial view before projecting real clicks.
+    const camera=new Renderer(world);camera.center(f.site,f.s.crew.find(c=>c.site===f.site.id&&c.health>0)||f.site.tiles.find(t=>['shuttle','dock'].includes(t.building)));
     const point=p=>{const o=camera.origin(f.site),[x,y]=camera.project(p.x,p.y);return {offsetX:o.x+x*camera.zoom,offsetY:o.y+y*camera.zoom,button:0,pointerId:1};};
     const click=p=>{const e=point(p);world.events.pointerdown(e);world.events.pointerup(e);};
     const choose=z=>get('floor-list').onclick({target:node({floor:String(z)},get('floor-list'))});

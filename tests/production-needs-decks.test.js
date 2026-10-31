@@ -8,14 +8,18 @@ import {HEAT_CAPACITY} from '../src/thermal.js';
 import {productionEligibility,validateProduction} from '../src/production.js';
 import {refillSuitFromSupply} from '../src/suit-supply.js';
 import {executeAction} from '../src/controls.js';
-import {startRecording,exportRecording} from '../src/telemetry.js';
+import {startRecording,exportRecording,recordingStatus} from '../src/telemetry.js';
 import {distance} from '../src/geometry.js';
 const at=(site,x,y,z=0)=>tileAt(site,{x,y,z});
-const events=s=>exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>r.event).map(r=>r.event);
+// Missing records must not masquerade as stalled physical work.
+const record=s=>{startRecording(s);assert.equal(recordingStatus(s).active,true);};
+const events=s=>{assert.equal(recordingStatus(s).reason,null,'The bounded recording must retain every asserted event.');return exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>r.event).map(r=>r.event);};
 // Synthetic declared floor. Canonical saves still accept only deck zero.
 function fixture(){
  const s=createGame(74219),site=s.sites.surface;
- site.levels.push({z:7,name:'Upper test deck'});site.tiles.push(...site.tiles.map(t=>({...structuredClone(t),z:7})));
+ site.levels.push({z:7,name:'Upper test deck'});
+ // Natural ground conditions and pond water do not become an upstairs reservoir.
+ site.tiles.push(...site.tiles.map(t=>{const upper={...structuredClone(t),z:7,liquid:0,wetShort:false};for(const key of ['biome','temperatureOffset','basin','initialWater'])delete upper[key];return upper;}));
  updateRooms(site);for(const r of site.rooms){fillRoom(r);r.heat=(20+273.15)*r.volume*HEAT_CAPACITY;}
  for(const c of s.crew){for(const k of Object.keys(c.labors))c.labors[k]=false;c.life.policy='work';c.hunger=c.energy=c.oxygen=100;}
  for(const t of site.tiles)if(t.machine)t.machine.enabled=false;
@@ -28,7 +32,7 @@ function enable(f){f.c.labors.production=true;f.machine.machine.enabled=true;f.m
 const operate=s=>order(s,'surface',13,10,'operate',null,7);
 
 test('an upstairs operator walks to a powered machine and converts one delivered batch',()=>{
- const f=fixture();enable(f);const {status:lowerStatus,...lower}=structuredClone(f.ground.machine);startRecording(f.s);
+ const f=fixture();enable(f);const {status:lowerStatus,...lower}=structuredClone(f.ground.machine);record(f.s);
  step(f.s);assert.ok(f.s.jobs.some(j=>j.kind==='operate'&&j.z===7));assert.equal(f.machine.machine.progress,0);
  until(f,()=>f.machine.machine.completed===1);assert.equal(f.machine.machine.input.ore||0,0);assert.deepEqual(f.machine.machine.batch,{});assert.ok(f.machine.machine.output.alloy>0);const {status,...lowerAfter}=f.ground.machine;assert.deepEqual(lowerAfter,lower);
  assert.equal(distance([f.c.x,f.c.y],[13,10]),1);assert.equal(f.machine.machine.order.remaining,0);
@@ -74,7 +78,7 @@ test('bunk recovery uses an upstairs reservation despite a matching downstairs s
 
 test('finite suit recovery walks to its own deck supply and rejects the overlapping lower depot',()=>{
  const f=fixture();for(const r of f.site.rooms)r.gas=emptyGas();refreshAtmosphere(f.site);
- f.c.oxygen=10;f.store.stock={air:2};f.lowerStore.stock={air:10};startRecording(f.s);
+ f.c.oxygen=10;f.store.stock={air:2};f.lowerStore.stock={air:10};record(f.s);
  until(f,()=>events(f.s).some(e=>e.id==='crew.suit.refilled'),15);
  assert.deepEqual(positionOf(f.c),{x:8,y:10,z:7});assert.ok(f.store.stock.air<2);assert.equal(f.lowerStore.stock.air,10);
  assert.equal(events(f.s).find(e=>e.id==='crew.suit.refilled').target,'tile:surface:8:10:7');

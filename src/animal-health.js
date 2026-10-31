@@ -47,6 +47,7 @@ export function updateAnimalHealth(s,a){
   q.thermalStress=strain?Math.max(-100,Math.min(100,q.thermalStress+strain)):Math.sign(q.thermalStress)*Math.max(0,Math.abs(q.thermalStress)-.8);
   const current=thermalBand(q.thermalStress);
   if(current!==previous)emitEvent(s,'animal.thermal.state_changed',{entity:a.id,previous,current,stress:q.thermalStress,temp});
+  if(q.thermalStress===0)q.thermalStress=0; // Preserve exact save continuation after cold recovery.
   if(Math.abs(q.thermalStress)>70)injureAnimal(s,a,(Math.abs(q.thermalStress)-70)*.006,q.thermalStress<0?'cold':'heat');
   if(a.health<=0)return;
   if(a.fed===0){a.health=Math.max(0,a.health-.2);if(a.health===0){updateRecoveryState(s,a);registerAnimalDeath(s,a,'starvation');return;}}

@@ -70,7 +70,7 @@ test('changed harvest cycles and incompatible ground cancel before work or XP an
 });
 
 function legacy(version){
-  const s=projectPreDecks(createGame(814));s.version=version;for(const a of s.creatures){delete a.condition;delete a.genetics;delete a.death;}
+  const s=projectPreDecks(createGame(814,{regionSchema:2}));s.version=version;for(const a of s.creatures){delete a.condition;delete a.genetics;delete a.death;}
   for(const site of Object.values(s.sites)){delete site.cultivation;delete site.liquids.absorbed;}
   for(const site of Object.values(s.sites))for(const t of site.tiles){if(t.flora?.lichen)t.lichen=t.flora.lichen.biomass;delete t.flora;if(version===40&&t.machine){delete t.machine.recipeId;delete t.machine.batchRecipeId;}}
   at(s.sites.surface,8,10).lichen=12.5;at(s.sites.surface,6,16).lichen=0;return s;

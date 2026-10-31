@@ -1,6 +1,7 @@
 import {siteDefinitions,siteDefinition,routeDefinition,planetDefinitions,planetSiteIds} from './region.js';
 import {routeFuel,routeTime} from './expedition.js';
 import {residentIds} from './outposts.js';
+import {planetaryAtlas} from './satellite-atlas.js';
 const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const supplies=survey=>Object.entries(survey||{}).filter(([r,n])=>r!=='label'&&typeof n==='number'&&n>0).map(([r,n])=>`${n} ${esc(r)}`).join(' · ')||'Established survey';
 export function siteSurvey(s,id){
@@ -12,11 +13,11 @@ function destination(s,id){
  const d=siteDefinition(s,id);
  return `<section data-entity="site:${esc(id)}" data-route="${esc(routeDefinition(s,id)?.id||id)}"><h3>${esc(d.name)}</h3>${id==='surface'?'<p>Your home colony and expedition departure point.</p>':`<p>${routeFuel(s,id)} fuel round trip · ${routeTime(s,id)} ticks per leg${d.debris?` · debris every ${d.debris.period} ticks`:''}</p><p>${supplies(d.survey)}</p>`}<button data-action="inspect-site" data-site="${esc(id)}">Inspect ${esc(d.name)}</button></section>`;
 }
-export function regionOverview(s,planetId=null){
+export function regionOverview(s,planetId=null,sector=null){
  const planets=planetDefinitions(s),planet=Object.hasOwn(planets,planetId)?planets[planetId]:null;
  if(!planet)return `<div class="eyebrow">PLANETARY SYSTEM</div><h2>Known planets (${Object.keys(planets).length})</h2><p>Select a planet to inspect its landing sites and orbital destinations. Expeditions depart from the home colony and return there.</p>${Object.values(planets).map(p=>`<section data-entity="planet:${esc(p.id)}"><h3>${esc(p.name)}</h3><p>${planetSiteIds(s,p.id).length} known sites</p><button data-action="inspect-planet" data-ui-action="region.planet" data-planet="${esc(p.id)}">View ${esc(p.name)}</button></section>`).join('')}`;
  const ids=planetSiteIds(s,planetId);
- return `<div class="eyebrow">PLANETARY REGION</div><h2>${esc(planet.name)}</h2><button data-action="system-overview" data-ui-action="region.system">All planets</button><p>Compare this planet's finite opportunities. Routes depart from the home colony; direct travel between remote sites is not yet available.</p><details open><summary>Known destinations (${ids.length})</summary>${ids.map(id=>destination(s,id)).join('')}</details>`;
+ return `<div class="eyebrow">PLANETARY REGION</div><h2>${esc(planet.name)}</h2><button data-action="system-overview" data-ui-action="region.system">All planets</button><p>Compare this planet's finite opportunities. Routes depart from the home colony; direct travel between remote sites is not yet available.</p>${planetaryAtlas(s,planetId,sector)}<details open><summary>Known destinations (${ids.length})</summary>${ids.map(id=>destination(s,id)).join('')}</details>`;
 }
 export function regionNavigation(s,currentSite,currentPlanet=null,openIds=null){
  const planets=planetDefinitions(s),activePlanet=currentSite==='universe'?currentPlanet:siteDefinition(s,currentSite)?.planetId;

@@ -1,6 +1,7 @@
 import { populationStatus } from './population.js';
 import {materialStatus} from './materials.js';
-import { outpostSiteIds } from './region.js';
+import { outpostSiteIds, planetDefinitions } from './region.js';
+import { planetSurveyStatus } from './satellites.js';
 import {toolStatus} from './tools.js';
 import { tileEntityId } from './spatial.js';
 import {extractionStatus} from './extraction.js';
@@ -41,7 +42,7 @@ import { resourceEntries } from './inventory.js';
 import { RESOURCES } from './data.js';
 import { depotUsage, depotResourceUsage } from './storage.js';
 // Local, opt-in recordings. WeakMap ownership keeps instrumentation out of game saves/RNG.
-export const TELEMETRY_VERSION = 9;
+export const TELEMETRY_VERSION = 10;
 const sessions = new WeakMap();
 const clone = value => JSON.parse(JSON.stringify(value));
 export { tileEntityId } from './spatial.js';
@@ -60,6 +61,7 @@ export function observe(s) {
   }));
   const expedition={selectedCrewIds,returnCrewIds:returningCrewIds,destination:destination?`site:${destination}`:null,crewLimits:destination?expeditionCrewLimits(s,destination):null,phase:s.departure?.stage||s.mission?.phase||'idle',preparing:!!s.departure,remaining:s.mission?.remaining||0,candidates:expeditionCandidates(s),departure:departureReadiness(s)};
   const entities={colony:{type:'colony',...colony,derived:{...(colony.derived||{}),expedition,population:populationStatus(s),shuttle:{location:shuttleLocation(s)}}}};
+  for(const planet of Object.values(planetDefinitions(s)))entities[`planet:${planet.id}`]={type:'planet',...planet,derived:{survey:planetSurveyStatus(s,planet.id)}};
   for(const site of Object.values(sites)) {
     const {tiles,rooms,...environment}=site;
     const launchBlocked=expeditionLaunchBlock(s,site.id);
@@ -108,6 +110,9 @@ export function systemFor(type,path) {
   if(root==='airlock'||root==='airlockOwner'||root==='airlockTraversal'||root==='pipe'&&path[1]==='airlockOwner')return 'airlocks';
   if(type==='tile'&&root==='derived'&&path[1]==='solar')return 'power';
   if(type==='tile'&&root==='derived'&&path[1]==='extraction')return 'geology';
+  if(type==='planet'||type==='colony'&&root==='satellites')return 'planetary_survey';
+  if(type==='tile'&&['biome','temperatureOffset'].includes(root))return 'environment';
+  if(type==='tile'&&root==='basin')return 'water';
   if(root==='derived')return 'derived_conditions';
   if(type==='colony'&&root==='shuttle'&&path[1]==='freight')return 'inventory';
   if(type==='item')return 'possessions';

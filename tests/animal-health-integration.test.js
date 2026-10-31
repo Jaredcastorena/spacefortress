@@ -117,7 +117,7 @@ test('fatal livestock fire emits one death and never grants health or treatment 
 });
 
 test('schema42 migration adds neutral livestock metadata, refreshes derived readings and preserves old damage and all physical state',()=>{
-  const s=withLegacyDensityReadings(projectPreDecks(createGame(917)));s.version=42;s.creatures[0].health=42;s.creatures[1].health=0;
+  const s=withLegacyDensityReadings(projectPreDecks(createGame(917,{regionSchema:2})));s.version=42;s.creatures[0].health=42;s.creatures[1].health=0;
   s.creatures.push({id:'legacy-tibble',species:'tibble',site:'surface',x:6,y:16,health:100,fed:25,age:0});
   for(const a of s.creatures){delete a.condition;delete a.genetics;delete a.death;}
   for(const site of Object.values(s.sites)){delete site.cultivation;delete site.liquids.absorbed;for(const t of site.tiles)for(const p of Object.values(t.flora||{})){delete p.origin;delete p.generation;}}

@@ -22,8 +22,8 @@ test('genuine six-site schema67 preserves paid work with version, neutral depot 
  const copy=deserialize(serialize(s));step(s,3);step(copy,3);assert.equal(serialize(s),serialize(copy));
 });
 
-test('new planetary generation preserves classic physical state, RNG and inventories while adding finite frontiers',()=>{
- const previous=createGame(74219,{regionSchema:1}),fresh=createGame(74219);assert.equal(fresh.region.schema,2);assert.equal(Object.keys(fresh.region.planets).length,3);assert.equal(Object.keys(fresh.sites).length,8);
+test('schema2 planetary generation preserves classic physical state, RNG and inventories while adding finite frontiers',()=>{
+ const previous=createGame(74219,{regionSchema:1}),fresh=createGame(74219,{regionSchema:2});assert.equal(fresh.region.schema,2);assert.equal(Object.keys(fresh.region.planets).length,3);assert.equal(Object.keys(fresh.sites).length,8);
  for(const id of ['surface','wreck','comet','solar'])assert.deepEqual(fresh.sites[id],previous.sites[id],id);
  for(const field of ['rng','nextId','nextItemId','crew','creatures'])assert.deepEqual(fresh[field],previous[field],field);
  assert.deepEqual(totalResources(fresh),totalResources(previous));assert.ok(serialize(fresh).length<5_000_000);exact(fresh);exact(previous);
@@ -35,7 +35,7 @@ test('new planetary generation preserves classic physical state, RNG and invento
 });
 
 test('planet memberships, map coordinates, route identity and schema boundaries are strict and never repaired',()=>{
- const s=createGame(),planet=Object.keys(s.region.planets)[1],site=s.region.planets[planet].home;
+ const s=createGame(74219,{regionSchema:2}),planet=Object.keys(s.region.planets)[1],site=s.region.planets[planet].home;
  const edits=[x=>x.version=67,x=>x.region.schema=3,x=>x.region.legacy=true,x=>x.region.planets[planet].home='surface',x=>x.region.planets[planet].map.x=.01,x=>x.region.sites[site].planetId=x.region.sites.surface.planetId,x=>delete x.region.planets[planet],x=>x.region.planets[planet].extra=[],x=>x.region.routes['route-'+site].from=site,x=>delete x.sites[site]];
  for(const edit of edits){let changed=JSON.parse(serialize(s));edit(changed);if(changed.version<VERSION)changed=withLegacyDensityReadings(changed);const text=JSON.stringify(changed);assert.throws(()=>deserialize(text),/region|site|schema/i);assert.equal(JSON.stringify(changed),text);}
  assert.throws(()=>makeRegion(74219,true,2),/schema/);assert.throws(()=>makeRegion(74219,false,99),/schema/);

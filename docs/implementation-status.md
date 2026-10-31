@@ -2,6 +2,10 @@
 
 Updated October 30, 2026.
 
+## Local after v0.1.12: procedural maps and satellite survey
+
+New colonies use seeded 48×48 home maps and 32×32 remote maps, with existing landing equipment preserved. Five biomes supply distinct plants, wildlife, finite ore/ice/pond water and local thermal conditions. Existing colonies retain their original dimensions. Supplied satellite assembly uses ordinary hauling and engineering, then unlocks a 24×12 planetary atlas: known landing readings follow actual depletion and life, while unvisited sectors are explicitly initial survey previews. Shared actions, events and observations expose the new systems. See [rules and limits](procedural-maps.md) and [current verification](verification-status.md). Remote sector travel, liquid phase changes and ordinary colony endurance remain unfinished.
+
 ## Local after v0.1.12: depot delivery limits
 
 Cargo depots accept optional whole-unit caps from 0 to 320 per resource, within their shared 320-unit capacity. Incoming claims and uncollected job reservations count before pickup. Lowering a cap preserves existing goods and refunds; carried shipments recheck and reroute. The inspector keeps the editor collapsed, with stock/reserved/incoming counts. Shared `depot.limit` commands, named change events and derived observations identify the actual floor. Schema71 adds empty policies to older saves and rejects malformed caps or pre71 shadow fields. Focused checks cover finite mixed shipments, concurrent claims, construction refunds, in-flight reload/rerouting, fractional bulk, stair hauling and paid native depot construction. The full run and focused compatibility repairs cover all 1,858 runnable JavaScript cases, with one historical schema36 skip; game code stayed unchanged during those repairs. Browser entry retained 36 alloy when its intake cap was reduced to 20. Longer colony endurance remains unfinished.

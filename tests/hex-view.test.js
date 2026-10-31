@@ -65,6 +65,7 @@ function scene(){
   const s=createGame();s.crew=[];s.creatures=[];s.jobs=[];
   const site=s.sites.surface;
   // An isolated view fixture keeps domain behavior in its owners' tests.
+  // Each draw focuses its test fitting so viewport culling cannot hide the ports.
   for(const t of site.tiles)Object.assign(t,{terrain:'floor',building:null,pipe:null,waterPipe:null,waterDevice:null,gasDevice:null,gasStore:null,waterStore:null,cable:null,airlock:null,airlockOwner:null});
   site.rooms=[];return {s,site};
 }
@@ -75,7 +76,7 @@ test('integrated hex view: gas and water branches draw all six edges without obs
   for(const overlay of ['gasOverlay','waterOverlay'])for(const x of [4,5]){
     const {s,site}=scene(),t=tileAt(site,x,4),field=overlay==='gasOverlay'?'pipe':'waterPipe',make=overlay==='gasOverlay'?gasPipe:waterPipe;
     t[field]=make();for(const direction of DIRECTIONS)tileAt(site,...step(x,4,direction))[field]=make();
-    const before=structuredClone(s),{renderer,lines}=graphics();renderer[overlay]=true;renderer.draw(s,'surface','inspect',null);
+    const before=structuredClone(s),{renderer,lines}=graphics();renderer[overlay]=true;renderer.focus(site,t);renderer.draw(s,'surface','inspect',null);
     const [cx,cy]=projectTile(x,4),color=overlay==='gasOverlay'?'#82dbe2':'#82baf4';
     const branches=lines.filter(l=>l[0]===cx&&l[1]===cy&&l[4]===color);assert.equal(branches.length,6);
     for(const direction of DIRECTIONS){const [dx,dy]=hexDirectionVector(direction,.5);assert.ok(branches.some(l=>Math.abs(l[2]-cx-dx)<1e-8&&Math.abs(l[3]-cy-dy)<1e-8));}
@@ -98,20 +99,20 @@ test('integrated hex view: pumps show only their opposite ports in all six orien
     const {s,site}=scene(),t=tileAt(site,x,4),pipe=field==='gas'?'pipe':'waterPipe',make=field==='gas'?gasPipe:waterPipe;
     t.building=field==='gas'?'gasPump':'waterPump';t[`${field}Device`]={enabled:true,direction};
     for(const side of DIRECTIONS)tileAt(site,...step(x,4,side))[pipe]=make();
-    const {renderer,lines}=graphics();renderer[`${field}Overlay`]=true;renderer.draw(s,'surface','inspect',null);
+    const {renderer,lines}=graphics();renderer[`${field}Overlay`]=true;renderer.focus(site,t);renderer.draw(s,'surface','inspect',null);
     const [cx,cy]=projectTile(x,4),color=field==='gas'?'#82dbe2':'#82baf4';
     const branches=lines.filter(l=>l[0]===cx&&l[1]===cy&&l[4]===color);assert.equal(branches.length,2);
     for(const side of [direction,opposite(direction)]){const [dx,dy]=hexDirectionVector(side,.5);assert.ok(branches.some(l=>Math.abs(l[2]-cx-dx)<1e-8&&Math.abs(l[3]-cy-dy)<1e-8));}
   }
   const {s,site}=scene(),a=tileAt(site,4,4),b=tileAt(site,...step(4,4,'ne'));
   for(const t of [a,b])Object.assign(t,{building:'gasPump',gasDevice:{enabled:true,direction:'ne'}});
-  const {renderer,lines}=graphics();renderer.gasOverlay=true;renderer.draw(s,'surface','inspect',null);
+  const {renderer,lines}=graphics();renderer.gasOverlay=true;renderer.focus(site,a);renderer.draw(s,'surface','inspect',null);
   const [x,y]=projectTile(a.x,a.y);assert.equal(lines.filter(l=>l[0]===x&&l[1]===y&&l[4]==='#82dbe2').length,0,'Two adjacent pumps do not create a passive gas connection');
 });
 
 test('integrated hex view: room perimeter and remote fence use six neighbors from the displayed site',()=>{
   const {s,site}=scene(),t=tileAt(site,4,4);site.rooms=[{cells:['4,4']}];
-  const view=graphics();view.renderer.selection={site:'surface',x:4,y:4};view.renderer.draw(s,'surface','inspect',null);
+  const view=graphics();view.renderer.selection={site:'surface',x:4,y:4};view.renderer.focus(site,t);view.renderer.draw(s,'surface','inspect',null);
   assert.equal(view.lines.filter(l=>l[4]==='#a5dcc5').length,6);
   const remote=grid(9);t.building='fence';remote.tiles[4*9+4]={...t};
   for(const direction of DIRECTIONS)tileAt(remote,...step(4,4,direction)).building='wall';

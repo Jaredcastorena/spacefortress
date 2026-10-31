@@ -105,10 +105,11 @@ test('remote job reservation survives save and ordinary act delivers its carry l
 });
 
 test('full save validation bounds remote sources and deliveries by their physical job site', () => {
-  const { s, id, resident } = localRepairShipment(), text = serialize(s);
+  const { s, id, resident } = localRepairShipment(), text = serialize(s), remoteSize = s.sites[s.jobs.find(j => j.id === id).site].size;
+  assert.ok(remoteSize < s.sites.surface.size, 'invalid remote coordinate remains inside the home map');
   for (const corrupt of [
-    state => { state.jobs.find(j => j.id === id).sources[0].x = 20; },
-    state => { person(state, resident.id).delivery.target = { x: 20, y: 10, z: 0 }; },
+    state => { state.jobs.find(j => j.id === id).sources[0].x = remoteSize; },
+    state => { person(state, resident.id).delivery.target = { x: remoteSize, y: 10, z: 0 }; },
     state => { state.jobs.find(j => j.id === id).site = 'surface'; },
     state => { state.jobs.find(j => j.id === id).sources[0].kind = 'freight'; },
   ]) {

@@ -41,8 +41,8 @@ test('haulers physically fill a tank and paused filling assigns no new water shi
 });
 
 test('opening a drain releases actual buffered water; closed undamaged tanks retain it',()=>{
- const {s,site,tank}=fixture();fill(s,tank);const before=totalResources(s).water;flowLiquids(s);close(wetTotal(site),0);
- setTank(s,'surface',11,9,false,true);flowLiquids(s);close(tank.machine.input.water,3.5);close(wetTotal(site),.5);close(totalResources(s).water,before);validateLiquids(s);
+ const {s,site,tank}=fixture(),natural=wetTotal(site);fill(s,tank);const before=totalResources(s).water;flowLiquids(s);close(wetTotal(site),natural);
+ setTank(s,'surface',11,9,false,true);flowLiquids(s);close(tank.machine.input.water,3.5);close(wetTotal(site),natural+.5);close(totalResources(s).water,before);validateLiquids(s);
  setTank(s,'surface',11,9,false,false);flowLiquids(s);close(tank.machine.input.water,3.5);check(s);
 });
 
@@ -64,22 +64,22 @@ test('automatic doors pass liquid only while physically open, and broken doors p
 });
 
 test('ground and space losses are explicit and preserve the water ledger',()=>{
- const {s,site}=fixture();puddle(s,at(site,16,14),2);flowLiquids(s);assert.ok(site.liquids.lost>0);close(wetTotal(site)+site.liquids.lost,2);
- const space=at(site,16,14);space.terrain='void';flowLiquids(s);assert.equal(space.liquid,0);close(wetTotal(site)+site.liquids.lost,2);validateLiquids(s);
+ const {s,site}=fixture(),natural=wetTotal(site);puddle(s,at(site,16,14),2);flowLiquids(s);assert.ok(site.liquids.lost>0);close(wetTotal(site)+site.liquids.lost,natural+2);
+ const space=at(site,16,14);space.terrain='void';flowLiquids(s);assert.equal(space.liquid,0);close(wetTotal(site)+site.liquids.lost,natural+2);validateLiquids(s);
 });
 
 test('a powered pump recovers physical floor water into a bounded output for hauling',()=>{
- const {s,site,pump}=fixture();puddle(s,at(site,11,9),2);const before=totalResources(s).water;updatePower(s,site);assert.ok(pump.powered);pumpLiquids(s);
- close(pump.machine.output.water,.5);close(wetTotal(site),1.5);close(site.liquids.recovered,.5);close(totalResources(s).water,before);refreshPower(s,site);check(s);
+ const {s,site,pump}=fixture(),natural=wetTotal(site);puddle(s,at(site,11,9),2);const before=totalResources(s).water;updatePower(s,site);assert.ok(pump.powered);pumpLiquids(s);
+ close(pump.machine.output.water,.5);close(wetTotal(site),natural+1.5);close(site.liquids.recovered,.5);close(totalResources(s).water,before);refreshPower(s,site);check(s);
  const c=s.crew[1];c.labors.hauling=true;c.x=12;c.y=9;setTank(s,'surface',11,9,false,false);haul(s,c,site,pathTo);assert.equal(c.carry.water,.5);
  for(let i=0;i<30&&c.carry;i++)haul(s,c,site,pathTo);close(totalResources(s).water,before);syncResources(s);check(s);
 });
 
 test('pump pauses, lost power, blocked intakes and full output retain floor water',()=>{
- const {s,site,pump}=fixture();puddle(s,at(site,11,9),2);pump.machine.enabled=false;refreshPower(s,site);pumpLiquids(s);close(wetTotal(site),2);
- pump.machine.enabled=true;pump.cable.enabled=false;refreshPower(s,site);pumpLiquids(s);close(wetTotal(site),2);
- pump.cable.enabled=true;refreshPower(s,site);const t=at(site,11,9);delete t.tank;delete t.machine;t.building='door';t.doorMode='closed';t.doorUntil=0;pumpLiquids(s);close(wetTotal(site),2);
- t.doorMode='open';pump.machine.output.water=12;pumpLiquids(s);close(wetTotal(site),2);assert.match(pump.machine.status,/Output full/);validateLiquids(s);
+ const {s,site,pump}=fixture(),natural=wetTotal(site);puddle(s,at(site,11,9),2);pump.machine.enabled=false;refreshPower(s,site);pumpLiquids(s);close(wetTotal(site),natural+2);
+ pump.machine.enabled=true;pump.cable.enabled=false;refreshPower(s,site);pumpLiquids(s);close(wetTotal(site),natural+2);
+ pump.cable.enabled=true;refreshPower(s,site);const t=at(site,11,9);delete t.tank;delete t.machine;t.building='door';t.doorMode='closed';t.doorUntil=0;pumpLiquids(s);close(wetTotal(site),natural+2);
+ t.doorMode='open';pump.machine.output.water=12;pumpLiquids(s);close(wetTotal(site),natural+2);assert.match(pump.machine.status,/Output full/);validateLiquids(s);
 });
 
 test('wet cable faults consume circuit energy, make accounted room heat and damage only energized cable',()=>{

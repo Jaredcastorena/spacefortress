@@ -1,5 +1,6 @@
 import { SITES } from './data.js';
 import { distance } from './hex.js';
+import { planetEnvironment, expandedSiteLayout } from './world-generation.js';
 
 const CLASSIC_IDS = Object.keys(SITES);
 const SIZE = 18;
@@ -41,6 +42,11 @@ function exactKeys(actual, expected) {
 
 /** Full landing grid of partial tiles; callers add ordinary mutable tile state. */
 export function generatedLayout(def) {
+  if(def?.size===32){
+    const original=generatedLayout({...def,size:SIZE});
+    const world={schema:1,seed:def.worldSeed,width:24,height:12,landing:def.sector};
+    return expandedSiteLayout(def,world,original,SIZE).tiles;
+  }
   if (!record(def) || def.size !== SIZE || def.kind !== 'wreck' || !['outcrop', 'derelict'].includes(def.template) || !Number.isInteger(def.layoutSeed) || def.layoutSeed < 1 || def.layoutSeed > 0xffffffff) throw new Error('Invalid generated site layout.');
   const next = generator(def.layoutSeed);
   const center = [10 + next(3), 7 + next(4)], radius = 3 + next(2);
@@ -113,7 +119,7 @@ function makeRegionV1(seed, legacy = false) {
 
 // Schema1 is an immutable compatibility boundary. New worlds use a wider
 // catalog; loading an existing colony never creates those additional sites.
-export function makeRegion(seed, legacy = false, schema = legacy ? 1 : 2) {
+function makeRegionV2(seed, legacy = false, schema = legacy ? 1 : 2) {
   if (![1,2].includes(schema) || schema===2 && legacy) throw new Error('Unsupported planetary region schema.');
   const original=makeRegionV1(seed,legacy);
   if(schema===1)return original;
@@ -141,6 +147,19 @@ export function makeRegion(seed, legacy = false, schema = legacy ? 1 : 2) {
     const id=`route-${def.id}`;routes[id]={id,from:'surface',to:def.id,fuel:def.fuel,travel:def.travel};
   }
   return freeze({schema:2,seed:original.seed,legacy:false,planets,sites,routes});
+}
+// New physical layouts are opt-in through schema3. Earlier metadata remains exact.
+export function makeRegion(seed, legacy = false, schema = legacy ? 1 : 3) {
+  if(schema!==3)return makeRegionV2(seed,legacy,schema);
+  if(legacy!==false)throw new Error('Unsupported planetary region schema.');
+  const prior=makeRegionV2(seed,false,2),planets={},sites={};
+  for(const [id,planet] of Object.entries(prior.planets))planets[id]={...planet,world:planetEnvironment(seed,id)};
+  for(const [id,def] of Object.entries(prior.sites)){
+    const world=planets[def.planetId].world;
+    sites[id]={...def,size:id==='surface'?48:32,worldSeed:world.seed,sector:{...world.landing}};
+    if(def.template)sites[id].survey=initialSurvey(sites[id]);
+  }
+  return freeze({schema:3,seed:prior.seed,legacy:false,planets,sites,routes:prior.routes});
 }
 export function planetDefinitions(s){
   if(owns(s,'region'))return s.region.planets;

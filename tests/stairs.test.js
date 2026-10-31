@@ -15,7 +15,7 @@ import {startRecording,exportRecording} from '../src/telemetry.js';
 const raw=gunzipSync(readFileSync(new URL('./fixtures/stairs-schema54.json.gz',import.meta.url))).toString();
 const events=s=>exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>r.event).map(r=>r.event);
 function fixture(classic=false){
- const fresh=createGame(74219),s=classic?deserialize(JSON.stringify({...withLegacyDensityReadings(projectPreRegion(fresh,{allowUnvisited:true})),version:64})):fresh,site=s.sites.surface;
+ const fresh=createGame(74219,classic?{regionSchema:2}:undefined),s=classic?deserialize(JSON.stringify({...withLegacyDensityReadings(projectPreRegion(fresh,{allowUnvisited:true})),version:64})):fresh,site=s.sites.surface;
  for(const c of s.crew){for(const k of Object.keys(c.labors))c.labors[k]=false;c.life.policy='work';}
  const c=s.crew[0];c.labors.construction=true;for(const t of site.tiles)if(t.machine)t.machine.enabled=false;refreshPower(s,site);
  const landing=site.tiles.find(t=>t.terrain==='floor'&&!t.building&&!t.drop&&!t.pipe&&!t.waterPipe);

@@ -30,7 +30,7 @@ test('genuine schema46 migration updates declared deck, shipment, crew, animal f
 });
 
 test('migrated and newly constructed deck-zero colonies continue identically', () => {
-  const migrated = deserialize(original), current = deserialize(JSON.stringify({...withLegacyDensityReadings(projectPreRegion(createGame(74219), {allowUnvisited:true})), version:64}));
+  const migrated = deserialize(original), current = deserialize(JSON.stringify({...withLegacyDensityReadings(projectPreRegion(createGame(74219,{regionSchema:2}), {allowUnvisited:true})), version:64}));
   // The historical fixture omits the optional, inactive herd flag. Match that
   // representation without hiding any active warning or changing physical state.
   assert.equal(migrated.debris.herdQuiet, undefined); assert.equal(current.debris.herdQuiet, false);

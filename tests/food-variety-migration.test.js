@@ -15,7 +15,7 @@ import { observe, startRecording, exportRecording } from '../src/telemetry.js';
 
 // Explicit legacy schema construction: no historical/private colony is replayed.
 function legacy40(waterOnly=false) {
-  const s=withLegacyDensityReadings(projectPreDecks(createGame(701)));s.version=40;s.creatures=s.creatures.filter(a=>a.species!=='glazefoot');
+  const s=withLegacyDensityReadings(projectPreDecks(createGame(701,{regionSchema:2})));s.version=40;s.creatures=s.creatures.filter(a=>a.species!=='glazefoot');
   const farm=at(s.sites.surface,7,9),galley=at(s.sites.surface,10,10);
   galley.building='galley';initializeStorage(galley);initializeReliability(s);refreshPower(s,s.sites.surface);
   farm.machine.batch=waterOnly?{water:1}:{water:1,fertilizer:.25};farm.machine.progress=11;
@@ -52,10 +52,11 @@ test('schema40 hex migration updates food schema defaults and derived readings, 
   }
 });
 
-test('new colonies contain two deterministic adult glazefoots with no added food',()=>{
-  const s=createGame(702),animals=s.creatures.filter(a=>a.species==='glazefoot');
-  assert.equal(s.resources.food,24);assert.equal(animals.length,2);
-  assert.deepEqual(animals.map(a=>[a.id,a.x,a.y]),[['glazefoot-0',12,18],['glazefoot-1',14,18]]);
+test('new colonies retain two fixed glazefoot founders plus deterministic adult wildlife without added food',()=>{
+  const s=createGame(702),animals=s.creatures.filter(a=>a.species==='glazefoot'),founders=animals.filter(a=>['glazefoot-0','glazefoot-1'].includes(a.id));
+  assert.equal(s.resources.food,24);assert.equal(founders.length,2);assert.ok(animals.length>founders.length);
+  assert.deepEqual(founders.map(a=>[a.id,a.x,a.y]),[['glazefoot-0',12,18],['glazefoot-1',14,18]]);
+  assert.deepEqual(animals.map(a=>[a.id,a.x,a.y]),createGame(702).creatures.filter(a=>a.species==='glazefoot').map(a=>[a.id,a.x,a.y]));
   assert.ok(animals.every(a=>a.lifecycle.growth===600&&a.husbandry.trust===0));
   assert.equal(serialize(deserialize(serialize(s))),serialize(s));
 });

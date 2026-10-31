@@ -13,6 +13,7 @@ import {fixture as airlockFixture} from './helpers/airlock-fixture.js';
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-9,`${a} != ${b}`);
 function addDeck(site,z=7){
   const blank=structuredClone(site.tiles.find(t=>!t.building&&!t.cable&&!t.pipe&&!t.waterPipe&&!t.flora));
+  for(const key of ['biome','temperatureOffset','basin','initialWater'])delete blank[key];
   site.levels.push({...site.levels[0],z});
   for(let y=0;y<site.size;y++)for(let x=0;x<site.size;x++)site.tiles.push({...structuredClone(blank),x,y,z,terrain:'floor',building:null,hp:100,cable:null,pipe:null,waterPipe:null,liquid:0,wetShort:false});
 }
@@ -46,8 +47,10 @@ test('gas and water pump ports retain their deck in all six directions',()=>{
 test('water pipe leveling and a ruptured boundary fitting cannot wet the floor below',()=>{
   const {s,site}=stacked(),source=waterPipe(site,3,3,7,1.5),target=waterPipe(site,4,3,7);waterPipe(site,3,3,0);waterPipe(site,4,3,0);
   for(const [x,y] of neighbors(3,3)){const t=at(site,x,y,0);t.terrain='floor';t.building=null;}
-  flowPlumbing(s);assert.ok(target.waterPipe.water>0);assert.equal(at(site,4,3,0).waterPipe.water,0);close(waterTotal(site),1.5);
-  source.building='wall';source.waterPipe.hp=0;flowPlumbing(s);assert.ok(dryFloor(site,7)>0);assert.equal(dryFloor(site,0),0);close(waterTotal(site),1.5);
+  // Existing ground ponds remain physical inventory, separate from the upper pipe payload.
+  const before=waterTotal(site),lowerBefore=dryFloor(site,0);
+  flowPlumbing(s);assert.ok(target.waterPipe.water>0);assert.equal(at(site,4,3,0).waterPipe.water,0);close(waterTotal(site),before);
+  source.building='wall';source.waterPipe.hp=0;flowPlumbing(s);assert.ok(dryFloor(site,7)>0);assert.equal(dryFloor(site,0),lowerBefore);close(waterTotal(site),before);
 });
 
 test('floor water spreads horizontally without draining into matching cells on another deck',()=>{

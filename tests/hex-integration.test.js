@@ -28,7 +28,7 @@ test('new hex colonies keep every startup berth and resource reachable through s
     }
   }
   assert.equal(at(site,16,11).building,'shuttle');
-  for(const p of [[-1,1],[26,0],[0,-1],[0,26]])assert.equal(at(site,...p),null);
+  for(const p of [[-1,1],[site.size,0],[0,-1],[0,site.size]])assert.equal(at(site,...p),null);
 });
 
 test('all square schemas reject before topology inspection and current saves require the exact grid', () => {

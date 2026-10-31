@@ -43,7 +43,7 @@ test('dynamic commands, observations and compact route panels expose all persist
 });
 
 test('generated site metadata, routes and cross-settlement resident aliases reject without repair',()=>{
- const s=createGame(74219),ids=generated(s).map(d=>d.id),good=JSON.parse(serialize(s));
+ const s=createGame(74219,{regionSchema:2}),ids=generated(s).map(d=>d.id),good=JSON.parse(serialize(s));
  for(const edit of [x=>delete x.region,x=>x.region.sites[ids[0]].fuel++,x=>x.sites[ids[1]].kind='surface',x=>{x.version=64;}]){
   const bad=structuredClone(good);edit(bad);const fixture=bad.version<VERSION?withLegacyDensityReadings(bad):bad;assert.throws(()=>deserialize(JSON.stringify(fixture)));
  }

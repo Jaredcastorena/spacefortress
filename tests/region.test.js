@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import { SITES, VERSION } from '../src/data.js';
 import { neighbors } from '../src/hex.js';
 import { extractionStatus, extractTile } from '../src/extraction.js';
-import { makeRegion, generatedLayout, siteDefinitions, siteDefinition, siteKind, settlementSite, outpostSiteIds, routeDefinition, validateRegion, migrateRegion } from '../src/region.js';
+import { makeRegion as currentRegion, generatedLayout, siteDefinitions, siteDefinition, siteKind, settlementSite, outpostSiteIds, routeDefinition, validateRegion, migrateRegion } from '../src/region.js';
 
+// These established18-cell catalog checks describe region2; world-generation covers region3.
+const makeRegion = (seed, legacy=false) => currentRegion(seed,legacy,legacy?1:2);
 const generated = region => Object.values(region.sites).filter(def => def.template);
 function state(seed = 74219, legacy = false) {
   const region = makeRegion(seed, legacy);

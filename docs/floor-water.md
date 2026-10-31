@@ -7,7 +7,7 @@ The schema 35 [closed plumbing](plumbing.md) extension is implemented and verifi
 ## Build and try
 
 - **Water tank:** 6 alloy, 1 component, 10 construction work; habitat floor required. New tanks start empty, allow refilling and have a closed drain valve. Haulers collect existing depot water into an eight-unit input buffer. Refill assignments begin when at least four units of unreserved capacity remain. An already assigned shipment can finish after refilling is disabled.
-- **Recovery pump:** 6 alloy, 1 component, 10 construction work; habitat floor and 3 kW of connected power required. New pumps have empty output. They collect up to 0.5 water per tick, scaled by condition, from their tile and orthogonally adjacent open tiles. Haulers return the recovered water to an accepting depot. A twelve-unit output buffer stops intake when full.
+- **Recovery pump:** 6 alloy, 1 component, 10 construction work; habitat floor and 3 kW of connected power required. New pumps have empty output. They collect up to 0.5 water per tick, scaled by condition, from their tile and six adjacent open hex tiles. Haulers return the recovered water to an accepting depot. A twelve-unit output buffer stops intake when full.
 
 On an unchanged starter map, floor tiles **11/9** and **12/9** can hold a tank and pump. Inspect the tank after a hauler fills it, open the drain, and step time. Close the drain and enable the wired pump to recover the spill. Route exposed cables away from standing water, or isolate them during cleanup; the pump itself has no separate exposed-wire fault without an installed cable overlay.
 
@@ -17,9 +17,11 @@ Tank fill and drain controls are in its hidden inspector. Disabling refilling pr
 
 Each tile stores `liquid` from zero to four abstract water units. A tank's open drain releases at most 0.5 units per tick, limited by its actual input and remaining floor capacity. Below 50% condition, a tank leaks at `0.5 × (1 − condition/50)` even with its valve closed. A fully broken tank can leak 0.5 per tick. Opening a damaged tank uses the larger release rate; it does not add two copies of the water.
 
-Water levels across orthogonal tile pairs, moving up to 0.5 units or one quarter of their quantity difference per pair. Processing order alternates each tick. Intact hull walls and rock block movement. Pressure doors pass water while held open, during their automatic opening interval, or while broken. Closed doors trap any water already on their tile rather than deleting it. Other fittings do not seal water.
+Water levels across adjacent hex pairs, moving up to 0.5 units or one quarter of their quantity difference per pair. Processing order alternates each tick. Intact hull walls and rock block movement. Pressure doors pass water while held open, during their automatic opening interval, or while broken. Closed doors trap any water already on their tile rather than deleting it. Other fittings do not seal water.
 
-Ground/ore tiles drain up to 0.1 units per tick. Void tiles lose arriving water to space. Map-edge tiles lose up to 0.5 per tick. Floors, ice and decks retain water unless connected to a loss boundary. The site ledger explicitly accounts for these losses.
+New procedural ground basins retain up to two units below their spill level. Only water above that depth spreads or drains naturally; powered pumps can recover the retained water too. The initial finite quantity is recorded separately in the liquid ledger and never replenishes on reload. Building a floor over a basin removes its ground retention. See [procedural maps](procedural-maps.md).
+
+Ground/ore tiles otherwise drain up to 0.1 units per tick. Void tiles lose arriving water to space. Map-edge tiles lose up to 0.5 per tick. Floors, ice and decks retain water unless connected to a loss boundary. The site ledger explicitly accounts for these losses.
 
 Pumps move water from the floor into their physical output inventory. Disabled, broken, burning, unpowered or full pumps retain the water. Closed doors block their neighboring intakes. Packaged water and floor water are separate owners of the same resource: `totalResources()` counts both, while the ordinary resource bar still shows available depot supplies. Dismantling a tank/pump spills its packaged inventory for hauling and retains existing floor water. Water cannot be collected twice by multiple pumps.
 

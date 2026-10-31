@@ -10,6 +10,10 @@ An early playable space colony simulator inspired by Dwarf Fortress. Keep seven 
 
 ## Local development after v0.1.12
 
+New colonies now have a **48 × 48 home map and 32 × 32 remote maps**. Seeded lichen plains, fungal groves, sunberry scrub, ice barrens and water basins contain real plant patches, wildlife, finite deposits and liquid water. Local exterior temperatures affect exposure, plant growth and room heat exchange. Existing colonies keep their original maps and supplies.
+
+Inspect the shuttle and open **Survey satellite** to assemble and launch a satellite for **6 alloy, 2 components, 1 recovered power cell and 2 fuel**, plus **16 engineering work**. Crew must deliver the supplies before launch. The planet’s collapsed **Surface survey** then reveals a selectable sector map. The known landing reports live terrain, life and water; unvisited sectors show generated initial surveys without creating a colony or travel route. Drag or use arrow keys to pan the local map, scroll to zoom, and press **Home** to return to the colony. These additions use save76, region3 and observation/recording10; the package remains 0.1.12. [Procedural maps and satellite survey](docs/procedural-maps.md).
+
 Room temperature now changes total and oxygen pressure. Heating or cooling a sealed room changes breathing, gas flow and equipment targets without adding gas. Airlocks choose achievable safe refill targets from their finite reserves. Automatic supplies use useful refill batches so tiny air top-ups do not monopolize haulers. Schema75 updates older saves’ derived readings while retaining their physical state. Pipe gas still uses a fixed reference temperature; transported gas does not yet carry heat. [Room pressure rules](docs/room-pressure.md).
 
 Disposable fuse boxes now use the existing physical power routes. They blow immediately on overload and need one delivered alloy plus engineering work to replace. Repairs preserve spent cartridges; replacement preserves box damage and leaves the switch open. Schema74 retains older breaker settings. [Fuse controls and replacement](docs/fuses.md).

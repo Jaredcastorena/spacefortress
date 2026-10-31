@@ -104,7 +104,7 @@ test('a supplied composite upper slab is built through existing stairs and retai
 });
 
 test('material metadata cannot forge owners, omit paid components or enter pre66 saves',()=>{
- const s=createGame(),r=order(s,{x:5,y:6,z:0},'build','wall','composite'),good=JSON.parse(serialize(s));
+ const s=createGame(74219,{regionSchema:2}),r=order(s,{x:5,y:6,z:0},'build','wall','composite'),good=JSON.parse(serialize(s));
  const edits=[
   x=>{x.version=65;},
   x=>{x.jobs[0].material='unknown';},

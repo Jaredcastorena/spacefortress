@@ -13,7 +13,7 @@ import { ignite, updateFire, setFireResponse } from '../src/fire.js';
 
 const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-7, `${a} != ${b}`);
 function grid() {
-  const s = createGame(), site = s.sites.surface;
+  const s = createGame(74219,{regionSchema:2}), site = s.sites.surface;
   for (const t of site.tiles) {
     t.building = null; t.cable = null; t.terrain = 'floor';
     delete t.charge; delete t.powerPriority; delete t.machine; delete t.stock;

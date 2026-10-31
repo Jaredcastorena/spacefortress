@@ -70,7 +70,7 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 | [src/crew-panels.js](../src/crew-panels.js) | HTML panel renderers and UI formatting for crew |
 | [src/crew-traversal.js](../src/crew-traversal.js) | Domain helpers for crew traversal |
 | [src/crew.js](../src/crew.js) | Persistent crew labor/skill profiles, shared personal work readiness/rate, experience, memories and morale. |
-| [src/data.js](../src/data.js) | Colony save schema VERSION=73 and static resource, building, recipe (including finite fuel synthesis), species, site, crew and shuttle-fit registries. |
+| [src/data.js](../src/data.js) | Colony save schema VERSION=76 and static resource, building, recipe (including finite fuel synthesis), species, site, crew and shuttle-fit registries. |
 | [src/elements-app.js](../src/elements-app.js) | Elements reference browser application |
 | [src/elements.js](../src/elements.js) | Separate deterministic cell environment laboratory with materials, gas/water/heat, devices, electrical circuits, action schema and bounded JSONL recording. |
 | [src/expedition-panels.js](../src/expedition-panels.js) | HTML panel renderers and UI formatting for expedition |
@@ -428,3 +428,15 @@ Navigation review of the tracked checkout at e330c6f. Text was fully decoded for
 
 - [Planetary view model](../src/region-view.js): detached planet/site map nodes and visible mission endpoints; hierarchy selection stays outside the saved simulation.
 - [Planetary region checks](../tests/planetary-regions.test.js): genuine schema67 migration, canonical membership, classic-state/RNG preservation, matching historical projections and filtered-map transit. Native journeys/residence cover every generated site in the existing region test files.
+
+## Larger procedural maps and paid satellite survey
+
+- [World generation](../src/world-generation.js): pure planet/sector definitions, native surface layouts, wildlife, same-generator survey totals and new-map expansion.
+- [Natural environment](../src/environment.js), [thermal](../src/thermal.js), [liquids](../src/liquids.js): bounded exterior offsets and basin retention, one-time finite water initialization, heat and water ledgers.
+- [Satellite work](../src/satellites.js): pure eligibility, exact supplied recipe, physical completion, optional saved launch registry and strict validation.
+- [Satellite atlas](../src/satellite-atlas.js): gated detached sector previews, live known-landing readings, collapsed launch controls and original SVG survey map.
+- [Procedural map rules](procedural-maps.md): player workflow, generation, resource custody, compatibility and remaining travel/thermal limits.
+- [Generator checks](../tests/world-generation.test.js), [environment checks](../tests/procedural-environment.test.js), [new-world/save checks](../tests/procedural-maps.test.js): deterministic layouts, finite environment and genuine schema75 preservation.
+- [Satellite module checks](../tests/satellites.test.js), [staffed integration checks](../tests/satellite-integration.test.js), [atlas checks](../tests/planetary-atlas.test.js): paid completion/refunds, shared player/agent commands, saves/recordings and read-only survey/UI behavior. The staffed launch fixture explicitly supplies one recovered cell.
+
+New colonies default to region3 with a 48 × 48 home grid and 32 × 32 remote grids. `createGame(seed, {regionSchema: 1})` and regionSchema2 retain earlier generator catalogs for reproducibility. Loaded region1/2 maps retain their dimensions and physical contents. Save76 accepts canonical stored catalogs; observation/recording10 adds planet entities. Planet/sector selection is transient UI state; satellite completion is persisted. New survey sectors do not become simulated sites or travel destinations.
