@@ -11,6 +11,7 @@ import {totalResources,syncResources} from '../src/inventory.js';
 import {initializeElectrical,refreshPower} from '../src/power.js';
 import {damage} from '../src/maintenance.js';
 import {gasNode,updateGasNetworks} from '../src/gas-networks.js';
+import {gasEnergy,GAS_REFERENCE_KELVIN} from '../src/gas-thermal.js';
 import {waterNode,flowPlumbing} from '../src/plumbing.js';
 import {activeUtilityLinks,utilityActive,utilityDetails,RISER_KIND} from '../src/utility-links.js';
 import {startRecording,exportRecording,observe} from '../src/telemetry.js';
@@ -60,7 +61,8 @@ test('power riser connects an upstairs load; isolation and cable switches separa
 test('gas riser conserves each species and smoke while obeying isolation and endpoint valves',()=>{
  const f=fixture(),link=build(f,'gasRiser');assert.equal(executeAction(f.s,'vertical.hatch',{site:'surface',connection:f.stair.id,mode:'closed'}).ok,true);
  // Finite seeded parcels isolate transport; no claim of a native filling run.
- Object.assign(f.lower.pipe.gas,{oxygen:1,inert:3,co2:.5});f.lower.pipe.smoke=.2;
+ const beforeHeat=f.lower.pipe.heat;Object.assign(f.lower.pipe.gas,{oxygen:1,inert:3,co2:.5});f.lower.pipe.smoke=.2;
+ f.lower.pipe.heat=gasEnergy(f.lower.pipe.gas,GAS_REFERENCE_KELVIN);f.site.thermal.gasLoaded+=f.lower.pipe.heat-beforeHeat;
  const totals=()=>['oxygen','inert','co2'].map(k=>f.lower.pipe.gas[k]+f.upper.pipe.gas[k]).concat(f.lower.pipe.smoke+f.upper.pipe.smoke),before=totals();startRecording(f.s);
  updateGasNetworks(f.s);assert.ok(f.upper.pipe.gas.oxygen>0);totals().forEach((n,i)=>close(n,before[i]));assert.ok(records(f.s).some(e=>e.id==='gas.transferred'&&e.connection===link.id));
  command(f,link,false);const frozen=JSON.stringify([f.lower.pipe,f.upper.pipe]);updateGasNetworks(f.s);assert.equal(JSON.stringify([f.lower.pipe,f.upper.pipe]),frozen);

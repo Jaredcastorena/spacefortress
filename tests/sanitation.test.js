@@ -11,6 +11,10 @@ import { injure } from '../src/medicine.js';
 import { fillRoom, refreshAtmosphere } from '../src/atmosphere.js';
 import { setProductionOrder } from '../src/production.js';
 import { refreshPower } from '../src/power.js';
+function fillFixtureRoom(site,room,pressure=100) {
+  const before=room.heat;fillRoom(room,pressure);const delta=room.heat-before;
+  site.thermal[delta>=0?'gasLoaded':'gasVented']+=Math.abs(delta);
+}
 const check = s => { syncResources(s); return deserialize(serialize(s)); };
 const until = (s, condition, limit = 220) => { for (let i = 0; i < limit && !condition(); i++) { step(s); check(s); } assert.ok(condition(), `Condition missing at tick ${s.tick}`); };
 function fixture(withUnit = true) {
@@ -47,7 +51,7 @@ test('blocked, unsafe and full facilities leave waste with crew and allow other 
   for (const kind of ['blocked', 'unsafe', 'full']) {
     const { s, site, c, unit } = fixture(); c.sanitation.waste = .5;
     if (kind === 'blocked') { for (const [x,y] of neighbors(12,10)) { const t = at(site,x,y); spillStorage(t); t.building='wall'; } updateRooms(site); }
-    if (kind === 'unsafe') { fillRoom(roomAt(site, unit.x, unit.y), 0); refreshAtmosphere(site); }
+    if (kind === 'unsafe') { fillFixtureRoom(site,roomAt(site, unit.x, unit.y), 0); refreshAtmosphere(site); }
     if (kind === 'full') unit.sanitary.output.waste = 8;
     step(s, 5); assert.notEqual(c.intent?.type, 'sanitation'); assert.equal(c.sanitation.waste, .5);
     assert.equal(unit.sanitary.output.waste || 0, kind === 'full' ? 8 : 0); check(s);
@@ -99,7 +103,7 @@ test('room partitions isolate waste exposure; cleaning permits recovery but does
 test('bulk waste becomes exposed after hauling while cargo in transit stays sealed', () => {
   const { s, site, c, depot } = fixture(); c.carry={waste:2};c.delivery={kind:'stock',target: { x: 8, y: 10, z: 0 }};c.x=8;c.y=10;
   const room=roomAt(site,8,10); assert.equal(exposedWaste(s,site,room),0); haul(s,c,site,pathTo); assert.equal(exposedWaste(s,site,room),2); assert.equal(depot.stock.waste,2);
-  fillRoom(room,0);refreshAtmosphere(site);updateSanitation(s);assert.equal(c.sanitation.exposure,0); check(s);
+  fillFixtureRoom(site,room,0);refreshAtmosphere(site);updateSanitation(s);assert.equal(c.sanitation.exposure,0); check(s);
 });
 
 test('immobile patients retain waste until overflow and death releases retained waste once', () => {

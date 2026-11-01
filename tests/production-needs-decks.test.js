@@ -4,7 +4,7 @@ import {createGame,step,serialize,order} from '../src/simulation.js';
 import {tileAt,positionOf} from '../src/spatial.js';
 import {updateRooms,roomAt,fillRoom,emptyGas,refreshAtmosphere} from '../src/atmosphere.js';
 import {refreshPower} from '../src/power.js';
-import {HEAT_CAPACITY} from '../src/thermal.js';
+import {roomHeatCapacity,gasQuantity,exportRoomHeat} from '../src/gas-thermal.js';
 import {productionEligibility,validateProduction} from '../src/production.js';
 import {refillSuitFromSupply} from '../src/suit-supply.js';
 import {executeAction} from '../src/controls.js';
@@ -20,7 +20,10 @@ function fixture(){
  site.levels.push({z:7,name:'Upper test deck'});
  // Natural ground conditions and pond water do not become an upstairs reservoir.
  site.tiles.push(...site.tiles.map(t=>{const upper={...structuredClone(t),z:7,liquid:0,wetShort:false};for(const key of ['biome','temperatureOffset','basin','initialWater'])delete upper[key];return upper;}));
- updateRooms(site);for(const r of site.rooms){fillRoom(r);r.heat=(20+273.15)*r.volume*HEAT_CAPACITY;}
+ updateRooms(site);for(const r of site.rooms){
+  const before=r.heat;fillRoom(r);const gasDelta=r.heat-before;site.thermal[gasDelta>=0?'gasLoaded':'gasVented']+=Math.abs(gasDelta);
+  const heat=(20+273.15)*roomHeatCapacity(r),delta=heat-r.heat;site.thermal[delta>=0?'heating':'cooling']+=Math.abs(delta);r.heat=heat;
+ }
  for(const c of s.crew){for(const k of Object.keys(c.labors))c.labors[k]=false;c.life.policy='work';c.hunger=c.energy=c.oxygen=100;}
  for(const t of site.tiles)if(t.machine)t.machine.enabled=false;
  const c=s.crew[0];Object.assign(c,{x:8,y:9,z:7,job:null,intent:null,carry:null,delivery:null});
@@ -77,7 +80,7 @@ test('bunk recovery uses an upstairs reservation despite a matching downstairs s
 });
 
 test('finite suit recovery walks to its own deck supply and rejects the overlapping lower depot',()=>{
- const f=fixture();for(const r of f.site.rooms)r.gas=emptyGas();refreshAtmosphere(f.site);
+ const f=fixture();for(const r of f.site.rooms){exportRoomHeat(f.site,r,gasQuantity(r.gas),{boundary:true});r.gas=emptyGas();}refreshAtmosphere(f.site);
  f.c.oxygen=10;f.store.stock={air:2};f.lowerStore.stock={air:10};record(f.s);
  until(f,()=>events(f.s).some(e=>e.id==='crew.suit.refilled'),15);
  assert.deepEqual(positionOf(f.c),{x:8,y:10,z:7});assert.ok(f.store.stock.air<2);assert.equal(f.lowerStore.stock.air,10);

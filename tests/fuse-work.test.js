@@ -10,6 +10,8 @@ import {laborFor} from '../src/crew.js';
 import {dismantleRefund} from '../src/materials.js';
 import {ignite, extinguish} from '../src/fire.js';
 import {VERSION} from '../src/data.js';
+import {projectPreGasHeat} from './helpers/legacy-projection.js';
+import {withLegacyDensityReadings,withTemperaturePressureReadings,withThermalRoundoff} from './helpers/pressure-migration.js';
 
 const events=s=>exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>r.event).map(r=>r.event);
 function until(s,label,predicate,limit=120){for(let n=0;n<limit&&!predicate();n++)step(s);assert.ok(predicate(),`${label} at tick ${s.tick}`);}
@@ -82,14 +84,15 @@ test('schema74 validates exact replacement, repair and removal contracts; schema
   const bad=JSON.parse(serialize(f.s));alter(bad.jobs.find(j=>j.id===job.id));assert.throws(()=>deserialize(JSON.stringify(bad)));
  }
  for(const kind of ['repair','remove']){const g=fixture(),r=order(g.s,'surface',11,9,kind);assert.equal(r.ok,true);const bad=JSON.parse(serialize(g.s));bad.jobs.find(j=>j.id===r.job.id).work=bad.jobs.find(j=>j.id===r.job.id).remaining=7;assert.throws(()=>deserialize(JSON.stringify(bad)),/Invalid fuse work/);}
- for(const shadow of ['tile','cartridge','build','replacement']){const old=createGame(74219,{regionSchema:2});old.version=73;
+ const legacy=()=>{const old=withLegacyDensityReadings(projectPreGasHeat(createGame(74219,{regionSchema:2})));old.version=73;return old;};
+ for(const shadow of ['tile','cartridge','build','replacement']){const old=legacy();
   if(shadow==='tile')at(old.sites.surface,11,9).building='fuseBox';
   if(shadow==='cartridge')at(old.sites.surface,11,9).protection={kind:'fuse'};
   if(shadow==='build')old.jobs.push({kind:'build',building:'fuseBox'});
   if(shadow==='replacement')old.jobs.push({kind:'replaceFuse'});
   assert.throws(()=>deserialize(JSON.stringify(old)),/Legacy fuse/);
  }
- const old=createGame(74219,{regionSchema:2});old.version=73;const expected=structuredClone(old);expected.version=VERSION;assert.equal(serialize(deserialize(JSON.stringify(old))),JSON.stringify(expected));
+ const old=legacy(),expected=withTemperaturePressureReadings(old);expected.version=VERSION;assert.deepEqual(withThermalRoundoff(projectPreGasHeat(deserialize(JSON.stringify(old))),expected),expected);
 });
 
 test('upper-floor fuse replacement consumes actual-floor material and preserves the ground tile',()=>{

@@ -12,6 +12,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
 
     steps:
       - name: Check out repository
@@ -23,6 +27,7 @@ jobs:
           node-version: '20'
 
       - name: Check JavaScript syntax
+        if: matrix.shard == 1
         shell: bash
         run: |
           while IFS= read -r -d '' file; do
@@ -30,12 +35,14 @@ jobs:
           done < <(find src tests -type f -name '*.js' -print0)
 
       - name: Run Node.js tests
-        run: node --test tests
+        run: node --test --test-shard=${{ matrix.shard }}/4 tests
 
       - name: Run Python tests
+        if: matrix.shard == 1
         run: python3 -m unittest discover -s tests -p 'test_*.py'
 
       - name: Smoke-test local server
+        if: matrix.shard == 1
         shell: bash
         run: |
           set -euo pipefail

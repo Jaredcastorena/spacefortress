@@ -6,8 +6,14 @@ import { createGame, at } from '../src/simulation.js';
 import { initializeStorage, totalResources } from '../src/inventory.js';
 import { updateRooms, fillRoom, refreshAtmosphere } from '../src/atmosphere.js';
 import { initializeElectrical, refreshPower } from '../src/power.js';
-import { HEAT_CAPACITY, temperature } from '../src/thermal.js';
+import { temperature } from '../src/thermal.js';
+import { roomHeatCapacity } from '../src/gas-thermal.js';
 import { outpostReadiness, OUTPOST_RESERVES } from '../src/outpost-readiness.js';
+
+function setTemperature(site,room,celsius) {
+  const heat=(celsius+273.15)*roomHeatCapacity(room),delta=heat-room.heat;
+  site.thermal[delta>=0?'heating':'cooling']+=Math.abs(delta);room.heat=heat;
+}
 
 // Synthetic conditions isolate the inspector. This is not a supplied ordinary
 // gameplay journey: the journey suite owns construction/pressurization/warm-up.
@@ -33,7 +39,8 @@ function habitat(template = 'wreck') {
   for (let y = 7; y <= 11; y++) for (let x = 7; x <= 8; x++) at(site, x, y).cable = { hp: 100, enabled: true };
   updateRooms(site);
   const room = site.rooms.find(r => r.cells.includes('7,7'));
-  fillRoom(room); room.heat = (20 + 273.15) * room.volume * HEAT_CAPACITY;
+  const before=room.heat;fillRoom(room);const delta=room.heat-before;
+  site.thermal[delta>=0?'gasLoaded':'gasVented']+=Math.abs(delta);setTemperature(site,room,20);
   refreshPower(s, site);
   const crew = s.crew.slice(0, 2);
   crew.forEach((c, i) => Object.assign(c, { site: site.id, x: 4 + i, y: 11, job: null, carry: null, delivery: null, intent: null }));
@@ -83,7 +90,7 @@ test('deeply frozen repeated inspection preserves inventories, heat, gas, power,
 test('cold zero-gas floor never qualifies from equipment nameplates or stale gas readings', () => {
   const f = habitat();
   f.room.gas = { oxygen: 0, inert: 0, co2: 0 };
-  f.room.heat = (273.15 - 60) * f.room.volume * HEAT_CAPACITY;
+  setTemperature(f.site,f.room,-60);
   const before = structuredClone(f.s), result = inspect(f), room = result.rooms[0];
   assert.equal(result.ready, false); assert.equal(room.pressure, 0);
   assert.ok(Math.abs(room.temperature + 60) < 1e-10);
@@ -97,7 +104,7 @@ test('actual seals, harmful gas and smoke override old room display values', () 
     f => { at(f.site, 7, 6).hp = 0; },
     f => { f.room.gas = { oxygen: 18.9, inert: 68.1, co2: 3 }; },
     f => { f.room.smoke = 100; },
-    f => { f.room.heat = (40 + 273.15) * f.room.volume * HEAT_CAPACITY; },
+    f => { setTemperature(f.site,f.room,40); },
   ]) {
     const f = habitat(); corrupt(f); const before = structuredClone(f.s);
     assert.equal(inspect(f).ready, false); assert.deepEqual(f.s, before);

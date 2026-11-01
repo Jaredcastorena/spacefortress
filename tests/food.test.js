@@ -11,7 +11,8 @@ import { haul, spillStorage } from '../src/industry.js';
 import { fetchMaterials, deliverMaterials } from '../src/construction.js';
 import { injure } from '../src/medicine.js';
 import { completeFeeding } from '../src/nursing.js';
-import { setClimate, initializeClimate, HEAT_CAPACITY, temperature } from '../src/thermal.js';
+import { setClimate, initializeClimate, temperature } from '../src/thermal.js';
+import { roomHeatCapacity } from '../src/gas-thermal.js';
 import { refreshPower } from '../src/power.js';
 
 function fixture() {
@@ -23,7 +24,7 @@ const aged = (amount, age) => ({ food: amount, _food: [{ amount, age }] });
 const check = s => { syncResources(s); return deserialize(serialize(s)); };
 const tickFood = s => { updateFood(s, pathTo); check(s); };
 function temp(site, value) {
-  for (const r of site.rooms) { const heat = (value + 273.15) * HEAT_CAPACITY * r.volume, delta = heat - r.heat; site.thermal[delta >= 0 ? 'added' : 'removed'] += Math.abs(delta); r.heat = heat; }
+  for (const r of site.rooms) { const heat = (value + 273.15) * roomHeatCapacity(r), delta = heat - r.heat; site.thermal[delta >= 0 ? 'added' : 'removed'] += Math.abs(delta); r.heat = heat; }
   refreshAtmosphere(site);
 }
 function feedJob(f) {

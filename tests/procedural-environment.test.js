@@ -112,7 +112,7 @@ for(const walls of [false,true])test(`biome boundary temperatures conduct real r
 
 test('new room thermal mass uses its local exterior temperature and preserves the finite heat ledger',()=>{
   const {s,site,t}=fixture();natural(t,{offset:15});t.terrain='floor';
-  const room={z:0,cells:['2,2'],volume:1};remapThermal(site,[],[room]);site.rooms=[room];
+  const room={z:0,cells:['2,2'],volume:1,gas:{oxygen:0,inert:0,co2:0}};remapThermal(site,[],[room]);site.rooms=[room];
   close(temperature(room),23);close(site.thermal.added,HEAT_CAPACITY*(273.15+23));validateThermal(s);
   const before=room.heat;remapThermal(site,[room],[{...room}]);close(site.thermal.added,before);
 });

@@ -12,6 +12,12 @@ const act = (s, id, args = {}) => {
   assert.ok(result.ok, `${id}: ${result.message}`); return result;
 };
 const tick = (s, ticks = 1) => act(s, 'simulation.step', { ticks });
+// Changing the synthetic starting pressure also removes the gas parcel's heat.
+function seedLowPressure(site) {
+  const room = site.rooms[0], initialHeat = room.heat; fillRoom(room, 76.15);
+  const delta = room.heat - initialHeat;
+  site.thermal[delta >= 0 ? 'gasLoaded' : 'gasVented'] += Math.abs(delta); refreshAtmosphere(site);
+}
 const saved = s => { syncResources(s); return deserialize(serialize(s)); };
 const events = s => exportRecording(s).trim().split('\n').map(JSON.parse).filter(r => r.event).map(r => r.event);
 const until = (s, predicate, limit = 100) => {
@@ -31,7 +37,7 @@ function courier({ unsafe = true } = {}) {
   delete depot.stock.air;
   c.delivery = { kind: 'input', target: { x: 7, y: 7, z: 0 } }; c.energy = 1;
   c.intent = { type: 'rest', target: null }; c.x = 8; c.y = 9;
-  if (unsafe) { fillRoom(site.rooms[0], 76.15); refreshAtmosphere(site); }
+  if (unsafe) { seedLowPressure(site); }
   refreshPower(s, site);
   return { s, site, c, helper, depot };
 }
@@ -101,7 +107,7 @@ test('blocked freight courier keeps the exact job reservation and metadata at th
   const id = act(s, 'freight.load', { items: { food: 2, keepsakes: 1 } }).job;
   until(s, () => c.delivery?.job === id); const j = s.jobs.find(j => j.id === id);
   const before = structuredClone(c.carry), position = [c.x, c.y], total = totalResources(s);
-  fillRoom(site.rooms[0], 76.15); refreshAtmosphere(site); c.energy = 1; startRecording(s); tick(s);
+  seedLowPressure(site); c.energy = 1; startRecording(s); tick(s);
   assert.equal(c.carry, null); assert.equal(c.delivery, null); assert.equal(c.job, null); assert.equal(c.intent.type, 'rest');
   assert.ok(s.jobs.includes(j)); assert.deepEqual(s.shuttle.freight, {}); assert.equal(j.materials.food, undefined);
   const source = j.sources.find(source => source.kind === 'drop' && source.x === position[0] && source.y === position[1]);
@@ -124,7 +130,7 @@ test('blocked construction courier leaves an exclusive local source claim which 
   const id = act(s, 'job.order', { site: 'surface', x: 11, y: 14, kind: 'build', building: 'solar' }).job;
   until(s, () => c.delivery?.job === id);
   const position = [c.x, c.y], total = totalResources(s).alloy;
-  fillRoom(site.rooms[0], 76.15); refreshAtmosphere(site); c.energy = 1; tick(s);
+  seedLowPressure(site); c.energy = 1; tick(s);
   const j = s.jobs.find(j => j.id === id);
   assert.equal(c.carry, null); assert.equal(c.job, null); assert.equal(j.worker, null);
   assert.deepEqual(j.sources.filter(source => source.items.alloy), [{ x: position[0], y: position[1], z: 0, kind: 'drop', items: { alloy: 5 } }]);

@@ -59,6 +59,8 @@ function synthetic({ lowOxygen = false, farm = false, bank = 120, tick = 0 } = {
   updateRooms(site); initializeThermal(state); fillRoom(roomAt(site, 10, 11));
   const chamber = roomAt(site, 10, 13); chamber.gas = { oxygen: 0, inert: 0, co2: 0 };
   if (lowOxygen) roomAt(site, 10, 11).gas = { oxygen: 52.8, inert: 277.0263378661494, co2: .051891004317951676 };
+  // Freeze the prepared gas and structure at 20C in one initial energy ledger.
+  initializeThermal(state);
   refreshAtmosphere(site); initializePower(state, site, bank); refreshPower(state, site); syncResources(state);
   assert.equal(executeAction(state, 'airlock.configure', config, 'agent').ok, true);
   for (const current of Object.values(state.sites)) current.atmosphere.tick = state.tick;

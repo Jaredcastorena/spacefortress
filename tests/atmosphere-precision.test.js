@@ -3,11 +3,13 @@ import assert from 'node:assert/strict';
 import { createGame, at, step, serialize, deserialize } from '../src/simulation.js';
 import { breathe, breathable, emptyGas, gasAmount, refreshRoom, refreshAtmosphere, updateAtmosphere, SUIT_PER_POINT } from '../src/atmosphere.js';
 import { FIRE } from '../src/fire.js';
+import { roomHeatCapacity, GAS_REFERENCE_KELVIN } from '../src/gas-thermal.js';
 import { totalResources } from '../src/inventory.js';
 import { outpostReadiness } from '../src/outpost-readiness.js';
 
 // Adjacent doubles are constructed independently of the production comparison.
 // Set physical contents rather than the derived display cache.
+function referenceHeat(r) { r.gasThermal = true; r.heat = roomHeatCapacity(r) * GAS_REFERENCE_KELVIN; }
 function setPressure(r, pressure) { r.gas.inert=r.volume*10*pressure/100-r.gas.oxygen-r.gas.co2; }
 function setCO2(r, fraction) { const total=r.gas.oxygen+r.gas.inert+r.gas.co2;r.gas.co2=total*fraction;r.gas.inert=total-r.gas.oxygen-r.gas.co2; }
 function adjacent(value, delta) {
@@ -19,7 +21,7 @@ function adjacent(value, delta) {
 function room(oxygen = 6.3999999999999995) {
   const r = { cells: ['1,1', '2,1', '1,2', '2,2'], volume: 4,
     gas: { oxygen, inert: 33.5925, co2: .0075 }, smoke: 0 };
-  refreshRoom(r);
+  referenceHeat(r); refreshRoom(r);
   return r;
 }
 const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-12, `${a} != ${b}`);
@@ -52,7 +54,7 @@ test('oxygen rounding allowance leaves every other breathing limit exact', () =>
     r => { setCO2(r, adjacent(.02, 1)); },
     r => { r.smoke = FIRE.smokeLimit * r.volume; },
   ]) {
-    const r = room(); corrupt(r); freeze(r);
+    const r = room(); corrupt(r); referenceHeat(r); freeze(r);
     assert.equal(breathable(r), false);
   }
 });
@@ -60,8 +62,8 @@ test('oxygen rounding allowance leaves every other breathing limit exact', () =>
 test('actual recycling reaches the adjacent floor, then real suits supply breaths without free refill', () => {
   // Small sealed synthetic chamber isolates the actual recycled-oxygen
   // arithmetic observed in the ordinary journey. No gameplay acceptance claim.
-  const r = room(6.3925); r.gas.co2 = .015; refreshRoom(r);
-  const site = { id: 'wreck', size: 4, rooms: [r], atmosphere: {
+  const r = room(6.3925); r.gas.co2 = .015; referenceHeat(r); refreshRoom(r);
+  const site = { id: 'wreck', size: 4, rooms: [r], thermal: { gasVented: 0 }, atmosphere: {
     tick: 0, vented: emptyGas(), injected: emptyGas(), breathed: 0, refilled: 0,
   }, tiles: Array.from({ length: 16 }, (_, i) => ({ x: i % 4, y: Math.floor(i / 4), terrain: 'floor',
     building: [0, 3].includes(i % 4) || [0, 3].includes(Math.floor(i / 4)) ? 'wall' : null, hp: 100 })) };
@@ -98,7 +100,9 @@ test('finite suit refill and oxygen boundary survive exact save and deterministi
   // topology, inventory, equipment and every later simulation tick are retained.
   const s = createGame(), site = s.sites.surface, c = s.crew[0];
   const r = site.rooms.find(r => r.cells.includes(`${c.x},${c.y}`));
-  r.gas.oxygen = r.volume * 10 * .16 + .1075; c.oxygen = 40;
+  const initialHeat = r.heat;
+  r.gas.oxygen = r.volume * 10 * .16 + .1075; referenceHeat(r);
+  site.thermal.gasVented += initialHeat - r.heat; c.oxygen = 40;
   refreshAtmosphere(site);
   const before = gasAmount(r.gas) + c.oxygen * SUIT_PER_POINT;
   const stores = totalResources(s), refilled = site.atmosphere.refilled;

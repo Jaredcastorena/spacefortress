@@ -2,14 +2,21 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { breathe, breatheBatch, breathable, emptyGas, gasAmount, refreshRoom, SUIT_PER_POINT } from '../src/atmosphere.js';
 import { FIRE } from '../src/fire.js';
+import { roomHeatCapacity, GAS_REFERENCE_KELVIN } from '../src/gas-thermal.js';
+
+// These synthetic boundary rooms stay at the reference temperature while
+// their initial gas compositions vary; subsequent transfers own finite heat.
+function refreshFixtureRoom(room) {
+  room.gasThermal = true; room.heat = roomHeatCapacity(room) * GAS_REFERENCE_KELVIN; refreshRoom(room);
+}
 
 const FLOOR = 56, INITIAL_OXYGEN = 56.065, BREATH = .0075;
 const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-10, `${actual} != ${expected}`);
 function fixture(oxygen = INITIAL_OXYGEN) {
   const room = { volume: 35, cells: Array.from({ length: 35 }, (_, i) => `${i % 7 + 1},${Math.floor(i / 7) + 1}`),
     sealed: true, gas: { oxygen, inert: 280, co2: 0 }, smoke: 0 };
-  refreshRoom(room);
-  const site = { id: 'surface', rooms: [room], atmosphere: {
+  refreshFixtureRoom(room);
+  const site = { id: 'surface', rooms: [room], thermal: { gasVented: 0 }, atmosphere: {
     tick: 0, vented: emptyGas(), injected: emptyGas(), breathed: 0, refilled: 0,
   } };
   const crew = [0, 1, 2].map(i => ({ id: `crew-${i}`, site: 'surface', x: i + 1,
@@ -94,16 +101,16 @@ test('oxygen-floor and oxygen-unsafe rooms use actual suits without borrowing ro
 });
 
 test('CO2 headroom caps basal conversion and prevents charging across the unchanged limit', () => {
-  const f = fixture(70); f.room.gas.inert = 273.01; f.room.gas.co2 = 6.99; refreshRoom(f.room);
+  const f = fixture(70); f.room.gas.inert = 273.01; f.room.gas.co2 = 6.99; refreshFixtureRoom(f.room);
   run(f); assert.ok(f.room.co2Fraction <= .02); close(f.room.gas.co2, 7);
   close(f.site.atmosphere.refilled, 0); assert.equal(breathable(f.room), true);
-  f.room.gas.co2 += .001; refreshRoom(f.room); const before = structuredClone(f.room.gas), result = run(f);
+  f.room.gas.co2 += .001; refreshFixtureRoom(f.room); const before = structuredClone(f.room.gas), result = run(f);
   assert.deepEqual(f.room.gas, before); for (const a of result.values()) assert.equal(a.roomOxygen, 0);
 });
 
 test('pressure floor prevents optional charging while unsafe pressure requires suits', () => {
   for (const inert of [132.5, 132.49, 465.01]) {
-    const f = fixture(60); f.room.gas.inert = inert; refreshRoom(f.room);
+    const f = fixture(60); f.room.gas.inert = inert; refreshFixtureRoom(f.room);
     const safe = breathable(f.room), result = run(f);
     assert.equal(f.site.atmosphere.refilled, 0);
     if (safe) { assert.ok(f.room.pressure >= 55); for (const a of result.values()) close(a.roomOxygen, BREATH); }
@@ -112,7 +119,7 @@ test('pressure floor prevents optional charging while unsafe pressure requires s
 });
 
 test('smoke at its limit forbids room breathing and charging without consuming smoke or room gas', () => {
-  const f = fixture(70); f.room.smoke = FIRE.smokeLimit * f.room.volume; refreshRoom(f.room);
+  const f = fixture(70); f.room.smoke = FIRE.smokeLimit * f.room.volume; refreshFixtureRoom(f.room);
   const before = structuredClone(f.room), result = run(f);
   assert.deepEqual(f.room, before); assert.equal(breathable(f.room), false);
   for (const a of result.values()) { assert.equal(a.roomOxygen, 0); assert.equal(a.refillOxygen, 0); close(a.suitOxygen, BREATH); }

@@ -1,4 +1,4 @@
-import {withTemperaturePressureReadings,withLegacyDensityReadings} from './helpers/pressure-migration.js';
+import {withTemperaturePressureReadings,withLegacyDensityReadings,withThermalRoundoff} from './helpers/pressure-migration.js';
 import {VERSION} from '../src/data.js';
 import {projectPreRegion} from './helpers/legacy-projection.js';
 import test from 'node:test';
@@ -21,7 +21,7 @@ const call=(s,id,args)=>{const r=executeAction(s,id,args);assert.equal(r.ok,true
 
 test('genuine schema63 migration updates version, neutral tool resource total and derived room readings',()=>{
  const prior=JSON.parse(raw),expected=structuredClone(prior);expected.version=VERSION;expected.resources.tools=0;
- const s=deserialize(raw);assert.deepEqual(projectPreRegion(JSON.parse(serialize(s))),withTemperaturePressureReadings(expected));
+ const s=deserialize(raw),readings=withTemperaturePressureReadings(expected);assert.deepEqual(withThermalRoundoff(projectPreRegion(JSON.parse(serialize(s))),readings),readings);
  const copy=deserialize(serialize(s));step(s,2);step(copy,2);assert.equal(serialize(s),serialize(copy));
 });
 

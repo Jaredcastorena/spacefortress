@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createGame,step,serialize} from '../src/simulation.js';
 import {tileAt,positionOf} from '../src/spatial.js';
 import {updateRooms,fillRoom,refreshAtmosphere} from '../src/atmosphere.js';
-import {HEAT_CAPACITY} from '../src/thermal.js';
+import {roomHeatCapacity} from '../src/gas-thermal.js';
 import {refreshPower} from '../src/power.js';
 import {haul} from '../src/industry.js';
 import {injure,safeBed} from '../src/medicine.js';
@@ -21,7 +21,10 @@ function fixture(){
  site.levels.push({z:7,name:'Upper test deck'});
  // Natural ground conditions and pond water do not become an upstairs reservoir.
  site.tiles.push(...site.tiles.map(t=>{const upper={...structuredClone(t),z:7,liquid:0,wetShort:false};for(const key of ['biome','temperatureOffset','basin','initialWater'])delete upper[key];return upper;}));
- updateRooms(site);for(const r of site.rooms){fillRoom(r);r.heat=(20+273.15)*r.volume*HEAT_CAPACITY;}
+ updateRooms(site);for(const r of site.rooms){
+  const before=r.heat;fillRoom(r);const gasDelta=r.heat-before;site.thermal[gasDelta>=0?'gasLoaded':'gasVented']+=Math.abs(gasDelta);
+  const heat=(20+273.15)*roomHeatCapacity(r),delta=heat-r.heat;site.thermal[delta>=0?'heating':'cooling']+=Math.abs(delta);r.heat=heat;
+ }
  for(const c of s.crew){for(const k of Object.keys(c.labors))c.labors[k]=false;c.life.policy='work';c.hunger=c.energy=c.oxygen=100;}
  for(const t of site.tiles){if(t.machine)t.machine.enabled=false;if(t.z===7){if(t.stock)t.stock={};t.drop=null;}}
  const p=s.crew[0],helper=s.crew[5];Object.assign(p,{x:8,y:9,z:7,intent:null,job:null,carry:null,delivery:null});Object.assign(helper,{x:9,y:10,z:7,intent:null,job:null,carry:null,delivery:null});

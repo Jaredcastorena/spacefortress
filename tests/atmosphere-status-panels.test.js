@@ -4,13 +4,15 @@ import { createHash } from 'node:crypto';
 import { createGame } from '../src/simulation.js';
 import { GAS_PER_TILE, refreshRoom, breathingStatus, breathable } from '../src/atmosphere.js';
 import { FIRE } from '../src/fire.js';
+import { roomHeatCapacity, GAS_REFERENCE_KELVIN } from '../src/gas-thermal.js';
 import { atmosphereDetails } from '../src/atmosphere-panels.js';
 import { observe } from '../src/telemetry.js';
 
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 function gases(room,{pressure=100,oxygenPressure=.21,co2Fraction=0,smoke=0}={}) {
   const nominal=room.volume*GAS_PER_TILE,total=nominal*pressure/100,oxygen=nominal*oxygenPressure,co2=total*co2Fraction;
-  room.gas={oxygen,inert:total-oxygen-co2,co2};room.smoke=smoke*room.volume;refreshRoom(room);return room;
+  room.gas={oxygen,inert:total-oxygen-co2,co2};room.smoke=smoke*room.volume;
+  room.gasThermal=true;room.heat=roomHeatCapacity(room)*GAS_REFERENCE_KELVIN;refreshRoom(room);return room;
 }
 const room=options=>gases({volume:35,sealed:true},options);
 const observedRoom=(s,r)=>Object.values(observe(s).entities).find(entity=>entity.type==='room'&&entity.site==='surface'&&entity.cells.includes(r.cells[0]));

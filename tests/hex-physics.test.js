@@ -6,6 +6,7 @@ import { GAS_DIRECTIONS, GAS_NETWORK, initializeGasNetworks, initializeGasTile, 
 import { WATER_DIRECTIONS, PLUMBING, initializePlumbing, initializePlumbingTile, newWaterPipe, waterPorts, flowPlumbing, operatePlumbing, validatePlumbing } from '../src/plumbing.js';
 import { LIQUID, initializeLiquids, flowLiquids, pumpLiquids, validateLiquids } from '../src/liquids.js';
 import { initializeThermal, updateThermal, validateThermal } from '../src/thermal.js';
+import { gasEnergy, GAS_REFERENCE_KELVIN } from '../src/gas-thermal.js';
 import { radiatorTargets, REACTOR, initializeReactors, updateReactorCooling } from '../src/reactors.js';
 import { initializeFire, ignite, updateFire, validateFire } from '../src/fire.js';
 
@@ -18,9 +19,14 @@ function fixture() {
 }
 const at=(site,p)=>tileAt(site,...p);
 function seedGas(site,t,gas,smoke=0) {
-  t.pipe.gas={...gas};t.pipe.smoke=smoke;
+  t.pipe.gas={...gas};t.pipe.smoke=smoke;t.pipe.heat=gasEnergy(gas,GAS_REFERENCE_KELVIN);
+  site.thermal.gasLoaded+=t.pipe.heat;
   for(const k of GASES)site.gasNetwork.loaded[k]+=gas[k];
   site.gasNetwork.smoke.captured+=smoke;
+}
+function fillFixtureRoom(site,room) {
+  const before=room.heat;fillRoom(room);const delta=room.heat-before;
+  site.thermal[delta>=0?'gasLoaded':'gasVented']+=Math.abs(delta);
 }
 function seedWater(site,t,n) {t.waterPipe.water=n;site.plumbing.loaded+=n;}
 function seedLiquid(site,t,n) {t.liquid=n;site.liquids.released+=n;}
@@ -71,7 +77,7 @@ test('room flood fill joins genuine diagonal neighbors and six hull sides seal g
     const {s,site}=fixture(),center=at(site,[x,6]);
     for(const t of site.tiles){t.terrain='ground';t.building=null;}
     center.terrain='floor';for(const point of neighbors(x,6))at(site,point).building='wall';
-    updateRooms(site);const room=site.rooms[0];fillRoom(room);room.smoke=.2;site.fireSafety.smokeProduced=.2;refreshAtmosphere(site);
+    updateRooms(site);const room=site.rooms[0];fillFixtureRoom(site,room);room.smoke=.2;site.fireSafety.smokeProduced=.2;refreshAtmosphere(site);
     assert.equal(room.sealed,true);updateAtmosphere(s);close(gasAmount(room.gas),10);close(room.smoke,.2);
     const hole=at(site,step(x,6,direction));hole.building=null;refreshAtmosphere(site);assert.equal(room.sealed,false);
     const before={...room.gas};updateAtmosphere(s);assert.ok(gasAmount(room.gas)<10);
@@ -103,7 +109,7 @@ test('bilge recovery and fire spread reach every hex side without creating water
     center.building='bilgePump';center.powered=true;center.machine={enabled:true,output:{}};seedLiquid(site,target,1);pumpLiquids(s);
     close(center.machine.output.water,LIQUID.pump);close(target.liquid,1-LIQUID.pump);validateLiquids(s);
     center.building='bunk';center.powered=false;target.building='bunk';target.liquid=0;site.liquids.quenched+=1-LIQUID.pump;
-    fillRoom(site.rooms[0]);assert.ok(ignite(s,site,center));center.fire.age=29;center.fire.intensity=60;s.tick=30;updateFire(s);
+    fillFixtureRoom(site,site.rooms[0]);assert.ok(ignite(s,site,center));center.fire.age=29;center.fire.intensity=60;s.tick=30;updateFire(s);
     assert.ok(target.fire,`${direction} from column ${x}`);validateFire(s);validateThermal(s);
   }
 });

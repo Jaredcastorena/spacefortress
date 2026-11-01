@@ -1,4 +1,5 @@
-import {withTemperaturePressureReadings,withLegacyDensityReadings} from './helpers/pressure-migration.js';
+import {withTemperaturePressureReadings,withLegacyDensityReadings,withThermalRoundoff} from './helpers/pressure-migration.js';
+import {projectPreGasHeat} from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -44,7 +45,7 @@ test('shared material vocabulary retains tool behavior and computes detached pai
 test('genuine65 migration updates version, neutral depot metadata and derived room readings while retaining physical state',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'4c9abd7ea43f85b38c68f7987489e54bfb3f6f95f7ab9283612a038dbdf27c16');
  const expected=JSON.parse(raw);assert.equal(expected.version,65);expected.version=VERSION;for(const site of Object.values(expected.sites))for(const t of site.tiles)if(t.building==='stockpile')t.storage.limits={};
- const s=deserialize(raw);assert.equal(serialize(s),serialize(withTemperaturePressureReadings(expected)));valid(s);
+ const s=deserialize(raw),readings=withTemperaturePressureReadings(expected);assert.deepEqual(withThermalRoundoff(projectPreGasHeat(s),readings),readings);valid(s);
  const copy=deserialize(serialize(s));step(s,3);step(copy,3);assert.equal(serialize(copy),serialize(s));
 });
 

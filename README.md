@@ -8,7 +8,7 @@ An early playable space colony simulator inspired by Dwarf Fortress. Keep seven 
 
 **The game is still in development.** Build across connected floors using paid stairs, supported upper-floor extensions and a compact floor selector. Version 0.1.13 adds larger procedural maps, paid satellite surveys, persistent sector expeditions, durable browser saves and interacting industry, population, power and thermal systems. Long-lived staffed outposts, complete vertical systems, a generated universe/history and much of the wider simulation remain unfinished. The [implementation status](docs/implementation-status.md) separates working systems from plans.
 
-## v0.1.13 — 2026-10-30
+## v0.1.13 — 2026-10-31
 
 New colonies have a **48 × 48 home map and 32 × 32 starting remote maps**. Seeded lichen plains, fungal groves, sunberry scrub, ice barrens and water basins contain real plant patches, wildlife, finite deposits and liquid water. Local exterior temperatures affect exposure, plant growth and room heat exchange. Existing colonies keep their original maps and supplies.
 

@@ -45,7 +45,7 @@ function fixture() {
 
 test('observations expose canonical sector metadata and separate same-coordinate pastures without mutation',()=>{
   const f=fixture(),before=digest(f.s),o=observe(f.s);
-  assert.equal(TELEMETRY_VERSION,11);assert.equal(o.schemaVersion,11);
+  assert.equal(TELEMETRY_VERSION,12);assert.equal(o.schemaVersion,TELEMETRY_VERSION);
   assert.deepEqual(o.entities[`site:${f.site.id}`].definition,siteDefinition(f.s,f.site.id));
   assert.deepEqual(o.entities[`site:${f.site.id}`].definition.sector,f.definition.sector);
   assert.deepEqual(o.entities[`site:${f.site.id}`].definition.landing,f.definition.landing);
@@ -95,12 +95,12 @@ test('corpse observations and butchery buttons retain actual site and full-floor
   assert.equal(reasonIds.length,2);assert.equal(new Set(reasonIds).size,2);assert.equal(digest(f.s),before);
 });
 
-test('version 11 recordings name the remote gate and pasture change without altering home containment',()=>{
+test('current recordings name the remote gate and pasture change without altering home containment',()=>{
   const f=fixture();startRecording(f.s,{maxBytes:64_000_000});
   const before=observe(f.s),homeRegion=before.entities[f.home.id].derived.pasture;
   const result=setPastureGate(f.s,f.site.id,23,20,'open',0);assert.equal(result.ok,true,result.message);capture(f.s);
   const rows=exportRecording(f.s).trim().split('\n').map(JSON.parse),after=observe(f.s);
-  assert.equal(rows[0].schemaVersion,11);assert.equal(rows.at(-1).schemaVersion,11);
+  assert.equal(rows[0].schemaVersion,TELEMETRY_VERSION);assert.equal(rows.at(-1).schemaVersion,TELEMETRY_VERSION);
   assert.deepEqual(after.entities[f.home.id].derived.pasture,homeRegion);
   assert.equal(after.entities[f.remote.id].derived.pasture.enclosed,false);
   assert.ok(rows.some(row=>row.event?.id==='pasture.gate.mode_changed'&&row.event.entity===tileEntityId(f.site.id,23,20,0)));

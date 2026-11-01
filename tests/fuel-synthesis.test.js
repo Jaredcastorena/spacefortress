@@ -1,4 +1,5 @@
-import {withTemperaturePressureReadings} from './helpers/pressure-migration.js';
+import {withTemperaturePressureReadings,withThermalRoundoff} from './helpers/pressure-migration.js';
+import {projectPreGasHeat} from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -12,7 +13,7 @@ import {initializeElectrical,refreshPower} from '../src/power.js';
 import {productionEligibility,projectedStock} from '../src/production.js';
 import {tileAt,positionOf,tileEntityId} from '../src/spatial.js';
 import {roomAt} from '../src/atmosphere.js';
-import {HEAT_CAPACITY} from '../src/thermal.js';
+import {roomHeatCapacity} from '../src/gas-thermal.js';
 import {observe,startRecording,exportRecording} from '../src/telemetry.js';
 const raw=gunzipSync(readFileSync(new URL('./fixtures/synthesis-schema68.json.gz',import.meta.url))).toString();
 const at=(site,x,y,z=0)=>tileAt(site,{x,y,z});
@@ -38,7 +39,7 @@ function fixture(){
 
 test('genuine schema68 preserves state and older saves reject fuel equipment and queued work',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'a621fd8d8e1ed5ec52f5278612d32971eaa70db71396f68184a88e2230774df6');
- const expected=JSON.parse(raw);expected.version=VERSION;for(const site of Object.values(expected.sites))for(const t of site.tiles)if(t.building==='stockpile')t.storage.limits={};const s=deserialize(raw);assert.ok(serialize(s)===JSON.stringify(withTemperaturePressureReadings(expected)));exact(s);
+ const expected=JSON.parse(raw);expected.version=VERSION;for(const site of Object.values(expected.sites))for(const t of site.tiles)if(t.building==='stockpile')t.storage.limits={};const s=deserialize(raw),readings=withTemperaturePressureReadings(expected);assert.deepEqual(withThermalRoundoff(projectPreGasHeat(s),readings),readings);exact(s);
  for(const change of [s=>{s.sites.surface.tiles.find(t=>t.building==='refinery').building='fuelSynthesizer';},s=>{s.jobs.find(j=>j.kind==='build').building='fuelSynthesizer';}]){const old=JSON.parse(raw);change(old);assert.throws(()=>deserialize(JSON.stringify(old)),/Legacy fuel synthesizer/);}
 });
 
@@ -50,7 +51,7 @@ test('fuel readiness uses shared skill, power, atmosphere, temperature and deliv
  m.input={};assert.equal(readiness().blockedCode,'inputs');assert.equal(readiness().requirements.find(r=>r.resource==='cells').missing,1);m.input={cells:1,water:2};
  s.crew[3].skills.production.level=1;assert.equal(readiness().blockedCode,'no_qualified_operator');s.crew[3].skills.production.level=3;
  t.powered=false;assert.equal(readiness().blockedCode,'power');refreshPower(s,site);
- const room=roomAt(site,t.x,t.y,t.z),heat=room.heat;room.heat=(60+273.15)*room.volume*HEAT_CAPACITY;assert.equal(readiness().blockedCode,'temperature');room.heat=heat;
+ const room=roomAt(site,t.x,t.y,t.z),heat=room.heat;room.heat=(60+273.15)*roomHeatCapacity(room);assert.equal(readiness().blockedCode,'temperature');room.heat=heat;
  const air=room.air;room.air=20;assert.equal(readiness().blockedCode,'air');room.air=air;
  m.output={fuel:20};assert.equal(readiness().blockedCode,'output_full');m.output={};
  act(s,'production.enable',{site:site.id,...positionOf(t),enabled:false});const inputs=JSON.stringify(m.input);step(s,5);assert.equal(m.progress,0);assert.equal(JSON.stringify(m.input),inputs);assert.equal(m.completed,0);exact(s);

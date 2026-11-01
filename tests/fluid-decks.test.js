@@ -5,6 +5,7 @@ import {tileAt} from '../src/spatial.js';
 import {DIRECTIONS,step,opposite,neighbors} from '../src/geometry.js';
 import {updateRooms,roomAt,gasAmount} from '../src/atmosphere.js';
 import {newPipe,gasNode,initializeGasTile,pumpPorts,updateGasNetworks,releaseGas} from '../src/gas-networks.js';
+import {gasEnergy,GAS_REFERENCE_KELVIN} from '../src/gas-thermal.js';
 import {newWaterPipe,waterNode,initializePlumbingTile,waterPorts,flowPlumbing,operatePlumbing,removePlumbing} from '../src/plumbing.js';
 import {flowLiquids} from '../src/liquids.js';
 import {startRecording,exportRecording,roomEntityId,tileEntityId} from '../src/telemetry.js';
@@ -22,7 +23,7 @@ const at=(site,x,y,z)=>tileAt(site,{x,y,z});
 const dryFloor=(site,z)=>site.tiles.filter(t=>t.z===z).reduce((n,t)=>n+(t.liquid||0),0);
 const gasTotal=site=>site.tiles.reduce((n,t)=>n+(gasNode(t)?gasAmount(gasNode(t).gas)+gasNode(t).smoke:0),0);
 const waterTotal=site=>site.tiles.reduce((n,t)=>n+(waterNode(t)?.water||0)+(t.liquid||0),0);
-function gasPipe(site,x,y,z,amount=0){const t=at(site,x,y,z);t.pipe=newPipe();t.pipe.gas.oxygen=amount;return t;}
+function gasPipe(site,x,y,z,amount=0){const t=at(site,x,y,z);t.pipe=newPipe();t.pipe.gas.oxygen=amount;t.pipe.heat=gasEnergy(t.pipe.gas,GAS_REFERENCE_KELVIN);site.thermal.initial+=t.pipe.heat;return t;}
 function waterPipe(site,x,y,z,amount=0){const t=at(site,x,y,z);t.waterPipe=newWaterPipe();t.waterPipe.water=amount;return t;}
 const events=s=>exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>r.event).map(r=>r.event);
 

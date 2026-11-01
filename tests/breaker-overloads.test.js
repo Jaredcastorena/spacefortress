@@ -1,4 +1,5 @@
-import {withTemperaturePressureReadings} from './helpers/pressure-migration.js';
+import {withTemperaturePressureReadings,withThermalRoundoff} from './helpers/pressure-migration.js';
+import {projectPreGasHeat} from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -29,7 +30,8 @@ function exact(s){syncResources(s);const text=serialize(s);assert.ok(serialize(d
 
 test('genuine schema72 retains paid breaker and pending recruitment without retrofitting ratings',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'00b79fede06a5e4678f6a2bc6b58856845495b4a97bc9ffbfa89ca1e571aa928');
- const expected=JSON.parse(raw);expected.version=VERSION;const s=deserialize(raw);assert.equal(serialize(s),JSON.stringify(withTemperaturePressureReadings(expected)));exact(s);
+ const expected=JSON.parse(raw);expected.version=VERSION;const s=deserialize(raw),readings=withTemperaturePressureReadings(expected);
+ assert.deepEqual(withThermalRoundoff(projectPreGasHeat(JSON.parse(serialize(s))),readings),readings);exact(s);
  assert.equal(Object.hasOwn(at(s.sites.surface,12,10).protection,'overload'),false);
  for(const modify of [p=>p.mode='overload',p=>p.overload={rating:8,ticks:0,lastThroughput:0,lastTick:null},p=>{p.tripped=true;p.cause='overload';}]){
   const old=JSON.parse(raw);modify(at(old.sites.surface,12,10).protection);assert.throws(()=>deserialize(JSON.stringify(old)),/Legacy breaker overload/);

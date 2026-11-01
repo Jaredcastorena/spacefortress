@@ -1,4 +1,5 @@
-import {withTemperaturePressureReadings} from './helpers/pressure-migration.js';
+import {withTemperaturePressureReadings,withThermalRoundoff} from './helpers/pressure-migration.js';
+import {projectPreGasHeat} from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -41,7 +42,8 @@ test('schema70 migration adds empty limits without changing physical custody or 
   expected.version = VERSION;
   for (const site of Object.values(expected.sites)) for (const t of site.tiles) if (t.storage) t.storage.limits = {};
   const migrated = deserialize(raw70);
-  assert.ok(serialize(migrated) === JSON.stringify(withTemperaturePressureReadings(expected)), 'Only version, empty depot limit maps and derived room readings change');
+  const projectedExpected = withTemperaturePressureReadings(expected);
+  assert.deepEqual(withThermalRoundoff(projectPreGasHeat(migrated),projectedExpected),projectedExpected, 'Only version, empty depot limit maps and derived thermal state change');
   const resumed = deserialize(serialize(migrated)); step(migrated); step(resumed);
   assert.ok(serialize(migrated) === serialize(resumed), 'Continuation stays deterministic');
   const forged = JSON.parse(raw70);

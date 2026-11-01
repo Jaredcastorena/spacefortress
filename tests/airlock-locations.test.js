@@ -1,4 +1,4 @@
-import {withTemperaturePressureReadings,withLegacyDensityReadings} from './helpers/pressure-migration.js';
+import {withTemperaturePressureReadings,withThermalRoundoff} from './helpers/pressure-migration.js';
 import { VERSION as CURRENT_SAVE_VERSION } from '../src/data.js';
 import { TELEMETRY_VERSION as CURRENT_OBSERVATION_VERSION } from '../src/telemetry.js';
 import test from 'node:test';
@@ -29,14 +29,24 @@ test('genuine schema50 in-progress migration preserves every unrelated state fie
   for(const key of Object.keys(a.config))assert.deepEqual(a.config[key],position(controller(old).airlock.config[key]));
   assert.deepEqual(a.chamberCells,controller(old).airlock.chamberCells.map(k=>`${k},0`));
   assert.ok(a.ownedNodes.every(n=>n.z===0));assert.deepEqual(a.party.destination,position(STAGING.outer));
-  assert.deepEqual(project(s),withTemperaturePressureReadings(old));
+  const expected=withTemperaturePressureReadings(old);
+  assert.deepEqual(withThermalRoundoff(project(s),expected),expected);
   const saved=serialize(s);assert.equal(serialize(deserialize(saved)),saved);
 });
 
-// Compare the unchanged physical state against historical hashes using their original density-only display readings.
-test('eight physical ticks retain exact pre-change gas, power, door, traveler and RNG results',()=>{
-  const f=refs(deserialize(original)),expected=["8b730f00214c12190f3a9e7734ed185a199d8b6cda88f9c236bd6086d60de617","6e8129accd75f53a9d58aec12ae700297dad52b5aa76dbd5f2ba360f275e38a0","c0080965f1c48a1133557ec4be67ea56d75ace940034b45a4955a994e85aca22","c52606f6c8bd8f8190d7ad0ff8a5326c40718dce32727ec2e22f4942d1c21929","16671b0234972e0cc9aa0d488eecb787a5d3eb7225ff7ff5a9ce08050da468a7","fe624a0cc81cff76e2568f1209e3a632e0f720f448022aff6015a49a13e957a1","3b4924aa95a60bb3477846d135cc356d350cd642167959e637913d23c2a95c90","78a0f88008bdeff5d7a9bc24a82ba94d1bb97ff9fabe47d5f4b830ccb6054032"];
-  for(const baseline of expected){physicalTick(f);assert.equal(hash(serialize(withLegacyDensityReadings(project(f.s)))),baseline,`tick ${f.s.tick}`);}
+// The immutable schema51 fixture captures the same recovery after its location
+// conversion. Run both archived inputs under today's finite gas-energy model;
+// historical tick hashes also included obsolete heat/pressure behavior.
+test('eight physical ticks match the archived location conversion under current gas heat',()=>{
+  const converted=gunzipSync(readFileSync(new URL('./fixtures/room-decks-schema51.json.gz',import.meta.url))).toString();
+  assert.equal(hash(converted),'ec6da3ae9b4233d5f11ab1ca05af04517f5e62f52a50095637f3e176cbb1fd38');
+  assert.equal(JSON.parse(converted).version,51);
+  const f=refs(deserialize(original)),control=refs(deserialize(converted));
+  assert.equal(serialize(f.s),serialize(control.s),'both archived inputs migrate to the same complete state');
+  for(let tick=0;tick<8;tick++){
+    physicalTick(f);physicalTick(control);
+    assert.equal(serialize(f.s),serialize(control.s),`all gas, power, doors, travelers, heat and RNG at tick ${f.s.tick}`);
+  }
 });
 
 test('current airlock locations reject ambiguous and unsupported coordinate shapes',()=>{

@@ -1,4 +1,5 @@
 import { distance } from '../src/geometry.js';
+import { roomHeatCapacity } from '../src/gas-thermal.js';
 import { currentOutpost as field } from './helpers/current-outpost.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -41,9 +42,10 @@ function clinic({ food = 4, medicine = 3, state = null } = {}) {
   add(at(site, 11, 9).machine.input, extract(surface.stock, { air: 10 }));
   updateRooms(site);
   for (const r of site.rooms) {
-    const next = r.volume * 20 * (20 + 273.15);
-    site.thermal.heating += next - r.heat; r.heat = next;
-    fillRoom(r, 120);
+    const next = roomHeatCapacity(r) * (20 + 273.15), delta = next - r.heat;
+    site.thermal[delta >= 0 ? 'heating' : 'cooling'] += Math.abs(delta); r.heat = next;
+    fillRoom(r, 120); const supplied = r.heat - next;
+    site.thermal[supplied >= 0 ? 'gasLoaded' : 'gasVented'] += Math.abs(supplied);
   }
   refreshAtmosphere(site); refreshPower(s, site); refreshPower(s, s.sites.surface);
   const stock = at(site, 8, 8).stock;

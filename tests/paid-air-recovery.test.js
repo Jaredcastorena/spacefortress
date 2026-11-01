@@ -49,6 +49,8 @@ function synthetic({ ready = false } = {}) {
   state.creatures = []; state.jobs = [];
   updateRooms(site); initializeThermal(state);
   fillRoom(roomAt(site, 10, 11), 120); fillRoom(roomAt(site, 10, 13));
+  // The supplied 120% room includes finite gas heat in its synthetic baseline.
+  initializeThermal(state);
   refreshAtmosphere(site); initializeAirlocks(state); initializePower(state, site, 120); refreshPower(state, site); syncResources(state);
   return deserialize(serialize(state));
 }
@@ -130,7 +132,7 @@ test('synthetic zero-batch and initially harmed inputs stop with no gameplay cha
 
 test('synthetic one-batch cap allows real delivery before stopping an insufficient checkpoint', async () => {
   const state = synthetic();
-  fillRoom(roomAt(state.sites.surface, 10, 13), 0); refreshAtmosphere(state.sites.surface);
+  fillRoom(roomAt(state.sites.surface, 10, 13), 0); initializeThermal(state); refreshAtmosphere(state.sites.surface);
   const output = recoverPaidAir(state, { limits: { batches: 1 }, record: true });
   await preserve('batch-limit', output);
   assert.equal(output.summary.failure?.code, 'batch_limit');
@@ -143,7 +145,7 @@ test('synthetic one-batch cap allows real delivery before stopping an insufficie
 
 test('synthetic first new harm stops after that full tick without cleanup', async () => {
   const state = synthetic();
-  fillRoom(roomAt(state.sites.surface, 10, 11), 0); refreshAtmosphere(state.sites.surface); state.crew[0].oxygen = 0;
+  fillRoom(roomAt(state.sites.surface, 10, 11), 0); initializeThermal(state); refreshAtmosphere(state.sites.surface); state.crew[0].oxygen = 0;
   const output = recoverPaidAir(state, { record: true });
   await preserve('crew-harmed', output);
   assert.equal(output.summary.failure?.code, 'crew_harmed');

@@ -2,7 +2,7 @@
 
 ## Current systems work
 
-v0.1.13 (2026-10-30) uses colony save78, region3 and observation/recording12. Completed entries below describe bounded implementations; open acceptance work remains visible.
+v0.1.13 (2026-10-31) uses colony save78, region3 and observation/recording12. Completed entries below describe bounded implementations; open acceptance work remains visible.
 
 - [x] v0.1.13: move browser colony saves to IndexedDB, with ordered transactional writes, preserved legacy saves and commit-aware save/import controls. This supports larger persistent worlds and the supplied sector travel below.
 - [x] v0.1.13: generate 48 × 48 home and 32 × 32 remote maps with connected terrain, native ecology, finite ore/ice/water and local exterior temperatures. Save76/region3 preserves existing worlds without regeneration.

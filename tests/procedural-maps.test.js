@@ -9,6 +9,8 @@ import {executeAction,actionCatalog,createAgentInterface} from '../src/controls.
 import {observe,TELEMETRY_VERSION,tileEntityId} from '../src/telemetry.js';
 import {temperatureAt} from '../src/thermal.js';
 import {WORLD_BIOMES} from '../src/world-generation.js';
+import {projectPreGasHeat} from './helpers/legacy-projection.js';
+import {withThermalRoundoff} from './helpers/pressure-migration.js';
 
 const raw=gunzipSync(readFileSync(new URL('./fixtures/procedural-maps-schema75.json.gz',import.meta.url))).toString();
 const sha=text=>createHash('sha256').update(text).digest('hex');
@@ -38,11 +40,11 @@ test('new colonies install48/32 physical maps, bounded native fauna and accounte
   assert.equal(sha(serialize(createGame(74255))),sha(freshText));exact(s);
 });
 
-test('genuine schema75 save changes only version and retains old dimensions, resources and RNG',()=>{
+test('genuine schema75 save retains old dimensions, resources and RNG while migrating gas energy',()=>{
   assert.equal(sha(raw),'f08fb39c5b12a7f138c097158dd4f18e60d31eb8d57bae440ac23fb27bc05341');
   const original=JSON.parse(raw);assert.equal(original.version,75);assert.equal(original.region.schema,2);
   const expected={...original,version:VERSION},s=deserialize(raw);
-  assert.equal(sha(serialize(s)),sha(JSON.stringify(expected)),'old physical state was regenerated or changed');
+  assert.deepEqual(withThermalRoundoff(projectPreGasHeat(s),expected),expected,'old physical state was regenerated or changed');
   assert.equal(s.sites.surface.size,26);assert.ok(Object.values(s.sites).filter(t=>t.id!=='surface').every(t=>t.size===18));
   assert.equal(s.rng,original.rng);assert.equal(s.nextId,original.nextId);
   assert.ok(Object.values(s.sites).every(site=>!Object.hasOwn(site.liquids,'initial')&&site.tiles.every(t=>!Object.hasOwn(t,'biome'))));

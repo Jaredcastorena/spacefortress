@@ -5,6 +5,7 @@ import {currentOutpost} from './helpers/current-outpost.js';
 import {tileAt,positionOf,horizontalNeighbors} from '../src/spatial.js';
 import {updateRooms,roomAt,fillRoom,refreshAtmosphere} from '../src/atmosphere.js';
 import {refreshPower} from '../src/power.js';
+import {roomHeatCapacity} from '../src/gas-thermal.js';
 import {ignite} from '../src/fire.js';
 import {executeAction} from '../src/controls.js';
 import {startRecording,exportRecording,observe,tileEntityId} from '../src/telemetry.js';
@@ -24,8 +25,10 @@ function idle(s){
 function cabin(s,site,p){
  const center=tileAt(site,p);center.terrain='floor';center.building='commons';
  for(const q of horizontalNeighbors(p)){const t=tileAt(site,q);t.terrain='floor';t.building='wall';t.hp=100;}
- updateRooms(site);const room=roomAt(site,p.x,p.y,p.z);assert.equal(room.sealed,true);fillRoom(room,100);
- const heat=room.volume*20*(20+273.15);site.thermal.heating+=heat-room.heat;room.heat=heat;
+ updateRooms(site);const room=roomAt(site,p.x,p.y,p.z);assert.equal(room.sealed,true);
+ const before=room.heat;fillRoom(room,100);site.thermal.gasLoaded+=room.heat-before;
+ const heat=roomHeatCapacity(room)*(20+273.15),delta=heat-room.heat;
+ site.thermal[delta>=0?'heating':'cooling']+=Math.abs(delta);room.heat=heat;
  refreshAtmosphere(site);refreshPower(s,site);return center;
 }
 function fireFixture(fireZ){

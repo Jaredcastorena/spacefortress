@@ -10,6 +10,10 @@ import { carriedBy } from '../src/nursing.js';
 import { setDepotAccepted } from '../src/storage.js';
 import { HYGIENE_RETRY } from '../src/hygiene.js';
 
+function fillFixtureRoom(site,room,pressure=100) {
+  const before=room.heat;fillRoom(room,pressure);const delta=room.heat-before;
+  site.thermal[delta>=0?'gasLoaded':'gasVented']+=Math.abs(delta);
+}
 const check = s => { syncResources(s); return deserialize(serialize(s)); };
 const until = (s, condition, limit = 180) => { for (let i=0;i<limit&&!condition();i++) { step(s); check(s); } assert.ok(condition(), `Condition missing at tick ${s.tick}`); };
 const hygiene = (s,p) => s.jobs.find(j=>j.kind==='hygiene'&&j.patient===p.id);
@@ -59,8 +63,8 @@ test('helper exhaustion hands unfinished care to another medic without moving pa
 
 test('unsafe treatment conditions pause care and retain progress until the room recovers',()=>{
   const {s,site,p,helper}=clinic();setLabor(s,helper.id,'medicine',true);until(s,()=>hygiene(s,p)?.remaining<7);const j=hygiene(s,p),remaining=j.remaining;
-  fillRoom(site.rooms[0],0);refreshAtmosphere(site);step(s,3);assert.equal(j.remaining,remaining);assert.equal(p.sanitation.waste,.5);assert.match(j.blockedReason,/safe hygiene/);
-  fillRoom(site.rooms[0]);refreshAtmosphere(site);until(s,()=>p.sanitation.waste===0);assert.deepEqual(helper.carry,{waste:.5});
+  fillFixtureRoom(site,site.rooms[0],0);refreshAtmosphere(site);step(s,3);assert.equal(j.remaining,remaining);assert.equal(p.sanitation.waste,.5);assert.match(j.blockedReason,/safe hygiene/);
+  fillFixtureRoom(site,site.rooms[0]);refreshAtmosphere(site);until(s,()=>p.sanitation.waste===0);assert.deepEqual(helper.carry,{waste:.5});
 });
 
 test('overflow or patient death cancels obsolete care without a duplicate waste pickup',()=>{

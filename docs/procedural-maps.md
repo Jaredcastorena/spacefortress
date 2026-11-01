@@ -1,6 +1,6 @@
 # Procedural maps and satellite survey
 
-These features are included in v0.1.13 (2026-10-30). Package 0.1.13, colony save schema 78, region schema 3 and observation/recording schema 12 describe separate formats. The independent elements laboratory is unchanged.
+These features are included in v0.1.13 (2026-10-31). Package 0.1.13, colony save schema 78, region schema 3 and observation/recording schema 12 describe separate formats. The independent elements laboratory is unchanged.
 
 ## Larger physical maps
 

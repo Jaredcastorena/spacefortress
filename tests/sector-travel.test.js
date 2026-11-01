@@ -14,6 +14,8 @@ import {initializeStorage,add,syncResources,totalResources} from '../src/invento
 import {routeFuel} from '../src/expedition.js';
 import {MAX_SAVE_BYTES,VERSION} from '../src/data.js';
 import {startRecording,stopRecording,exportRecording} from '../src/telemetry.js';
+import {projectPreGasHeat} from './helpers/legacy-projection.js';
+import {withThermalRoundoff} from './helpers/pressure-migration.js';
 
 function fixture(unlocked=true){
   const s=createGame(74257),planetId=siteDefinition(s,'surface').planetId,world=sectorWorld(s,planetId);
@@ -31,7 +33,8 @@ test('genuine schema76 maps and physical state migrate unchanged; old versions r
   const raw=gunzipSync(readFileSync(new URL('./fixtures/sector-travel-schema76.json.gz',import.meta.url))).toString();
   assert.equal(createHash('sha256').update(raw).digest('hex'),'906a7a43b49349346c5dbb5a55cbe89176304b3acd9fff47cc5356d47d18f7b3');
   const before=JSON.parse(raw),expected=structuredClone(before);expected.version=VERSION;
-  assert.ok(serialize(deserialize(raw))===serialize(expected));
+  const migrated=JSON.parse(serialize(deserialize(raw)));
+  assert.deepEqual(withThermalRoundoff(projectPreGasHeat(migrated),expected),expected);
   before.sectorSites={};assert.throws(()=>deserialize(JSON.stringify(before)),/Legacy sector/);delete before.sectorSites;
   before.creatures[0].site='wreck';assert.throws(()=>deserialize(JSON.stringify(before)),/Legacy sector/);
 });

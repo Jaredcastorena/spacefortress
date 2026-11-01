@@ -8,7 +8,7 @@ import {
 } from '../src/power.js';
 import { REACTOR, validateReactors } from '../src/reactors.js';
 import { roomAt } from '../src/atmosphere.js';
-import { HEAT_CAPACITY } from '../src/thermal.js';
+import { roomHeatCapacity } from '../src/gas-thermal.js';
 import { startRecording, exportRecording, observe } from '../src/telemetry.js';
 
 const close=(actual,expected,label='amount')=>assert.ok(Math.abs(actual-expected)<1e-7,`${label}: ${actual} != ${expected}`);
@@ -49,7 +49,7 @@ function balance(s,site) {
 const events=s=>exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>r.kind==='event').map(r=>r.event);
 function heat(site) {return site.rooms.reduce((n,r)=>n+r.heat,0);}
 function overheatHabitat(site,t) {
-  const room=roomAt(site,t.x,t.y),next=(REACTOR.tripTemperature+273.15)*room.volume*HEAT_CAPACITY;
+  const room=roomAt(site,t.x,t.y),next=(REACTOR.tripTemperature+273.15)*roomHeatCapacity(room);
   site.thermal.added+=next-room.heat;room.heat=next;
 }
 function branch({source='reactor',bank=0,load=null}={}) {

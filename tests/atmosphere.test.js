@@ -159,7 +159,7 @@ test('preflight refills spend stored mix and landing preserves remaining suit ga
 
 test('water-to-breathing-mix production supplies life support through physical deliveries', () => {
   const s = createGame(), site = s.sites.surface, depot = at(site, 8, 10), r = site.rooms[0];
-  depot.stock.air = 0; depot.stock.water = 100; syncResources(s); fillRoom(r, 50); refreshAtmosphere(site);
+  depot.stock.air = 0; depot.stock.water = 100; syncResources(s); const initialHeat = r.heat; fillRoom(r, 50); site.thermal.gasVented += initialHeat - r.heat; refreshAtmosphere(site);
   const processor = at(site, 12, 9); processor.building = 'atmosphere'; initializeStorage(processor);
   at(site, 11, 14).building = 'advanced';
   until(s, () => gasAmount(site.atmosphere.injected) >= 30, 240);

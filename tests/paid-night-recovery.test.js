@@ -13,6 +13,7 @@ import { initializeProduction } from '../src/production.js';
 import { initializeAirlocks } from '../src/airlock-persistence.js';
 import { updateRooms, roomAt, fillRoom, refreshAtmosphere } from '../src/atmosphere.js';
 import { initializeThermal } from '../src/thermal.js';
+import { roomHeatCapacity } from '../src/gas-thermal.js';
 import { newPipe } from '../src/gas-networks.js';
 import { executeAction } from '../src/controls.js';
 import { PLACEMENTS } from '../tools/paid-airlock-example.mjs';
@@ -65,7 +66,9 @@ function synthetic({ lowOxygen = false, bank = 14, tick = 1430, cold = false, cr
   updateRooms(site); initializeThermal(state); fillRoom(roomAt(site, 10, 11));
   const chamber = roomAt(site, 10, 13); chamber.gas = { oxygen: 0, inert: 0, co2: 0 };
   if (lowOxygen) roomAt(site, 10, 11).gas = { oxygen: 52.8, inert: 277.0263378661494, co2: .051891004317951676 };
-  if (cold) { roomAt(site, 10, 11).heat = roomAt(site, 10, 11).volume * 20 * (273.15 + 9.968); chamber.heat = chamber.volume * 20 * (273.15 + 4); site.thermal.initial = site.rooms.reduce((n, r) => n + r.heat, 0); }
+  // Prepared gas and structures share the initial temperature and energy ledger.
+  initializeThermal(state);
+  if (cold) { roomAt(site, 10, 11).heat = roomHeatCapacity(roomAt(site, 10, 11)) * (273.15 + 9.968); chamber.heat = roomHeatCapacity(chamber) * (273.15 + 4); site.thermal.initial = site.rooms.reduce((n, r) => n + r.heat, 0); }
   refreshAtmosphere(site); initializePower(state, site, bank); refreshPower(state, site); syncResources(state);
   assert.equal(executeAction(state, 'airlock.configure', config, 'agent').ok, true);
   for (const current of Object.values(state.sites)) current.atmosphere.tick = state.tick;

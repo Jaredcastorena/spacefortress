@@ -11,7 +11,7 @@ import {projectPreDesignationLocations} from './helpers/legacy-projection.js';
 import {tileAt} from '../src/spatial.js';
 import {roomTiles} from '../src/room-locations.js';
 import {updateRooms,roomAt,fillRoom} from '../src/atmosphere.js';
-import {HEAT_CAPACITY} from '../src/thermal.js';
+import {roomHeatCapacity} from '../src/gas-thermal.js';
 import {roomDesignation,setRoomDesignation,roomStatus,livingAllowed,roomAcceptsResource} from '../src/rooms.js';
 import {roomComfort} from '../src/comfort.js';
 import {exposedWaste} from '../src/sanitation.js';
@@ -26,7 +26,11 @@ function stacked(){
   const s=createGame(74219),site=s.sites.surface;
   site.levels.push({z:7,name:'Upper test deck'});site.tiles.push(...site.tiles.map(t=>({...structuredClone(t),z:7})));
   updateRooms(site);const lower=roomAt(site,8,8,0),upper=roomAt(site,8,8,7);
-  for(const r of [lower,upper]){fillRoom(r);r.heat=(20+273.15)*r.volume*HEAT_CAPACITY;for(const t of roomTiles(site,r)){t.building=null;t.hp=100;t.drop=null;delete t.stock;delete t.imports;}}
+  for(const r of [lower,upper]){
+    const before=r.heat;fillRoom(r);const gasDelta=r.heat-before;site.thermal[gasDelta>=0?'gasLoaded':'gasVented']+=Math.abs(gasDelta);
+    const heat=(20+273.15)*roomHeatCapacity(r),delta=heat-r.heat;site.thermal[delta>=0?'heating':'cooling']+=Math.abs(delta);r.heat=heat;
+    for(const t of roomTiles(site,r)){t.building=null;t.hp=100;t.drop=null;delete t.stock;delete t.imports;}
+  }
   s.crew.forEach(c=>{c.site='transit';c.housing.bunk=null;});
   return {s,site,lower,upper};
 }
@@ -65,7 +69,7 @@ test('room readiness, residents, furnishings, comfort and waste use the physical
   assert.equal(exposedWaste(s,site,lower),4);assert.equal(exposedWaste(s,site,upper),5);
   s.jobs=[];assert.equal(roomComfort(s,site,lower).dirty,false);assert.equal(roomComfort(s,site,upper).dirty,true);
   assert.equal(roomStatus(s,site,lower).ready,true);assert.match(roomStatus(s,site,upper).issues.join(),/exposed waste/);
-  upper.heat=(80+273.15)*upper.volume*HEAT_CAPACITY;assert.doesNotMatch(thermalDetails(site,at(site,8,8)),/unsafe/);assert.match(thermalDetails(site,at(site,8,8,7)),/unsafe/);
+  const heat=(80+273.15)*roomHeatCapacity(upper);site.thermal.heating+=heat-upper.heat;upper.heat=heat;assert.doesNotMatch(thermalDetails(site,at(site,8,8)),/unsafe/);assert.match(thermalDetails(site,at(site,8,8,7)),/unsafe/);
 });
 
 test('outpost diagnostics keep overlapping room identities, purposes and furniture separate',()=>{

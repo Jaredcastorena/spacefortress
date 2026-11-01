@@ -1,4 +1,5 @@
-import {withTemperaturePressureReadings} from './helpers/pressure-migration.js';
+import {withTemperaturePressureReadings,withThermalRoundoff} from './helpers/pressure-migration.js';
+import {projectPreGasHeat} from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -37,7 +38,8 @@ test('genuine schema71 migrates lazily with existing reservations unchanged', ()
   assert.ok(expected.jobs.some(job => job.sources.length));
   expected.version = VERSION;
   const migrated = deserialize(raw71);
-  assert.equal(serialize(migrated), JSON.stringify(withTemperaturePressureReadings(expected)));
+  const readings = withTemperaturePressureReadings(expected);
+  assert.deepEqual(withThermalRoundoff(projectPreGasHeat(migrated), readings), readings);
   assert.equal(Object.hasOwn(migrated, 'population'), false);
   const resumed = deserialize(serialize(migrated)); step(migrated); step(resumed);
   assert.equal(serialize(resumed), serialize(migrated));

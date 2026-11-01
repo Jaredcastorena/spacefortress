@@ -2,7 +2,7 @@
 
 SPACEFORTRESS is an early playable colony simulator. Release entries describe completed changes within their stated scope.
 
-## v0.1.13 — 2026-10-30
+## v0.1.13 — 2026-10-31
 
 This release combines the updates since v0.1.12. The colony format is schema78, new worlds use region3, and observations/recordings use schema12. The independent elements laboratory remains schema3.
 

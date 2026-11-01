@@ -7,7 +7,8 @@ import { createGame, at, step, order, serialize, deserialize, pathTo, setLabor }
 import { initializeStorage, totalResources, syncResources } from '../src/inventory.js';
 import { initializeElectrical, refreshPower, updatePower } from '../src/power.js';
 import { haul } from '../src/industry.js';
-import { temperature, HEAT_CAPACITY } from '../src/thermal.js';
+import { temperature } from '../src/thermal.js';
+import { roomHeatCapacity, roomKelvin } from '../src/gas-thermal.js';
 import { reactorTemperature, setReactor, resetReactor, setRadiator, updateReactorCooling, radiatorBlock, radiatorTargets, releaseReactorHeat, validateReactors } from '../src/reactors.js';
 import { startRecording, exportRecording, observe } from '../src/telemetry.js';
 import { executeAction, actionCatalog } from '../src/controls.js';
@@ -23,7 +24,7 @@ function fixture(){
  refreshPower(s,site);return {s,site,r,rad};
 }
 function fuel(s,r,n=2){const d=at(s.sites.surface,8,10);d.stock.fuel-=n;r.machine.input.fuel=n;syncResources(s);refreshPower(s,s.sites.surface);}
-function hotRoom(site,room,temp){const heat=(temp+273.15)*room.volume*HEAT_CAPACITY,delta=heat-room.heat;site.thermal[delta>=0?'added':'removed']+=Math.abs(delta);room.heat=heat;}
+function hotRoom(site,room,temp){const heat=(temp+273.15)*roomHeatCapacity(room),delta=heat-room.heat;site.thermal[delta>=0?'added':'removed']+=Math.abs(delta);room.heat=heat;}
 function until(s,condition,max=200){for(let i=0;i<max&&!condition();i++)step(s);assert.ok(condition(),'Condition not reached');}
 
 test('new reactors need delivered construction supplies and start without fuel or stored heat',()=>{
@@ -126,7 +127,10 @@ test('normal colony ticks refill reactor fuel in useful batches, with no tiny id
 
 test('radiator near-vacuum threshold uses colony pressure percentages correctly',()=>{
  const {site}=fixture();const rad=install({sites:{surface:site}},'radiator',11,11);
- const withPressure=pressure=>({...site,rooms:site.rooms.map(r=>({...r,gas:{oxygen:0,inert:gasAtRoomPressure(r,pressure),co2:0}}))});
+ const withPressure=pressure=>({...site,rooms:site.rooms.map(r=>{
+  const room={...r,gas:{oxygen:0,inert:gasAtRoomPressure(r,pressure),co2:0}};
+  room.heat=roomHeatCapacity(room)*roomKelvin(r);return room;
+ })});
  assert.equal(radiatorBlock(withPressure(5),rad),null);assert.match(radiatorBlock(withPressure(5.01),rad),/near-vacuum/);
 });
 

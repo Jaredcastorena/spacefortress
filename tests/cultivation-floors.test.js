@@ -1,4 +1,4 @@
-import {withTemperaturePressureReadings,withLegacyDensityReadings} from './helpers/pressure-migration.js';
+import {withTemperaturePressureReadings,withLegacyDensityReadings,withThermalRoundoff} from './helpers/pressure-migration.js';
 import {projectPreRegion} from './helpers/legacy-projection.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -32,7 +32,7 @@ function planted(){const f=built(),j=job(f.s,'plant');until(f.s,()=>!f.s.jobs.in
 // The inherited enclosure/air setup is synthetic; no ordinary endurance claim.
 test('genuine schema61 migration preserves in-flight gathering and every physical field',()=>{
  assert.equal(createHash('sha256').update(raw).digest('hex'),'992c66b058bea180e62a05d251ddab6427990dc8464eeff2d9d75bae59b0179f');
- const before=JSON.parse(raw),s=deserialize(raw);assert.equal(before.version,61);before.version=VERSION;before.resources.tools=0;assert.deepEqual(projectPreRegion(s),withTemperaturePressureReadings(before));valid(s);
+ const before=JSON.parse(raw),s=deserialize(raw);assert.equal(before.version,61);before.version=VERSION;before.resources.tools=0;const expected=withTemperaturePressureReadings(before);assert.deepEqual(withThermalRoundoff(projectPreRegion(s),expected),expected);valid(s);
 });
 
 test('paid upstairs planter, propagation and water use actual stair delivery and floor events',()=>{
