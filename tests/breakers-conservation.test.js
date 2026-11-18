@@ -1,3 +1,4 @@
+import {loadWater} from '../src/water-thermal.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, at, serialize } from '../src/simulation.js';
@@ -37,7 +38,7 @@ function breaker(site,x,y,mode='wet_fault',direction='ne') {
 }
 function wire(site,x,y,wet=false) {
   const t=at(site,x,y);t.cable={enabled:true,hp:100};
-  if(wet) {t.liquid=1;site.liquids.released+=1;}
+  if(wet) {loadWater(site,t,1,{floor:true});site.liquids.released+=1;}
   return t;
 }
 function balance(s,site) {

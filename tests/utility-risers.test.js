@@ -1,3 +1,4 @@
+import {loadWater,parcelHeat} from '../src/water-thermal.js';
 import {withTemperaturePressureReadings} from './helpers/pressure-migration.js';
 import {projectPreRegion} from './helpers/legacy-projection.js';
 import test from 'node:test';
@@ -70,9 +71,9 @@ test('gas riser conserves each species and smoke while obeying isolation and end
 });
 
 test('water riser has a finite edge cap in both directions and never becomes floor water',()=>{
- const f=fixture(),link=build(f,'waterRiser');f.lower.waterPipe.water=2;startRecording(f.s);flowPlumbing(f.s);
+ const f=fixture(),link=build(f,'waterRiser');loadWater(f.site,f.lower.waterPipe,2);startRecording(f.s);flowPlumbing(f.s);
  close(f.upper.waterPipe.water,.5);close(f.lower.waterPipe.water+f.upper.waterPipe.water,2);assert.equal(f.lower.liquid+f.upper.liquid,0);
- Object.assign(f.lower.waterPipe,{water:0});Object.assign(f.upper.waterPipe,{water:2});flowPlumbing(f.s);close(f.lower.waterPipe.water,.5);close(f.upper.waterPipe.water,1.5);
+ Object.assign(f.lower.waterPipe,{water:0,heat:0});Object.assign(f.upper.waterPipe,{water:2,heat:parcelHeat(2)});flowPlumbing(f.s);close(f.lower.waterPipe.water,.5);close(f.upper.waterPipe.water,1.5);
  assert.ok(records(f.s).some(e=>e.id==='plumbing.transferred'&&e.connection===link.id));command(f,link,false);const before=[f.lower.waterPipe.water,f.upper.waterPipe.water];flowPlumbing(f.s);assert.deepEqual([f.lower.waterPipe.water,f.upper.waterPipe.water],before);
  command(f,link,true);executeAction(f.s,'plumbing.valve',{site:'surface',...f.stair.lower,open:false});flowPlumbing(f.s);assert.deepEqual([f.lower.waterPipe.water,f.upper.waterPipe.water],before);
 });
@@ -85,9 +86,11 @@ test('shared riser damage and paid repair preserve isolation and upper work cust
 });
 
 test('dismantling refunds installed metal while retaining pipes and all their contents',()=>{
- const f=fixture(),link=build(f,'waterRiser'),stock=f.site.tiles.find(t=>t.stock?.water>=2);stock.stock.water-=2;f.site.plumbing.loaded+=2;f.lower.waterPipe.water=1;f.upper.waterPipe.water=1;syncResources(f.s);command(f,link,false);
- const before=totalResources(f.s).alloy,nodes=JSON.stringify([f.lower.waterPipe,f.upper.waterPipe]),j=order(f,'waterRiser','remove',f.stair.upper);
- until(f,()=>!f.s.jobs.includes(j));assert.equal(f.site.utilityLinks.length,0);assert.equal(f.lower.risers,undefined);assert.equal(f.upper.risers,undefined);assert.equal(JSON.stringify([f.lower.waterPipe,f.upper.waterPipe]),nodes);assert.equal(totalResources(f.s).alloy,before+1);assert.equal(serialize(reload(f.s)),serialize(f.s));
+ const f=fixture(),link=build(f,'waterRiser'),stock=f.site.tiles.find(t=>t.stock?.water>=2);stock.stock.water-=2;f.site.plumbing.loaded+=2;loadWater(f.site,f.lower.waterPipe,1);loadWater(f.site,f.upper.waterPipe,1);syncResources(f.s);command(f,link,false);
+ // The paid job leaves contents and controls intact while ambient heat exchange continues.
+ const contents=()=>[f.lower.waterPipe,f.upper.waterPipe].map(({heat,...node})=>node);
+ const before=totalResources(f.s).alloy,nodes=contents(),j=order(f,'waterRiser','remove',f.stair.upper);
+ until(f,()=>!f.s.jobs.includes(j));assert.equal(f.site.utilityLinks.length,0);assert.equal(f.lower.risers,undefined);assert.equal(f.upper.risers,undefined);assert.deepEqual(contents(),nodes);assert.equal(totalResources(f.s).alloy,before+1);assert.equal(serialize(reload(f.s)),serialize(f.s));
 });
 
 test('cancelled riser construction preserves paid ports and supplies before and during hauling',()=>{

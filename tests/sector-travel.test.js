@@ -16,6 +16,7 @@ import {MAX_SAVE_BYTES,VERSION} from '../src/data.js';
 import {startRecording,stopRecording,exportRecording} from '../src/telemetry.js';
 import {projectPreGasHeat} from './helpers/legacy-projection.js';
 import {withThermalRoundoff} from './helpers/pressure-migration.js';
+import {beginJourneyRecording,journeyStep} from './helpers/journey-recording-windows.js';
 
 function fixture(unlocked=true){
   const s=createGame(74257),planetId=siteDefinition(s,'surface').planetId,world=sectorWorld(s,planetId);
@@ -108,7 +109,8 @@ test('remote traps consume only reachable local bait and emit local capture iden
   const site=s.sites[id],p=siteDefinition(s,id).landing,trap=tileAt(site,p),stock=site.tiles.find(t=>t!==trap&&t.terrain==='ground'&&!t.building&&!t.flora&&!t.deposit&&!t.basin&&Math.abs(t.x-p.x)+Math.abs(t.y-p.y)<=3);
   assert.ok(stock);trap.building='trap';stock.building='stockpile';initializeStorage(stock);add(stock.stock,{food:1});syncResources(s);
   const food=s.resources.food,pest={id:`tibble-${s.nextId++}`,species:'tibble',site:id,...p,health:100,fed:0,age:0};s.creatures.push(pest);
-  startRecording(s);step(s,10);stopRecording(s);
+  const recording=beginJourneyRecording(s,{maxTicks:1,tickLimit:10,event:e=>e.id==='pest.captured'});
+  journeyStep(s,10);const recorded=recording.finish();
   assert.equal(s.creatures.some(a=>a.id===pest.id),false);assert.equal(stock.stock.food,.75);assert.equal(s.resources.food,food);
-  assert.ok(eventRows(s).some(e=>e.id==='pest.captured'&&e.target===`tile:${id}:${p.x}:${p.y}`));exact(s);
+  assert.ok(recorded.some(r=>r.event?.id==='pest.captured'&&r.event.target===`tile:${id}:${p.x}:${p.y}`));exact(s);
 });

@@ -1,3 +1,4 @@
+import { damage } from './maintenance.js';
 import {activeUtilityLinks} from './utility-links.js';
 import { tileAt, positionOf } from './spatial.js';
 import { DIRECTIONS, neighbors, forwardNeighbors, step, opposite } from './geometry.js';
@@ -8,24 +9,34 @@ import { inputBatchesWanted } from './production.js';
 import { LIQUID, liquidOpen } from './liquids.js';
 import { refreshPower } from './power.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
+import { takeWater, putWater, loadWater, unloadWater, unloadCondensedWater, liquidWater, waterPhase } from './water-thermal.js';
+import { recordWaterPhase } from './water-phase-events.js';
 
-export const PLUMBING = { pipeCapacity:2, reservoirCapacity:32, flow:.5, pump:.5, leak:.5 };
+export const PLUMBING = { pipeCapacity:2, iceExpansion:.09, reservoirCapacity:32, flow:.5, pump:.5, leak:.5 };
 export const WATER_DIRECTIONS = Object.freeze(Object.fromEntries(DIRECTIONS.map(direction => [direction, true])));
 const DEVICES = ['waterPump','waterIntake','waterOutlet'];
 const EQUIPMENT = ['waterReservoir',...DEVICES];
 const EPS = 1e-9;
+const CAPACITY_TOLERANCE = 1e-8;
 const at = (site,x,y,z=0) => tileAt(site,{x,y,z});
 const id = (site,t) => tileEntityId(site.id,t.x,t.y,positionOf(t).z);
 const owner = (site,t,slot) => ({entity:id(site,t),slot});
 const nodeSlot = t => t.waterPipe ? 'waterPipe' : 'waterStore';
 const condition = t => t.waterPipe ? t.waterPipe.hp : t.hp;
 const port = t => waterNode(t)?.open === true && (!!t.waterPipe || t.hp>0);
-const blank = () => ({water:0,open:true});
+const blank = () => ({water:0,heat:0,open:true});
 const ordered = (s,tiles) => s.tick%2 ? tiles : [...tiles].reverse();
 
 export const waterEquipment = t => !!t && EQUIPMENT.includes(t.building);
 export const waterNode = t => t?.waterPipe || t?.waterStore || null;
 export const waterCapacity = t => t?.waterPipe ? PLUMBING.pipeCapacity : t?.waterStore ? PLUMBING.reservoirCapacity : 0;
+// Rigid pipe volume is measured in liquid-water units. Reservoirs keep
+// their rated mass capacity and have space above the contents for expansion.
+function occupiedVolume(tile, phase) {
+  const node = waterNode(tile);
+  if (!tile?.waterPipe || !node.water) return node?.water ?? 0;
+  return node.water + PLUMBING.iceExpansion * (phase ?? waterPhase(node)).ice;
+}
 export const newWaterPipe = () => ({...blank(),hp:100});
 export function initializePlumbingTile(t) {
   if(t.building==='waterReservoir') t.waterStore ??= blank();
@@ -47,7 +58,7 @@ const BLOCKED = {
   disabled:'Device disabled',damaged:'Needs repair',fire:'Fire at device or endpoint',no_power:'No power',
   missing_source:'Missing source',missing_target:'Missing destination',wrong_source:'Source cannot supply water',wrong_target:'Destination cannot receive water',
   source_damaged:'Source equipment broken',target_damaged:'Destination equipment broken',valve_closed:'Port valve closed',
-  source_empty:'Source empty',source_reserved:'Source water reserved for hauling',target_full:'Destination full',target_reserved:'Destination space reserved for delivery',
+  source_empty:'Source empty',source_frozen:'Source frozen; thaw water before use',source_reserved:'Source water reserved for hauling',target_full:'Destination full',target_reserved:'Destination space reserved for delivery',
   target_paused:'Destination refilling paused',target_order_complete:'Destination order needs no more water',floor_blocked:'Floor blocked by a wall or closed door'
 };
 function intakeInventory(t) {
@@ -68,10 +79,13 @@ function devicePlan(s,site,t) {
   const reservedOutput=sourceInventory?.reservedKind?outgoingInventory(s,site.id,input,sourceInventory.reservedKind,'water'):0;
   const reservedInput=targetInventory?incomingInventory(s,site.id,{kind:'input',target:output},'water'):0;
   const sourceWater=sourceNode?(waterNode(input)?.water||0):floor?(input?.liquid||0):(sourceInventory?.inventory.water||0);
+  const sourcePhase=sourceNode&&waterNode(input)?waterPhase(waterNode(input)):!sourceNode&&floor&&input?waterPhase(input,{floor:true}):null;
+  const sourceLiquid=sourcePhase?.liquid??sourceWater,sourceIce=sourcePhase?.ice??0;
   const targetWater=targetNode?(waterNode(output)?.water||0):floor?(output?.liquid||0):(targetInventory?.water||0);
   const targetCapacity=targetNode?waterCapacity(output):floor?LIQUID.capacity:targetInventory?targetRecipe.input.water*2:0;
   const desiredCapacity=targetInventory?Math.min(targetCapacity,targetRecipe.input.water*inputBatchesWanted(s,site,output)):targetCapacity;
-  const sourceAvailable=Math.max(0,sourceWater-reservedOutput),targetFree=Math.max(0,desiredCapacity-targetWater-reservedInput);
+  const sourceAvailable=Math.max(0,sourceLiquid-reservedOutput),targetOccupied=targetNode?occupiedVolume(output):targetWater;
+  const targetFree=Math.max(0,desiredCapacity-targetOccupied-reservedInput);
   // Topology and endpoint controls precede power/quantity reasons, so a route
   // can be inspected while off. Quantity reasons never reserve or move water.
   const blockedCode=t.fire?'fire':!t.waterDevice.enabled?'disabled':t.hp<=0?'damaged':
@@ -84,17 +98,17 @@ function devicePlan(s,site,t) {
     sourceNode&&!port(input)||targetNode&&!port(output)?'valve_closed':
     !sourceNode&&floor&&!liquidOpen(site,input,s.tick)||!targetNode&&floor&&!liquidOpen(site,output,s.tick)?'floor_blocked':
     targetInventory&&!output.machine.enabled?'target_paused':targetInventory&&desiredCapacity<=EPS?'target_order_complete':
-    !t.powered?'no_power':sourceWater<=EPS?'source_empty':sourceAvailable<=EPS?'source_reserved':
-    targetWater>=desiredCapacity-EPS?'target_full':targetFree<=EPS?'target_reserved':null;
-  return {input,output,inputSlot,outputSlot,sourceInventory,targetInventory,reservedInput,reservedOutput,sourceWater,targetWater,targetCapacity,desiredCapacity,sourceAvailable,targetFree,blockedCode};
+    !t.powered?'no_power':sourceWater<=EPS?'source_empty':sourceLiquid<=EPS?'source_frozen':sourceAvailable<=EPS?'source_reserved':
+    targetOccupied>=desiredCapacity-EPS?'target_full':targetFree<=EPS?'target_reserved':null;
+  return {input,output,inputSlot,outputSlot,sourceInventory,targetInventory,reservedInput,reservedOutput,sourceWater,sourceLiquid,sourceIce,targetWater,targetCapacity,desiredCapacity,sourceAvailable,targetFree,blockedCode};
 }
 export function plumbingStatus(s,site,t) {
   const node=waterNode(t);
   if(node) {
-    const capacity=waterCapacity(t),blockedCode=!t.waterPipe&&t.hp<=0?'damaged':!node.open?'valve_closed':null;
-    return {water:node.water,capacity,fill:node.water/capacity*100,input:null,output:null,inputSlot:null,outputSlot:null,reservedInput:0,reservedOutput:0,
-      sourceWater:node.water,targetWater:node.water,targetCapacity:capacity,desiredCapacity:capacity,sourceAvailable:node.water,targetFree:Math.max(0,capacity-node.water),blockedCode,blocked:blockedCode?BLOCKED[blockedCode]:null,
-      status:condition(t)<50?'Leaking — repair needed':blockedCode?BLOCKED[blockedCode]:node.water<=EPS?'Empty':node.water>=capacity-EPS?'Full':'Connected'};
+    const capacity=waterCapacity(t),phase=waterPhase(node),occupied=occupiedVolume(t,phase),blockedCode=!t.waterPipe&&t.hp<=0?'damaged':!node.open?'valve_closed':node.water>EPS&&phase.liquid<=EPS?'source_frozen':null;
+    return {water:node.water,liquid:phase.liquid,ice:phase.ice,phase:phase.phase,heat:node.heat,temperature:phase.kelvin===null?null:phase.kelvin-273.15,capacity,fill:occupied/capacity*100,input:null,output:null,inputSlot:null,outputSlot:null,reservedInput:0,reservedOutput:0,
+      sourceWater:node.water,sourceLiquid:phase.liquid,sourceIce:phase.ice,targetWater:node.water,targetCapacity:capacity,desiredCapacity:capacity,sourceAvailable:phase.liquid,targetFree:Math.max(0,capacity-occupied),blockedCode,blocked:blockedCode?BLOCKED[blockedCode]:null,
+      status:condition(t)<50&&phase.liquid>EPS?'Leaking — repair needed':blockedCode?BLOCKED[blockedCode]:node.water<=EPS?'Empty':occupied>=capacity-EPS?'Full':'Connected'};
   }
   if(!DEVICES.includes(t.building)||!t.waterDevice)return null;
   const plan=devicePlan(s,site,t),{input,output,sourceInventory,targetInventory,...state}=plan;
@@ -104,21 +118,23 @@ export function plumbingStatus(s,site,t) {
 
 function moveNodes(s,site,a,b,amount,reason,device=null,connection=null) {
   const source=waterNode(a),destination=waterNode(b);
-  const n=Math.min(amount,source.water,Math.max(0,waterCapacity(b)-destination.water));
+  const n=Math.min(amount,liquidWater(source),Math.max(0,waterCapacity(b)-occupiedVolume(b)));
   if(n<=EPS)return 0;
-  source.water-=n;destination.water+=n;
-  emitEvent(s,'plumbing.transferred',{from:owner(site,a,nodeSlot(a)),to:owner(site,b,nodeSlot(b)),amount:n,reason,...(connection?{connection}:{}),...(device?{device:id(site,device)}:{})});
+  const beforeIce=waterPhase(destination).ice,heat=takeWater(source,n);putWater(destination,n,heat);
+  recordWaterPhase(s,site,b,nodeSlot(b),beforeIce,reason);
+  emitEvent(s,'plumbing.transferred',{from:owner(site,a,nodeSlot(a)),to:owner(site,b,nodeSlot(b)),amount:n,heat,reason,...(connection?{connection}:{}),...(device?{device:id(site,device)}:{})});
   return n;
 }
 function releaseFloor(s,site,source,target,amount,reason,device=null) {
-  const node=waterNode(source),n=Math.min(amount,node.water,Math.max(0,LIQUID.capacity-target.liquid));
+  const node=waterNode(source),n=Math.min(amount,liquidWater(node),Math.max(0,LIQUID.capacity-target.liquid));
   if(n<=EPS)return 0;
-  node.water-=n;target.liquid+=n;site.plumbing.released+=n;site.liquids.released+=n;
-  emitEvent(s,'plumbing.released',{from:owner(site,source,nodeSlot(source)),to:owner(site,target,'liquid'),amount:n,reason,...(device?{device:id(site,device)}:{})});
+  const beforeIce=waterPhase(target,{floor:true}).ice,heat=takeWater(node,n);putWater(target,n,heat,{floor:true});site.plumbing.released+=n;site.liquids.released+=n;
+  recordWaterPhase(s,site,target,'liquid',beforeIce,reason);
+  emitEvent(s,'plumbing.released',{from:owner(site,source,nodeSlot(source)),to:owner(site,target,'liquid'),amount:n,heat,reason,...(device?{device:id(site,device)}:{})});
   return n;
 }
 function leak(s,site,t) {
-  const node=waterNode(t);let remaining=Math.min(node.water,PLUMBING.leak*(1-condition(t)/50));
+  const node=waterNode(t);let remaining=Math.min(liquidWater(node),PLUMBING.leak*(1-condition(t)/50));
   if(remaining<=EPS)return;
   // A full open tile retains overflow; a boundary fitting can leak into its
   // adjacent open cells. No full or isolated destination is an implicit sink.
@@ -137,16 +153,31 @@ export function flowPlumbing(s) {
     // The flow cap is per edge; six connected sides can carry more total water.
     for(const t of nodes)for(const [x,y] of forwardNeighbors(t.x,t.y)) {
       const neighbor=at(site,x,y,positionOf(t).z);if(!port(t)||!port(neighbor))continue;
-      let a=t,b=neighbor,delta=waterNode(a).water/waterCapacity(a)-waterNode(b).water/waterCapacity(b);
+      let a=t,b=neighbor,delta=occupiedVolume(a)/waterCapacity(a)-occupiedVolume(b)/waterCapacity(b);
       if(delta<0){[a,b]=[b,a];delta=-delta;}
       moveNodes(s,site,a,b,Math.min(PLUMBING.flow,delta/(1/waterCapacity(a)+1/waterCapacity(b))),'level');
     }
     for(const link of activeUtilityLinks(site,'water')){
-      let a=tileAt(site,link.lower),b=tileAt(site,link.upper),delta=waterNode(a).water/waterCapacity(a)-waterNode(b).water/waterCapacity(b);
+      let a=tileAt(site,link.lower),b=tileAt(site,link.upper),delta=occupiedVolume(a)/waterCapacity(a)-occupiedVolume(b)/waterCapacity(b);
       if(delta<0){[a,b]=[b,a];delta=-delta;}
       moveNodes(s,site,a,b,Math.min(PLUMBING.flow,delta/(1/waterCapacity(a)+1/waterCapacity(b))),'riser',null,link.id);
     }
-    for(const t of nodes)if(condition(t)<50)leak(s,site,t);
+    // Open routes have just had a chance to carry liquid away. Check the
+    // remaining contents even behind a closed valve, then leak only liquid.
+    for (const tile of nodes) {
+      const pipe = tile.waterPipe;
+      if (pipe?.hp > 0 && pipe.water * (1 + PLUMBING.iceExpansion) > PLUMBING.pipeCapacity + EPS) {
+        const phase = waterPhase(pipe);
+        const occupied = occupiedVolume(tile, phase);
+        if (phase.ice > 0 && occupied > PLUMBING.pipeCapacity + CAPACITY_TOLERANCE) {
+          const previousCondition = pipe.hp;
+          damage(s, site, tile, 'waterPipe', previousCondition, 'water');
+          emitEvent(s, 'plumbing.pipe_burst', {entity:id(site,tile), ice:phase.ice,
+            occupiedVolume:occupied, capacity:PLUMBING.pipeCapacity, previousCondition});
+        }
+      }
+      if (condition(tile) < 50) leak(s, site, tile);
+    }
   }
 }
 export function operatePlumbing(s) {
@@ -156,19 +187,21 @@ export function operatePlumbing(s) {
     if(n<=EPS)continue;
     if(t.building==='waterPump')moveNodes(s,site,input,output,n,'pump',t);
     else if(t.building==='waterIntake') {
-      const destination=waterNode(output);
+      const destination=waterNode(output),beforeIce=waterPhase(destination).ice;
       if(t.waterDevice.mode==='floor') {
-        input.liquid-=n;destination.water+=n;site.plumbing.recovered+=n;site.liquids.recovered+=n;
-        emitEvent(s,'plumbing.recovered',{from:owner(site,input,'liquid'),to:owner(site,output,nodeSlot(output)),amount:n,reason:'intake',device:id(site,t)});
+        const heat=takeWater(input,n,{floor:true});putWater(destination,n,heat);site.plumbing.recovered+=n;site.liquids.recovered+=n;
+        recordWaterPhase(s,site,output,nodeSlot(output),beforeIce,'intake');
+        emitEvent(s,'plumbing.recovered',{from:owner(site,input,'liquid'),to:owner(site,output,nodeSlot(output)),amount:n,heat,reason:'intake',device:id(site,t)});
       } else {
         const moved=extract(plan.sourceInventory.inventory,{water:n});if(!moved)continue;
-        destination.water+=n;site.plumbing.loaded+=n;
-        emitEvent(s,'plumbing.loaded',{from:owner(site,input,plan.inputSlot),to:owner(site,output,nodeSlot(output)),amount:n,reason:'intake',device:id(site,t)});
+        const heat=loadWater(site,destination,n);site.plumbing.loaded+=n;
+        recordWaterPhase(s,site,output,nodeSlot(output),beforeIce,'intake');
+        emitEvent(s,'plumbing.loaded',{from:owner(site,input,plan.inputSlot),to:owner(site,output,nodeSlot(output)),amount:n,heat,reason:'intake',device:id(site,t)});
       }
     } else if(t.waterDevice.mode==='floor')releaseFloor(s,site,input,output,n,'outlet',t);
     else {
-      waterNode(input).water-=n;add(plan.targetInventory,{water:n});site.plumbing.delivered+=n;
-      emitEvent(s,'plumbing.delivered',{from:owner(site,input,nodeSlot(input)),to:owner(site,output,'machine.input'),amount:n,reason:'supply',device:id(site,t)});
+      const heat=unloadWater(site,waterNode(input),n);add(plan.targetInventory,{water:n});site.plumbing.delivered+=n;
+      emitEvent(s,'plumbing.delivered',{from:owner(site,input,nodeSlot(input)),to:owner(site,output,'machine.input'),amount:n,heat,reason:'supply',device:id(site,t)});
     }
   }
 }
@@ -178,8 +211,8 @@ export function removePlumbing(s,site,t,accessibleDropTile,overlay=false) {
   if(n>0) {
     if(!accessibleDropTile||tileAt(site,positionOf(accessibleDropTile))!==accessibleDropTile||positionOf(accessibleDropTile).z!==positionOf(t).z)throw new Error('Water dismantling needs an accessible recovery tile.');
     accessibleDropTile.drop=add(accessibleDropTile.drop||{},{water:n});
-    node.water=0;site.plumbing.delivered+=n;
-    emitEvent(s,'plumbing.delivered',{from:owner(site,t,overlay?'waterPipe':'waterStore'),to:owner(site,accessibleDropTile,'drop'),amount:n,reason:'dismantled'});
+    const heat=unloadCondensedWater(site,node,n);site.plumbing.delivered+=n;
+    emitEvent(s,'plumbing.delivered',{from:owner(site,t,overlay?'waterPipe':'waterStore'),to:owner(site,accessibleDropTile,'drop'),amount:n,heat,reason:'dismantled'});
   }
   if(overlay)t.waterPipe=null;else{delete t.waterStore;delete t.waterDevice;}
   return n;
@@ -199,7 +232,7 @@ export const setWaterPump=(s,siteId,x,y,enabled,direction,z=0)=>setDevice(s,site
 export const setWaterIntake=(s,siteId,x,y,enabled,direction,mode,z=0)=>setDevice(s,siteId,x,y,'waterIntake',enabled,direction,mode,z);
 export const setWaterOutlet=(s,siteId,x,y,enabled,direction,mode,z=0)=>setDevice(s,siteId,x,y,'waterOutlet',enabled,direction,mode,z);
 
-export function validatePlumbing(s) {
+export function validatePlumbing(s,{legacyHeat=false}={}) {
   const number=n=>Number.isFinite(n)&&n>=0;
   const keys=(value,expected)=>value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).length===expected.length&&expected.every(k=>Object.hasOwn(value,k));
   for(const site of Object.values(s.sites)) {
@@ -208,12 +241,12 @@ export function validatePlumbing(s) {
     let stored=0;
     for(const t of site.tiles) {
       if(t.building==='waterPipe')throw new Error('Water pipe must be an overlay.');
-      if(t.waterPipe!==null&&(!keys(t.waterPipe,['water','open','hp'])||!number(t.waterPipe.hp)||t.waterPipe.hp>100||['rock','void'].includes(t.terrain)||waterEquipment(t)))throw new Error('Invalid water pipe.');
+      if(t.waterPipe!==null&&(!keys(t.waterPipe,legacyHeat?['water','open','hp']:['water','heat','open','hp'])||!number(t.waterPipe.hp)||t.waterPipe.hp>100||['rock','void'].includes(t.terrain)||waterEquipment(t)))throw new Error('Invalid water pipe.');
       if(waterEquipment(t)&&t.terrain!=='floor')throw new Error('Water equipment requires a habitat floor.');
-      if(t.building==='waterReservoir'?!keys(t.waterStore,['water','open']):t.waterStore!==undefined)throw new Error('Invalid reservoir storage.');
+      if(t.building==='waterReservoir'?!keys(t.waterStore,legacyHeat?['water','open']:['water','heat','open']):t.waterStore!==undefined)throw new Error('Invalid reservoir storage.');
       const node=waterNode(t);
       if(node) {
-        if(!number(node.water)||node.water>waterCapacity(t)+1e-8||typeof node.open!=='boolean')throw new Error('Invalid plumbing contents.');
+        if(!number(node.water)||node.water>waterCapacity(t)+CAPACITY_TOLERANCE||typeof node.open!=='boolean')throw new Error('Invalid plumbing contents.');
         stored+=node.water;
       }
       if(DEVICES.includes(t.building)) {

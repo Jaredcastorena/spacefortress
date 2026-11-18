@@ -114,14 +114,30 @@ test('creature and brood observations expose detached profiles and classify geno
 });
 
 test('ordinary breeding records frozen inheritance and replays birth without recorder interference',()=>{
-  const {s,a,b}=pen(),unrecorded=deserialize(serialize(s));startRecording(s,{maxRecords:10000,maxBytes:64000000});
-  const actions=[['husbandry.breed',{creature:a.id,enabled:true}],['husbandry.breed',{creature:b.id,enabled:true}],['simulation.step',{ticks:1}],['husbandry.breed',{creature:a.id,enabled:false}],['husbandry.breed',{creature:b.id,enabled:false}],['simulation.step',{ticks:300}]];
-  let pinned;
-  for(const [index,[id,args]] of actions.entries()){assert.equal(executeAction(s,id,args,'test').ok,true);assert.equal(executeAction(unrecorded,id,args,'test').ok,true);if(index===2)pinned=structuredClone(a.lifecycle.brood.inheritance);}
+  const {s,a,b}=pen(),unrecorded=deserialize(serialize(s)),limits={maxRecords:10000,maxBytes:64000000},events=[];
+  let pinned,replay,reconstructed;
+  const pair=(id,args)=>{assert.equal(executeAction(s,id,args,'test').ok,true);assert.equal(executeAction(unrecorded,id,args,'test').ok,true);};
+  const finishWindow=label=>{
+    const recording=rows(s),header=recording[0],footer=recording.at(-1);
+    assert.equal(footer.active,true,`${label} recording incomplete: ${footer.reason}`);assert.equal(footer.throughTick,s.tick);
+    if(!replay){replay=deserialize(JSON.stringify(header.initialState));reconstructed=structuredClone(header.observation);}
+    else {assert.deepEqual(replay,header.initialState);assert.deepEqual(reconstructed,header.observation);}
+    for(const row of recording)if(row.kind==='action.requested')assert.equal(executeAction(replay,row.action.id,row.action.args,'test').ok,true);
+    for(const row of recording.slice(1,-1))apply(reconstructed,row);
+    assert.deepEqual(replay,s);assert.deepEqual(reconstructed,observe(s));
+    events.push(...recording.filter(row=>row.event).map(row=>row.event));
+  };
+  startRecording(s,limits);
+  const actions=[['husbandry.breed',{creature:a.id,enabled:true}],['husbandry.breed',{creature:b.id,enabled:true}],['simulation.step',{ticks:1}],['husbandry.breed',{creature:a.id,enabled:false}],['husbandry.breed',{creature:b.id,enabled:false}]];
+  for(const [index,[id,args]] of actions.entries()){pair(id,args);if(index===2)pinned=structuredClone(a.lifecycle.brood.inheritance);}
+  finishWindow('brood established');
+  // Keep the original 300 gestation ticks and limits. Replay and observation
+  // reconstruction remain continuous across every bounded recording window.
+  for(let ticks=0;ticks<300;ticks+=20){startRecording(s,limits);pair('simulation.step',{ticks:Math.min(20,300-ticks)});finishWindow(`gestation through tick ${s.tick}`);}
   assert.deepEqual(s,unrecorded);assert.equal(serialize(s),serialize(unrecorded));checked(s);
   const child=s.creatures.find(c=>c.lifecycle?.parents.includes(a.id));assert.ok(child);assert.deepEqual(child.genetics,pinned.child);
-  const recording=rows(s),events=recording.filter(r=>r.event).map(r=>r.event),started=events.find(e=>e.id==='animal.brood.started'),born=events.find(e=>e.id==='animal.born'),inherited=events.find(e=>e.id==='animal.traits.inherited');
+  const started=events.find(e=>e.id==='animal.brood.started'),born=events.find(e=>e.id==='animal.born'),inherited=events.find(e=>e.id==='animal.traits.inherited');
+  assert.ok(started);assert.ok(born);assert.ok(inherited);
   assert.deepEqual(started.inheritance,pinned);assert.deepEqual(born.genetics,pinned.child);assert.deepEqual(inherited.genetics,pinned.child);assert.deepEqual(inherited.parents,[a.id,b.id]);assert.deepEqual(inherited.profile,animalTraits(child));
-  const replay=deserialize(JSON.stringify(recording[0].initialState));for(const r of recording)if(r.kind==='action.requested')assert.equal(executeAction(replay,r.action.id,r.action.args,'test').ok,true);assert.deepEqual(replay,s);
-  const reconstructed=structuredClone(recording[0].observation);for(const row of recording.slice(1,-1))apply(reconstructed,row);assert.deepEqual(reconstructed,observe(s));
+  assert.deepEqual(replay,s);assert.deepEqual(reconstructed,observe(s));
 });

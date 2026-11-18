@@ -12,6 +12,7 @@ import {initializeStorage,totalResources,syncResources} from '../src/inventory.j
 import {initializeElectrical,refreshPower,updatePower,previewPower,breakerConditions,validatePower} from '../src/power.js';
 import {setBreaker,resetBreaker,validateBreakers} from '../src/breakers.js';
 import {startRecording,exportRecording,observe} from '../src/telemetry.js';
+import {loadWater} from '../src/water-thermal.js';
 const raw=gunzipSync(readFileSync(new URL('./fixtures/overload-schema72.json.gz',import.meta.url))).toString();
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-7,`${a} != ${b}`);
 const act=(s,id,args={})=>{const r=executeAction(s,id,args);assert.equal(r.ok,true,`${id}: ${r.message}`);return r;};
@@ -78,7 +79,7 @@ test('reverse battery charging and battery backfeed count finite net flow',()=>{
 
 test('combined wet protection trips immediately while overload-only commits fault work just twice',()=>{
  for(const mode of ['overload','wet_fault_and_overload']){
-  const f=fixture({mode,rating:8});f.load.cable={enabled:true,hp:100};f.load.liquid=.5;f.site.liquids.released+=.5;at(f.site,8,10).stock.water-=.5;syncResources(f.s);refreshPower(f.s,f.site);
+  const f=fixture({mode,rating:8});f.load.cable={enabled:true,hp:100};loadWater(f.site,f.load,.5,{floor:true});f.site.liquids.released+=.5;at(f.site,8,10).stock.water-=.5;syncResources(f.s);refreshPower(f.s,f.site);
   if(mode==='overload'){tick(f);tick(f);assert.ok(f.load.cable.hp<100);}
   const hp=f.load.cable.hp,consumed=f.site.energy.consumed,ledger=structuredClone(f.site.liquids);tick(f);
   assert.equal(f.breaker.protection.cause,mode==='overload'?'overload':'wet_fault');close(f.load.cable.hp,hp);close(f.site.energy.consumed,consumed);assert.deepEqual(f.site.liquids,ledger);

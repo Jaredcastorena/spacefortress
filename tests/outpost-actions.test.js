@@ -1,3 +1,4 @@
+import { beginJourneyRecording, beforeJourneyAction } from './helpers/journey-recording-windows.js';
 import { currentOutpost as field } from './helpers/current-outpost.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,6 +14,7 @@ import { freightStatus } from '../src/freight.js';
 
 const records = s => exportRecording(s).trim().split('\n').map(JSON.parse);
 const act = (s, id, args = {}, source = 'test') => {
+  beforeJourneyAction(s);
   const result = executeAction(s, id, args, source);
   assert.equal(result.ok, true, `${id}: ${result.message}`);
   return result;
@@ -354,7 +356,7 @@ test('habitat event boundaries retain same-tick terminal loss and recovery even 
 
 test('ordinary finite freight delivery records worker ownership, remote readiness and deterministic replay', () => {
   const a = createGame(), b = deserialize(serialize(a));
-  startRecording(a, { maxRecords: 30000, maxBytes: 128000000 });
+  const recorder = beginJourneyRecording(a, { limits: { maxRecords: 30000, maxBytes: 128000000 }, maxTicks: 10, tickLimit: 480, stageLimit: 3, stage: 'load', event: e => e.id.startsWith('freight.'), change: delta => ['inventory','derived_conditions'].includes(delta.system) });
   const run = (id, args = {}) => {
     const result = act(a, id, args); assert.deepEqual(act(b, id, args), result); return result;
   };
@@ -375,6 +377,7 @@ test('ordinary finite freight delivery records worker ownership, remote readines
   const stores = structuredClone(a.shuttle.freight);
   const crewIds=observe(a).entities.colony.derived.expedition.candidates.filter(c=>c.eligible).slice(0,2).map(c=>c.id);
   assert.equal(crewIds.length,2,'two crew are free after the completed freight shipment');
+  recorder.checkpoint('outbound');
   run('expedition.launch', { site: 'wreck', crewIds });
   until(() => a.mission?.phase === 'working', 200, 'arrive at the wreck');
   const dock = a.sites.wreck.tiles.find(tile => tile.building === 'dock');
@@ -383,6 +386,7 @@ test('ordinary finite freight delivery records worker ownership, remote readines
   assert.deepEqual(Object.fromEntries(Object.keys(requested).map(resource => [resource, a.shuttle.freight[resource]])), requested);
   const readinessBefore = outpostReadiness(a, 'wreck', [crewIds[0]]);
   assert.equal(readinessBefore.provisions.available.food, 0, 'aboard freight is unavailable to the local habitat');
+  recorder.checkpoint('unload');
   const unload = run('freight.unload', { site: 'wreck' });
   assert.deepEqual(dock.imports, {}, 'an unload order is not a delivered import');
   assert.equal(quantity(a.shuttle.freight), 0);
@@ -399,7 +403,7 @@ test('ordinary finite freight delivery records worker ownership, remote readines
   assert.equal(readinessAfter.provisions.available.air, 5);
   assert.equal(readinessAfter.ready, false, 'delivered reserves do not invent a safe room');
   assert.deepEqual(a, b); assert.equal(serialize(a), serialize(b));
-  const rows = records(a), loaded = rows.find(row => row.event?.id === 'freight.loaded'), unloaded = rows.find(row => row.event?.id === 'freight.unloaded');
+  const rows = recorder.finish(), loaded = rows.find(row => row.event?.id === 'freight.loaded'), unloaded = rows.find(row => row.event?.id === 'freight.unloaded');
   assert.ok(loaded && unloaded); assert.ok(loaded.sequence < unloaded.sequence);
   for (const [job, sourceOwner] of [
     [load.job, { entity: 'tile:surface:8:10', slot: 'stock' }],
@@ -456,8 +460,8 @@ test('ordinary finite freight delivery records worker ownership, remote readines
   assert.ok(changes.some(change => change.entity === 'colony' && change.path[0] === 'shuttle' && change.path[1] === 'freight' && change.system === 'inventory'));
   assert.ok(changes.some(change => change.entity === dockId && change.path[0] === 'imports' && change.system === 'inventory'));
   assert.ok(changes.some(change => change.entity === 'site:wreck' && change.path[0] === 'derived' && change.path[1] === 'habitat' && change.system === 'derived_conditions'));
-  assert.deepEqual(reconstruct(rows), observe(a));
-  assert.equal(recordingStatus(a).active, true, 'acceptance recording must not silently truncate');
+  recorder.assertComplete();
+  assert.ok(recorder.windows.every(window => window.complete), 'all acceptance windows must retain complete footers');
   const replay = deserialize(JSON.stringify(rows[0].initialState));
   for (const row of rows) if (row.kind === 'action.requested') act(replay, row.action.id, row.action.args);
   assert.equal(serialize(replay), serialize(a));

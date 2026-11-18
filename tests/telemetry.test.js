@@ -4,6 +4,9 @@ import { createGame, step, serialize, deserialize, at } from '../src/simulation.
 import { observe, startRecording, stopRecording, recordingStatus, exportRecording, changesBetween, tileEntityId } from '../src/telemetry.js';
 import { executeAction, actionCatalog, controlBindings, createAgentInterface } from '../src/controls.js';
 const records=s=>exportRecording(s).trim().split('\n').map(line=>JSON.parse(line));
+const completeRecords=(s,label)=>{
+ const rows=records(s),footer=rows.at(-1);assert.equal(footer.active,true,`${label} recording incomplete: ${footer.reason}`);assert.equal(footer.throughTick,s.tick);return rows;
+};
 function apply(observation,record) {
   for(const change of record.changes||[]) {
     if(!change.path.length){if(change.op==='remove')delete observation.entities[change.entity];else observation.entities[change.entity]=structuredClone(change.value);continue;}
@@ -49,9 +52,19 @@ test('catalog covers the gameplay control families with structured argument sche
 });
 
 test('JSONL deltas reconstruct all observed state including created and removed jobs',()=>{
-  const s=createGame();startRecording(s);executeAction(s,'job.order',{site:'surface',x:11,y:14,kind:'build',building:'solar'});executeAction(s,'simulation.step',{ticks:60});
-  const rows=records(s),reconstructed=structuredClone(rows[0].observation);for(const row of rows.slice(1,-1))apply(reconstructed,row);
-  assert.deepEqual(reconstructed,observe(s));assert.ok(rows.some(r=>r.changes?.some(c=>c.entity.startsWith('job-')&&!c.path.length&&c.op==='add')));assert.ok(rows.some(r=>r.changes?.some(c=>c.entity.startsWith('job-')&&!c.path.length&&c.op==='remove')));
+  const s=createGame();startRecording(s);executeAction(s,'job.order',{site:'surface',x:11,y:14,kind:'build',building:'solar'});
+  let reconstructed,added=false,removed=false;
+  // Preserve all 60 controlled ticks and accumulate every delta across default
+  // 2,000-record/16MB windows; a new header must equal the prior reconstruction.
+  for(let ticks=0;ticks<60;ticks+=4){
+    executeAction(s,'simulation.step',{ticks:Math.min(4,60-ticks)});const rows=completeRecords(s,'solar job reconstruction');
+    if(!reconstructed)reconstructed=structuredClone(rows[0].observation);else assert.deepEqual(reconstructed,rows[0].observation);
+    for(const row of rows.slice(1,-1))apply(reconstructed,row);
+    added ||= rows.some(r=>r.changes?.some(c=>c.entity.startsWith('job-')&&!c.path.length&&c.op==='add'));
+    removed ||= rows.some(r=>r.changes?.some(c=>c.entity.startsWith('job-')&&!c.path.length&&c.op==='remove'));
+    assert.deepEqual(reconstructed,observe(s));if(ticks+4<60)startRecording(s);
+  }
+  assert.deepEqual(reconstructed,observe(s));assert.ok(added);assert.ok(removed);
 });
 
 test('command records plus initial save replay deterministically through ordinary controls',()=>{
@@ -93,8 +106,9 @@ test('patch paths are arrays and preserve arbitrary keys without interpreting th
 });
 
 test('production completion has an explicit actor, recipe, output and workstation marker',()=>{
-  const s=createGame();startRecording(s);step(s,100);
-  const event=records(s).find(r=>r.event?.id==='production.batch.completed');assert.ok(event);
+  const s=createGame(),recorded=[];startRecording(s);
+  for(let ticks=0;ticks<100;ticks+=4){step(s,Math.min(4,100-ticks));recorded.push(...completeRecords(s,'ordinary production').filter(row=>row.event));if(ticks+4<100)startRecording(s);}
+  const event=recorded.find(r=>r.event?.id==='production.batch.completed');assert.ok(event);
   assert.equal(event.event.recipe,'farm');assert.equal(event.event.output.food,2);assert.equal(event.event.recipeId,'fungalcap');assert.deepEqual(event.event.output._food,[{amount:2,age:0,kind:'fungalcap'}]);assert.ok(event.event.actor.startsWith('crew-'));assert.equal(event.event.entity,'tile:surface:7:9');
 });
 

@@ -76,7 +76,7 @@ test('physically delivered tank supply crosses a powered pump and pipe before a 
 });
 
 test('pressure-driven pipe flow, isolation and reconnection conserve each gas species',()=>{
- const {s,site}=base(),a=pipe(site,9,9),valve=pipe(site,10,9),b=pipe(site,11,9);seed(s,a,{oxygen:2,inert:5,co2:1});const before=stored(site);
+ const {s,site}=base(),a=pipe(site,9,9),valve=pipe(site,10,9),b=pipe(site,11,9);seed(s,a,{oxygen:2,inert:5,co2:1,vapor:0});const before=stored(site);
  setGasValve(s,'surface',10,9,false);updateGasNetworks(s);assert.deepEqual(stored(site),before);close(gasAmount(b.pipe.gas),0);close(gasAmount(a.pipe.gas),8);
  setGasValve(s,'surface',10,9,true);for(let i=0;i<20;i++){s.tick++;for(const site of Object.values(s.sites))site.atmosphere.tick=s.tick;updateGasNetworks(s);}assert.ok(gasAmount(b.pipe.gas)>2);for(const k of GASES)close(stored(site)[k],before[k]);
  setGasValve(s,'surface',10,9,false);const trapped=structuredClone(valve.pipe.gas),left=structuredClone(a.pipe.gas);for(let i=0;i<5;i++)updateGasNetworks(s);assert.deepEqual(valve.pipe.gas,trapped);assert.deepEqual(a.pipe.gas,left);
@@ -84,7 +84,7 @@ test('pressure-driven pipe flow, isolation and reconnection conserve each gas sp
 });
 
 test('different gas mixtures diffuse at equal pressure without changing volumes or species totals',()=>{
- const {s,site}=base(),a=pipe(site,9,9),b=pipe(site,10,9);seed(s,a,{oxygen:4,inert:0,co2:0});seed(s,b,{oxygen:0,inert:0,co2:4});const before=stored(site);
+ const {s,site}=base(),a=pipe(site,9,9),b=pipe(site,10,9);seed(s,a,{oxygen:4,inert:0,co2:0,vapor:0});seed(s,b,{oxygen:0,inert:0,co2:4,vapor:0});const before=stored(site);
  close(gasPressure(a),gasPressure(b));updateGasNetworks(s);assert.ok(a.pipe.gas.co2>0);assert.ok(b.pipe.gas.oxygen>0);close(gasAmount(a.pipe.gas),4);close(gasAmount(b.pipe.gas),4);
  for(const k of GASES)close(stored(site)[k],before[k]);check(s);
 });
@@ -92,8 +92,15 @@ test('different gas mixtures diffuse at equal pressure without changing volumes 
 test('powered pumps move against pressure only between their directional inlet and outlet',()=>{
  const {s,site,tank,pump,outlet,vent}=network();vent.gasStore.open=false;seed(s,tank,mix(4));seed(s,outlet,mix(8));const north=pipe(site,12,8),south=pipe(site,12,10);north.pipe.open=false;south.pipe.open=false;
  setGasValve(s,'surface',13,9,false);updatePower(s,site);assert.equal(pump.powered,true);updateGasNetworks(s);close(gasAmount(tank.gasStore.gas),4);assert.match(gasStatus(site,pump).blocked,/valve closed/i);
- setGasValve(s,'surface',13,9,true);updateGasNetworks(s);close(gasAmount(tank.gasStore.gas),2);close(gasAmount(outlet.pipe.gas),10);close(gasAmount(north.pipe.gas),0);close(gasAmount(south.pipe.gas),0);
- assert.match(gasStatus(site,pump).blocked,/Outlet full/);setGasDevice(s,'surface',12,9,true,'nw',100);updateGasNetworks(s);assert.ok(gasAmount(tank.gasStore.gas)>2);assert.ok(gasAmount(outlet.pipe.gas)<10);refreshPower(s,site);check(s);
+ setGasValve(s,'surface',13,9,true);
+ // The closed-port pulse was already paid and spent. Each uphill pulse needs
+ // new native funding; four suffice for the original two-unit outlet headroom.
+ for(let i=0;i<4&&gasAmount(outlet.pipe.gas)<10-1e-9;i++){
+  const before=gasAmount(outlet.pipe.gas),used=site.energy.consumed,work=site.gasWork.work;updatePower(s,site);assert.equal(pump.powered,true);close(site.energy.consumed-used,5);updateGasNetworks(s);
+  assert.ok(gasAmount(outlet.pipe.gas)>before);assert.ok(gasAmount(outlet.pipe.gas)-before<=2);assert.ok(site.gasWork.work<=work+3*.65);
+ }
+ close(gasAmount(tank.gasStore.gas),2);close(gasAmount(outlet.pipe.gas),10);close(gasAmount(north.pipe.gas),0);close(gasAmount(south.pipe.gas),0);
+ assert.match(gasStatus(site,pump).blocked,/Outlet full/);setGasDevice(s,'surface',12,9,true,'nw',100);updatePower(s,site);updateGasNetworks(s);assert.ok(gasAmount(tank.gasStore.gas)>2);assert.ok(gasAmount(outlet.pipe.gas)<10);refreshPower(s,site);check(s);
 });
 
 test('stopped, disconnected, empty and full pumps expose distinct reasons and never transfer passively',()=>{
@@ -107,11 +114,11 @@ test('stopped, disconnected, empty and full pumps expose distinct reasons and ne
 });
 
 test('vent targets add exactly the supplied gas to their real compartment and release no gas above target',()=>{
- const {s,site,vent}=network();setGasValve(s,'surface',13,9,false);const room=roomAt(site,13,8),before=gasAmount(room.gas),initial={...room.gas};seed(s,vent,{oxygen:1,inert:3,co2:1});
+ const {s,site,vent}=network();setGasValve(s,'surface',13,9,false);const room=roomAt(site,13,8),before=gasAmount(room.gas),initial={...room.gas};seed(s,vent,{oxygen:1,inert:3,co2:1,vapor:0});
  setGasDevice(s,'surface',13,8,true,'se',100);updatePower(s,site);updateGasNetworks(s);close(gasAmount(vent.gasStore.gas),5);assert.match(gasStatus(site,vent).blocked,/target pressure/);
- setGasDevice(s,'surface',13,8,true,'se',110);updateGasNetworks(s);close(gasAmount(room.gas)-before,2);close(gasAmount(vent.gasStore.gas),3);
+ setGasDevice(s,'surface',13,8,true,'se',110);updatePower(s,site);updateGasNetworks(s);close(gasAmount(room.gas)-before,2);close(gasAmount(vent.gasStore.gas),3);
  for(const k of GASES)close(room.gas[k]-initial[k],site.gasNetwork.delivered[k]);assert.ok(room.pressure>100);
- setGasDevice(s,'surface',13,8,true,'se',100);updateGasNetworks(s);close(gasAmount(vent.gasStore.gas),3);validateGasNetworks(s);refreshPower(s,site);check(s);
+ setGasDevice(s,'surface',13,8,true,'se',100);updatePower(s,site);updateGasNetworks(s);close(gasAmount(vent.gasStore.gas),3);validateGasNetworks(s);refreshPower(s,site);check(s);
 });
 
 test('gas devices pay actual circuit energy and disabling them releases their entire demand',()=>{
@@ -139,7 +146,7 @@ test('dismantling a tank preserves packaged air and releases stored gas into its
 });
 
 test('dismantling exterior pipes records a finite loss instead of deleting unaccounted gas',()=>{
- const {s,site}=base(),t=pipe(site,15,13);seed(s,t,{oxygen:1,inert:2,co2:1});const before=totalResources(s).air;
+ const {s,site}=base(),t=pipe(site,15,13);seed(s,t,{oxygen:1,inert:2,co2:1,vapor:0});const before=totalResources(s).air;
  assert.ok(order(s,'surface',15,13,'removePipe').ok);until(s,()=>t.pipe===null);close(gasAmount(site.gasNetwork.vented),4);close(gasAmount(site.gasNetwork.delivered),0);close(totalResources(s).air+4,before);check(s);
 });
 

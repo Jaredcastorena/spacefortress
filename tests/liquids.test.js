@@ -1,3 +1,4 @@
+import {loadWater} from '../src/water-thermal.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { VERSION } from '../src/data.js';
@@ -10,6 +11,7 @@ import { cancelJob } from '../src/simulation.js';
 import { setTank, releaseWater, flowLiquids, pumpLiquids, liquidOpen, validateLiquids } from '../src/liquids.js';
 import { startRecording, exportRecording, observe } from '../src/telemetry.js';
 import { executeAction } from '../src/controls.js';
+import { vaporWaterExports } from './helpers/vapor-accounting.js';
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-6,`${a} != ${b}`);
 const check=s=>deserialize(serialize(s));
 const wetTotal=site=>site.tiles.reduce((n,t)=>n+t.liquid,0);
@@ -23,7 +25,7 @@ function fixture(){
  return {s,site,tank,pump};
 }
 function fill(s,t,n=4){t.machine.input.water=n;at(s.sites.surface,8,10).stock.water-=n;syncResources(s);}
-function puddle(s,t,n){t.liquid=n;s.sites.surface.liquids.released+=n;at(s.sites.surface,8,10).stock.water-=n;syncResources(s);}
+function puddle(s,t,n){loadWater(s.sites.surface,t,n,{floor:true});s.sites.surface.liquids.released+=n;at(s.sites.surface,8,10).stock.water-=n;syncResources(s);}
 function until(s,condition,max=200){for(let i=0;i<max&&!condition();i++)step(s);assert.ok(condition(),'Condition not reached');}
 
 test('tank and pump construction use delivered supplies and commission empty',()=>{
@@ -54,7 +56,7 @@ test('damage leaks with refill and valve disabled, repair stops further release,
 test('floor water levels conservatively and intact walls or closed doors trap contents',()=>{
  const {s,site,pump}=fixture();pump.machine.enabled=false;puddle(s,at(site,9,9),3);const before=wetTotal(site);
  for(let i=0;i<10;i++){s.tick++;flowLiquids(s);}close(wetTotal(site),before);assert.ok(at(site,8,9).liquid>0);assert.equal(at(site,6,9).liquid,0);
- const door=at(site,10,12);door.doorMode='closed';door.liquid=1;site.liquids.released+=1;const held=door.liquid;flowLiquids(s);close(door.liquid,held);
+ const door=at(site,10,12);door.doorMode='closed';loadWater(site,door,1,{floor:true});site.liquids.released+=1;const held=door.liquid;flowLiquids(s);close(door.liquid,held);
  door.doorMode='open';flowLiquids(s);assert.ok(door.liquid<held);validateLiquids(s);
 });
 
@@ -100,8 +102,8 @@ test('floor water quenches a fire and releases a now-unneeded supplied suppressi
 });
 
 test('demolition preserves packaged tank water and existing puddles for later recovery',()=>{
- const {s,site,tank,pump}=fixture();pump.machine.enabled=false;fill(s,tank);puddle(s,tank,1);setTank(s,'surface',11,9,false,false);const before=totalResources(s).water;assert.ok(order(s,'surface',11,9,'remove').ok);until(s,()=>tank.building===null);
- assert.equal(tank.tank,undefined);assert.equal(tank.machine,undefined);assert.ok(tank.drop.water>0);close(totalResources(s).water+site.liquids.lost,before);check(s);
+ const {s,site,tank,pump}=fixture();pump.machine.enabled=false;fill(s,tank);puddle(s,tank,1);setTank(s,'surface',11,9,false,false);const before=totalResources(s).water+site.liquids.lost+vaporWaterExports(s);assert.ok(order(s,'surface',11,9,'remove').ok);until(s,()=>tank.building===null);
+ assert.equal(tank.tank,undefined);assert.equal(tank.machine,undefined);assert.ok(tank.drop.water>0);close(totalResources(s).water+site.liquids.lost+vaporWaterExports(s),before);check(s);
 });
 
 test('water controls and transient transfers have stable IDs; recording does not change outcomes',()=>{

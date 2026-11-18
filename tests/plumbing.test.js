@@ -1,3 +1,4 @@
+import {loadWater} from '../src/water-thermal.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createGame, at, step, order, serialize, deserialize, pathTo} from '../src/simulation.js';
@@ -5,6 +6,7 @@ import {initializeStorage, totalResources, syncResources} from '../src/inventory
 import {initializeElectrical, refreshPower, updatePower} from '../src/power.js';
 import {haul} from '../src/industry.js';
 import {newPipe} from '../src/gas-networks.js';
+import {vaporWaterExports} from './helpers/vapor-accounting.js';
 import {PLUMBING, waterNode, newWaterPipe, plumbingStatus, flowPlumbing, operatePlumbing, setWaterValve, setWaterPump, setWaterIntake, setWaterOutlet} from '../src/plumbing.js';
 
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-7,`${a} != ${b}`);
@@ -27,9 +29,9 @@ function network(){
 }
 function seed(s,t,n){
  // Transfer finite depot inventory into a real node for this fixture.
- at(s.sites.surface,8,10).stock.water-=n;waterNode(t).water+=n;s.sites.surface.plumbing.loaded+=n;syncResources(s);
+ at(s.sites.surface,8,10).stock.water-=n;loadWater(s.sites.surface,waterNode(t),n);s.sites.surface.plumbing.loaded+=n;syncResources(s);
 }
-function wet(s,t,n){at(s.sites.surface,8,10).stock.water-=n;t.liquid+=n;s.sites.surface.liquids.released+=n;syncResources(s);}
+function wet(s,t,n){at(s.sites.surface,8,10).stock.water-=n;loadWater(s.sites.surface,t,n,{floor:true});s.sites.surface.liquids.released+=n;syncResources(s);}
 function until(s,p,max=240){for(let i=0;i<max&&!p();i++)step(s);assert.ok(p(),'Condition not reached');}
 
 test('water devices require delivered materials and commission with empty storage and explicit controls',()=>{
@@ -40,7 +42,7 @@ test('water devices require delivered materials and commission with empty storag
   until(s,()=>Object.keys(result.job.materials).length>0);assert.equal(at(site,11,9).building,null);
   close(totalResources(s).alloy,before.alloy);until(s,()=>at(site,11,9).building===kind);
   const t=at(site,11,9);assert.equal(t.machine,undefined);
-  if(kind==='waterReservoir'){assert.deepEqual(t.waterStore,{water:0,open:true});assert.equal(t.waterDevice,undefined);}
+  if(kind==='waterReservoir'){assert.deepEqual(t.waterStore,{water:0,heat:0,open:true});assert.equal(t.waterDevice,undefined);}
   else {assert.equal(t.waterStore,undefined);assert.deepEqual(t.waterDevice,{enabled:true,direction:'ne',...(kind==='waterPump'?{}:{mode:'inventory'})});}
   close(totalResources(s).alloy,before.alloy-result.job.cost.alloy);close(totalResources(s).components,before.components-1);
   assert.equal(order(s,'surface',11,9,'build','waterPipe').ok,false);
@@ -104,7 +106,7 @@ test('water pipes are physically constructed under walls beside independent gas 
  assert.equal(t.building,'wall');t.pipe=newPipe();t.cable={enabled:false,hp:100};
  const result=order(s,'surface',11,12,'build','waterPipe');assert.ok(result.ok);
  assert.deepEqual(result.job.cost,{alloy:1});assert.equal(result.job.work,2);assert.equal(t.waterPipe,null);
- until(s,()=>!!t.waterPipe);assert.equal(t.building,'wall');assert.deepEqual(t.waterPipe,{water:0,open:true,hp:100});
+ until(s,()=>!!t.waterPipe);assert.equal(t.building,'wall');assert.deepEqual(t.waterPipe,{water:0,heat:0,open:true,hp:100});
  assert.ok(t.pipe);assert.ok(t.cable);close(totalResources(s).alloy,before.alloy-1);
  assert.equal(order(s,'surface',11,12,'build','waterPipe').ok,false);
  const ordinary=at(site,11,9);ordinary.waterPipe=newWaterPipe();assert.equal(order(s,'surface',11,9,'build','waterReservoir').ok,false);
@@ -115,14 +117,15 @@ test('demolishing the building above water gas and cable overlays preserves each
  const {s,site}=base(),t=install(s,'commons');t.waterPipe=newWaterPipe();t.pipe=newPipe();t.cable={enabled:false,hp:100};seed(s,t,1.5);
  const water=structuredClone(t.waterPipe),gas=structuredClone(t.pipe),cable=structuredClone(t.cable);
  assert.ok(order(s,'surface',11,9,'remove').ok);until(s,()=>t.building===null);
- assert.deepEqual(t.waterPipe,water);assert.deepEqual(t.pipe,gas);assert.deepEqual(t.cable,cable);check(s);
+ // Ambient exchange continues during the paid job; custody and controls remain.
+ assert.deepEqual({...t.waterPipe,heat:water.heat},water);assert.ok(t.waterPipe.heat>0);assert.deepEqual(t.pipe,gas);assert.deepEqual(t.cable,cable);check(s);
 });
 
 test('dismantling a full isolated reservoir recovers all contained water as a physical drop despite a saturated floor',()=>{
  const {s,site}=base(),reservoir=install(s,'waterReservoir');seed(s,reservoir,32);wet(s,reservoir,4);
- setWaterValve(s,'surface',11,9,false);const before=totalResources(s).water;
+ setWaterValve(s,'surface',11,9,false);const before=totalResources(s).water+site.liquids.lost+vaporWaterExports(s);
  assert.ok(order(s,'surface',11,9,'remove').ok);until(s,()=>reservoir.building===null);
  assert.equal(reservoir.waterStore,undefined);close(site.plumbing.delivered,32);close(site.plumbing.released,0);
  close(site.tiles.reduce((n,t)=>n+(t.drop?.water||0),0),32);
- close(totalResources(s).water+site.liquids.lost,before);check(s);
+ close(totalResources(s).water+site.liquids.lost+vaporWaterExports(s),before);check(s);
 });

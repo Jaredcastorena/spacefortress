@@ -1,3 +1,4 @@
+import {loadWater} from '../src/water-thermal.js';
 import {withTemperaturePressureReadings,withThermalRoundoff} from './helpers/pressure-migration.js';
 import {projectPreGasHeat} from './helpers/legacy-projection.js';
 import test from 'node:test';
@@ -62,7 +63,7 @@ test('replanning commits reactor fuel and generated energy only once',()=>{
  const f=fixture({source:'reactor'});at(f.site,8,10).stock.fuel-=1;f.source.machine.input.fuel=1;syncResources(f.s);refreshPower(f.s,f.site);const before=structuredClone(f.site.reactorLedger);tick(f);assert.equal(f.fuse.protection.blown,true);close(f.site.reactorLedger.generated-before.generated,40);close(f.site.reactorLedger.fuelUsed-before.fuelUsed,.02);
 });
 test('fault overload opens the fuse before wet cable damage and water effects',()=>{
- const f=fixture({rating:8});f.load.cable={enabled:true,hp:100};f.load.liquid=.5;f.site.liquids.released+=.5;at(f.site,8,10).stock.water-=.5;syncResources(f.s);refreshPower(f.s,f.site);const hp=f.load.cable.hp,ledger=structuredClone(f.site.liquids);tick(f);assert.equal(f.fuse.protection.blown,true);close(f.load.cable.hp,hp);assert.deepEqual(f.site.liquids,ledger);
+ const f=fixture({rating:8});f.load.cable={enabled:true,hp:100};loadWater(f.site,f.load,.5,{floor:true});f.site.liquids.released+=.5;at(f.site,8,10).stock.water-=.5;syncResources(f.s);refreshPower(f.s,f.site);const hp=f.load.cable.hp,ledger=structuredClone(f.site.liquids);tick(f);assert.equal(f.fuse.protection.blown,true);close(f.load.cable.hp,hp);assert.deepEqual(f.site.liquids,ledger);
 });
 test('upper fuse uses the actual riser and preserves the ground namesake',()=>{
  const f=base();install(f.s,'advanced',9,9);const ground=install(f.s,'fuseBox',10,9);f.site.levels.push({z:1,name:'Fuse test deck'});f.site.tiles.push(...f.site.tiles.map(t=>({x:t.x,y:t.y,z:1,terrain:'floor',building:null,hp:100,cable:null,drop:null,powered:false})));

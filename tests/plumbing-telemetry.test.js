@@ -1,3 +1,4 @@
+import {loadWater,parcelHeat} from '../src/water-thermal.js';
 import { DIRECTIONS } from '../src/geometry.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -44,7 +45,7 @@ function chain(mode = 'inventory') {
   const target = mode === 'inventory' ? install(s, 'farm', 13, 8) : at(site, 13, 8);
   at(site, 8, 10).stock.water -= 2;
   if (mode === 'inventory') { source.machine.input.water = 2; source.machine.enabled = false; }
-  else { source.liquid = 2; site.liquids.released += 2; }
+  else { loadWater(site,source,2,{floor:true}); site.liquids.released += 2; }
   intake.waterDevice.direction='se';outlet.waterDevice.direction='ne';
   intake.waterDevice.mode = mode;
   outlet.waterDevice.mode = mode;
@@ -191,7 +192,7 @@ test('same-tick inventory transfers retain owner slots and semantic boundaries w
     assert.equal(row.event.device, 'tile:surface:12:9');
     assert.equal(row.event.reason, 'supply');
   }
-  for (const row of [...loaded, ...delivered]) { assert.equal(row.tick, 0); assert.ok(row.event.amount > 0); }
+  for (const row of [...loaded, ...delivered]) { assert.equal(row.tick, 0); assert.ok(row.event.amount > 0); near(row.event.heat,parcelHeat(row.event.amount)); }
   assert.equal(recording.flatMap(row => row.changes || []).some(change => change.entity === 'tile:surface:11:9' && change.path.join('.') === 'waterPipe.water'), false);
   assert.ok(recording.some(row => row.kind === 'external' && row.command === null));
   assert.deepEqual(reconstruct(recording), observe(s));
@@ -206,6 +207,7 @@ test('floor adapters name the liquid and node owners and expose actual blocked c
   near(source.liquid, 0); near(target.liquid, 2);
   const recording = rows(s), recovered = recording.find(row => row.event?.id === 'plumbing.recovered'), released = recording.find(row => row.event?.id === 'plumbing.released');
   assert.ok(recovered && released);
+  for(const row of [recovered,released])near(row.event.heat,parcelHeat(row.event.amount));
   assert.deepEqual(recovered.event.from, {entity:'tile:surface:9:8', slot:'liquid'});
   assert.deepEqual(recovered.event.to, {entity:'tile:surface:11:9', slot:'waterPipe'});
   assert.deepEqual(released.event.from, {entity:'tile:surface:11:9', slot:'waterPipe'});
@@ -229,7 +231,7 @@ test('detached plumbing observations distinguish source output claims from incom
   install(s, 'waterIntake', 10).waterDevice.direction='se'; install(s, 'waterOutlet', 12).waterDevice.direction='ne';
   source.machine.enabled = false;
   source.machine.output.water = 2;
-  at(site, 11, 9).waterPipe = {...newWaterPipe(), water:1};
+  at(site, 11, 9).waterPipe = newWaterPipe();loadWater(site,at(site,11,9).waterPipe,1);
   site.plumbing.loaded += 1;
   s.crew[0].intent = {type:'haul', source:'output', target: { x: 9, y: 8, z: 0 }, items:{water:1}, destination:{kind:'stock', target: { x: 8, y: 10, z: 0 }}};
   s.crew[1].carry = {water:.75};

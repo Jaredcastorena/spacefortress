@@ -1,31 +1,41 @@
 import { HEAT_CAPACITY, KELVIN_ZERO } from './thermal-units.js';
 
-// Energy and capacity use the same game units as habitat structures. Smoke is
-// a massless tracer; all three tracked gases share one sensible heat capacity.
+import { gasAmount, dryGasAmount, gasPortion } from './gas-species.js';
+
+// Vapor carries its phase-change enthalpy in addition to sensible energy.
+// Smoke remains a massless tracer; these are game-scale balancing constants.
 export const GAS_HEAT_CAPACITY = .2;
+export const VAPOR_HEAT_CAPACITY = 1;
+export const VAPOR_LATENT_HEAT = 540;
 export const GAS_REFERENCE_KELVIN = 20 + KELVIN_ZERO;
-export const gasQuantity = gas => gas.oxygen + gas.inert + gas.co2;
-export const gasHeatCapacity = gas => GAS_HEAT_CAPACITY * gasQuantity(gas);
-export const gasEnergy = (gas, kelvin) => gasHeatCapacity(gas) * kelvin;
+export const gasQuantity = gasAmount;
+export const gasHeatCapacity = gas => GAS_HEAT_CAPACITY * dryGasAmount(gas) + VAPOR_HEAT_CAPACITY * (gas.vapor ?? 0);
+export const gasLatentHeat = gas => VAPOR_LATENT_HEAT * (gas.vapor ?? 0);
+export const gasEnergy = (gas, kelvin) => gasHeatCapacity(gas) * kelvin + gasLatentHeat(gas);
 export const roomStructureCapacity = room => room.volume * HEAT_CAPACITY;
 export const roomHeatCapacity = room => roomStructureCapacity(room) + (room.gasThermal === true ? gasHeatCapacity(room.gas) : 0);
-export const roomKelvin = room => room.heat === undefined ? GAS_REFERENCE_KELVIN : room.heat / roomHeatCapacity(room);
-export const nodeKelvin = node => gasQuantity(node.gas) > 0 ? (node.heat === undefined ? GAS_REFERENCE_KELVIN : node.heat / gasHeatCapacity(node.gas)) : null;
-export const parcelHeat = (amount, kelvin) => GAS_HEAT_CAPACITY * amount * kelvin;
+export const roomKelvin = room => room.heat === undefined ? GAS_REFERENCE_KELVIN : (room.heat - (room.gasThermal === true ? gasLatentHeat(room.gas) : 0)) / roomHeatCapacity(room);
+export const nodeKelvin = node => gasQuantity(node.gas) > 0 ? (node.heat === undefined ? GAS_REFERENCE_KELVIN : (node.heat - gasLatentHeat(node.gas)) / gasHeatCapacity(node.gas)) : null;
+// Numeric parcels are explicitly dry gas; owned mixtures pass their composition.
+export const parcelHeat = (amount, kelvin) => typeof amount === 'number' ? GAS_HEAT_CAPACITY * amount * kelvin : gasEnergy(amount, kelvin);
 
-export function pressureAfterGas(room, amount, heat) {
+export function pressureAfterGas(room, delta, heat) {
+  const amount = typeof delta === 'number' ? delta : gasQuantity(delta);
   const quantity = gasQuantity(room.gas) + amount;
-  const capacity = roomStructureCapacity(room) + (room.gasThermal === true ? GAS_HEAT_CAPACITY * quantity : 0);
-  return 100 * quantity / (10 * room.volume) * ((room.heat ?? roomHeatCapacity(room) * GAS_REFERENCE_KELVIN) + heat) / capacity / GAS_REFERENCE_KELVIN;
+  const thermal = room.gasThermal === true;
+  const capacity = roomHeatCapacity(room) + (thermal ? (typeof delta === 'number' ? GAS_HEAT_CAPACITY * amount : gasHeatCapacity(delta)) : 0);
+  const latent = thermal ? gasLatentHeat(room.gas) + (typeof delta === 'number' ? 0 : gasLatentHeat(delta)) : 0;
+  const initial = room.heat ?? roomHeatCapacity(room) * GAS_REFERENCE_KELVIN + (thermal ? gasLatentHeat(room.gas) : 0);
+  return 100 * quantity / (10 * room.volume) * (initial + heat - latent) / capacity / GAS_REFERENCE_KELVIN;
 }
 
 // A monotone, bounded solve uses the actual inlet temperature. It never
 // allocates gas or changes the room; zero-kelvin gas can have a finite limiting
 // pressure, so callers must provide their finite available parcel.
-export function roomFillAmount(room, target, inletKelvin, available) {
+export function roomFillAmount(room, target, inletKelvin, available, inletGas = null) {
   if (!Number.isFinite(target) || target < 0 || !Number.isFinite(inletKelvin) || inletKelvin < 0 || !Number.isFinite(available) || available < 0) throw new Error('Invalid thermal fill request.');
   if (available === 0 || pressureAfterGas(room, 0, 0) >= target) return 0;
-  const pressure = amount => pressureAfterGas(room, amount, parcelHeat(amount, inletKelvin));
+  const pressure = amount => { const parcel = inletGas ? gasPortion(inletGas, amount) : amount; return pressureAfterGas(room, parcel, parcelHeat(parcel, inletKelvin)); };
   if (pressure(available) <= target) return available;
   let low = 0, high = available;
   for (let i = 0; i < 60; i++) {
@@ -40,7 +50,7 @@ export function roomFillAmount(room, target, inletKelvin, available) {
 export function roomEqualizeAmount(source, destination) {
   const available=gasQuantity(source.gas),kelvin=roomKelvin(source);
   if(!destination)return available;
-  const difference=amount=>pressureAfterGas(source,-amount,-parcelHeat(amount,kelvin))-pressureAfterGas(destination,amount,parcelHeat(amount,kelvin));
+  const difference=amount=>{const parcel=gasPortion(source.gas,amount),negative=gasPortion(source.gas,-amount),heat=parcelHeat(parcel,kelvin);return pressureAfterGas(source,negative,-heat)-pressureAfterGas(destination,parcel,heat);};
   if(available<=0||difference(0)<=0)return 0;
   let low=0,high=available;
   for(let i=0;i<60;i++){const middle=(low+high)/2;if(difference(middle)>=0)low=middle;else high=middle;}
@@ -51,7 +61,8 @@ export function roomEqualizeAmount(source, destination) {
 // before changing its gas quantities. The whole site's room/network energy is
 // one ledger: internal transfers require no counter entry.
 export function exportRoomHeat(site, room, amount, { boundary = false } = {}) {
-  const heat = parcelHeat(amount, roomKelvin(room));
+  const parcel = typeof amount === 'number' ? gasPortion(room.gas, amount) : amount;
+  const heat = parcelHeat(parcel, roomKelvin(room));
   room.heat -= heat;
   if (boundary) site.thermal.gasVented += heat;
   return heat;

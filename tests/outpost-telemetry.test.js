@@ -1,6 +1,7 @@
+import { beginJourneyRecording, journeyStep as step } from './helpers/journey-recording-windows.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, step, serialize, deserialize } from '../src/simulation.js';
+import { createGame, serialize, deserialize } from '../src/simulation.js';
 import { add, extract, syncResources } from '../src/inventory.js';
 import { observe, startRecording, exportRecording, changesBetween, systemFor } from '../src/telemetry.js';
 import { defaultOutposts, defaultDockImports, shuttlePresence } from '../src/outposts.js';
@@ -141,10 +142,10 @@ test('recording with freight and remote imports leaves deterministic simulation 
   add(dock(a).imports, extract(a.shuttle.freight, { food: .5, keepsakes: 1 }));
   syncResources(a);
   const b = deserialize(serialize(a));
-  startRecording(a); step(a, 12); step(b, 12);
+  const recorder = beginJourneyRecording(a, { tickLimit: 12 }); step(a, 12); step(b, 12);
   assert.deepEqual(a, b);
   assert.equal(serialize(a), serialize(b));
-  assert.deepEqual(reconstruct(rows(a)), observe(a));
+  recorder.finish(); recorder.assertComplete();
 });
 
 test('observing legacy state uses detached fallbacks without migrating or inferring residence', () => {

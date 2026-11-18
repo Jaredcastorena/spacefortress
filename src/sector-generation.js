@@ -1,3 +1,4 @@
+import { initializeWaterVapor } from './water-vapor.js';
 import { surfaceLayout, wildlifeFor } from './world-generation.js';
 import { sectorWorld, sectorDefinition } from './sector-sites.js';
 import { initializeAtmosphere } from './atmosphere.js';
@@ -43,7 +44,7 @@ export function createSectorSite(s, definition) {
   initializePower(detached,site,0);initializeFlora(detached);initializeThermal(detached);initializeDesignations(detached);
   initializeWater(detached);initializeFire(detached);initializeReactors(detached);
   initializeLiquids(detached);initializeCultivation(detached);initializeGasNetworks(detached);initializePlumbing(detached);
-  seedNaturalLiquids(site);
+  seedNaturalLiquids(site); initializeWaterVapor(detached);
   initializeHusbandry(detached);initializeBreeding(detached);initializeAnimalHealth(detached);
   initializeAnimalTraits(detached);initializeAnimalDeaths(detached);
   return {site,creatures};

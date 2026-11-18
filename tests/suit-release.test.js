@@ -210,9 +210,9 @@ test('every gas species and whole gas remain owned across inventories, nodes, su
   const f = fixture(), { s, site } = f, nodeTile = at(site, 12, 8), depot = at(site, 8, 10);
   nodeTile.pipe = newPipe(); nodeTile.pipe.gas = mix(2); depot.stock.air -= 2;
   site.gasNetwork.loaded = mix(2);
-  site.atmosphere.vented = { oxygen: .3, inert: .8, co2: .2 };
+  site.atmosphere.vented = { oxygen: .3, inert: .8, co2: .2, vapor: 0 };
   s.shuttle.freight.air = .75; f.c.carry = { air: .4 };
-  setGas(f,{ oxygen: .7, inert: 2.3, co2: .15 }); syncResources(s);
+  setGas(f,{ oxygen: .7, inert: 2.3, co2: .15, vapor: 0 }); syncResources(s);
   const before = gasOwners(s), ledger = structuredClone(site.gasNetwork), nodes = structuredClone(nodeTile.pipe);
   const resources = structuredClone(totalResources(s)), vented = structuredClone(site.atmosphere.vented);
   assert.equal(act(f, 13).ok, true);

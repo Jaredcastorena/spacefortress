@@ -25,7 +25,7 @@ const act=(s,id,args)=>{const r=executeAction(s,id,args);assert.equal(r.ok,true,
 const events=s=>exportRecording(s).trim().split('\n').map(JSON.parse).filter(row=>row.event).map(row=>row.event);
 const exact=s=>{syncResources(s);const text=serialize(s);assert.equal(serialize(deserialize(text)),text);};
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} != ${b}`);
-const until=(s,label,p,limit=180)=>{for(let n=0;n<limit&&!p();n++)step(s);assert.ok(p(),`${label} stopped at tick${s.tick}: ${s.crew.map(c=>c.activity).join('; ')}`);};
+const until=(s,label,p,limit=180,afterStep=()=>{})=>{for(let n=0;n<limit&&!p();n++){step(s);afterStep();}assert.ok(p(),`${label} stopped at tick${s.tick}: ${s.crew.map(c=>c.activity).join('; ')}`);};
 
 test('engineering capability affects matching work only, with finite wear and broken-tool fallback',()=>{
  const s=createGame(),c=s.crew[0];c.possessions.inventory=cargo(kit());s.nextItemId=2;syncResources(s);startRecording(s);
@@ -79,22 +79,32 @@ test('native paid kit manufacture improves construction and maintenance, then re
  for(const c of s.crew){for(const labor of Object.keys(c.labors))act(s,'crew.labor',{crew:c.id,labor,enabled:false});act(s,'crew.routine',{crew:c.id,policy:'work'});}
  for(const labor of ['construction','engineering'])act(s,'crew.labor',{crew:builder.id,labor,enabled:true});act(s,'crew.labor',{crew:operator.id,labor:'production',enabled:true});
  for(const c of s.crew.filter(c=>c!==builder&&c!==operator))act(s,'crew.labor',{crew:c.id,labor:'hauling',enabled:true});
- startRecording(s);const initial=totalResources(s),place=(x,y,kind,building)=>act(s,'job.order',{site:site.id,x,y,kind,...(building?{building}:{})});
- const construction=place(12,8,'build','toolbench');until(s,'paid workshop',()=>!s.jobs.some(j=>j.id===construction.job));const bench=tileAt(site,{x:12,y:8,z:0});
+ const recorded=[];let windowStart=s.tick;startRecording(s);
+ const captureWindow=stage=>{
+  const recording=exportRecording(s).trim().split('\n').map(JSON.parse),footer=recording.at(-1);
+  assert.equal(footer.active,true,`${stage} evidence truncated: ${footer.reason}`);assert.equal(footer.throughTick,s.tick);
+  recorded.push(...recording.filter(row=>row.event).map(row=>row.event));startRecording(s);windowStart=s.tick;
+ };
+ // Keep default 2,000-record/16MB windows and every original 180-tick stage
+ // ceiling. Split long native stages without changing commands or work.
+ const wait=(label,p,limit=180)=>{until(s,label,p,limit,()=>{if(s.tick-windowStart>=4&&!p())captureWindow(label);});captureWindow(label);};
+ const advance=ticks=>{for(let n=0;n<ticks;n++){step(s);if(s.tick-windowStart>=4)captureWindow('saved continuation');}};
+ const initial=totalResources(s),place=(x,y,kind,building)=>act(s,'job.order',{site:site.id,x,y,kind,...(building?{building}:{})});
+ const construction=place(12,8,'build','toolbench');wait('paid workshop',()=>!s.jobs.some(j=>j.id===construction.job));const bench=tileAt(site,{x:12,y:8,z:0});
  act(s,'production.recipe',{site:site.id,...positionOf(bench),recipe:'alloy_kit'});act(s,'production.order',{site:site.id,...positionOf(bench),mode:'batches',limit:1});
- until(s,'kit commitment',()=>bench.machine.batchRecipeId==='alloy_kit');exact(s);
- act(s,'production.recipe',{site:site.id,...positionOf(bench),recipe:'composite_pick'});const during=deserialize(serialize(s));step(s,2);step(during,2);assert.equal(serialize(s),serialize(during));
- until(s,'manufacture',()=>bench.machine.completed===1);act(s,'production.enable',{site:site.id,...positionOf(bench),enabled:false});until(s,'kit storage',()=>store.stock._items?.some(i=>i.kind==='engineering_tool'));
+ wait('kit commitment',()=>bench.machine.batchRecipeId==='alloy_kit');exact(s);
+ act(s,'production.recipe',{site:site.id,...positionOf(bench),recipe:'composite_pick'});const during=deserialize(serialize(s));advance(2);step(during,2);assert.equal(serialize(s),serialize(during));
+ wait('manufacture',()=>bench.machine.completed===1);act(s,'production.enable',{site:site.id,...positionOf(bench),enabled:false});wait('kit storage',()=>store.stock._items?.some(i=>i.kind==='engineering_tool'));
  const made=structuredClone(store.stock._items.find(i=>i.kind==='engineering_tool'));assert.equal(made.material,'alloy');close(totalResources(s).alloy,initial.alloy-8);close(totalResources(s).components,initial.components-2);
- act(s,'crew.tools.equip',{crew:builder.id,source:'stock',item:made.id});until(s,'builder pickup',()=>equippedTool(builder));exact(s);
+ act(s,'crew.tools.equip',{crew:builder.id,source:'stock',item:made.id});wait('builder pickup',()=>equippedTool(builder));exact(s);
  const bare=deserialize(serialize(s));act(bare,'crew.tools.release',{crew:builder.id});
  const wall=place(5,6,'build','wall'),bareWall=act(bare,'job.order',{site:site.id,x:5,y:6,kind:'build',building:'wall'}),start=s.tick;
- until(s,'kit wall construction',()=>!s.jobs.some(j=>j.id===wall.job));until(bare,'hand construction',()=>!bare.jobs.some(j=>j.id===bareWall.job));assert.ok(s.tick-start<bare.tick-start,'kit shortens the same native build');
- const t=tileAt(site,{x:5,y:6,z:0});damage(s,site,t,'structure',10,'debris');const repair=place(5,6,'repair');until(s,'supplied structure repair',()=>!s.jobs.some(j=>j.id===repair.job));assert.equal(t.hp,100);assert.ok(equippedTool(builder).condition<100);exact(s);
+ wait('kit wall construction',()=>!s.jobs.some(j=>j.id===wall.job));until(bare,'hand construction',()=>!bare.jobs.some(j=>j.id===bareWall.job));assert.ok(s.tick-start<bare.tick-start,'kit shortens the same native build');
+ const t=tileAt(site,{x:5,y:6,z:0});damage(s,site,t,'structure',10,'debris');const repair=place(5,6,'repair');wait('supplied structure repair',()=>!s.jobs.some(j=>j.id===repair.job));assert.equal(t.hp,100);assert.ok(equippedTool(builder).condition<100);exact(s);
  act(s,'crew.tools.release',{crew:builder.id});act(s,'production.recipe',{site:site.id,...positionOf(bench),recipe:'repair_pick'});act(s,'production.order',{site:site.id,...positionOf(bench),mode:'batches',limit:1});act(s,'production.enable',{site:site.id,...positionOf(bench),enabled:true});
- until(s,'committed kit repair',()=>bench.machine.batch._items?.some(i=>i.id===made.id));exact(s);until(s,'repair completion',()=>bench.machine.completed===2);act(s,'production.enable',{site:site.id,...positionOf(bench),enabled:false});until(s,'repaired kit storage',()=>store.stock._items?.some(i=>i.id===made.id&&i.condition===100));
+ wait('committed kit repair',()=>bench.machine.batch._items?.some(i=>i.id===made.id));exact(s);wait('repair completion',()=>bench.machine.completed===2);act(s,'production.enable',{site:site.id,...positionOf(bench),enabled:false});wait('repaired kit storage',()=>store.stock._items?.some(i=>i.id===made.id&&i.condition===100));
  assert.deepEqual(store.stock._items.find(i=>i.id===made.id),made);assert.equal(s.nextItemId,2);assert.equal(totalResources(s).tools,1);close(totalResources(s).alloy,initial.alloy-12);exact(s);
- const log=events(s);assert.ok(log.some(e=>e.id==='tool.crafted'&&e.kind==='engineering_tool'));assert.ok(log.some(e=>e.id==='tool.used'&&e.workKind==='repair'));assert.ok(log.some(e=>e.id==='tool.repaired'&&e.kind==='engineering_tool'));assert.ok(s.crew.every(c=>c.health>0));
+ captureWindow('completed paid engineering proof');const log=recorded;assert.ok(log.some(e=>e.id==='tool.crafted'&&e.kind==='engineering_tool'));assert.ok(log.some(e=>e.id==='tool.used'&&e.workKind==='repair'));assert.ok(log.some(e=>e.id==='tool.repaired'&&e.kind==='engineering_tool'));assert.ok(s.crew.every(c=>c.health>0));
 });
 
 

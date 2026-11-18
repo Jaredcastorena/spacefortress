@@ -9,13 +9,14 @@ import { serialize, deserialize } from '../src/simulation.js';
 import { executeAction } from '../src/controls.js';
 import { RECIPES } from '../src/data.js';
 import { neighbors, tileAt } from '../src/geometry.js';
-import { roomAt, gasAmount, SUIT_PER_POINT } from '../src/atmosphere.js';
+import { roomAt, SUIT_PER_POINT } from '../src/atmosphere.js';
+import { dryGasAmount } from '../src/gas-species.js';
 import { airlockRoomReading } from '../src/airlock-access.js';
 import { gasNode } from '../src/gas-networks.js';
 import { waterNode } from '../src/plumbing.js';
 import { crewPathTo } from '../src/navigation.js';
 import { availableInventory } from '../src/inventory-reservations.js';
-import { startRecording, stopRecording, exportRecording, recordingStatus } from '../src/telemetry.js';
+import { startRecording, stopRecording, exportRecording, recordingStatus, roomEntityId } from '../src/telemetry.js';
 
 export const LIMITS = Object.freeze({ ticks: 180, attempts: 230, commands: 35, batches: 6 });
 const DEFAULTS = Object.freeze({ processor: [13, 9], habitat: [10, 11], chamber: [10, 13], bank: [13, 7] });
@@ -49,14 +50,19 @@ function located(state) {
     const air = amount(inventory, 'air'), water = amount(inventory, 'water');
     if (air || water) rows.push({ owner, air, water });
   };
-  for (const site of Object.values(state.sites)) for (const t of site.tiles) {
-    const owner = `tile:${site.id}:${t.x}:${t.y}`;
+  for (const site of Object.values(state.sites)) {
+   for(const room of site.rooms)add(`${roomEntityId(site.id,room)}/gas.vapor`,{water:room.gas.vapor||0});
+   for (const t of site.tiles) {
+    const owner = `tile:${site.id}:${t.x}:${t.y}${t.z?`:${t.z}`:''}`;
     for (const slot of ['stock', 'drop', 'imports']) add(`${owner}/${slot}`, t[slot]);
     for (const slot of ['input', 'output', 'batch']) add(`${owner}/machine.${slot}`, t.machine?.[slot]);
     add(`${owner}/sanitary.output`, t.sanitary?.output);
     add(`${owner}/liquid`, { water: t.liquid || 0 });
     add(`${owner}/water.node`, { water: waterNode(t)?.water || 0 });
+    const gas=gasNode(t);
+    if(gas){add(`${owner}/gas.vapor`,{water:gas.gas.vapor||0});add(`${owner}/gas.condensate`,{water:gas.condensate?.water||0});}
     for (const [species, patch] of Object.entries(t.flora || {})) if (patch.origin === 'cultivated') add(`${owner}/flora.${species}`, { water: patch.moisture });
+   }
   }
   for (const c of state.crew) { add(`${c.id}/carry`, c.carry); add(`${c.id}/possessions`, c.possessions?.inventory); }
   for (const j of state.jobs) {
@@ -68,19 +74,26 @@ function located(state) {
   return rows;
 }
 
+// Dry breathing gas is conserved independently of water changing phase. Node
+// exterior releases already enter atmosphere.vented and count only once here.
+function drySpecies(state) {
+  const result={oxygen:0,inert:0,co2:0},add=gas=>{for(const key of Object.keys(result))result[key]+=gas?.[key]||0;};
+  const air=located(state).reduce((n,row)=>n+row.air,0);add({oxygen:air*.21,inert:air*.79});
+  for(const site of Object.values(state.sites)){
+    site.rooms.forEach(room=>add(room.gas));site.tiles.forEach(tile=>add(gasNode(tile)?.gas));add(site.atmosphere.vented);
+  }
+  add({oxygen:state.crew.reduce((n,c)=>n+c.oxygen*SUIT_PER_POINT,0)});return result;
+}
 function balances(state) {
-  const owners = located(state);
-  let gas = owners.reduce((n, row) => n + row.air, 0);
-  const energy = {};
+  const owners = located(state),gas=dryGasAmount(drySpecies(state));
+  const energy = {};let waterExported=0;
   for (const site of Object.values(state.sites)) {
-    gas += site.rooms.reduce((n, room) => n + gasAmount(room.gas), 0);
-    gas += site.tiles.reduce((n, tile) => n + (gasNode(tile) ? gasAmount(gasNode(tile).gas) : 0), 0);
-    gas += gasAmount(site.atmosphere.vented) + gasAmount(site.gasNetwork.vented);
+    // These are observed boundary losses, not additional retained owners.
+    waterExported+=(site.atmosphere.vented.vapor||0)+(site.vapor?.vacuumEvaporated||0)+(site.vapor?.condensateLost||0);
     const e = site.energy, stored = site.tiles.reduce((n, t) => n + (t.building === 'battery' ? t.charge : 0), 0);
     energy[site.id] = stored + e.consumed + e.curtailed + e.discarded - e.initial - e.generated - e.injected;
   }
-  gas += state.crew.reduce((n, c) => n + c.oxygen * SUIT_PER_POINT, 0);
-  return { gas, energy, owners };
+  return { gas, energy, owners, waterExported };
 }
 
 function equipment(state, processor) {
@@ -254,4 +267,4 @@ export async function main(args = process.argv.slice(2)) {
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) process.exitCode = await main();
 
-export { located as physicalMaterialOwners, balances as physicalBalances };
+export { located as physicalMaterialOwners, balances as physicalBalances, drySpecies as physicalDryGasSpecies };

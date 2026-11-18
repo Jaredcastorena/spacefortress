@@ -1,5 +1,8 @@
 import { HEAT_CAPACITY, KELVIN_ZERO } from './thermal-units.js';
-import {roomHeatCapacity,roomKelvin,gasEnergy,gasHeatCapacity,nodeKelvin} from './gas-thermal.js';
+import {roomHeatCapacity,roomKelvin,gasEnergy,gasHeatCapacity,nodeKelvin,gasLatentHeat} from './gas-thermal.js';
+import {waterPhase,exchangeWaterHeat,storedWaterHeat,validateWaterThermal} from './water-thermal.js';
+import {recordWaterPhase} from './water-phase-events.js';
+import {GAS_DRIVES,initializeGasWork} from './gas-compression.js';
 export { HEAT_CAPACITY } from './thermal-units.js';
 import { refreshAtmosphere } from './atmosphere.js';
 import {materialProfile} from './materials.js';
@@ -16,10 +19,11 @@ import { BUILDINGS } from './data.js';
 // Structural and gas energy share the room temperature; units remain game-scale.
 const ZERO = KELVIN_ZERO;
 const capacity = roomHeatCapacity;
-export const temperature = r => r ? r.heat / capacity(r) - ZERO : null;
+export const temperature = r => r ? roomKelvin(r) - ZERO : null;
 export function thermalSafe(r){
   if(!r)return false;
-  const low=capacity(r)*(5+ZERO),high=capacity(r)*(35+ZERO);
+  const latent=r.gasThermal===true?gasLatentHeat(r.gas):0;
+  const low=latent+capacity(r)*(5+ZERO),high=latent+capacity(r)*(35+ZERO);
   // Mixed parcels can round a mathematically exact boundary by one floating
   // point step. This allowance is numerical precision, not a wider safe range.
   return r.heat>=low-Number.EPSILON*Math.max(low,Math.abs(r.heat)) && r.heat<=high+Number.EPSILON*Math.max(high,Math.abs(r.heat));
@@ -48,8 +52,10 @@ export function initializeClimate(t) {
 }
 export function initializeThermal(s) {
   for (const site of Object.values(s.sites)) {
-    for (const r of site.rooms) { r.gasThermal=true; r.heat = capacity(r) * (20 + ZERO); }
+    for (const r of site.rooms) { r.gasThermal=true; r.heat = capacity(r) * (20 + ZERO) + gasLatentHeat(r.gas); }
     site.thermal = { ambient: outsideTemperature(site, s.tick), initial: site.rooms.reduce((n, r) => n + r.heat, 0)+site.tiles.reduce((n,t)=>n+(t.pipe?.heat||0)+(t.gasStore?.heat||0),0), added: 0, removed: 0, environmentIn: 0, environmentOut: 0, equipment: 0, combustion:0, heating: 0, cooling: 0, gasInitial:0, gasLoaded:0, gasVented:0 };
+    Object.assign(site.thermal,{waterInitial:site.tiles.reduce((sum,t)=>sum+(t.liquidHeat??0)+(t.waterPipe?.heat??0)+(t.waterStore?.heat??0),0),waterLoaded:0,waterRemoved:0});
+    initializeGasWork(site);
     site.tiles.forEach(initializeClimate); refreshAtmosphere(site);
   }
   for (const c of s.crew) c.thermalStress = 0;
@@ -132,7 +138,7 @@ export function updateThermal(s) {
       if (amount > 0) { transfers.push({ a, b, amount }); if (a !== null) outgoing[a] += amount; }
     }
     for (const { a, b, amount } of transfers) {
-      const moved = amount * (a === null ? 1 : Math.min(1, site.rooms[a].heat * .25 / outgoing[a]));
+      const moved = amount * (a === null ? 1 : Math.min(1, (site.rooms[a].heat-gasLatentHeat(site.rooms[a].gas)) * .25 / outgoing[a]));
       if (a === null) ledger.environmentIn += moved; else changes[a] -= moved;
       if (b === null) ledger.environmentOut += moved; else changes[b] += moved;
     }
@@ -149,6 +155,24 @@ export function updateThermal(s) {
         else if(exchange>=0)ledger.environmentOut+=exchange;else ledger.environmentIn-=exchange;
       }
     }
+    // Water retains its own temperature. Each exchange is capped below the
+    // finite pair's equilibrium, including all contacts of a wall fitting.
+    for(const tile of site.tiles){
+      if(tile.liquid<=0&&!tile.waterPipe&&!tile.waterStore&&!tile.pipe?.condensate?.water&&!tile.gasStore?.condensate?.water)continue;
+      const owners = [{owner:tile,floor:true,slot:'liquid'},...['waterPipe','waterStore'].filter(slot=>tile[slot]).map(slot=>({owner:tile[slot],floor:false,slot})),...['pipe','gasStore'].filter(slot=>tile[slot]?.condensate).map(slot=>({owner:tile[slot].condensate,floor:false,slot:`${slot}Condensate`}))];
+      for(const {owner,floor,slot} of owners){
+        const amount=floor?owner.liquid:owner.water;if(amount<=0)continue;
+        const contacts=nodeContacts(site,tile);
+        for(const room of contacts){
+          const destination=room?roomKelvin(room):outsideTemperatureAt(site,tile.x,tile.y,positionOf(tile).z)+ZERO;
+          const beforeIce=waterPhase(owner,{floor}).ice;
+          const exchange=exchangeWaterHeat(owner,destination,room?capacity(room):Infinity,(floor?.08:.02)/contacts.length,{floor});
+          if(room)room.heat+=exchange;
+          else if(exchange>=0)ledger.environmentOut+=exchange;else ledger.environmentIn-=exchange;
+          recordWaterPhase(s,site,tile,slot,beforeIce,'thermal_contact');
+        }
+      }
+    }
     for (const t of site.tiles) {
       initializeClimate(t); const r = roomHere(site, t.x, t.y, positionOf(t).z);
       if (t.building === 'climate') {
@@ -163,7 +187,7 @@ export function updateThermal(s) {
           r.heat += Math.sign(difference) * amount; ledger[difference >= 0 ? 'heating' : 'cooling'] += amount;
           unit.status = amount < 1e-8 ? 'Target reached' : difference > 0 ? 'Heating compartment' : 'Cooling compartment';
         }
-      } else if (r && t.powered && BUILDINGS[t.building]?.demand) {
+      } else if (r && t.powered && BUILDINGS[t.building]?.demand && !GAS_DRIVES.includes(t.building)) {
         const heat = BUILDINGS[t.building].demand * .35; r.heat += heat; ledger.equipment += heat;
       }
     }
@@ -183,14 +207,15 @@ export function setClimate(s, siteId, x, y, target, enabled,z=0) {
   if (t?.building !== 'climate' || !Number.isInteger(target) || target < -20 || target > 35 || typeof enabled !== 'boolean') return { ok: false, message: 'Choose a climate unit and a target from -20 to 35 °C.' };
   t.climate.target = target; t.climate.enabled = enabled; t.climate.status = enabled ? 'Waiting for climate control' : 'Paused by player'; refreshPower(s, s.sites[siteId]); return { ok: true };
 }
-export function validateThermal(s, {legacyHeat=false}={}) {
+export function validateThermal(s, {legacyHeat=false,legacyWaterHeat=false,legacyCompression=false}={}) {
   const nonnegative = n => Number.isFinite(n) && n >= 0;
   for (const site of Object.values(s.sites)) {
-    const h = site.thermal, keys = ['initial', 'added', 'removed', 'environmentIn', 'environmentOut', 'equipment', 'combustion', 'heating', 'cooling',...(legacyHeat?[]:['gasInitial','gasLoaded','gasVented'])];
-    if (!h || !keys.every(k => nonnegative(h[k])) || h.ambient !== outsideTemperature(site, s.tick) || site.rooms.some(r => !nonnegative(r.heat)||(!legacyHeat&&r.gasThermal!==true))) throw new Error('Invalid thermal state.');
-    const expected = h.initial + h.added - h.removed + h.environmentIn - h.environmentOut + h.equipment + h.combustion + h.heating - h.cooling + (legacyHeat?0:h.gasInitial+h.gasLoaded-h.gasVented);
-    const actual = site.rooms.reduce((n, r) => n + r.heat, 0) + (legacyHeat?0:site.tiles.reduce((n,t)=>n+(t.pipe?.heat||0)+(t.gasStore?.heat||0),0));
-    if (Math.abs(actual - expected) > 1e-6 + Math.abs(expected) * 1e-9) throw new Error('Stored heat does not balance.');
+    const h = site.thermal, keys = ['initial', 'added', 'removed', 'environmentIn', 'environmentOut', 'equipment', 'combustion', 'heating', 'cooling',...(legacyHeat?[]:['gasInitial','gasLoaded','gasVented']),...(legacyWaterHeat?[]:['waterInitial','waterLoaded','waterRemoved']),...(legacyCompression?[]:['compression'])];
+    if (!h || !keys.every(k => nonnegative(h[k])) || h.ambient !== outsideTemperature(site, s.tick) || site.rooms.some(r => !nonnegative(r.heat)||(!legacyHeat&&(r.gasThermal!==true||r.heat<gasLatentHeat(r.gas))))) throw new Error('Invalid thermal state.');
+    if(!legacyWaterHeat)validateWaterThermal(site);
+    const expected = h.initial + h.added - h.removed + h.environmentIn - h.environmentOut + h.equipment + h.combustion + h.heating - h.cooling + (legacyHeat?0:h.gasInitial+h.gasLoaded-h.gasVented) + (legacyWaterHeat?0:h.waterInitial+h.waterLoaded-h.waterRemoved) + (legacyCompression?0:h.compression);
+    const actual = site.rooms.reduce((n, r) => n + r.heat, 0) + (legacyHeat?0:site.tiles.reduce((n,t)=>n+(t.pipe?.heat||0)+(t.gasStore?.heat||0),0)) + (legacyWaterHeat?0:storedWaterHeat(site));
+    if (!Number.isFinite(actual)||!Number.isFinite(expected)||Math.abs(actual - expected) > 1e-6 + Math.abs(expected) * 1e-9) throw new Error('Stored heat does not balance.');
     for (const t of site.tiles) {
       const c = t.climate;
       if (t.building !== 'climate') { if (c !== undefined) throw new Error('Climate controls attached to a missing unit.'); }

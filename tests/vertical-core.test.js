@@ -8,11 +8,13 @@ import {advanceCrewRoutePositions} from '../src/crew-traversal.js';
 import {updateRooms,fillRoom,roomAt,updateAtmosphere,moveCrew,gasAmount} from '../src/atmosphere.js';
 import {initializeThermal,updateThermal,HEAT_CAPACITY} from '../src/thermal.js';
 import {initializeLiquids,flowLiquids} from '../src/liquids.js';
+import {parcelHeat} from '../src/water-thermal.js';
 import {stairLinks,validateVerticalLinks,stairOpen} from '../src/vertical.js';
 import {executeAction,controlBindings} from '../src/controls.js';
-import {startRecording,exportRecording,recordingStatus} from '../src/telemetry.js';
+import {startRecording,stopRecording,exportRecording,recordingStatus} from '../src/telemetry.js';
 const events=s=>exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>r.event).map(r=>r.event);
 const at=(site,x,y,z=0)=>tileAt(site,{x,y,z});
+const floorWater=(tile,amount)=>{tile.liquid=amount;tile.liquidHeat=parcelHeat(amount);};
 // Synthetic landings; paid construction and canonical saves are covered by stairs.test.js.
 function connect(site,x=8,y=8,id='vertical-1',mode='auto'){
  const link={id,kind:'stairwell',lower:{x,y,z:0},upper:{x,y,z:1},hp:100,mode,openUntil:0};
@@ -20,7 +22,7 @@ function connect(site,x=8,y=8,id='vertical-1',mode='auto'){
 }
 function fixture(){
  const s=createGame(74219),site=s.sites.surface;site.levels.push({z:1,name:'Upper test deck'});site.tiles.push(...site.tiles.map(t=>({...structuredClone(t),z:1})));
- for(const t of site.tiles){if(t.machine)t.machine.enabled=false;if(t.z===1){if(t.stock)t.stock={};t.drop=null;t.liquid=0;t.wetShort=false;for(const field of ['biome','temperatureOffset','basin','initialWater'])delete t[field];}}
+ for(const t of site.tiles){if(t.machine)t.machine.enabled=false;if(t.z===1){if(t.stock)t.stock={};t.drop=null;floorWater(t,0);t.wetShort=false;for(const field of ['biome','temperatureOffset','basin','initialWater'])delete t[field];}}
  for(const c of s.crew){for(const k of Object.keys(c.labors))c.labors[k]=false;c.life.policy='work';c.hunger=c.energy=c.oxygen=100;Object.assign(c,{x:12,y:11,intent:null,job:null,carry:null,delivery:null});}
  const link=connect(site);updateRooms(site);for(const r of site.rooms){fillRoom(r);r.heat=(20+273.15)*r.volume*HEAT_CAPACITY;}
  const c=s.crew[0];Object.assign(c,link.lower);return {s,site,c,link};
@@ -79,17 +81,26 @@ test('open stair heat exchange conserves heat after accounting for ordinary wall
 });
 
 test('open stair drainage is downward, bounded and retains water above a full lower landing',()=>{
- const f=chamber(),upper=tileAt(f.site,f.link.upper),lower=tileAt(f.site,f.link.lower);f.link.mode='open';upper.liquid=2;lower.liquid=0;
+ const f=chamber(),upper=tileAt(f.site,f.link.upper),lower=tileAt(f.site,f.link.lower);f.link.mode='open';floorWater(upper,2);floorWater(lower,0);
  flowLiquids(f.s);assert.equal(upper.liquid,1.5);assert.equal(lower.liquid,.5);assert.equal(f.site.liquids.lost,0);
- upper.liquid=0;lower.liquid=2;flowLiquids(f.s);assert.equal(upper.liquid,0);assert.equal(lower.liquid,2);
- upper.liquid=2;lower.liquid=4;flowLiquids(f.s);assert.equal(upper.liquid,2);f.link.mode='closed';lower.liquid=0;flowLiquids(f.s);assert.equal(upper.liquid,2);assert.equal(lower.liquid,0);
+ floorWater(upper,0);floorWater(lower,2);flowLiquids(f.s);assert.equal(upper.liquid,0);assert.equal(lower.liquid,2);
+ floorWater(upper,2);floorWater(lower,4);flowLiquids(f.s);assert.equal(upper.liquid,2);f.link.mode='closed';floorWater(lower,0);flowLiquids(f.s);assert.equal(upper.liquid,2);assert.equal(lower.liquid,0);
 });
 
 test('crew haul inputs upstairs, operate the supplied machine and return output through a stair',()=>{
  const f=fixture(),helper=f.s.crew[5],store=at(f.site,8,10),machine=at(f.site,13,10,1);f.c.labors.hauling=true;helper.labors.production=true;store.stock={ore:1};
  assert.equal(executeAction(f.s,'depot.priority',{site:'surface',x:8,y:10,priority:5}).ok,true);
- assert.equal(executeAction(f.s,'production.order',{site:'surface',x:13,y:10,z:1,mode:'batches',limit:1}).ok,true);assert.equal(executeAction(f.s,'production.enable',{site:'surface',x:13,y:10,z:1,enabled:true}).ok,true);startRecording(f.s);assert.equal(recordingStatus(f.s).active,true);
- for(let i=0;i<100&&store.stock.alloy!==2;i++)step(f.s);
- assert.equal(machine.machine.completed,1);assert.equal(store.stock.alloy,2);assert.equal(machine.machine.output.alloy||0,0);assert.equal(recordingStatus(f.s).active,true);assert.ok(events(f.s).some(e=>e.id==='vertical.traversed'&&e.actor===helper.id));
+ assert.equal(executeAction(f.s,'production.order',{site:'surface',x:13,y:10,z:1,mode:'batches',limit:1}).ok,true);assert.equal(executeAction(f.s,'production.enable',{site:'surface',x:13,y:10,z:1,enabled:true}).ok,true);
+ const windowLimits={maxRecords:2000,maxBytes:16_000_000},recordedRows=[];let recordedTicks=0,firstHeader;
+ const finishWindow=(restart=true)=>{
+  const chunk=exportRecording(f.s).trim().split('\n').map(JSON.parse),footer=chunk.at(-1);
+  assert.equal(footer.active,true,`Recording through tick ${f.s.tick} incomplete: ${footer.reason}`);assert.equal(footer.reason,null);assert.equal(footer.throughTick,f.s.tick);
+  firstHeader??=chunk[0];recordedRows.push(...chunk.filter(row=>row.event||row.action));
+  if(restart){assert.equal(startRecording(f.s,windowLimits).active,true);recordedTicks=0;}else stopRecording(f.s);
+ };
+ const recordedStep=(ticks=1)=>{for(let n=0;n<ticks;n++){step(f.s);if(++recordedTicks===4)finishWindow();}};
+ assert.equal(startRecording(f.s,windowLimits).active,true);
+ for(let i=0;i<100&&store.stock.alloy!==2;i++)recordedStep();
+ assert.equal(machine.machine.completed,1);assert.equal(store.stock.alloy,2);assert.equal(machine.machine.output.alloy||0,0);finishWindow(false);assert.ok(recordedRows.some(row=>row.event?.id==='vertical.traversed'&&row.event.actor===helper.id));
 
 });

@@ -1,3 +1,4 @@
+import {loadWater} from '../src/water-thermal.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createGame, at, step, order, pathTo, serialize, deserialize} from '../src/simulation.js';
@@ -5,9 +6,11 @@ import {add, extract, initializeStorage, syncResources, totalResources} from '..
 import {haul, setMachineEnabled} from '../src/industry.js';
 import {setProductionOrder, projectedStock, recipeFor} from '../src/production.js';
 import {refreshPower} from '../src/power.js';
+import {vaporWaterExports} from './helpers/vapor-accounting.js';
 import {initializePlumbingTile, newWaterPipe, waterNode, operatePlumbing, plumbingStatus, setWaterIntake, setWaterOutlet} from '../src/plumbing.js';
 
 const close=(actual,expected)=>assert.ok(Math.abs(actual-expected)<1e-7,`${actual} != ${expected}`);
+const waterBalance=s=>totalResources(s).water+vaporWaterExports(s);
 const stock=s=>at(s.sites.surface,8,10).stock;
 const check=s=>{syncResources(s);refreshPower(s,s.sites.surface);return deserialize(serialize(s));};
 function base(){
@@ -24,7 +27,7 @@ function install(f,kind,x,y){
 function pipe(f,x,y){const t=at(f.site,x,y);t.waterPipe=newWaterPipe();return t;}
 function into(f,t,slot,amount){add(t.machine[slot],extract(stock(f.s),{water:amount}));}
 function fill(f,t,amount){
- assert.ok(extract(stock(f.s),{water:amount}));waterNode(t).water+=amount;f.site.plumbing.loaded+=amount;
+ assert.ok(extract(stock(f.s),{water:amount}));loadWater(f.site,waterNode(t),amount);f.site.plumbing.loaded+=amount;
 }
 function run(f,n=1){for(let i=0;i<n;i++){refreshPower(f.s,f.site);operatePlumbing(f.s);}}
 function until(s,p,limit=160){for(let i=0;i<limit&&!p();i++)step(s);assert.ok(p(),`Condition not reached by tick ${s.tick}`);}
@@ -48,18 +51,18 @@ test('hauled tank water reaches a staffed farm through intake, pipes, pump, rese
  setMachineEnabled(s,'surface',tank.x,tank.y,false);hauler.labors.hauling=false;
  setMachineEnabled(s,'surface',farm.x,farm.y,true);setProductionOrder(s,'surface',farm.x,farm.y,'batches',1);
  assert.ok(setWaterOutlet(s,'surface',outlet.x,outlet.y,true,'s','inventory').ok);
- const before=totalResources(s).water;
+ const before=waterBalance(s);
  until(s,()=>(farm.machine.input.water||0)>=1-1e-8);
  assert.ok(site.plumbing.loaded>0);assert.ok(site.plumbing.delivered>0);assert.ok(waterNode(reservoir));
  assert.deepEqual(farm.machine.batch,{});assert.equal(farm.machine.progress,0);assert.equal(farm.machine.completed,0);
- close(totalResources(s).water,before);assert.match(farm.machine.status,/fertilizer/i);
+ close(waterBalance(s),before);assert.match(farm.machine.status,/fertilizer/i);
  hauler.labors.hauling=true;for(let i=0;i<40&&(farm.machine.input.fertilizer||0)<.25;i++)haul(s,hauler,site,pathTo);
  close(farm.machine.input.fertilizer,.25);hauler.labors.hauling=false;step(s,3);
  assert.equal(farm.machine.progress,0);assert.equal(farm.machine.completed,0);
  const worker=s.crew[3];worker.labors.production=true;const xp=worker.skills.production.xp;
  until(s,()=>farm.machine.completed===1);step(s,4);
  assert.equal(farm.machine.order.remaining,0);assert.equal(farm.machine.output.food,2);assert.ok(worker.skills.production.xp>xp);
- close(farm.machine.input.water||0,0);close(site.plumbing.delivered,1);close(totalResources(s).water,before-1);
+ close(farm.machine.input.water||0,0);close(site.plumbing.delivered,1);close(waterBalance(s),before-1);
  assert.ok([intake,pump,outlet].every(t=>t.powered));check(s);
 });
 
@@ -124,20 +127,20 @@ test('reversing inventory adapters does not reverse their transfer roles or siph
 test('a deceased incoming carrier frees destination capacity while their actual water drops at the death location',()=>{
  const f=inputFixture(),{s,target,node}=f,c=s.crew[0];fill(f,node,2);into(f,target,'input',1);
  c.x=9;c.y=10;c.carry=extract(stock(s),{water:1});c.delivery={kind:'input',target: { x: 12, y: 9, z: 0 }};
- const before=totalResources(s).water;run(f,2);close(target.machine.input.water,1);close(waterNode(node).water,2);
+ const before=waterBalance(s);run(f,2);close(target.machine.input.water,1);close(waterNode(node).water,2);
  c.health=0;step(s);run(f,4);
  assert.equal(c.carry,null);assert.equal(c.delivery,null);close(at(f.site,9,10).drop.water,1);
- close(target.machine.input.water,2);close(waterNode(node).water,1);close(totalResources(s).water,before);check(s);
+ close(target.machine.input.water,2);close(waterNode(node).water,1);close(waterBalance(s),before);check(s);
 });
 
 test('dismantling a consumer preserves its water and redirects an already carried shipment into storage',()=>{
  const f=inputFixture(),{s,site,target,node}=f,c=s.crew[0];fill(f,node,2);into(f,target,'input',.5);
  c.x=8;c.y=11;c.carry=extract(stock(s),{water:1});c.delivery={kind:'input',target: { x: 12, y: 9, z: 0 }};
- const before=totalResources(s).water;
+ const before=waterBalance(s);
  // Keep this living carrier in physical recovery so demolition can overtake its delivery.
  c.energy=1;c.intent={type:'rest',target:null};
  setMachineEnabled(s,'surface',target.x,target.y,false);assert.ok(order(s,'surface',target.x,target.y,'remove').ok);
  until(s,()=>target.building===null);assert.equal(target.machine,undefined);close(waterNode(node).water,2);
  assert.ok((target.drop?.water||0)>=.5);run(f,4);close(waterNode(node).water,2);
- c.intent=null;deliver(s,c);assert.equal(c.carry,null);close(totalResources(s).water,before);check(s);
+ c.intent=null;deliver(s,c);assert.equal(c.carry,null);close(waterBalance(s),before);check(s);
 });

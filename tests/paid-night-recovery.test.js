@@ -20,6 +20,8 @@ import { PLACEMENTS } from '../tools/paid-airlock-example.mjs';
 import { physicalMaterialOwners } from '../tools/paid-air-recovery.mjs';
 import { recoverPaidNight, LIMITS, parseArguments } from '../tools/paid-night-recovery.mjs';
 import { availableForWork, workReadiness } from '../src/crew.js';
+import { beginJourneyRecording, beforeJourneyAction } from './helpers/journey-recording-windows.js';
+import { startRecording, stopRecording } from '../src/telemetry.js';
 import { airlockSideBlock } from '../src/airlock-access.js';
 
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -64,8 +66,8 @@ function synthetic({ lowOxygen = false, bank = 14, tick = 1430, cold = false, cr
   Object.assign(state.crew[1], { x: 13, y: 9, carry: { air: 6 }, delivery: { kind: 'stock', target: { x: 8, y: 10, z: 0 } } });
   Object.assign(state.crew[0], { x: 8, y: 10, carry: { fertilizer: .25 }, delivery: { kind: 'input', target: { x: 7, y: 9, z: 0 } } });
   updateRooms(site); initializeThermal(state); fillRoom(roomAt(site, 10, 11));
-  const chamber = roomAt(site, 10, 13); chamber.gas = { oxygen: 0, inert: 0, co2: 0 };
-  if (lowOxygen) roomAt(site, 10, 11).gas = { oxygen: 52.8, inert: 277.0263378661494, co2: .051891004317951676 };
+  const chamber = roomAt(site, 10, 13); chamber.gas = { oxygen: 0, inert: 0, co2: 0, vapor: 0 };
+  if (lowOxygen) roomAt(site, 10, 11).gas = { oxygen: 52.8, inert: 277.0263378661494, co2: .051891004317951676, vapor: 0 };
   // Prepared gas and structures share the initial temperature and energy ledger.
   initializeThermal(state);
   if (cold) { roomAt(site, 10, 11).heat = roomHeatCapacity(roomAt(site, 10, 11)) * (273.15 + 9.968); chamber.heat = roomHeatCapacity(chamber) * (273.15 + 4); site.thermal.initial = site.rooms.reduce((n, r) => n + r.heat, 0); }
@@ -79,7 +81,48 @@ function synthetic({ lowOxygen = false, bank = 14, tick = 1430, cold = false, cr
 async function preserve(name, output, input) {
   const directory = process.env.PAID_NIGHT_OUTPUT_DIR; if (!directory) return;
   await mkdir(directory, { recursive: true });
-  for (const [suffix, text] of Object.entries({ 'input.json': input, 'summary.json': JSON.stringify(output.summary, null, 2) + '\n', 'endpoint.json': output.endpoint, 'actions.json': JSON.stringify(output.actions), 'recording.ndjson': output.recording })) if (text) await writeFile(join(directory, `${name}-${suffix}`), text);
+  for (const [suffix, text] of Object.entries({ 'input.json': input, 'summary.json': JSON.stringify(output.summary, null, 2) + '\n', 'endpoint.json': output.endpoint, 'actions.json': JSON.stringify(output.actions), 'recording.ndjson': output.recording, 'recording-windows.json': output.recordingProof && JSON.stringify(output.recordingProof, null, 2) + '\n' })) if (text) await writeFile(join(directory, `${name}-${suffix}`), text);
+}
+
+// Explicit external evidence keeps the helper's default single recording intact.
+async function preserveFailedNight(name, output, input) {
+  const directory = await mkdtemp(join(tmpdir(), 'spacefortress-night-'));
+  for (const [suffix, text] of Object.entries({ 'input.json': input, 'summary.json': JSON.stringify(output.summary), 'endpoint.json': output.endpoint, 'actions.json': JSON.stringify(output.actions), 'windows.json': JSON.stringify(output.recordingProof) })) {
+    const path = join(directory, `${name}-${suffix}-sha256-${hash(text)}`);
+    try { await writeFile(path, text, { flag: 'wx', mode: 0o444 }); }
+    catch (error) { if (error.code !== 'EEXIST') throw error; }
+    assert.equal(hash(await readFile(path)), hash(text), 'failed helper evidence bytes frozen');
+  }
+  return directory;
+}
+async function recoverWindowedNight(state, name, options = {}) {
+  const input = serialize(state), limits = { ...LIMITS, ...options.limits };
+  const recorder = beginJourneyRecording(state, { limits: { maxRecords: 16000, maxBytes: 128_000_000 }, maxTicks: 10, tickLimit: limits.ticks, stageLimit: 6, stage: 'preflight' });
+  let stage = 'preflight';
+  const output = recoverPaidNight(state, { ...options, record: false, beforeAction(action) {
+    if (action.stage !== stage) { recorder.checkpoint(action.stage); stage = action.stage; }
+    beforeJourneyAction(state);
+  } });
+  output.recordingProof = { kind: 'verified-window-manifest', limits: { maxRecords: 16000, maxBytes: 128_000_000 }, maxTicks: 10, maxWindows: Math.ceil(limits.ticks / 10) + 7, windows: recorder.windows };
+  try {
+    const index = recorder.finish(), requests = index.filter(row => row.kind === 'action.requested');
+    const totals = recorder.windows.reduce((n, window) => { for (const key of ['ticks', 'requests', 'commands', 'external']) n[key] += window[key]; return n; }, { ticks: 0, requests: 0, commands: 0, external: 0 });
+    Object.assign(output.recordingProof, totals);
+    assert.equal(totals.external, 0); assert.equal(totals.ticks, output.summary.addedTicks);
+    assert.equal(totals.requests, output.summary.attempts); assert.equal(totals.commands, output.summary.commands);
+    assert.ok(totals.ticks <= limits.ticks && totals.requests <= limits.attempts && totals.commands <= limits.commands);
+    assert.deepEqual(requests.map(row => ({ id: row.action.id, args: row.action.args })), output.actions.map(({ id, args }) => ({ id, args })));
+    assert.equal(output.summary.actionSha256, hash(JSON.stringify(output.actions)));
+    assert.equal(serialize(state), output.endpoint, 'recording verification preserves the exact paid endpoint');
+    output.recordingProof.complete = true;
+  } catch (error) {
+    recorder.preserveFailure(error); output.recordingProof.failure = { message: error.message, rawWindow: error.journeyRecordingFailure };
+    const evidence = await preserveFailedNight(name, output, input);
+    error.message += ` (night recovery files: ${evidence})`;
+    await preserve(name, output, input);
+    throw error;
+  }
+  await preserve(name, output, input); return output;
 }
 
 test('synthetic native carry/output continuation conserves paid stock and restores finite daytime controls and balanced routines', async () => {
@@ -125,7 +168,7 @@ test('empty cold chamber is observed through native warming without changing adm
   assert.equal(airlockSideBlock(state.sites.surface, controller, 'inner'), 'unsafe_temperature');
   const threshold = deserialize(serialize(state)); roomAt(threshold.sites.surface, 10, 13).heat = chamber.volume * 20 * (273.15 + 5);
   assert.notEqual(airlockSideBlock(threshold.sites.surface, tileAt(threshold.sites.surface, 10, 10), 'inner'), 'unsafe_temperature');
-  const input = serialize(state), output = recoverPaidNight(state); await preserve('cold', output, input);
+  const input = serialize(state), output = await recoverWindowedNight(state, 'cold');
   assert.equal(output.summary.ok, true, JSON.stringify(output.summary.failure));
   assert.ok(output.summary.checkpoint.chamber.temperature >= 5); assert.equal(output.summary.checkpoint.chamber.pressure, 0);
   assert.ok(output.actions.every(a => !a.id.includes('request') && !a.id.includes('door')));
@@ -134,7 +177,7 @@ test('empty cold chamber is observed through native warming without changing adm
 
 test('exact synthetic paid partial endpoint resumes daylight off duty without claiming prior delivery again', async () => {
   const state = synthetic({ tick: 1490, cold: true, crew3Energy: 27.24 }), input = serialize(state);
-  const first = recoverPaidNight(state, { limits: { ticks: 75 } }); await preserve('day-partial', first, input);
+  const first = await recoverWindowedNight(state, 'day-partial', { limits: { ticks: 75 } });
   assert.equal(first.summary.failure.code, 'tick_limit'); assert.equal(first.state.tick, 1565);
   assert.ok(Math.abs(first.state.crew[3].energy - 24.99) < 1e-7);
   assert.equal(availableForWork(first.state.crew[3]), false); assert.ok(workReadiness(first.state.crew[3]).blockers.includes('fatigued'));
@@ -142,7 +185,7 @@ test('exact synthetic paid partial endpoint resumes daylight off duty without cl
   assert.ok(first.state.crew.every(c => c.life.policy === 'rest' && !c.carry && !c.job));
   assert.equal(first.summary.checkpoint.farmEnabled, false); assert.equal(first.summary.checkpoint.scrubberEnabled, false);
   assert.equal(first.summary.checkpoint.controllerEnabled, true);
-  const stopped = first.endpoint, resumed = deserialize(stopped), output = recoverPaidNight(resumed); await preserve('day-resumed', output, stopped);
+  const stopped = first.endpoint, resumed = deserialize(stopped), output = await recoverWindowedNight(resumed, 'day-resumed');
   assert.equal(first.endpoint, stopped); assert.equal(hash(serialize(state)), hash(stopped));
   assert.equal(output.summary.ok, true, JSON.stringify(output.summary.failure)); assert.equal(output.summary.inputMode, 'day');
   assert.equal(output.summary.inputSha256, hash(stopped)); assert.equal(output.summary.initialTick, first.summary.tick);
@@ -155,8 +198,8 @@ test('exact synthetic paid partial endpoint resumes daylight off duty without cl
   assert.equal(cp.controllerEnabled, true); assert.equal(cp.controllerPhase, 'idle'); assert.equal(cp.farmEnabled, true); assert.equal(cp.scrubberEnabled, true);
   assert.ok(resumed.crew.every(c => c.health === 100 && !c.medical.injury && c.life.policy === 'balanced'));
   for (const n of [output.summary.accounting.gasError, output.summary.accounting.waterError, output.summary.accounting.fertilizerError, ...Object.values(output.summary.accounting.energyErrors), output.summary.accounting.species.inertError, output.summary.accounting.species.oxygenCo2Error]) assert.ok(Math.abs(n) < 1e-7);
-  const records = output.recording.trim().split('\n').map(JSON.parse); assert.equal(records.filter(r => r.kind === 'external').length, 0);
-  assert.equal(records.filter(r => r.kind === 'simulation.tick').length, output.summary.addedTicks); assert.equal(records.filter(r => r.kind === 'action.requested').length, output.summary.attempts);
+  const proof = output.recordingProof; assert.equal(proof.external, 0); assert.equal(proof.complete, true);
+  assert.equal(proof.ticks, output.summary.addedTicks); assert.equal(proof.requests, output.summary.attempts);
   for (const change of [s => s.crew[0].life.policy = 'work', s => tileAt(s.sites.surface, 7, 9).machine.enabled = true]) {
     const invalid = deserialize(stopped); change(invalid); const before = serialize(invalid), result = recoverPaidNight(invalid);
     assert.equal(result.summary.ok, false); assert.equal(result.actions.length, 0); assert.equal(hash(serialize(invalid)), hash(before));
@@ -182,8 +225,23 @@ test('invalid input and zero command or attempt budgets leave state untouched an
     const state = synthetic(), input = serialize(state), output = recoverPaidNight(state, { limits });
     assert.equal(output.summary.ok, false); assert.equal(output.actions.length, 0); assert.equal(hash(serialize(state)), hash(input));
   }
-  for (const options of [{ limits: { ticks: 221 } }, { limits: { attempts: 261 } }, { limits: { commands: 36 } }, { processor: [1, 1] }, { limits: { batches: 1 } }]) assert.throws(() => recoverPaidNight(synthetic(), options), TypeError);
-  for (const args of [[], ['--input', 'a', '--output-dir', 'a'], ['--input', 'a', '--output-dir', 'b', '--ticks', '221']]) assert.throws(() => parseArguments(args), TypeError);
+  for (const options of [{ limits: { ticks: 221 } }, { limits: { attempts: 261 } }, { limits: { commands: 36 } }, { processor: [1, 1] }, { limits: { batches: 1 } }, { record: 'false' }, { record: null }, { beforeAction: null }, { beforeAction: true }, { record: false }]) assert.throws(() => recoverPaidNight(synthetic(), options), TypeError);
+  for (const args of [[], ['--input', 'a', '--output-dir', 'a'], ['--input', 'a', '--output-dir', 'b', '--ticks', '221'], ['--input', 'a', '--output-dir', 'b', '--record', 'false']]) assert.throws(() => parseArguments(args), TypeError);
+});
+
+test('default paid-night recording and an observational callback preserve identical actions and endpoints', () => {
+  const input = serialize(synthetic()), plain = recoverPaidNight(deserialize(input), { limits: { ticks: 1 } });
+  const seen = [], observed = recoverPaidNight(deserialize(input), { limits: { ticks: 1 }, beforeAction(action) { seen.push(structuredClone(action)); } });
+  assert.equal(plain.summary.failure.code, 'tick_limit'); assert.deepEqual(observed.summary, plain.summary);
+  assert.equal(observed.recording, plain.recording); assert.equal(observed.endpoint, plain.endpoint); assert.deepEqual(observed.actions, plain.actions);
+  assert.deepEqual(seen.map(({ id, args }) => ({ id, args })), plain.actions.map(({ id, args }) => ({ id, args })));
+  const unobserved = deserialize(input), rejected = recoverPaidNight(unobserved, { record: false, beforeAction() {} });
+  assert.equal(rejected.summary.failure.code, 'recording_limit'); assert.equal(rejected.actions.length, 0); assert.equal(serialize(unobserved), input);
+  assert.equal(Object.hasOwn(rejected, 'recording'), false);
+  const interrupted = deserialize(input); startRecording(interrupted);
+  const stopped = recoverPaidNight(interrupted, { record: false, beforeAction() { stopRecording(interrupted); } });
+  assert.equal(stopped.summary.failure.code, 'recording_limit'); assert.equal(stopped.actions.length, 0);
+  assert.equal(serialize(interrupted), input, 'losing external recording stops before a physical action');
 });
 
 test('CLI exports canonical first endpoint and complete hashes to a fresh directory', async () => {

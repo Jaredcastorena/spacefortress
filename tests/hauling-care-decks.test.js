@@ -9,18 +9,30 @@ import {haul} from '../src/industry.js';
 import {injure,safeBed} from '../src/medicine.js';
 import {hygienePatient,hygieneReady} from '../src/hygiene.js';
 import {executeAction,controlBindings} from '../src/controls.js';
-import {startRecording,exportRecording,recordingStatus} from '../src/telemetry.js';
+import {startRecording,stopRecording,exportRecording,recordingStatus} from '../src/telemetry.js';
 import {distance} from '../src/geometry.js';
 const at=(site,x,y,z=0)=>tileAt(site,{x,y,z});
 // Missing records must not masquerade as stalled physical work.
 const record=s=>{startRecording(s);assert.equal(recordingStatus(s).active,true);};
 const events=s=>{assert.equal(recordingStatus(s).reason,null,'The bounded recording must retain every asserted event.');return exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>r.event).map(r=>r.event);};
+// Complete default-budget windows preserve the original waits and physical checks.
+function boundedRecording(s){
+ const limits={maxRecords:2000,maxBytes:16_000_000},retained=[];let ticks=0;
+ const checkpoint=(restart=true)=>{
+  const rows=exportRecording(s).trim().split('\n').map(JSON.parse),footer=rows.at(-1);
+  assert.equal(footer.active,true,`Recording through tick ${s.tick} incomplete: ${footer.reason}`);assert.equal(footer.reason,null);assert.equal(footer.throughTick,s.tick);
+  retained.push(...rows.filter(row=>row.event).map(row=>row.event));
+  if(restart){assert.equal(startRecording(s,limits).active,true);ticks=0;}else stopRecording(s);
+ };
+ assert.equal(startRecording(s,limits).active,true);
+ return {tick:()=>{if(++ticks===4)checkpoint();},events:()=>{checkpoint(false);return retained;}};
+}
 // Synthetic declared upper floor; this does not enable multi-floor save files.
 function fixture(){
  const s=createGame(74219),site=s.sites.surface;
  site.levels.push({z:7,name:'Upper test deck'});
  // Natural ground conditions and pond water do not become an upstairs reservoir.
- site.tiles.push(...site.tiles.map(t=>{const upper={...structuredClone(t),z:7,liquid:0,wetShort:false};for(const key of ['biome','temperatureOffset','basin','initialWater'])delete upper[key];return upper;}));
+ site.tiles.push(...site.tiles.map(t=>{const upper={...structuredClone(t),z:7,liquid:0,liquidHeat:0,wetShort:false};for(const key of ['biome','temperatureOffset','basin','initialWater'])delete upper[key];return upper;}));
  updateRooms(site);for(const r of site.rooms){
   const before=r.heat;fillRoom(r);const gasDelta=r.heat-before;site.thermal[gasDelta>=0?'gasLoaded':'gasVented']+=Math.abs(gasDelta);
   const heat=(20+273.15)*roomHeatCapacity(r),delta=heat-r.heat;site.thermal[delta>=0?'heating':'cooling']+=Math.abs(delta);r.heat=heat;
@@ -30,7 +42,7 @@ function fixture(){
  const p=s.crew[0],helper=s.crew[5];Object.assign(p,{x:8,y:9,z:7,intent:null,job:null,carry:null,delivery:null});Object.assign(helper,{x:9,y:10,z:7,intent:null,job:null,carry:null,delivery:null});
  const store=at(site,8,10,7),lowerStore=at(site,8,10);refreshAtmosphere(site);refreshPower(s,site);return {s,site,p,helper,store,lowerStore};
 }
-function until(f,p,limit=100){for(let n=0;n<limit&&!p();n++){const before=[f.p,f.helper].map(positionOf);step(f.s);for(const [i,c] of [f.p,f.helper].entries()){assert.equal(c.z,7);assert.ok(distance([before[i].x,before[i].y],[c.x,c.y])<=1);}}assert.ok(p(),`Tick ${f.s.tick}; patient: ${f.p.activity}; helper: ${f.helper.activity}`);}
+function until(f,p,limit=100,afterStep=()=>{}){for(let n=0;n<limit&&!p();n++){const before=[f.p,f.helper].map(positionOf);step(f.s);afterStep();for(const [i,c] of [f.p,f.helper].entries()){assert.equal(c.z,7);assert.ok(distance([before[i].x,before[i].y],[c.x,c.y])<=1);}}assert.ok(p(),`Tick ${f.s.tick}; patient: ${f.p.activity}; helper: ${f.helper.activity}`);}
 function clinic(){
  const f=fixture();for(const z of [0,7])Object.assign(at(f.site,10,9,z),{building:'medicalCot',hp:100});
  Object.assign(f.p,{x:10,y:9});injure(f.s,f.p,65,'synthetic debris');f.p.medical.bed={x:10,y:9,z:7};f.p.intent={type:'medical',target:{...f.p.medical.bed}};f.helper.labors.medicine=true;
@@ -40,9 +52,9 @@ function clinic(){
 test('upper hauling supplies a complete production batch and returns its output physically',()=>{
  const f=fixture(),machine=at(f.site,13,10,7);f.store.stock={ore:1};f.lowerStore.stock={ore:10,alloy:10};f.p.labors.hauling=true;f.helper.labors.production=true;
  assert.equal(executeAction(f.s,'production.order',{site:'surface',x:13,y:10,z:7,mode:'batches',limit:1}).ok,true);
- assert.equal(executeAction(f.s,'production.enable',{site:'surface',x:13,y:10,z:7,enabled:true}).ok,true);record(f.s);
- until(f,()=>f.store.stock.alloy===2);assert.equal(machine.machine.completed,1);assert.equal(machine.machine.output.alloy||0,0);assert.equal(f.store.stock.ore||0,0);assert.deepEqual(f.lowerStore.stock,{ore:10,alloy:10});
- const moves=events(f.s).filter(e=>e.id==='inventory.transferred');
+ assert.equal(executeAction(f.s,'production.enable',{site:'surface',x:13,y:10,z:7,enabled:true}).ok,true);const trace=boundedRecording(f.s);
+ until(f,()=>f.store.stock.alloy===2,100,trace.tick);assert.equal(machine.machine.completed,1);assert.equal(machine.machine.output.alloy||0,0);assert.equal(f.store.stock.ore||0,0);assert.deepEqual(f.lowerStore.stock,{ore:10,alloy:10});
+ const moves=trace.events().filter(e=>e.id==='inventory.transferred');
  assert.ok(moves.some(e=>e.from.entity==='tile:surface:8:10:7'&&e.to.entity===f.p.id&&e.resources.ore===1));
  assert.ok(moves.some(e=>e.to.entity==='tile:surface:13:10:7'&&e.to.slot==='machine.input'));
  assert.ok(moves.some(e=>e.from.entity==='tile:surface:13:10:7'&&e.to.entity===f.p.id&&e.resources.alloy===2));
@@ -57,12 +69,12 @@ test('an undeliverable upper shipment is set down on its actual floor with the c
 });
 
 test('one upstairs medic delivers food and medicine, provides hygiene and returns the waste',()=>{
- const f=clinic();f.p.hunger=20;f.p.sanitation.waste=.5;record(f.s);
- step(f.s);for(const kind of ['feed','treat','hygiene'])assert.ok(f.s.jobs.some(j=>j.kind===kind&&j.z===7));
- until(f,()=>f.p.health>35&&f.p.medical.servings===0&&f.p.memories.some(m=>m.kind==='assisted-hygiene')&&!f.helper.carry);
+ const f=clinic();f.p.hunger=20;f.p.sanitation.waste=.5;const trace=boundedRecording(f.s);
+ step(f.s);trace.tick();for(const kind of ['feed','treat','hygiene'])assert.ok(f.s.jobs.some(j=>j.kind===kind&&j.z===7));
+ until(f,()=>f.p.health>35&&f.p.medical.servings===0&&f.p.memories.some(m=>m.kind==='assisted-hygiene')&&!f.helper.carry,100,trace.tick);
  assert.ok(f.p.health>35);assert.ok(f.p.hunger>70);assert.deepEqual(positionOf(f.p),{x:10,y:9,z:7});
  assert.equal(f.store.stock.medicine||0,0);assert.equal(f.store.stock.food||0,0);assert.ok(f.store.stock.waste>=.5);assert.ok(f.p.sanitation.waste<.5);assert.equal(f.store.stock.waste+f.p.sanitation.waste,1);assert.equal(f.lowerStore.stock.medicine,10);assert.equal(f.lowerStore.stock.food,10);
- const completed=events(f.s).filter(e=>e.id==='job.completed');assert.ok(completed.length>=3);assert.ok(completed.every(e=>e.target==='tile:surface:10:9:7'));
+ const completed=trace.events().filter(e=>e.id==='job.completed');assert.ok(completed.length>=3);assert.ok(completed.every(e=>e.target==='tile:surface:10:9:7'));
 });
 
 test('upper care commands share player bindings and reject a downstairs patient alias',()=>{

@@ -1,5 +1,7 @@
 import { WORLD_BIOMES } from './world-generation.js';
 import { positionOf } from './spatial.js';
+import { putWater, waterHeatAt } from './water-thermal.js';
+import { KELVIN_ZERO } from './thermal-units.js';
 
 const fields = ['biome', 'temperatureOffset', 'basin', 'initialWater'];
 const amount = (value, maximum) => Number.isFinite(value) && value >= 0 && value <= maximum;
@@ -33,7 +35,11 @@ export function seedNaturalLiquids(site) {
     initial += tile.initialWater;
   }
   if ((site.liquids.initial ?? 0) + initial > site.tiles.length * 4) throw new Error('Invalid natural water ledger.');
-  for (const tile of seeds) { tile.liquid += tile.initialWater; delete tile.initialWater; }
+  for (const tile of seeds) {
+    const heat=waterHeatAt(tile.initialWater,site.thermal.ambient+localTemperatureOffset(tile)+KELVIN_ZERO);
+    putWater(tile,tile.initialWater,heat,{floor:true});site.thermal.waterInitial+=heat;
+    delete tile.initialWater;
+  }
   if (initial > 0) site.liquids.initial = (site.liquids.initial ?? 0) + initial;
   return initial;
 }

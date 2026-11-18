@@ -4,6 +4,10 @@
 
 `Verified` means the stated scoped check has evidence. `Pending` means the release check has not yet been accepted. Historical results do not substitute for current release verification.
 
+## v0.1.14 — water, ice and gas compression
+
+Colony save schema 82 and observation/recording 16 cover water phase changes, rigid pipe rupture, finite gas compression and airlock breathing diagnostics. The [verification record](verification-status.md) describes the focused simulation checks. The [release workflow](https://github.com/Jaredcastorena/spacefortress/actions/workflows/tests.yml) runs the full suite and deploys the tested main commit. The downloadable web build and live site identify that commit in `version.json`.
+
 ## v0.1.6 — upstairs livestock and sunlight
 
 Release scope: livestock stairs and upper-floor care, safe animal-aware stair removal, solar column occlusion and matching player/agent diagnostics. Save schema59 migrates validated hex schemas40–58 without resetting physical resources or stored energy. The animal checkpoint passed its79-case final movement/husbandry gate; the solar checkpoint passed its55-case final affected gate, including nine new solar cases.

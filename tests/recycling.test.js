@@ -9,8 +9,11 @@ import { setProductionOrder } from '../src/production.js';
 import { refreshPower, setCableEnabled } from '../src/power.js';
 import { setDepotAccepted } from '../src/storage.js';
 import { FOOD_LIFETIME } from '../src/food-lots.js';
+import { vaporWaterExports } from './helpers/vapor-accounting.js';
 
 const check = s => deserialize(serialize(s));
+const resourceBalance=s=>{const totals=totalResources(s);totals.water+=vaporWaterExports(s);return totals;};
+const closeWater=(actual,expected)=>assert.ok(Number.isFinite(actual)&&Number.isFinite(expected)&&Math.abs(actual-expected)<1e-7,`Accounted water ${actual} != ${expected}`);
 const until = (s, predicate, limit = 210) => { for (let i = 0; i < limit && !predicate(); i++) { step(s); check(s); } assert.ok(predicate(), `Condition missing at tick ${s.tick}`); };
 function colony({ hauling = false } = {}) {
   const s = createGame(), site = s.sites.surface, depot = at(site, 8, 10), farm = at(site, 7, 9), recycler = at(site, 12, 10);
@@ -38,9 +41,9 @@ test('hydroponics waits for actual fertilizer and keeps its water unspent', () =
 test('recycling needs an adjacent operator and consumes only a complete batch', () => {
   const { s, m } = colony(); m.input = { waste: 1 }; step(s, 5); assert.match(m.status, /water/); assert.equal(m.input.waste, 1);
   m.input.water = .25; s.crew.forEach(c => setLabor(s, c.id, 'production', false)); step(s, 5); assert.equal(m.progress, 0);
-  const c = s.crew[6]; setLabor(s, c.id, 'production', true); const before = totalResources(s);
+  const c = s.crew[6]; setLabor(s, c.id, 'production', true); const before = resourceBalance(s);
   until(s, () => m.progress > 0); assert.equal(distance([c.x,c.y],[12,10]), 1); assert.deepEqual(m.batch, { waste: 1, water: .25 });
-  until(s, () => m.completed === 1); assert.equal(m.output.fertilizer, .25); assert.equal(totalResources(s).waste, before.waste - 1); assert.equal(totalResources(s).water, before.water - .25); assert.equal(totalResources(s).fertilizer, before.fertilizer + .25);
+  until(s, () => m.completed === 1); assert.equal(m.output.fertilizer, .25); assert.equal(totalResources(s).waste, before.waste - 1); closeWater(resourceBalance(s).water, before.water - .25); assert.equal(totalResources(s).fertilizer, before.fertilizer + .25);
 });
 
 test('fractional fertilizer targets and fixed batches bound deliveries and production', () => {
@@ -53,8 +56,8 @@ test('fractional fertilizer targets and fixed batches bound deliveries and produ
 test('waste is hauled through depot and recycler before fertilizer reaches crops', () => {
   const { s, site, depot, farm, m } = colony({ hauling: true }); depot.stock.fertilizer = 0; at(site, 11, 10).drop = { waste: 1 }; syncResources(s);
   setMachineEnabled(s, 'surface', 7, 9, true); setProductionOrder(s, 'surface', 7, 9, 'batches', 1); setProductionOrder(s, 'surface', 12, 10, 'batches', 1);
-  const before = totalResources(s); until(s, () => farm.machine.completed === 1);
-  assert.equal(m.completed, 1); assert.equal(totalResources(s).waste, 0); assert.equal(totalResources(s).fertilizer, 0); assert.equal(totalResources(s).food, before.food + 2); assert.equal(totalResources(s).water, before.water - 1.25);
+  const before = resourceBalance(s); until(s, () => farm.machine.completed === 1);
+  assert.equal(m.completed, 1); assert.equal(totalResources(s).waste, 0); assert.equal(totalResources(s).fertilizer, 0); assert.equal(totalResources(s).food, before.food + 2); closeWater(resourceBalance(s).water, before.water - 1.25);
 });
 
 test('a broken recycler power connection starves crops; repair resumes the same batch and supply chain', () => {

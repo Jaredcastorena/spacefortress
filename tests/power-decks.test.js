@@ -1,3 +1,4 @@
+import {parcelHeat} from '../src/water-thermal.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DIRECTIONS,step,opposite} from '../src/geometry.js';
@@ -47,7 +48,7 @@ test('every hex breaker orientation connects only its own deck and has distinct 
 });
 
 test('an upper wet fault trips only its own relay and identifies the correct fault tile',()=>{
-  const {s,site}=stacked(),lower=relayLine(site,0),upper=relayLine(site,7);upper.output.liquid=LIQUID.wet;
+  const {s,site}=stacked(),lower=relayLine(site,0),upper=relayLine(site,7);upper.output.liquid=LIQUID.wet;upper.output.liquidHeat=parcelHeat(LIQUID.wet);
   const plan=previewPower(s,site),a=breakerConditions(s,site,lower.relay,plan),b=breakerConditions(s,site,upper.relay,plan);
   assert.equal(a.wouldTrip,false);assert.equal(b.wouldTrip,true);
   assert.deepEqual(b.faultEntities,[tileEntityId(site.id,upper.output.x,upper.output.y,7)]);

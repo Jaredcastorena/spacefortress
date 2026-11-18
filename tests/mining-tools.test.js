@@ -6,15 +6,15 @@ import {tileAt,positionOf,horizontalNeighbors} from '../src/spatial.js';
 import {crewPathToPosition} from '../src/navigation.js';
 import {syncResources,totalResources} from '../src/inventory.js';
 import {equippedTool,toolStatus} from '../src/tools.js';
-import {startRecording,exportRecording,observe,recordingStatus} from '../src/telemetry.js';
-const events=s=>exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>r.event).map(r=>r.event);
+import {startRecording,exportRecording,observe} from '../src/telemetry.js';
 function captureStage(s,recorded,stage){
- const status=recordingStatus(s);assert.equal(status.active,true,`${stage} evidence truncated: ${status.reason}`);
- recorded.push(...events(s));startRecording(s);
+ const recording=exportRecording(s).trim().split('\n').map(JSON.parse),footer=recording.at(-1);
+ assert.equal(footer.active,true,`${stage} evidence truncated: ${footer.reason}`);assert.equal(footer.throughTick,s.tick);
+ recorded.push(...recording.filter(row=>row.event).map(row=>row.event));startRecording(s);
 }
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-7,`${a} != ${b}`);
 function action(s,id,args){const result=executeAction(s,id,args);assert.equal(result.ok,true,`${id}: ${result.message}`);return result;}
-function until(s,label,p,limit=160){for(let n=0;n<limit&&!p();n++)step(s);assert.ok(p(),`${label} stopped at ${s.tick}: ${s.crew.map(c=>c.activity).join('; ')} / ${s.sites.surface.tiles.filter(t=>t.machine?.enabled).map(t=>t.building+': '+t.machine.status).join('; ')} / ${JSON.stringify(s.crew.filter(c=>c.carry||c.intent).map(c=>({id:c.id,x:c.x,y:c.y,z:c.z,oxygen:c.oxygen,energy:c.energy,carry:c.carry,delivery:c.delivery,intent:c.intent})))}`);}
+function until(s,label,p,limit=160,afterStep=()=>{}){for(let n=0;n<limit&&!p();n++){step(s);afterStep();}assert.ok(p(),`${label} stopped at ${s.tick}: ${s.crew.map(c=>c.activity).join('; ')} / ${s.sites.surface.tiles.filter(t=>t.machine?.enabled).map(t=>t.building+': '+t.machine.status).join('; ')} / ${JSON.stringify(s.crew.filter(c=>c.carry||c.intent).map(c=>({id:c.id,x:c.x,y:c.y,z:c.z,oxygen:c.oxygen,energy:c.energy,carry:c.carry,delivery:c.delivery,intent:c.intent})))}`);}
 function workOrder(s,t,n){action(s,'production.order',{site:'surface',...positionOf(t),mode:'batches',limit:n});}
 function enabled(s,t,value){action(s,'production.enable',{site:'surface',...positionOf(t),enabled:value});}
 function check(s){const raw=serialize(s);assert.equal(serialize(deserialize(raw)),raw);}
@@ -33,47 +33,54 @@ test('finite extraction becomes a manufactured tool, native pickup, mining wear 
  labor(s,builder,'construction');labor(s,miner,'mining');labor(s,operator,'production');
  // Keep each native stage within the bounded recorder on the larger world;
  // combine semantic events without changing work, stock or tick budgets.
- const recorded=[];startRecording(s);
- const build=(x,y,building)=>{const result=action(s,'job.order',{site:'surface',x,y,kind:'build',building});until(s,building,()=>!s.jobs.some(j=>j.id===result.job));return tileAt(site,{x,y,z:0});};
+ const recorded=[];let windowStart=s.tick;startRecording(s);
+ const recordStage=stage=>{captureStage(s,recorded,stage);windowStart=s.tick;};
+ // Preserve default 2,000-record/16MB limits and the original 160-tick cap
+ // for each native stage, with four-tick subdivisions inside longer stages.
+ const wait=(label,p,limit=160)=>{until(s,label,p,limit,()=>{if(s.tick-windowStart>=4&&!p())recordStage(label);});recordStage(label);};
+ const advance=ticks=>{for(let n=0;n<ticks;n++){step(s);if(s.tick-windowStart>=4)recordStage('saved continuation');}};
+ const build=(x,y,building)=>{const result=action(s,'job.order',{site:'surface',x,y,kind:'build',building});wait(building,()=>!s.jobs.some(j=>j.id===result.job));return tileAt(site,{x,y,z:0});};
  const fabricator=build(12,8,'fabricator');enabled(s,fabricator,false);
  const bench=build(13,8,'toolbench');enabled(s,bench,false);labor(s,builder,'construction',false);
  close(totalResources(s).alloy,0);close(totalResources(s).components,0);
  // Staff supply and return trips together; life support retains its priority.
  for(const hauler of haulers)labor(s,hauler,'hauling');
  const first=oreFor(s,miner),mine=action(s,'job.order',{site:'surface',...positionOf(first),kind:'mine'});
- until(s,'ore extraction',()=>!s.jobs.some(j=>j.id===mine.job));
- captureStage(s,recorded,'construction and extraction');
+ wait('ore extraction',()=>!s.jobs.some(j=>j.id===mine.job));
+ recordStage('construction and extraction');
  const refinery=site.tiles.find(t=>t.building==='refinery');workOrder(s,refinery,3);enabled(s,refinery,true);
- until(s,'refining',()=>refinery.machine.completed===3);enabled(s,refinery,false);
+ wait('refining',()=>refinery.machine.completed===3);enabled(s,refinery,false);
  workOrder(s,fabricator,1);enabled(s,fabricator,true);
- until(s,'component fabrication',()=>fabricator.machine.completed===1);enabled(s,fabricator,false);
+ wait('component fabrication',()=>fabricator.machine.completed===1);enabled(s,fabricator,false);
  workOrder(s,bench,1);enabled(s,bench,true);
- until(s,'partial tool manufacture',()=>bench.machine.progress>0);check(s);
- const continuation=deserialize(serialize(s));step(s,3);step(continuation,3);assert.equal(serialize(continuation),serialize(s));
- until(s,'tool manufacture',()=>bench.machine.completed===1);enabled(s,bench,false);
- until(s,'tool delivery',()=>store.stock.tools===1);
- captureStage(s,recorded,'refining, fabrication and tool manufacture');
+ wait('partial tool manufacture',()=>bench.machine.progress>0);check(s);
+ const continuation=deserialize(serialize(s));advance(3);step(continuation,3);assert.equal(serialize(continuation),serialize(s));
+ wait('tool manufacture',()=>bench.machine.completed===1);enabled(s,bench,false);
+ wait('tool delivery',()=>store.stock.tools===1);
+ recordStage('refining, fabrication and tool manufacture');
  const item=structuredClone(store.stock._items.find(i=>i.kind==='mining_tool'));
  assert.equal(item.condition,100);assert.equal(item.material,'alloy');assert.equal(totalResources(s).tools,1);
  const peer=deserialize(serialize(s));
  action(s,'crew.tools.equip',{crew:miner.id,source:'stock',item:item.id});
  assert.equal(controlBindings(()=>peer).equipTool(peer,miner.id,'stock',item.id).ok,true);
  assert.equal(serialize(peer),serialize(s));assert.equal(equippedTool(miner),null);assert.equal(store.stock.tools,1);check(s);
- until(s,'physical tool pickup',()=>!!equippedTool(miner));assert.equal(equippedTool(miner).id,item.id);assert.equal(store.stock.tools||0,0);
+ wait('physical tool pickup',()=>!!equippedTool(miner));assert.equal(equippedTool(miner).id,item.id);assert.equal(store.stock.tools||0,0);
  assert.ok(toolStatus(miner).multiplier>1);const before=serialize(s);observe(s);assert.equal(serialize(s),before);
  const second=oreFor(s,miner),nextMine=action(s,'job.order',{site:'surface',...positionOf(second),kind:'mine'});
- until(s,'equipped extraction',()=>!s.jobs.some(j=>j.id===nextMine.job));
+ wait('equipped extraction',()=>!s.jobs.some(j=>j.id===nextMine.job));
  close(equippedTool(miner).condition,93);assert.equal(totalResources(s).tools,1);
- captureStage(s,recorded,'physical equipment pickup and mining wear');
+ recordStage('physical equipment pickup and mining wear');
  action(s,'crew.tools.release',{crew:miner.id});assert.equal(equippedTool(miner),null);
  action(s,'production.recipe',{site:'surface',...positionOf(bench),recipe:'repair_pick'});workOrder(s,bench,1);enabled(s,bench,true);
- until(s,'partial repair',()=>bench.machine.progress>0);assert.equal(bench.machine.batch._items[0].id,item.id);check(s);
- const repairedCopy=deserialize(serialize(s));step(s,2);step(repairedCopy,2);assert.equal(serialize(repairedCopy),serialize(s));
- until(s,'tool repair',()=>bench.machine.completed===2);enabled(s,bench,false);
- until(s,'repaired tool return',()=>store.stock._items?.some(i=>i.id===item.id&&i.condition===100));
+ wait('partial repair',()=>bench.machine.progress>0);assert.equal(bench.machine.batch._items[0].id,item.id);check(s);
+ recordStage('tool return and repair input commitment');
+ const repairedCopy=deserialize(serialize(s));advance(2);step(repairedCopy,2);assert.equal(serialize(repairedCopy),serialize(s));
+ wait('tool repair',()=>bench.machine.completed===2);enabled(s,bench,false);
+ recordStage('finite tool repair');
+ wait('repaired tool return',()=>store.stock._items?.some(i=>i.id===item.id&&i.condition===100));
  assert.deepEqual(store.stock._items.find(i=>i.id===item.id),item);assert.equal(s.nextItemId,2);assert.equal(totalResources(s).tools,1);check(s);
- const status=recordingStatus(s);assert.equal(status.active,true,`tool repair evidence truncated: ${status.reason}`);
- const log=[...recorded,...events(s)],started=log.filter(e=>e.id==='production.batch.started');
+ recordStage('completed paid mining proof');
+ const log=recorded,started=log.filter(e=>e.id==='production.batch.started');
  assert.ok(log.some(e=>e.id==='resource.extracted'&&e.output.ore));
  assert.ok(started.some(e=>e.recipe==='refinery'&&e.input.ore));assert.ok(started.some(e=>e.recipe==='fabricator'&&e.input.alloy));
  assert.deepEqual(started.find(e=>e.recipeId==='alloy_pick').input,{alloy:2,components:1});

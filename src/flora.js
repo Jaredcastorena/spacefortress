@@ -7,6 +7,7 @@ import { temperatureAt } from './thermal.js';
 import { typedFood, foodOfKind, validFoodLots } from './food-lots.js';
 import { spill } from './inventory.js';
 import { emitEvent, tileEntityId } from './telemetry.js';
+import { unloadWater, liquidWater } from './water-thermal.js';
 
 const registered = species => Object.hasOwn(FLORA,species);
 const cultivatedSpecies = ['fungalcap','sunberry'];
@@ -209,9 +210,9 @@ export function absorbCultivationWater(s,site,tile,maximum){
   const entry=patchEntries(tile).find(([species,patch])=>cultivatedSpecies.includes(species)&&patch.origin==='cultivated');
   if(!entry)return 0;
   const [species,patch]=entry;if(unsuitable(tile,species))return 0;
-  const amount=Math.max(0,Math.min(maximum,tile.liquid||0,CULTIVATION.moistureCapacity-patch.moisture));if(amount<=epsilon)return 0;
-  tile.liquid-=amount;patch.moisture+=amount;site.liquids.absorbed+=amount;site.cultivation[species].absorbed+=amount;
-  emitEvent(s,'flora.water.absorbed',{entity:patchId(site,tile,species),target:tileEntityId(site.id,tile.x,tile.y,positionOf(tile).z),species,generation:patch.generation,amount,moisture:patch.moisture,from:{entity:tileEntityId(site.id,tile.x,tile.y,positionOf(tile).z),slot:'liquid'},to:{entity:patchId(site,tile,species),slot:'moisture'}});
+  const amount=Math.max(0,Math.min(maximum,liquidWater(tile,{floor:true}),CULTIVATION.moistureCapacity-patch.moisture));if(amount<=epsilon)return 0;
+  const heat=unloadWater(site,tile,amount,{floor:true});patch.moisture+=amount;site.liquids.absorbed+=amount;site.cultivation[species].absorbed+=amount;
+  emitEvent(s,'flora.water.absorbed',{entity:patchId(site,tile,species),target:tileEntityId(site.id,tile.x,tile.y,positionOf(tile).z),species,generation:patch.generation,amount,heat,moisture:patch.moisture,from:{entity:tileEntityId(site.id,tile.x,tile.y,positionOf(tile).z),slot:'liquid'},to:{entity:patchId(site,tile,species),slot:'moisture'}});
   return amount;
 }
 function validBiomass(species,patch){

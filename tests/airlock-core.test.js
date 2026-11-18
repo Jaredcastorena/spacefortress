@@ -10,12 +10,15 @@ import { startRecording, stopRecording, exportRecording } from '../src/telemetry
 import { fixture, command, request, cycle, until, physicalTick, ledger, assertLedger, snapshot, close, CONFIG, STAGING } from './helpers/airlock-fixture.js';
 import { airlockStatus, airlockDoorPermit, airlockOpen, airlockLayout, airlockRoomReading, airlockSideBlock, airlockGasQuantities, airlockTankMakeupAllowance } from '../src/airlock-access.js';
 import { gasNode, gasCapacity, newPipe, updateGasNetworks } from '../src/gas-networks.js';
-import { mix, moveCrew, refreshRoom, refreshAtmosphere, updateRooms, breathe } from '../src/atmosphere.js';
+import { mix, moveCrew, refreshRoom, refreshAtmosphere, updateRooms, breathe, roomAt } from '../src/atmosphere.js';
 import { continueCrewTraversal, advanceCrewRoute } from '../src/crew-traversal.js';
 import { neighbors } from '../src/geometry.js';
 import { prepareAirlocks } from '../src/airlocks.js';
 import { initializeStorage } from '../src/inventory.js';
-import { roomHeatCapacity, gasEnergy, GAS_REFERENCE_KELVIN } from '../src/gas-thermal.js';
+import { roomHeatCapacity, gasEnergy, exportRoomHeat, importRoomHeat, GAS_REFERENCE_KELVIN } from '../src/gas-thermal.js';
+import { addGas, gasPortion } from '../src/gas-species.js';
+import { outsideTemperature } from '../src/thermal.js';
+import { roomPressure } from '../src/room-pressure.js';
 
 // Every installation here is a labeled synthetic fixture; paid acceptance is separate.
 test('synthetic real-physics outward and inward cycles conserve species, smoke and allocated energy',()=>{
@@ -61,7 +64,7 @@ test('power loss stops actual transfers, retains cargo and closes clear doors be
 for(const [label,modify,reason] of [
  ['reachable recovery capacity',f=>{for(const t of [...airlockLayout(f.site,f.controller).recoveryNodes,...airlockLayout(f.site,f.controller).storageNodes])gasNode(t).gas=mix(gasCapacity(t));},'reservoir_full'],
  ['empty refill reserve',f=>{f.chamber.gas=mix(0);f.chamber.heat=roomHeatCapacity(f.chamber)*GAS_REFERENCE_KELVIN;refreshRoom(f.chamber);for(const t of f.site.tiles)if(gasNode(t))gasNode(t).gas=mix(0);},'supply_empty'],
- ['dirty refill reserve',f=>{f.chamber.gas=mix(0);f.chamber.heat=roomHeatCapacity(f.chamber)*GAS_REFERENCE_KELVIN;refreshRoom(f.chamber);f.reservoir.gasStore.gas={oxygen:0,inert:0,co2:35};},'contaminated_mix'],
+ ['dirty refill reserve',f=>{f.chamber.gas=mix(0);f.chamber.heat=roomHeatCapacity(f.chamber)*GAS_REFERENCE_KELVIN;refreshRoom(f.chamber);f.reservoir.gasStore.gas={oxygen:0,inert:0,co2:35,vapor:0};},'contaminated_mix'],
  ['unsafe real temperature',f=>{f.chamber.heat=roomHeatCapacity(f.chamber)*(273.15-10);},'unsafe_temperature'],
  ['insufficient suit reserve',f=>{f.crew.oxygen=1;},'insufficient_suit'],
 ])test(`synthetic ${label} pauses admission with a measured blocker`,()=>{
@@ -173,7 +176,7 @@ test('setup rejects a vent whose only pump route passes through the closed extra
 // Finite lean gas is installed only in this labeled synthetic mechanics fixture.
 function finiteRefillFixture(reserve) {
  const f=fixture({chamberGas:.2,reserveGas:reserve,smoke:0});
- const lean=amount=>({oxygen:amount*.161,inert:amount*.839,co2:0});
+ const lean=amount=>({oxygen:amount*.161,inert:amount*.839,co2:0,vapor:0});
  f.chamber.gas=lean(.2);f.habitat.gas=mix(f.habitat.volume*10);
  for(const room of [f.chamber,f.habitat]){room.smoke=0;room.heat=roomHeatCapacity(room)*293.15;refreshRoom(room);}
  for(const t of f.site.tiles)if(gasNode(t)){gasNode(t).gas=mix(0);gasNode(t).smoke=0;gasNode(t).heat=0;}
@@ -205,10 +208,15 @@ for(const reserve of [20])test(`synthetic finite refill with reserve ${reserve} 
  assert.equal(f.controller.airlock.phase,'idle');assert.equal(f.inner.doorMode,'closed');assert.equal(f.outer.doorMode,'closed');
 });
 
-// With temperature-aware pressure, this same finite reserve loses its narrow
-// oxygen margin during native cooling. No legal vent target can create oxygen.
-test('synthetic lean reserve 19.7 remains contained when cooling exhausts its safe fill margin',()=>{
- const f=finiteRefillFixture(19.7),before=ledger(f);request(f,'inward');prepareAirlocks(f.s);
+// Native night cooling exceeds paid drive heating in this deliberately lean
+// fixture. The original finite stock and 20 C starting gas remain unchanged;
+// no legal vent target can create the missing oxygen partial pressure.
+test('synthetic lean reserve 19.7 remains contained when night cooling exhausts its safe fill margin',()=>{
+ const f=finiteRefillFixture(19.7);
+ // Synthetic initial clock: finite existing banks fund the same paid devices.
+ f.s.tick=220;
+ for(const site of Object.values(f.s.sites)){site.atmosphere.tick=f.s.tick;site.thermal.ambient=outsideTemperature(site,f.s.tick);}
+ const before=ledger(f);request(f,'inward');prepareAirlocks(f.s);
  assert.equal(f.controller.airlock.reason,null,'initial finite mixture is breathable at 20 C');
  const party=JSON.stringify(f.controller.airlock.party),cycle=f.controller.airlock.cycle;
  until(f,()=>f.controller.airlock.reason==='contaminated_mix',{max:200,label:'temperature-aware lean-gas safe stop',onTick:()=>{
@@ -286,16 +294,27 @@ test('synthetic refill returns a finite extractor pocket through its disabled pa
 
 // SYNTHETIC finite inward journey. Every preparation precedes the canonical
 // boundary; subsequent room pressure loss comes from ordinary suit refilling.
-test('full ticks correct exit pressure drift without losing the party, cycle or parcel',()=>{
+// A pre-existing walking impairment leaves the carrier inside for additional
+// native breaths despite the real heat supplied by the paid gas drives.
+test('full ticks correct exit pressure drift for a slow-walking carrier without losing the party, cycle or parcel',()=>{
  const f=fixture({chamberGas:.2,reserveGas:35,smoke:0});
+ // Start the habitat at 99 pressure. The separate stockroom holds the
+ // remaining 1% of its original gas and the heat carried by that parcel.
+ const stockroom=roomAt(f.site,18,11),portion=gasPortion(f.habitat.gas,.1);
+ const heat=exportRoomHeat(f.site,f.habitat,portion);
+ addGas(f.habitat.gas,portion,-1);addGas(stockroom.gas,portion);
+ importRoomHeat(f.site,stockroom,heat);refreshRoom(f.habitat);refreshRoom(stockroom);
  [f.crew.x,f.crew.y]=STAGING.outer;f.crew.oxygen=50;
+ f.crew.health=75;f.crew.medical.injury=25;f.crew.medical.treated=0;
+ f.crew.medical.cause='Pre-existing injury';f.crew.medical.status='Waiting for medical care';
  const depot=f.tile(...STAGING.inner);depot.building='stockpile';initializeStorage(depot);depot.stock={};
  f.crew.carry={alloy:1};f.crew.delivery={kind:'stock',target: { x: STAGING.inner[0], y: STAGING.inner[1], z: 0 }};
  const input=serialize(f.s);assert.equal(serialize(deserialize(input)),input);
  const before=ledger(f),parcel=JSON.stringify(f.crew.carry),delivery=JSON.stringify(f.crew.delivery);
  startRecording(f.s,{maxRecords:12000,maxBytes:128_000_000});
  assert.equal(executeAction(f.s,'airlock.request',{site:CONFIG.site,x:CONFIG.x,y:CONFIG.y,crew:f.crew.id,direction:'inward'},'agent').ok,true);
- let ticks=0,cycleId=null,correctionSeen=false;
+ let ticks=0,cycleId=null;
+ const sealedInsideTicks=new Set();
  while(f.crew.airlockTraversal||f.controller.airlock.queue.length||f.controller.airlock.phase!=='idle') {
   assert.ok(ticks++<100,'finite exit correction completes within 100 full ticks');
   assert.equal(executeAction(f.s,'simulation.step',{ticks:1},'agent').ok,true);
@@ -303,12 +322,19 @@ test('full ticks correct exit pressure drift without losing the party, cycle or 
   assert.equal(a.reason,null);assert.equal(JSON.stringify(f.crew.carry),parcel);assert.equal(JSON.stringify(f.crew.delivery),delivery);
   if(a.party){cycleId??=a.cycle;assert.equal(a.cycle,cycleId);assert.equal(a.party.crew,f.crew.id);}
   assert.ok(!(airlockOpen(f.site,f.inner)&&airlockOpen(f.site,f.outer)));
+  if(roomAt(f.site,f.crew.x,f.crew.y,f.crew.z)===f.chamber&&f.inner.doorMode==='closed'&&f.outer.doorMode==='closed')sealedInsideTicks.add(f.s.tick);
  }
  stopRecording(f.s);
- const events=exportRecording(f.s).trim().split('\n').map(JSON.parse).filter(r=>r.kind==='event').map(r=>r.event);
- correctionSeen=events.some(e=>e.id==='airlock.phase_changed'&&e.reason==='exit_pressure_drift'&&e.next==='refill');
- assert.equal(correctionSeen,true,'physiology forces sealed finite correction');
- assert.ok(events.some(e=>e.id==='crew.air.allocated'&&e.refillOxygen>0));
+ const records=exportRecording(f.s).trim().split('\n').map(JSON.parse).filter(r=>r.kind==='event'),events=records.map(r=>r.event);
+ const correction=records.find(({event:e})=>e.id==='airlock.phase_changed'&&e.reason==='exit_pressure_drift'&&e.next==='refill');
+ assert.ok(correction,JSON.stringify({
+  requirement:'physiology forces sealed finite correction',
+  phases:events.filter(e=>e.id==='airlock.phase_changed').map(e=>({previous:e.previous,next:e.next,reason:e.reason})),
+  refills:events.filter(e=>e.id==='crew.air.allocated'&&e.refillOxygen>0).map(e=>({crew:e.entity,oxygen:e.refillOxygen})),
+  finalSuit:f.crew.oxygen,finalRoomPressure:roomPressure(f.chamber),
+ }));
+ assert.ok(sealedInsideTicks.has(correction.tick),'the carrier stays inside with both doors closed on correction');
+ assert.ok(records.some(r=>r.tick===correction.tick&&r.sequence<correction.sequence&&r.event.id==='crew.air.allocated'&&r.event.entity===f.crew.id&&r.event.refillOxygen>0),'the carrier refills from the room before correction on the same tick');
  assert.equal(events.filter(e=>e.id==='airlock.traversed'&&e.direction==='inward').length,1);
  assert.deepEqual([f.crew.x,f.crew.y],STAGING.inner);assertLedger(f,before);
 });
@@ -368,7 +394,7 @@ test('owned tank makeup eligibility preserves lifecycle, power and manual owners
 // and ordinary native hauling run after recording begins; no journey claim.
 test('full ticks replenish queued supply-empty admission from physically hauled finite air',async()=>{
  const f=tankMakeupFixture({chamberGas:0,reserveGas:0,smoke:0});
- f.habitat.gas={oxygen:2.9,inert:7.1,co2:0};refreshAtmosphere(f.site);
+ f.habitat.gas={oxygen:2.9,inert:7.1,co2:0,vapor:0};refreshAtmosphere(f.site);
  for(const c of f.s.crew.slice(1,4)){c.x=18;c.y=11;c.labors.hauling=true;}
  const input=serialize(f.s);assert.equal(serialize(deserialize(input)),input);
  const before=ledger(f),initialAir=f.tile(18,11).stock.air;let ticks=0,attempts=0,sawPaused=false,sawPickup=false,failure=null;

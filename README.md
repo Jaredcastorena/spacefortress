@@ -2,11 +2,19 @@
 
 An early playable space colony simulator inspired by Dwarf Fortress. Keep seven alien founders alive, build a planetary colony, and send supplied expeditions into orbit to recover material for its next expansion.
 
-**[Play online](https://jaredcastorena.github.io/spacefortress/)** · [Online elements lab](https://jaredcastorena.github.io/spacefortress/elements.html) · [Release v0.1.13](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.13) · [Roadmap](ROADMAP.md)
+**[Play online](https://jaredcastorena.github.io/spacefortress/)** · [Online elements lab](https://jaredcastorena.github.io/spacefortress/elements.html) · [Release v0.1.14](https://github.com/Jaredcastorena/spacefortress/releases/tag/v0.1.14) · [Roadmap](ROADMAP.md)
 
 ![Local SPACEFORTRESS hex colony with original alien crew, an isometric habitat and closed detail drawers](docs/images/spacefortress-hex.png)
 
 **The game is still in development.** Build across connected floors using paid stairs, supported upper-floor extensions and a compact floor selector. Version 0.1.13 adds larger procedural maps, paid satellite surveys, persistent sector expeditions, durable browser saves and interacting industry, population, power and thermal systems. Long-lived staffed outposts, complete vertical systems, a generated universe/history and much of the wider simulation remain unfinished. The [implementation status](docs/implementation-status.md) separates working systems from plans.
+
+## v0.1.14 — Water, ice and gas compression
+
+Water carries heat as it moves between floors, rooms, pipes and reservoirs. It can freeze in a cold pipe, expand and burst the fitting if an open connection cannot relieve the pressure. A burst pipe holds its ice until it thaws and leaks. [Water and ice mechanics](docs/water-phases.md)
+
+Evaporation cools exposed water. Water vapor travels with the air and can condense inside gas equipment. Inspect a room for humidity or a gas node for trapped liquid and ice. Pumps, vents and extractors draw power to compress gas, warming the receiver and the drive. When air quality holds an airlock shut, its inspector identifies the room and the breathing limit. [Water vapor](docs/water-vapor.md) · [Gas compression](docs/gas-compression.md)
+
+This release uses colony save schema **82**, region **3** and observation/recording **16**. Valid older hex colonies migrate with their existing water, gas and energy. [Download the playable build](https://github.com/Jaredcastorena/spacefortress/releases/download/v0.1.14/spacefortress-v0.1.14-web.zip)
 
 ## v0.1.13 — 2026-10-31
 
@@ -30,7 +38,7 @@ Surface bristleback herds fall silent for the 90 seconds before a debris forecas
 
 A paid fuel synthesizer converts one recovered solar cell and two delivered water into two fuel. It needs 6 kW, safe air, 5–40 °C and a Production 2 operator for 40 work. Existing haulers move its output into storage, shuttle supplies or reactor buffers. Batch limits, stock targets, pause/resume and maintenance use the existing production controls.
 
-The release uses **colony save78, region3 and observation/recording12**; the independent elements laboratory remains schema3. Valid older hex colonies migrate without free equipment, charge or supplies. See the [full changelog](CHANGELOG.md) for all updates since v0.1.12. Bounded checks cover supplied journeys and local work; ordinary fresh-colony satellite acquisition and sustained habitation remain unproven. Direct remote travel, inter-site animal transport, broader discovery/history, water temperature/phase changes, compression work and packaged-cargo thermal histories remain unfinished.
+Version 0.1.13 used **colony save78, region3 and observation/recording12**; the independent elements laboratory remains schema3. Valid older hex colonies migrate without free equipment, charge or supplies. See the [full changelog](CHANGELOG.md) for all updates since v0.1.12. Bounded checks cover supplied journeys and local work; ordinary fresh-colony satellite acquisition and sustained habitation remain unproven. At that release, direct remote travel, inter-site animal transport, broader discovery/history, water temperature/phase changes, compression work and packaged-cargo thermal histories remained unfinished; the local thermal checkpoint above supersedes those water and compression limits.
 
 ## v0.1.12: planetary regions
 

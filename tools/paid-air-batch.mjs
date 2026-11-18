@@ -10,13 +10,12 @@ import { executeAction } from '../src/controls.js';
 import { RECIPES } from '../src/data.js';
 import { tileAt } from '../src/geometry.js';
 import { tileAt as shipmentTile, sameCell } from '../src/spatial.js';
-import { roomAt, SUIT_PER_POINT } from '../src/atmosphere.js';
+import { roomAt } from '../src/atmosphere.js';
 import { temperature } from '../src/thermal.js';
-import { gasNode } from '../src/gas-networks.js';
 import { airThreshold } from '../src/crew.js';
 import { acceptsResource } from '../src/storage.js';
 import { airlockLayout, airlockRoomReading } from '../src/airlock-access.js';
-import { physicalBalances, physicalMaterialOwners } from './paid-air-recovery.mjs';
+import { physicalBalances, physicalDryGasSpecies as species } from './paid-air-recovery.mjs';
 import { startRecording, stopRecording, exportRecording, recordingStatus } from '../src/telemetry.js';
 
 export const LIMITS = Object.freeze({ ticks: 180, commands: 35, attempts: 230 });
@@ -58,21 +57,6 @@ function assembly(state, processor) {
     waterDevice: t.waterDevice, gasDevice: t.gasDevice, doorMode: t.doorMode, airlockOwner: t.airlockOwner, airlock: t.airlock,
     machine: t.machine && { enabled: t === processor ? undefined : t.machine.enabled, order: t === processor ? undefined : t.machine.order, recipeId: t.machine.recipeId }
   })) })) }));
-}
-
-// Breathing and scrubbing exchange oxygen with CO2; their sum and inert gas
-// remain separately conserved, including suits, packaged air and vented gas.
-function species(state) {
-  const result = { oxygen: 0, inert: 0, co2: 0 };
-  const add = gas => { for (const key of Object.keys(result)) result[key] += gas?.[key] || 0; };
-  const air = physicalMaterialOwners(state).reduce((n, row) => n + row.air, 0);
-  add({ oxygen: air * .21, inert: air * .79 });
-  for (const site of Object.values(state.sites)) {
-    site.rooms.forEach(r => add(r.gas)); site.tiles.forEach(t => add(gasNode(t)?.gas));
-    add(site.atmosphere.vented); add(site.gasNetwork.vented);
-  }
-  add({ oxygen: state.crew.reduce((n, c) => n + c.oxygen * SUIT_PER_POINT, 0) });
-  return result;
 }
 
 /** Only shared commands and full ticks mutate the supplied canonical state.

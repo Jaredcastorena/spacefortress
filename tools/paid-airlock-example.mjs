@@ -78,9 +78,10 @@ function canOrder(state,p,kind='build') {
 /** Run once from the untouched seed. Only executeAction changes the colony.
  * Returns {summary,state,recording?}; the CLI prints only summary. Recording is
  * optional, local, bounded, and excluded from the canonical game save.
+ * beforeAction is an optional observational hook; it must not mutate the colony.
  */
 export function runPaidAirlockExample(options={}) {
-  if(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(k=>k!=='record')||options.record!==undefined&&typeof options.record!=='boolean') throw new TypeError('Expected an optional boolean record field.');
+  if(!options||typeof options!=='object'||Array.isArray(options)||Object.keys(options).some(k=>!['record','beforeAction'].includes(k))||options.record!==undefined&&typeof options.record!=='boolean'||options.beforeAction!==undefined&&typeof options.beforeAction!=='function') throw new TypeError('Expected an optional boolean record field and optional beforeAction function.');
   const state=createGame(74219),site=state.sites.surface;
   const ordered=new Map(),done=new Set(),configured=new Set();
   let attempts=0,commands=0,stage='manufacturing',failure=null,prices=null;
@@ -89,6 +90,7 @@ export function runPaidAirlockExample(options={}) {
   function act(id,args) {
     if(attempts>=LIMITS.attempts||id!=='simulation.step'&&commands>=LIMITS.commands) throw new Stop('attempt_limit','Shared command budget reached.');
     attempts++; if(id!=='simulation.step') commands++;
+    options.beforeAction?.(state);
     const result=executeAction(state,id,args,'agent');
     if(!result.ok) throw new Stop('action_rejected',`${id}: ${result.message||result.code}`);
     return result;

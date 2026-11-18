@@ -1,5 +1,7 @@
+import {loadWater} from '../src/water-thermal.js';
 import { VERSION as CURRENT_SAVE_VERSION } from '../src/data.js';
 import { projectPreDecks } from './helpers/legacy-projection.js';
+import { vaporWaterExports } from './helpers/vapor-accounting.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, at, step, serialize, deserialize } from '../src/simulation.js';
@@ -12,9 +14,20 @@ import { executeAction, actionCatalog, createAgentInterface } from '../src/contr
 import { observe, startRecording, exportRecording, systemFor } from '../src/telemetry.js';
 
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} != ${b}`);
+const resourceBalance=s=>{const totals=totalResources(s);totals.water+=vaporWaterExports(s);return totals;};
 const checked=s=>{syncResources(s);assert.equal(serialize(deserialize(serialize(s))),serialize(s));};
 const events=s=>exportRecording(s).trim().split('\n').map(JSON.parse).filter(row=>row.kind==='event').map(row=>row.event);
-const until=(s,p,limit=80)=>{for(let i=0;i<limit&&!p();i++){step(s);checked(s);}assert.ok(p(),`Bounded job fixture did not finish by tick ${s.tick}`);};
+const until=(s,p,limit=80,afterStep=()=>{})=>{for(let i=0;i<limit&&!p();i++){step(s);checked(s);afterStep();}assert.ok(p(),`Bounded job fixture did not finish by tick ${s.tick}`);};
+function recordedStages(s){
+  const log=[];let windowStart=s.tick;assert.equal(startRecording(s).active,true);
+  const capture=()=>{
+    const rows=exportRecording(s).trim().split('\n').map(JSON.parse),footer=rows.at(-1);
+    assert.equal(footer.active,true,`cultivation recording incomplete: ${footer.reason}`);assert.equal(footer.throughTick,s.tick);
+    log.push(...rows.filter(row=>row.kind==='event').map(row=>row.event));assert.equal(startRecording(s).active,true);windowStart=s.tick;
+  };
+  // Preserve the default 2,000-record/16MB limits and each 80-tick phase cap.
+  return {log,wait:(p,limit=80)=>{until(s,p,limit,()=>{if(s.tick-windowStart>=4&&!p())capture();});capture();}};
+}
 const native=biomass=>({biomass,harvests:0,origin:'native',generation:'native'});
 // Supplied integration fixture: one worker, a ground bed and one propagule.
 // Air is transferred from stock into the existing scrubber; other work is paused.
@@ -47,15 +60,15 @@ test('shared cultivation catalog rejects absent, wrong and prepared propagation 
 });
 
 test('planting physically reserves, carries, stages and works before creating one generation',()=>{
-  const f=fixture(),{s,t,c,depot}=f,before=totalResources(s),xp=c.skills.production.xp;startRecording(s);
+  const f=fixture(),{s,t,c,depot}=f,before=resourceBalance(s),xp=c.skills.production.xp;const recorded=recordedStages(s);
   const {job,ok}=order(f);assert.ok(ok);assert.deepEqual(job.cost,{food:1});assert.deepEqual(job.foodKinds,{fungalcap:1});assert.equal(job.building,null);assert.equal(job.plantSpecies,'fungalcap');assert.equal(job.plantGeneration,undefined);
   assert.equal(foodOfKind(depot.stock,'fungalcap'),0);assert.equal(job.sources.reduce((n,source)=>n+foodOfKind(source.items,'fungalcap'),0),1);assert.equal(t.flora.fungalcap,undefined);assert.equal(totalResources(s).food,before.food);checked(s);
-  until(s,()=>c.delivery?.job===job.id&&c.carry?.food===1);assert.equal(job.remaining,job.work);assert.equal(t.flora.fungalcap,undefined);checked(s);
-  until(s,()=>job.materials.food===1);assert.equal(job.remaining,job.work);assert.equal(c.carry,null);assert.ok(foodLots(job.materials)[0].age>=120);checked(s);
-  until(s,()=>job.remaining<job.work);assert.ok(job.remaining>0);assert.equal(t.flora.fungalcap,undefined);checked(s);
-  until(s,()=>!s.jobs.includes(job));assert.deepEqual(t.flora.fungalcap,{biomass:20,harvests:0,origin:'cultivated',generation:job.id,moisture:0});assert.equal(t.flora.lichen.origin,'native');
-  assert.equal(totalResources(s).food,before.food-1);assert.equal(totalResources(s).water,before.water);close(c.skills.production.xp-xp,10);assert.equal(s.sites.surface.cultivation.fungalcap.propagules,1);
-  const event=events(s).find(e=>e.id==='flora.planted');assert.equal(event.job,job.id);assert.equal(event.actor,c.id);assert.equal(event.generation,job.id);assert.equal(event.propaguleFood,1);assert.deepEqual(event.from,{entity:job.id,slot:'materials'});checked(s);
+  recorded.wait(()=>c.delivery?.job===job.id&&c.carry?.food===1);assert.equal(job.remaining,job.work);assert.equal(t.flora.fungalcap,undefined);checked(s);
+  recorded.wait(()=>job.materials.food===1);assert.equal(job.remaining,job.work);assert.equal(c.carry,null);assert.ok(foodLots(job.materials)[0].age>=120);checked(s);
+  recorded.wait(()=>job.remaining<job.work);assert.ok(job.remaining>0);assert.equal(t.flora.fungalcap,undefined);checked(s);
+  recorded.wait(()=>!s.jobs.includes(job));assert.deepEqual(t.flora.fungalcap,{biomass:20,harvests:0,origin:'cultivated',generation:job.id,moisture:0});assert.equal(t.flora.lichen.origin,'native');
+  assert.equal(totalResources(s).food,before.food-1);close(resourceBalance(s).water,before.water);close(c.skills.production.xp-xp,10);assert.equal(s.sites.surface.cultivation.fungalcap.propagules,1);
+  const event=recorded.log.find(e=>e.id==='flora.planted');assert.ok(event,'complete recording contains planting transition');assert.equal(event.job,job.id);assert.equal(event.actor,c.id);assert.equal(event.generation,job.id);assert.equal(event.propaguleFood,1);assert.deepEqual(event.from,{entity:job.id,slot:'materials'});checked(s);
 });
 
 test('cancelling each planting phase preserves the aged propagule and every physical resource',()=>{
@@ -78,30 +91,30 @@ test('exclusive tile ownership and labor interruption retain paid planting work'
 });
 
 test('permanent target changes cancel planting before another work credit and refund located materials',()=>{
-  const f=fixture(),{s,t,c}=f,before=totalResources(s),{job}=order(f);until(s,()=>job.materials.food===1);const xp=c.skills.production.xp;t.building='husbandryPost';step(s);
-  assert.equal(s.jobs.includes(job),false);assert.equal(c.skills.production.xp,xp);assert.equal(t.flora?.fungalcap,undefined);for(const [resource,n] of Object.entries(before))if(resource!=='air')close(totalResources(s)[resource],n);assert.equal(foodOfKind(t.drop,'fungalcap'),1);checked(s);
+  const f=fixture(),{s,t,c}=f,before=resourceBalance(s),{job}=order(f);until(s,()=>job.materials.food===1);const xp=c.skills.production.xp;t.building='husbandryPost';step(s);
+  assert.equal(s.jobs.includes(job),false);assert.equal(c.skills.production.xp,xp);assert.equal(t.flora?.fungalcap,undefined);for(const [resource,n] of Object.entries(before))if(resource!=='air')close(resourceBalance(s)[resource],n);assert.equal(foodOfKind(t.drop,'fungalcap'),1);checked(s);
 });
 
 test('watering moves one real dose into held moisture and earns finite Production experience',()=>{
-  const f=fixture(),{s,t,c}=f;const planting=planted(f),before=totalResources(s),xp=c.skills.production.xp;startRecording(s);
+  const f=fixture(),{s,t,c}=f;const planting=planted(f),before=resourceBalance(s),xp=c.skills.production.xp;const recorded=recordedStages(s);
   const {job,ok}=order(f,'waterPlant');assert.ok(ok);assert.deepEqual(job.cost,{water:.5});assert.equal(job.plantGeneration,planting.id);assert.equal(t.flora.fungalcap.moisture,0);checked(s);
-  until(s,()=>c.delivery?.job===job.id&&c.carry?.water===.5);assert.equal(t.flora.fungalcap.moisture,0);assert.equal(job.remaining,6);checked(s);
-  until(s,()=>job.materials.water===.5);assert.equal(t.flora.fungalcap.moisture,0);checked(s);
-  until(s,()=>job.remaining<job.work);assert.ok(job.remaining>0);until(s,()=>!s.jobs.includes(job));close(totalResources(s).water,before.water);close(c.skills.production.xp-xp,6);
-  const event=events(s).find(e=>e.id==='flora.watered');assert.equal(event.generation,planting.id);assert.equal(event.paidWater,.5);assert.equal(event.amount,.5);assert.equal(event.actor,c.id);close(s.sites.surface.cultivation.fungalcap.delivered,.5);checked(s);
+  recorded.wait(()=>c.delivery?.job===job.id&&c.carry?.water===.5);assert.equal(t.flora.fungalcap.moisture,0);assert.equal(job.remaining,6);checked(s);
+  recorded.wait(()=>job.materials.water===.5);assert.equal(t.flora.fungalcap.moisture,0);checked(s);
+  recorded.wait(()=>job.remaining<job.work);assert.ok(job.remaining>0);recorded.wait(()=>!s.jobs.includes(job));close(resourceBalance(s).water,before.water);close(c.skills.production.xp-xp,6);
+  const event=recorded.log.find(e=>e.id==='flora.watered');assert.ok(event,'complete recording contains watering transition');assert.equal(event.generation,planting.id);assert.equal(event.paidWater,.5);assert.equal(event.amount,.5);assert.equal(event.actor,c.id);close(s.sites.surface.cultivation.fungalcap.delivered,.5);checked(s);
 });
 
 test('in-flight saturation keeps its order and returns the entire unused paid dose physically',()=>{
   const f=fixture(),{s,site,t,depot}=f;planted(f);const {job}=order(f,'waterPlant');until(s,()=>job.materials.water===.5);
   // Transfer actual stock water into a supplied puddle, then call the shared
   // absorption API. Its transfer debits the puddle and credits both ledgers.
-  assert.equal(extract(depot.stock,{water:1.5}).water,1.5);t.liquid+=1.5;site.liquids.released+=1.5;assert.equal(absorbCultivationWater(s,site,t,1.5),1.5);const before=totalResources(s).water;checked(s);
-  assert.equal(order(f,'waterPlant').ok,false);until(s,()=>!s.jobs.includes(job));close(totalResources(s).water,before);close(t.drop.water,.5);close(site.cultivation.fungalcap.delivered,.5);close(site.cultivation.fungalcap.returned,.5);checked(s);
+  assert.equal(extract(depot.stock,{water:1.5}).water,1.5);loadWater(site,t,1.5,{floor:true});site.liquids.released+=1.5;assert.equal(absorbCultivationWater(s,site,t,1.5),1.5);const before=resourceBalance(s).water;checked(s);
+  assert.equal(order(f,'waterPlant').ok,false);until(s,()=>!s.jobs.includes(job));close(resourceBalance(s).water,before);close(t.drop.water,.5);close(site.cultivation.fungalcap.delivered,.5);close(site.cultivation.fungalcap.returned,.5);checked(s);
 });
 
 test('replacement bed generations invalidate water orders before work and preserve the paid dose',()=>{
-  const f=fixture(),{s,t,c}=f;planted(f);const before=totalResources(s).water,{job}=order(f,'waterPlant'),xp=c.skills.production.xp;t.flora.fungalcap.generation='job-999';step(s);
-  assert.equal(s.jobs.includes(job),false);assert.equal(c.skills.production.xp,xp);close(totalResources(s).water,before);checked(s);
+  const f=fixture(),{s,t,c}=f;planted(f);const before=resourceBalance(s).water,{job}=order(f,'waterPlant'),xp=c.skills.production.xp;t.flora.fungalcap.generation='job-999';step(s);
+  assert.equal(s.jobs.includes(job),false);assert.equal(c.skills.production.xp,xp);close(resourceBalance(s).water,before);checked(s);
 });
 
 test('spoiled propagation food becomes waste and exact replacement must arrive before planting',()=>{

@@ -1,3 +1,4 @@
+import {loadWater} from '../src/water-thermal.js';
 import { assertSquareProtected } from './helpers/legacy-square.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -45,7 +46,7 @@ function fixture() {
 function seedNode(f, tile, amount) {
   const moved = extract(at(f.site, 8, 10).stock, { water: amount });
   assert.equal(moved.water, amount);
-  waterNode(tile).water += amount;
+  loadWater(f.site,waterNode(tile),amount);
   f.site.plumbing.loaded += amount;
   syncResources(f.s);
 }

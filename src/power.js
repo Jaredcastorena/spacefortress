@@ -1,7 +1,12 @@
 import { isProtectionDevice, protectionClosed } from './power-protection.js';
 import { initializeFuseTile, blowFuse } from './fuses.js';
 import { routePower } from './power-routing.js';
+import { closePowerWork, commitPowerWork } from './power-work.js';
 import { LIQUID, wetCable, shortCable } from './liquids.js';
+
+// Historical saves validated wet faults from total floor water. Validate that
+// cache before adopting the phase-aware preview; preview never spends charge.
+const faultWet = (s,t) => s.version<80 ? !!(t.cable?.enabled&&t.cable.hp>0&&(t.liquid||0)>=LIQUID.wet) : wetCable(t);
 import { initializeReactorTile, tripReactor, reactorBlock, reactorOutput, generateReactor } from './reactors.js';
 import { initializeClimate } from './thermal.js';
 import { initializeMaintenance } from './maintenance.js';
@@ -44,7 +49,7 @@ export function previewPower(s, site) {
     const output = [...sources.values()].reduce((a, b) => a + b, 0);
     const consumers = tiles.filter(t => BUILDINGS[t.building]?.demand && t.hp > 0 && t.machine?.enabled !== false && t.climate?.enabled !== false && t.gasDevice?.enabled !== false && t.waterDevice?.enabled !== false && (t.building !== 'airlockController' || t.airlock?.enabled === true));
     consumers.sort((a, b) => b.powerPriority - a.powerPriority || (b.building === 'scrubber' ? 1 : 0) - (a.building === 'scrubber' ? 1 : 0) || a.y - b.y || a.x - b.x);
-    const faults = tiles.filter(wetCable), activeFaults = [];
+    const faults = tiles.filter(t=>faultWet(s,t)), activeFaults = [];
     const demand = consumers.reduce((n, t) => n + BUILDINGS[t.building].demand, faults.length * LIQUID.faultPower);
     const storedSupply = banks.reduce((n, t) => n + Math.min(t.charge, BATTERY_RATE * t.hp / 100), 0);
     let available = output + storedSupply, used = 0;
@@ -172,6 +177,7 @@ function protectedPlan(s, site, advance) {
 }
 
 function calculate(s, site, advance, recordEvents=true) {
+  if (advance) closePowerWork(s, site);
   const previousSolar=new Map(site.tiles.filter(t=>t.building==='solar').map(t=>[t,t.powerStatus??null]));
   for (const t of site.tiles) { initializeElectrical(t); t.powered = false; t.circuit = null; t.powerStatus = null; t.wetShort = false; }
   if (advance) for (const t of site.tiles) if (t.building === 'reactor') tripReactor(s, site, t);
@@ -194,7 +200,7 @@ function calculate(s, site, advance, recordEvents=true) {
       if (t.powered || sources.get(t) > 0) operating.add(t);
       t.circuit = id;
       if (advance && t.building === 'reactor') t.machine.status = reactorBlock(site, t) || 'Generating';
-      if (!electrical(t)) { if (wetCable(t)) t.powerStatus = t.wetShort ? 'Wet cable short' : 'Wet cable — no fault power'; continue; }
+      if (!electrical(t)) { if (faultWet(s,t)) t.powerStatus = t.wetShort ? 'Wet cable short' : 'Wet cable — no fault power'; continue; }
       t.powerStatus = t.building === 'reactor' ? (sources.get(t) > 0 ? 'Generating' : reactorBlock(site, t)) : t.hp <= 0 ? 'Needs repair' : (t.machine?.enabled === false || t.climate?.enabled === false || t.gasDevice?.enabled === false || t.waterDevice?.enabled === false) ? 'Paused by player' :
         t.powered ? 'Powered' : BUILDINGS[t.building]?.demand ? (output + storedSupply > 0 ? 'Insufficient circuit supply' : 'No source on this circuit') :
         t.building === 'battery' ? `${t.charge > 0 ? 'Stored energy available' : 'Empty bank'}` : isDay(s) ? 'Generating' : 'No sunlight';
@@ -209,6 +215,7 @@ function calculate(s, site, advance, recordEvents=true) {
     if (circuit.used < circuit.demand) site.power.brownouts++;
   }
   if(!(s.version<59))for(const [t,previous] of previousSolar){const status=solarStatus(s,site,t),p=status.blockedBy;t.powerStatus=status.status;if(recordEvents&&previous!==t.powerStatus)emitEvent(s,'power.solar.availability.changed',{entity:tileEntityId(site.id,t.x,t.y,t.z),previous,status:t.powerStatus,reason:status.reason,blockedBy:p?tileEntityId(site.id,p.x,p.y,p.z):null,availableOutput:status.output});}
+  if (advance) commitPowerWork(s, site, [...plan.powered].filter(t => BUILDINGS[t.building]?.demand > 0).map(t => [t, BUILDINGS[t.building].demand]));
   return operating;
 }
 export function refreshPower(s, site, recordEvents=true) { calculate(s, site, false,recordEvents); }

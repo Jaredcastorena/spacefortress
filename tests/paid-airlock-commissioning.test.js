@@ -159,7 +159,7 @@ test('synthetic finite refill uses the actual rounded target and only available 
   for (const [volume, breathable] of [[20, true], [19.6, false]]) {
     const state = synthetic(), site = state.sites.surface;
     fillRoom(roomAt(site, 10, 13), 0);
-    const gas = { oxygen: volume * .16, inert: volume * .84, co2: 0 };
+    const gas = { oxygen: volume * .16, inert: volume * .84, co2: 0, vapor: 0 };
     tileAt(site, 10, 16).gasStore.gas = { ...gas };tileAt(site, 10, 16).gasStore.heat=gasEnergy(gas,GAS_REFERENCE_KELVIN); site.gasNetwork.loaded = { ...gas }; refreshAtmosphere(site);preparedHeatBaseline(state);
     const before = serialize(state); assert.equal(serialize(deserialize(before)), before);
     const status = commissioningStatus(state);
@@ -175,7 +175,7 @@ for (const celsius of [8, 35]) test(`synthetic commissioning shares the finite a
   chamber.heat = roomHeatCapacity(chamber) * (273.15 + celsius); fillRoom(chamber, 0);
   habitat.heat *= .994; // Live99.4% pressure deliberately differs from its cache.
   const supply = gasAtRoomPressure(chamber, 100);
-  tileAt(site, 10, 16).gasStore.gas = { oxygen: supply * .161, inert: supply * .839, co2: 0 };tileAt(site, 10, 16).gasStore.heat=gasEnergy(tileAt(site,10,16).gasStore.gas,273.15+celsius);
+  tileAt(site, 10, 16).gasStore.gas = { oxygen: supply * .161, inert: supply * .839, co2: 0, vapor: 0 };tileAt(site, 10, 16).gasStore.heat=gasEnergy(tileAt(site,10,16).gasStore.gas,273.15+celsius);
   const before = serialize(state), status = commissioningStatus(state);
   assert.equal(status.r.target, 100, 'rounded99% would fall below the oxygen floor');
   assert.ok(Math.abs(status.r.fillNeeded - gasAtRoomPressure(chamber, 97.4)) < 1e-8);

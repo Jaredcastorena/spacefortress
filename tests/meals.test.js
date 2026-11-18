@@ -10,9 +10,11 @@ import { setProductionOrder } from '../src/production.js';
 import { setCableEnabled, refreshPower } from '../src/power.js';
 import { injure } from '../src/medicine.js';
 import { updateFood } from '../src/spoilage.js';
-import { startRecording, exportRecording, observe } from '../src/telemetry.js';
+import { startRecording, stopRecording, exportRecording, observe } from '../src/telemetry.js';
+import { vaporWaterExports } from './helpers/vapor-accounting.js';
 
 const check=s=>{syncResources(s);return deserialize(serialize(s));};
+const resourceBalance=s=>{const totals=totalResources(s);totals.water+=vaporWaterExports(s);return totals;};
 const until=(s,p,limit=210)=>{for(let i=0;i<limit&&!p();i++){step(s);check(s);}assert.ok(p(),`Condition missing at ${s.tick}`);};
 function colony({galley=true,hauling=true}={}){
  const s=createGame(),site=s.sites.surface,t=at(site,12,10),depot=at(site,8,10),c=s.crew[0];
@@ -28,9 +30,9 @@ function prepared(s,inventory,quality=2,age=100){
 }
 
 test('delivered construction, raw food, water and an operator produce traceable meals for storage',()=>{
- const {s,site,t,depot}=colony({galley:false}),before=totalResources(s);assert.equal(order(s,'surface',11,14,'build','galley').ok,false);
+ const {s,site,t,depot}=colony({galley:false}),before=resourceBalance(s);assert.equal(order(s,'surface',11,14,'build','galley').ok,false);
  const j=order(s,'surface',12,10,'build','galley').job;until(s,()=>!s.jobs.includes(j));assert.equal(totalResources(s).alloy,before.alloy-6);assert.equal(totalResources(s).components,before.components-1);
- setProductionOrder(s,'surface',12,10,'batches',1);until(s,()=>t.machine.completed===1);assert.equal(totalResources(s).food,before.food);assert.equal(totalResources(s).water,before.water-.25);
+ setProductionOrder(s,'surface',12,10,'batches',1);until(s,()=>t.machine.completed===1);assert.equal(totalResources(s).food,before.food);assert.ok(Math.abs(resourceBalance(s).water-(before.water-.25))<1e-7,'Accounted water must pay exactly the quarter-unit recipe within finite summation roundoff.');
  until(s,()=>preparedFood(depot.stock)===2);const meal=foodLots(depot.stock).find(l=>l.meal).meal;assert.match(meal.id,/^meal-job-/);assert.ok(s.crew.some(c=>c.id===meal.maker));assert.equal(t.machine.order.remaining,0);check(s);
 });
 
@@ -160,7 +162,17 @@ test('galley saves reject prepared ingredients and output missing its cooked met
 });
 
 test('recordings expose distributed batch identity and explicit preparation, opening, portions and finish',()=>{
- const {s,depot,c}=colony({galley:false,hauling:false});depot.stock={};startRecording(s);const id=prepared(s,depot.stock);c.hunger=20;c.x=8;c.y=10;step(s);
- const entity=observe(s).entities[id];assert.equal(entity.type,'meal_batch');assert.equal(entity.food,2);assert.equal(entity.locations.length,2);step(s,8);
- const rows=exportRecording(s).trim().split('\n').map(JSON.parse);for(const id of ['meal.prepared','meal.opened','meal.portion.eaten','meal.finished'])assert.ok(rows.some(r=>r.event?.id===id));assert.equal(observe(s).entities[id].food,1);
+ const {s,depot,c}=colony({galley:false,hauling:false});depot.stock={};
+ const windowLimits={maxRecords:2000,maxBytes:16_000_000},recordedRows=[];let recordedTicks=0,firstHeader;
+ const finishWindow=(restart=true)=>{
+  const chunk=exportRecording(s).trim().split('\n').map(JSON.parse),footer=chunk.at(-1);
+  assert.equal(footer.active,true,`Recording through tick ${s.tick} incomplete: ${footer.reason}`);assert.equal(footer.reason,null);assert.equal(footer.throughTick,s.tick);
+  firstHeader??=chunk[0];recordedRows.push(...chunk.filter(row=>row.event||row.action));
+  if(restart){assert.equal(startRecording(s,windowLimits).active,true);recordedTicks=0;}else stopRecording(s);
+ };
+ const recordedStep=(ticks=1)=>{for(let n=0;n<ticks;n++){step(s);if(++recordedTicks===4)finishWindow();}};
+ assert.equal(startRecording(s,windowLimits).active,true);
+ const id=prepared(s,depot.stock);c.hunger=20;c.x=8;c.y=10;recordedStep();
+ const entity=observe(s).entities[id];assert.equal(entity.type,'meal_batch');assert.equal(entity.food,2);assert.equal(entity.locations.length,2);finishWindow();recordedStep(8);finishWindow(false);
+ const rows=recordedRows;for(const id of ['meal.prepared','meal.opened','meal.portion.eaten','meal.finished'])assert.ok(rows.some(r=>r.event?.id===id));assert.equal(observe(s).entities[id].food,1);
 });

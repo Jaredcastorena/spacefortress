@@ -6,7 +6,8 @@ import { executeAction, controlBindings, createAgentInterface, actionCatalog } f
 import { add, syncResources, totalResources, quantity } from '../src/inventory.js';
 import { siteDefinition } from '../src/region.js';
 import { SATELLITE_COST, planetSurveyStatus } from '../src/satellites.js';
-import { startRecording, exportRecording, observe, recordingStatus, TELEMETRY_VERSION } from '../src/telemetry.js';
+import { projectPreCompression } from './helpers/legacy-projection.js';
+import { startRecording, stopRecording, exportRecording, observe, recordingStatus, TELEMETRY_VERSION } from '../src/telemetry.js';
 
 const records = s => exportRecording(s).trim().split('\n').map(JSON.parse);
 const counts = s => Object.fromEntries(Object.keys(SATELLITE_COST).map(resource => [resource, totalResources(s)[resource]]));
@@ -34,25 +35,36 @@ test('larger-world player and agent satellite orders use physical crew delivery 
   assert.equal(f.site.size, 48); assert.equal(s.region.schema, 3);
   assert.equal(planetSurveyStatus(s, planetId).unlocked, false);
   const player = controlBindings(() => s), agent = createAgentInterface(() => twin);
-  startRecording(s, { maxRecords: 8000, maxBytes: 64_000_000 }); startRecording(twin);
+  const windowLimits={maxRecords:8000,maxBytes:64_000_000},recordedRows=[];let recordedTicks=0,firstHeader;
+  const finishWindow=(restart=true)=>{
+   const chunk=exportRecording(s).trim().split('\n').map(JSON.parse),footer=chunk.at(-1);
+   assert.equal(footer.active,true,`Recording through tick ${s.tick} incomplete: ${footer.reason}`);assert.equal(footer.reason,null);assert.equal(footer.throughTick,s.tick);
+   firstHeader??=chunk[0];recordedRows.push(...chunk.slice(1,-1));
+   if(restart){assert.equal(startRecording(s,windowLimits).active,true);recordedTicks=0;}else stopRecording(s);
+  };
+  const recordedStep=(ticks=1)=>{for(let n=0;n<ticks;n++){step(s);if(++recordedTicks===20)finishWindow();}};
+  assert.equal(startRecording(s,windowLimits).active,true);
+  const untilRecorded=(label,predicate,cap=160)=>{for(let n=0;n<cap&&!predicate();n++)recordedStep();assert.ok(predicate(),`${label}; first stop tick ${s.tick}, pending ${s.jobs.filter(j=>j.kind==='launchSatellite').map(j=>`${j.id}:remaining=${j.remaining}:blocked=${j.blockedReason}`).join(';')}`);};
+  startRecording(twin);
   const ordered = player.launchSatellite(s, args.site, args.x, args.y, args.z);
   const paired = agent.act('satellite.launch', args);
   assert.equal(ordered.ok, true, ordered.message); assert.equal(paired.ok, true, paired.message);
   assert.equal(serialize(s), serialize(twin)); assert.equal(records(s)[1].action.source, 'player'); assert.equal(records(twin)[1].action.source, 'agent');
+  const twinFooter=records(twin).at(-1);assert.equal(twinFooter.active,true);assert.equal(twinFooter.reason,null);assert.equal(twinFooter.throughTick,twin.tick);stopRecording(twin);
   const jobId = ordered.job, orderedJob = s.jobs.find(job => job.id === jobId);
   assert.deepEqual(orderedJob.materials, {}); assert.equal(orderedJob.remaining, 16); assert.deepEqual(counts(s), initial);
   assert.equal(Object.hasOwn(s, 'satellites'), false); exact(s);
   const flight = executeAction(s, 'expedition.launch', { site: 'wreck' }); assert.equal(flight.ok, false);
-  until(s, 'native carrier holds satellite supplies', () => s.crew.some(c => c.delivery?.job === jobId && quantity(c.carry) > 0));
+  finishWindow();untilRecorded('native carrier holds satellite supplies', () => s.crew.some(c => c.delivery?.job === jobId && quantity(c.carry) > 0));
   assert.equal(planetSurveyStatus(s, planetId).unlocked, false); assert.deepEqual(counts(s), initial);
   const pendingCopy = exact(s); optionalFixture(s, 'pending');
-  step(s, 3); step(pendingCopy, 3); assert.equal(serialize(s), serialize(pendingCopy), 'saved carry continues identically');
-  until(s, 'supplied satellite launch', () => planetSurveyStatus(s, planetId).unlocked);
+  finishWindow();recordedStep(3); step(pendingCopy, 3); assert.equal(serialize(s), serialize(pendingCopy), 'saved carry continues identically');
+  finishWindow();untilRecorded('supplied satellite launch', () => planetSurveyStatus(s, planetId).unlocked);
   assert.equal(s.jobs.some(j => j.id === jobId), false);
   for (const [resource, amount] of Object.entries(SATELLITE_COST)) assert.equal(counts(s)[resource], initial[resource] - amount, resource);
   exact(s); optionalFixture(s, 'launched');
-  const log = records(s), launchEvents = log.filter(r => r.event?.id === 'satellite.launched');
-  assert.equal(log[0].schemaVersion, TELEMETRY_VERSION); assert.equal(recordingStatus(s).reason, null);
+  finishWindow(false);const log=[firstHeader,...recordedRows],launchEvents=log.filter(r=>r.event?.id==='satellite.launched');
+  assert.equal(log[0].schemaVersion, TELEMETRY_VERSION);
   assert.equal(launchEvents.length, 1); const launched = launchEvents[0].event;
   assert.equal(launched.job, jobId); assert.equal(launched.entity, `planet:${planetId}`); assert.deepEqual(launched.cost, SATELLITE_COST);
   assert.ok(s.crew.some(c => c.id === launched.actor)); assert.ok(log.some(r => r.event?.id === 'job.completed' && r.event.entity === jobId));
@@ -91,7 +103,11 @@ test('satellite action and generic job action share the exact paid order and str
   assert.equal(serialize(a.s), serialize(b)); exact(a.s);
   assert.ok(actionCatalog(a.s).find(action => action.id === 'satellite.launch'));
   const raw = serialize(a.s);
-  for (const edit of [s => { s.jobs[0].cost.cells = 0; }, s => { s.jobs[0].work = 1; }, s => { s.jobs[0].building = 'shuttle'; }, s => { s.version = 75; }]) {
+  for (const edit of [s => { s.jobs[0].cost.cells = 0; }, s => { s.jobs[0].work = 1; }, s => { s.jobs[0].building = 'shuttle'; }]) {
     const changed = JSON.parse(raw); edit(changed); assert.throws(() => deserialize(JSON.stringify(changed)), /satellite|reservation|order|work/i);
   }
+  // Strip only the strictly neutral later work fields so the original
+  // schema75 satellite-shadow rejection remains the predicate under test.
+  const old = projectPreCompression(JSON.parse(raw)); old.version = 75;
+  assert.throws(() => deserialize(JSON.stringify(old)), /satellite|reservation|order|work/i);
 });

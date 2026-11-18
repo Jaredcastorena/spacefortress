@@ -5,6 +5,9 @@ import { initializeStorage } from '../src/inventory.js';
 import { initializeElectrical, refreshPower, updatePower } from '../src/power.js';
 import { GASES, gasAmount, mix, roomAt, refreshAtmosphere } from '../src/atmosphere.js';
 import { exportRoomHeat, importRoomHeat, parcelHeat, GAS_REFERENCE_KELVIN } from '../src/gas-thermal.js';
+import { gasAtRoomPressure } from '../src/room-pressure.js';
+import { storedWaterHeat } from '../src/water-thermal.js';
+import { validateGasWork } from '../src/gas-compression.js';
 import { validateFire } from '../src/fire.js';
 import {
   newPipe, gasNode, gasPayload, gasCapacity, gasPressure, gasStatus,
@@ -57,7 +60,9 @@ function totals(site) {
   for (const t of site.tiles) if (gasNode(t)) {
     plus(gas, gasNode(t).gas); smoke += gasNode(t).smoke;
   }
-  const heat=site.rooms.reduce((n,r)=>n+r.heat,0)+site.tiles.reduce((n,t)=>n+(gasNode(t)?.heat||0),0)+site.thermal.gasVented-site.thermal.gasLoaded;
+  // All retained owners + exported parcel heat - imported parcel heat, then
+  // remove paid drive energy while restoring its explicit exterior share.
+  const heat=site.rooms.reduce((n,r)=>n+r.heat,0)+site.tiles.reduce((n,t)=>n+(gasNode(t)?.heat||0),0)+storedWaterHeat(site)+site.thermal.gasVented-site.thermal.gasLoaded+site.gasWork.motorSpace-site.gasWork.allocated;
   return { gas, smoke, heat };
 }
 function conserved(s, before) {
@@ -70,7 +75,9 @@ function conserved(s, before) {
     if(gasAmount(gasNode(t).gas)===0)assert.equal(gasNode(t).heat,0,'empty gas owns no heat');
     assert.ok(gasPayload(t) <= gasCapacity(t) + 1e-8, 'finite payload capacity');
   }
-  validateGasNetworks(s); validateFire(s);
+  validateGasNetworks(s); validateFire(s); validateGasWork(s);
+  const e=site.energy,stored=site.tiles.reduce((n,t)=>n+(t.building==='battery'?t.charge:0),0);
+  close(stored+e.consumed+e.curtailed+e.discarded,e.initial+e.generated+e.injected,'finite electrical sources and sinks');
 }
 function loop(withVent=true) {
   const f = base(), { s, site } = f;
@@ -81,7 +88,7 @@ function loop(withVent=true) {
   for (let y=8; y<=10; y++) at(site, 12, y).cable = { enabled:true, hp:100 };
   inlet.cable={enabled:true,hp:100};pump.gasDevice.direction='se';
   if (vent) assert.ok(setGasDevice(s, site.id, vent.x, vent.y, false, 'ne', 150).ok);
-  refreshPower(s, site); updatePower(s, site);
+  refreshPower(s, site);
   assert.equal(extractor.powered, true); assert.equal(pump.powered, true);
   return { ...f, extractor, inlet, pump, reservoir, vent };
 }
@@ -90,7 +97,7 @@ test('captured contaminants survive a pipe and pump into storage, then return th
   const { s, site, room, extractor, reservoir, vent } = loop();
   contaminate(site, room, 8, 12);
   const before = totals(site), oxygen = room.gas.oxygen, inert = room.gas.inert;
-  for (let i=0; i<100; i++) { s.tick++; updateGasNetworks(s); conserved(s, before); }
+  for (let i=0; i<100; i++) { s.tick++; updatePower(s, site); updateGasNetworks(s); conserved(s, before); }
   assert.ok(reservoir.gasStore.gas.co2 > 1);
   assert.ok(reservoir.gasStore.smoke > 1);
   close(room.gas.oxygen, oxygen); close(room.gas.inert, inert);
@@ -101,8 +108,7 @@ test('captured contaminants survive a pipe and pump into storage, then return th
   const clean = { co2:room.gas.co2, smoke:room.smoke };
   assert.ok(setGasExtractor(s, site.id, extractor.x, extractor.y, false, 'filter', 100).ok);
   assert.ok(setGasDevice(s, site.id, vent.x, vent.y, true, 'ne', 150).ok);
-  updatePower(s, site);
-  for (let i=0; i<100; i++) { s.tick++; updateGasNetworks(s); conserved(s, before); }
+  for (let i=0; i<100; i++) { s.tick++; updatePower(s, site); updateGasNetworks(s); conserved(s, before); }
   assert.ok(room.gas.co2 > clean.co2, 'dirty supply raises room CO2 again');
   assert.ok(room.smoke > clean.smoke, 'dirty supply returns retained smoke');
   assert.ok(site.gasNetwork.delivered.co2 > 0);
@@ -110,20 +116,21 @@ test('captured contaminants survive a pipe and pump into storage, then return th
   close(site.fireSafety.smokeCleared, 0);
 });
 
-test('smoke-only filter output occupies storage and crosses pipes and pumps without adding gas pressure or heat', () => {
+test('smoke-only filter output occupies storage and crosses pipes and pumps without gas pressure or carried heat', () => {
   const { s, site, room, extractor, inlet, reservoir } = loop(false);
   contaminate(site, room, 0, 18);
-  const before = totals(site), originalGas = { ...room.gas }, heat = room.heat;
-  for (let i=0; i<250; i++) { s.tick++; updateGasNetworks(s); conserved(s, before); }
+  const before = totals(site), originalGas = { ...room.gas }, heat = room.heat, motorRoom = site.gasWork.motorRoom;
+  for (let i=0; i<250; i++) { s.tick++; updatePower(s, site); updateGasNetworks(s); conserved(s, before); }
   assert.ok(reservoir.gasStore.smoke > 1, 'smoke-only inlet must not be treated as empty');
   assert.ok(room.smoke < 18);
   for (const t of [extractor, inlet, reservoir]) {
     close(gasAmount(gasNode(t).gas), 0);
-    close(gasPressure(t), 0);
+    close(gasPressure(t), 0); close(gasNode(t).heat,0,'massless smoke owns no parcel heat');
     close(gasPayload(t), gasNode(t).smoke);
   }
   for (const k of GASES) close(room.gas[k], originalGas[k]);
-  close(room.heat, heat, 'massless smoke carries no heat');
+  close(site.gasWork.work,0,'massless smoke needs no compression work');
+  close(room.heat-heat,site.gasWork.motorRoom-motorRoom,'only paid drive heat enters the room');
   close(site.fireSafety.smokeCleared, 0);
 });
 
@@ -132,12 +139,12 @@ test('full nodes with different gas and smoke ratios never overflow or silently 
   contaminate(site, room, 8, 80);
   const extractor = install(s, 'gasExtractor', 9, 9), reservoir = install(s, 'gasReservoir', 10, 9);
   for (let x=8; x<=10; x++) at(site, x, 9).cable = { enabled:true, hp:100 };
-  retain(site, room, extractor, { oxygen:1, inert:1, co2:0 }, 8);
-  retain(site, room, reservoir, { oxygen:40, inert:20, co2:4 }, 16);
+  retain(site, room, extractor, { oxygen:1, inert:1, co2:0,vapor:0 }, 8);
+  retain(site, room, reservoir, { oxygen:40, inert:20, co2:4,vapor:0 }, 16);
   const before = totals(site), remaining = { gas:{ ...room.gas }, smoke:room.smoke };
-  refreshPower(s, site); updatePower(s, site);
+  refreshPower(s, site);
   assert.equal(extractor.powered, true);
-  for (let i=0; i<40; i++) { s.tick++; updateGasNetworks(s); conserved(s, before); }
+  for (let i=0; i<40; i++) { s.tick++; updatePower(s, site); updateGasNetworks(s); conserved(s, before); }
   close(gasPayload(extractor), 10); close(gasPayload(reservoir), 80);
   assert.match(gasStatus(site, extractor).blocked, /full/i);
   for (const k of GASES) close(room.gas[k], remaining.gas[k]);
@@ -149,8 +156,8 @@ test('pressure flow between unequal volumes and smoke fractions never reverses t
   const { s, site, room } = base();
   contaminate(site, room, 3, 65);
   const narrow = pipe(site, 9, 9), reservoir = install(s, 'gasReservoir', 10, 9);
-  retain(site, room, narrow, { oxygen:2, inert:5, co2:1 }, 1);
-  retain(site, room, reservoir, { oxygen:3, inert:5, co2:0 }, 55);
+  retain(site, room, narrow, { oxygen:2, inert:5, co2:1,vapor:0 }, 1);
+  retain(site, room, reservoir, { oxygen:3, inert:5, co2:0,vapor:0 }, 55);
   const before = totals(site), initialDifference = gasPressure(narrow)-gasPressure(reservoir);
   assert.ok(initialDifference > 0);
   for (let i=0; i<120; i++) {
@@ -169,23 +176,27 @@ test('a mostly-smoke supply respects its gas pressure target without losing reta
   const vent = install(s, 'gasVent', 12, 9);
   vent.cable = { enabled:true, hp:100 };
   at(site, 12, 10).cable = { enabled:true, hp:100 };
-  retain(site, room, vent, { oxygen:.63, inert:2.37, co2:0 }, 7);
+  retain(site, room, vent, { oxygen:.63, inert:2.37, co2:0,vapor:0 }, 7);
   // Previously supplied finite breathing mix leaves only 0.1 gas unit needed
   // at the target. Most gas and smoke must therefore remain in the vent.
   at(site, 8, 10).stock.air -= 2.9;
   plus(room.gas, mix(2.9)); plus(site.atmosphere.injected, mix(2.9));
   importRoomHeat(site,room,parcelHeat(2.9,GAS_REFERENCE_KELVIN),{boundary:true});
   refreshAtmosphere(site);
-  const before = totals(site);
-  refreshPower(s, site); updatePower(s, site);
+  const before = totals(site), initialRoomGas = gasAmount(room.gas);
+  refreshPower(s, site);
   assert.equal(vent.powered, true);
   for (let i=0; i<15; i++) {
-    s.tick++; updateGasNetworks(s); conserved(s, before);
+    // Exactly one paid pulse, followed by the original bounded idle checks.
+    s.tick++; if(i===0)updatePower(s,site); updateGasNetworks(s); conserved(s, before);
     assert.ok(room.pressure <= 100+1e-8, 'vent must not overshoot its gas target');
   }
   close(room.pressure, 100);
-  close(gasPayload(vent), 10-1/3);
-  close(site.gasNetwork.smoke.released, 7/30);
+  const supplied=gasAtRoomPressure(room,100)-initialRoomGas;
+  assert.ok(supplied>0&&supplied<.1,'paid drive heat reduces the finite parcel needed at the same target');
+  close(gasAmount(site.gasNetwork.delivered),supplied);
+  close(gasPayload(vent),10-supplied*10/3);
+  close(site.gasNetwork.smoke.released,supplied*7/3);
   assert.match(gasStatus(site, vent).blocked, /target pressure/i);
 });
 
@@ -196,7 +207,7 @@ for (const destination of [
 ]) test(`closed ruptured pipe and dismantling preserve gas and smoke across ${destination.name} release`, () => {
   const { s, site, room } = base();
   contaminate(site, room, 2, 4);
-  const t = pipe(site, destination.x, destination.y), mixture = { oxygen:2, inert:3, co2:1 };
+  const t = pipe(site, destination.x, destination.y), mixture = { oxygen:2, inert:3, co2:1,vapor:0 };
   retain(site, room, t, mixture, 4);
   const before = totals(site);
   t.pipe.hp = 0;

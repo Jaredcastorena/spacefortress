@@ -11,7 +11,7 @@ import { completeAnimalJob } from '../src/husbandry.js';
 import { breedingStatus, adult, newLifecycle } from '../src/breeding.js';
 import { animalPath } from '../src/navigation.js';
 import { animalPasture } from '../src/pastures.js';
-import { startRecording, exportRecording, observe, recordingStatus } from '../src/telemetry.js';
+import { startRecording, stopRecording, exportRecording, observe, recordingStatus } from '../src/telemetry.js';
 
 // Fixtures provision finite fungal caps and build a pen directly; all animal work
 // below uses the same controls, supplied jobs and ticks as the player.
@@ -56,15 +56,24 @@ test('glazefoot care requires delivered fungal caps and harvest creates typed eg
   const copy=check(s);step(s,5);step(copy,5);assert.deepEqual(s,copy);
   until(s,()=>a.husbandry.trust===100);assert.equal(totalResources(s).food,initial);assert.equal(totalResources(s).waste,.375);
   until(s,()=>s.jobs.some(j=>j.kind==='animalHarvest'&&j.animal===a.id),Math.ceil(100/animalTraits(a).productRate)+50);
-  // Record the asserted harvest stage within the default bounded recorder.
-  startRecording(s);
-  until(s,()=>foodOfKind(post.drop,'glazeegg')===2);assert.equal(totalResources(s).food,initial+2);
+  // Keep both original 240-tick waits and the default recording limits.
+  const windowLimits={maxRecords:2000,maxBytes:16_000_000},recordedRows=[];let recordedTicks=0,firstHeader;
+  const finishWindow=(restart=true)=>{
+   const chunk=exportRecording(s).trim().split('\n').map(JSON.parse),footer=chunk.at(-1);
+   assert.equal(footer.active,true,`Recording through tick ${s.tick} incomplete: ${footer.reason}`);assert.equal(footer.reason,null);assert.equal(footer.throughTick,s.tick);
+   firstHeader??=chunk[0];recordedRows.push(...chunk.filter(row=>row.event||row.action));
+   if(restart){assert.equal(startRecording(s,windowLimits).active,true);recordedTicks=0;}else stopRecording(s);
+  };
+  const recordedStep=(ticks=1)=>{for(let n=0;n<ticks;n++){step(s);if(++recordedTicks===4)finishWindow();}};
+  assert.equal(startRecording(s,windowLimits).active,true);
+  const untilRecorded=(predicate,max=240)=>{for(let i=0;i<max&&!predicate();i++)recordedStep();assert.ok(predicate(),`Condition missing at ${s.tick}`);};
+  untilRecorded(()=>foodOfKind(post.drop,'glazeegg')===2);assert.equal(totalResources(s).food,initial+2);
   const eggs=foodLots(post.drop).filter(l=>l.kind==='glazeegg');assert.equal(eggs.length,1);assert.equal(eggs[0].amount,2);check(s);
   assert.ok(Math.abs(s.crew.reduce((n,c)=>n+c.skills.husbandry.xp,0)-husbandryXp-(3*livestockDef(a).careWork+livestockDef(a).harvestWork))<1e-9);
-  for(const c of s.crew)setLabor(s,c.id,'hauling',true);until(s,()=>site.tiles.reduce((n,t)=>n+foodOfKind(t.stock,'glazeegg'),0)===2);
+  finishWindow();for(const c of s.crew)setLabor(s,c.id,'hauling',true);untilRecorded(()=>site.tiles.reduce((n,t)=>n+foodOfKind(t.stock,'glazeegg'),0)===2);
   assert.equal(site.tiles.reduce((n,t)=>n+foodOfKind(t.stock,'glazeegg'),0),2);
-  assert.equal(recordingStatus(s).active,true,'harvest evidence must not be truncated');
-  const events=exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>r.event).map(r=>r.event);
+  finishWindow(false);
+  const events=recordedRows.filter(r=>r.event).map(r=>r.event);
   assert.ok(events.some(e=>e.id==='animal.harvested'&&e.productKind==='glazeegg'&&e.foodKinds.glazeegg===2));
 });
 

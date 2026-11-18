@@ -68,12 +68,12 @@ export function commissioningStatus(state) {
 }
 
 function optionsFor(options) {
-  if (!options || typeof options !== 'object' || Array.isArray(options) || Object.keys(options).some(k => !['limits', 'record'].includes(k)) || options.record !== undefined && typeof options.record !== 'boolean') throw new TypeError('Expected limits and optional boolean record.');
+  if (!options || typeof options !== 'object' || Array.isArray(options) || Object.keys(options).some(k => !['limits', 'record', 'beforeAction'].includes(k)) || options.record !== undefined && typeof options.record !== 'boolean' || options.beforeAction !== undefined && typeof options.beforeAction !== 'function') throw new TypeError('Expected limits, optional boolean record and optional observational beforeAction callback.');
   const requested = options.limits === undefined ? {} : options.limits;
   if (!requested || typeof requested !== 'object' || Array.isArray(requested) || Object.keys(requested).some(k => !Object.hasOwn(LIMITS, k))) throw new TypeError('Unknown commissioning limit.');
   const limits = { ...LIMITS, ...requested };
   for (const [key, value] of Object.entries(limits)) if (!Number.isInteger(value) || value < 0 || value > LIMITS[key]) throw new TypeError(`${key} must be an integer from 0 to ${LIMITS[key]}.`);
-  return { limits, record: options.record === true };
+  return { limits, record: options.record === true, beforeAction: options.beforeAction };
 }
 
 // Configuration and ownership are compared against predicted command effects.
@@ -125,7 +125,7 @@ function needed(state, id, a) {
 
 /** Shared commands only; failed endpoints retain every current flag and policy. */
 export function commissionPaidAirlock(state, options = {}) {
-  const { limits, record } = optionsFor(options), actions = [];
+  const { limits, record, beforeAction } = optionsFor(options), actions = [];
   let attempts = 0, commands = 0, gasTicks = 0, failure = null, stage = 'preflight', initialTick = state?.tick, inputSha256 = null, expected = null, baseline = null, latest = null, balance = null, recording = false;
   function inspect() {
     latest = commissioningStatus(state);
@@ -152,6 +152,8 @@ export function commissionPaidAirlock(state, options = {}) {
     attempts++; if (id !== 'simulation.step') commands++; else gasTicks++;
     predict(expected, state, id, args);
     const entry = { tick: state.tick, id, args, ok: false, code: 'exception' }; actions.push(entry);
+    // Observation only: callers may close/open evidence windows between actions.
+    beforeAction?.();
     const result = executeAction(state, id, args, 'agent');
     Object.assign(entry, { tick: state.tick, ok: result.ok, code: result.code });
     if (!result.ok) throw new Stop('action_rejected', `${id}: ${result.message || result.code}`);

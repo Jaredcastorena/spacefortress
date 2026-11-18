@@ -1,5 +1,7 @@
+import {gasAmount,dryGasAmount,GASES} from './gas-species.js';
 import { cellKey, positionOf } from './spatial.js';
-import { airlockStatus, airlockControlOwner } from './airlock-access.js';
+import { breathingStatus } from './atmosphere.js';
+import { airlockRoom, airlockStatus, airlockControlOwner } from './airlock-access.js';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const number = (value, digits=1) => Number.isFinite(value) ? value.toFixed(digits) : '—';
@@ -12,6 +14,28 @@ const blockers = {
   route_unavailable:'Clear the chamber and both staging routes.', insufficient_suit:'Restore the traveler’s suit oxygen before admission.', pressure_mismatch:'Wait for chamber pressure to match the permitted side.',
   manual_release:'Manual release active. Close the released door by resuming when safe.', disabled:'Paused by command. Resume to recheck the assembly.'
 };
+// A paused cycle may reflect either a current room or the predicted refill.
+function airlockBlockerMessage(site, status) {
+  const fallback = blockers[status.blocker] || String(status.blocker).replaceAll('_', ' ');
+  if (status.blocker !== 'contaminated_mix') return fallback;
+
+  const reasons = [];
+  for (const [name, position] of [['Chamber', status.config.chamber], ['Habitat', status.route?.inner.outside]]) {
+    const room = airlockRoom(site, position);
+    if (!room) continue;
+    const reading = breathingStatus(room);
+    const limits = {
+      low_oxygen: `oxygen partial pressure is below ${reading.minimumOxygenPressure * 100}% of nominal pressure`,
+      high_oxygen: `oxygen partial pressure exceeds ${reading.maximumOxygenPressure * 100}% of nominal pressure`,
+      low_pressure: 'pressure is too low for breathing',
+      high_pressure: 'pressure is too high for breathing',
+      smoke: 'smoke exceeds the breathing limit',
+      high_co2: 'carbon dioxide exceeds the breathing limit',
+    };
+    if (limits[reading.block]) reasons.push(`${name} ${limits[reading.block]}.`);
+  }
+  return reasons.length ? reasons.join(' ') : fallback;
+}
 const label = value => esc(phases[value] || String(value || 'Unknown').replaceAll('_',' '));
 const focus = key => `data-airlock-focus="${key}"`;
 
@@ -49,11 +73,11 @@ export function airlockDetails(s,site,t,draft={}) {
   const canUnbind=!party&&!queue.length&&['idle','paused'].includes(a.phase)&&Object.values(a.doors).every(d=>d.intact&&!d.open)&&!s.crew.some(c=>c.site===site.id&&occupied.has(cellKey(positionOf(c))));
   const chosenCrew=local.some(c=>c.id===draft.crew)?draft.crew:local[0]?.id;
   const releaseSide=draft.side||'inner',opposite=a.doors[releaseSide==='inner'?'outer':'inner'],canRelease=opposite.intact&&!opposite.open;
-  const gas=a.chamber?.gas,total=gas?gas.oxygen+gas.inert+gas.co2:0;
-  const composition=gas?`O₂ ${number(total?gas.oxygen/total*100:0)}% · CO₂ ${number(total?gas.co2/total*100:0,2)}%`: 'No chamber reading';
+  const gas=a.chamber?.gas,total=gas?gasAmount(gas):0,dry=gas?dryGasAmount(gas):0;
+  const composition=gas?`O₂ ${number(total?gas.oxygen/total*100:0)}% · CO₂ ${number(dry?gas.co2/dry*100:0,2)}% dry · vapor ${number(total?(gas.vapor??0)/total*100:0,2)}%`: 'No chamber reading';
   const requestRow=(q,active=false)=>`<li style="margin:8px 0;overflow-wrap:anywhere">${esc(crewName(q.crew))}${q.patient?` + ${esc(crewName(q.patient))}`:''} · ${q.direction==='inward'?'inward':'outward'}${q.emergency?' · low suit reserve':''}<br><button type="button" data-action="airlock-cancel" data-crew="${esc(q.crew)}" data-simulation-action="airlock.cancel" ${focus(`cancel-${esc(q.crew)}`)}>${active?'Request safe return':'Cancel request'}</button></li>`;
-  return `<hr><section class="outpost-section" data-airlock-panel><div class="eyebrow">AIRLOCK</div><p data-airlock-phase>${label(a.phase)}${a.direction?` · ${a.direction==='inward'?'inward':'outward'}`:''}</p>${a.blocker?`<p data-airlock-blocker>${esc(blockers[a.blocker]||String(a.blocker).replaceAll('_',' '))}</p>`:''}<dl><dt>Chamber</dt><dd>${number(a.chamber?.pressure)}% nominal · ${number(a.chamber?.temperature)}°C</dd><dt>Mixture</dt><dd>${composition}${a.chamber?` · ${a.chamber.breathable?'breathable':'suit required'}`:''}</dd><dt>Reservoir free</dt><dd>${number(a.reservoir?.free)} / ${number(a.reservoir?.capacity,0)} units</dd><dt>Controller power</dt><dd>${a.powered?'Online':'Offline'}</dd><dt>Doors</dt><dd>${['inner','outer'].map(side=>`${side==='inner'?'Inner':'Outer'}: ${!a.doors[side].intact?'damaged':a.doors[side].open?'open':'shut'}${a.permissions[side]?' · permitted':' · locked'}`).join('<br>')}</dd><dt>Crew</dt><dd>${party?esc(crewName(party.crew)):'Chamber idle'} · ${queue.length} waiting</dd></dl><button type="button" data-action="airlock-enable" data-simulation-action="airlock.enable" aria-pressed="${a.enabled}" ${focus('enable')}>${a.enabled?'Pause airlock':'Resume airlock'}</button>
+  return `<hr><section class="outpost-section" data-airlock-panel><div class="eyebrow">AIRLOCK</div><p data-airlock-phase>${label(a.phase)}${a.direction?` · ${a.direction==='inward'?'inward':'outward'}`:''}</p>${a.blocker?`<p data-airlock-blocker>${esc(airlockBlockerMessage(site,a))}</p>`:''}<dl><dt>Chamber</dt><dd>${number(a.chamber?.pressure)}% nominal · ${number(a.chamber?.temperature)}°C</dd><dt>Mixture</dt><dd>${composition}${a.chamber?` · ${a.chamber.breathable?'breathable':'suit required'}`:''}</dd><dt>Reservoir free</dt><dd>${number(a.reservoir?.free)} / ${number(a.reservoir?.capacity,0)} units</dd><dt>Controller power</dt><dd>${a.powered?'Online':'Offline'}</dd><dt>Doors</dt><dd>${['inner','outer'].map(side=>`${side==='inner'?'Inner':'Outer'}: ${!a.doors[side].intact?'damaged':a.doors[side].open?'open':'shut'}${a.permissions[side]?' · permitted':' · locked'}`).join('<br>')}</dd><dt>Crew</dt><dd>${party?esc(crewName(party.crew)):'Chamber idle'} · ${queue.length} waiting</dd></dl><button type="button" data-action="airlock-enable" data-simulation-action="airlock.enable" aria-pressed="${a.enabled}" ${focus('enable')}>${a.enabled?'Pause airlock':'Resume airlock'}</button>
   <details data-panel-key="airlock-queue"><summary>Crew requests · ${queue.length} waiting</summary>${party||queue.length?`<ul style="padding-left:18px">${party?requestRow(party,true):''}${queue.map(q=>requestRow(q)).join('')}</ul>`:'<p>No waiting crew.</p>'}<form class="production-form" data-airlock-form="request" data-simulation-action="airlock.request"><label>Traveler<select name="crew" ${focus('crew')} ${!local.length?'disabled':''}>${local.map(c=>`<option value="${esc(c.id)}" ${chosenCrew===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label><div style="display:flex;flex-wrap:wrap;gap:6px">${['inward','outward'].map(direction=>`<button type="submit" data-direction="${direction}" ${focus(`request-${direction}`)} ${!local.length?'disabled':''}>Cycle ${direction}</button>`).join('')}</div></form><p class="crew-hint">Crew must reach the requested side. A queued request preserves their task and carried supplies.</p></details>
-  <details data-panel-key="airlock-gas"><summary>Measured gas stores</summary>${[['Chamber',a.chamber],['Habitat',a.habitat],['Reservoir',a.reservoir]].map(([name,store])=>`<p>${name}</p><dl>${['oxygen','inert','co2'].map(key=>`<dt>${{oxygen:'Oxygen',inert:'Inert gas',co2:'Carbon dioxide'}[key]}</dt><dd>${number(store?.gas?.[key],3)} units</dd>`).join('')}<dt>Smoke</dt><dd>${number(store?.smoke,3)} units</dd>${store?.pressure!==undefined?`<dt>Pressure</dt><dd>${number(store.pressure)}% nominal</dd>`:''}</dl>`).join('')}</details>
+  <details data-panel-key="airlock-gas"><summary>Measured gas stores</summary>${[['Chamber',a.chamber],['Habitat',a.habitat],['Reservoir',a.reservoir]].map(([name,store])=>`<p>${name}</p><dl>${GASES.map(key=>`<dt>${{oxygen:'Oxygen',inert:'Inert gas',co2:'Carbon dioxide',vapor:'Water vapor'}[key]}</dt><dd>${number(store?.gas?.[key],3)} units</dd>`).join('')}<dt>Smoke</dt><dd>${number(store?.smoke,3)} units</dd>${store?.pressure!==undefined?`<dt>Pressure</dt><dd>${number(store.pressure)}% nominal</dd>`:''}</dl>`).join('')}</details>
   ${setup}<details data-panel-key="airlock-manual"><summary>Manual release / unbind</summary><p>Manual release opens one side and stops the cycle. Pressure differences and contamination can expose crew or lose atmosphere. The opposite door must be shut and intact.</p><form class="production-form" data-airlock-form="release" data-simulation-action="airlock.release"><label>Release side<select name="side" ${focus('release-side')}><option value="inner" ${releaseSide==='inner'?'selected':''}>Inner · habitat</option><option value="outer" ${releaseSide==='outer'?'selected':''}>Outer · exterior</option></select></label><label style="display:flex;align-items:flex-start;gap:8px"><input style="width:auto" type="checkbox" name="acceptAtmosphereLoss" required ${focus('accept-loss')} ${draft.acceptAtmosphereLoss?'checked':''}>I accept atmosphere loss and exposure.</label><button type="submit" ${focus('release')} ${canRelease?'':'disabled'}>Release selected door</button><p class="crew-hint" data-airlock-release-guard ${canRelease?'hidden':''}>Opposite door is open or damaged. Restore its seal first.</p></form><button type="button" data-action="airlock-unbind" data-simulation-action="airlock.unbind" ${focus('unbind')} ${canUnbind?'':'disabled'}>Unbind assembly</button><p class="crew-hint">Unbinding requires an empty chamber and doorways, no requests or active party, and both doors shut. Stored gas remains in its equipment.</p></details></section>`;
 }

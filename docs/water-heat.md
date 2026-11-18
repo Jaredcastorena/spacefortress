@@ -1,0 +1,15 @@
+# Water temperature and finite heat
+
+Floor water, pipes and reservoirs retain their own energy. Local save80 adds [freezing and thawing](water-phases.md); the historical sensible-heat foundation is described below. Each unit of water has one game unit of heat capacity. Temperature in kelvin is energy divided by water capacity; the inspector displays Celsius. Empty owners retain zero energy and have no temperature.
+
+Flow, stairs, utility risers, pumps, intakes, outlets and leaks move proportional energy with the actual water parcel. Mixing hot and cold water conserves both quantity and heat. Closing a valve stops flow; it does not insulate the fitting. Existing flow limits, available space, power requirements, physical deliveries and dismantling recovery still apply.
+
+Water exchanges bounded heat with its actual compartment or local exterior temperature each tick. Floor water exchanges eight percent of the finite pair's equilibrium energy; pipe and reservoir water exchanges two percent, divided among contacts. Wall and door fittings exchange with their neighboring compartments and exposed sides. An enclosed partition is not an exterior heat sink. Each exchange keeps both owners at or between their prior temperatures. Water can therefore change room temperature and, through the existing gas law, room pressure.
+
+The site thermal ledger covers structures, gas and exposed/stored water together. Internal transfers cancel. Packaged supplies enter at the reference 20°C and add `waterLoaded`; bilge recovery, production deliveries, dismantling, cultivation absorption, drainage and fire quenching remove the actual carried energy as `waterRemoved`. Those boundaries are explicit: inventories and plant moisture do not yet retain thermal histories. Fire quenching remains a water sink and does not create steam.
+
+New natural pools enter once at local exterior temperature under `waterInitial`. Save79 validates earlier saves in their original thermal domain before assigning previously untracked water a 20°C baseline. It preserves their water quantities, maps, room/gas temperatures, jobs, supplies and RNG. Current saves require finite, nonnegative energy, zero heat in empty owners and a balanced total. Loading an older save never reseeds its water basins.
+
+Observation/recording13 exposes floor and plumbing temperatures and heat. Existing water-transfer events include the carried `heat` alongside source, destination and amount. Temperature changes remain observations, not inferred causes or training rewards. Player and agent commands continue to use the shared action dispatcher.
+
+The original save79 checkpoint modeled sensible heat only. Save80 now adds finite freezing, thawing and melting energy through the same owners and ledgers. Local save81 adds [vapor pressure, evaporation, condensation and vacuum cooling](water-vapor.md). Water plumbing remains sealed without vapor headspace. Compression work and packaged-cargo thermal histories remain unfinished. These constants are game-scale balancing values.

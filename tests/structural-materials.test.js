@@ -15,7 +15,7 @@ import {materialChoice,materialDetails} from '../src/material-panels.js';
 import {tileAt,positionOf,horizontalNeighbors} from '../src/spatial.js';
 import {totalResources,syncResources} from '../src/inventory.js';
 import {damage} from '../src/maintenance.js';
-import {observe,startRecording,exportRecording} from '../src/telemetry.js';
+import {observe,startRecording,stopRecording,exportRecording} from '../src/telemetry.js';
 const raw=gunzipSync(readFileSync(new URL('./fixtures/materials-schema65.json.gz',import.meta.url))).toString();
 const act=(s,id,args={})=>{const r=executeAction(s,id,args);assert.equal(r.ok,true,`${id}: ${r.message}`);return r;};
 const valid=s=>{syncResources(s);const text=serialize(s);assert.equal(serialize(deserialize(text)),text);};
@@ -79,15 +79,17 @@ test('cancelled composite construction returns every reserved material and insta
 
 test('native paid floor, wall, repair and dismantling preserve slab ownership and exact supplies',()=>{
  const s=staffed(),p={x:5,y:6,z:0},tile=tileAt(s.sites.surface,p),before=totalResources(s);
- startRecording(s,{maxRecords:12000,maxBytes:32_000_000});
- for(const building of ['floor','wall']){const job=order(s,p,'build',building,'composite');valid(s);finish(s,job);valid(s);}
+ const limits={maxRecords:12000,maxBytes:32_000_000},log=[];let windowOpen=false,windowStart=0;
+ const begin=()=>{assert.equal(windowOpen,false);assert.equal(startRecording(s,limits).active,true);windowOpen=true;windowStart=s.tick;};
+ const flush=()=>{const rows=exportRecording(s).trim().split('\n').map(JSON.parse),footer=rows.at(-1);assert.equal(footer.kind,'footer');assert.equal(footer.active,true,`Material recording incomplete: ${footer.reason}`);assert.equal(footer.throughTick,s.tick);log.push(...rows.filter(row=>row.event).map(row=>row.event));stopRecording(s);windowOpen=false;};
+ const finishRecorded=r=>{for(let i=0;i<100&&s.jobs.some(j=>j.id===r.job);i++){step(s);if(s.tick-windowStart===20){flush();if(s.jobs.some(j=>j.id===r.job))begin();}}assert.ok(!s.jobs.some(j=>j.id===r.job),`Stopped at ${s.tick}: ${s.crew[0].activity}`);if(windowOpen)flush();};
+ for(const building of ['floor','wall']){begin();const job=order(s,p,'build',building,'composite');valid(s);finishRecorded(job);valid(s);}
  assert.deepEqual(tile.materials,{floor:'composite',structure:'composite'});
  assert.equal(totalResources(s).alloy,before.alloy-3);assert.equal(totalResources(s).components,before.components-2);
- damage(s,s.sites.surface,tile,'structure',10,'debris');assert.equal(tile.hp,94);
- const repair=order(s,p,'repair');assert.deepEqual(s.jobs.find(j=>j.id===repair.job).cost,{alloy:1,components:1});valid(s);finish(s,repair);assert.equal(tile.hp,100);assert.equal(materialId(tile,'structure'),'composite');
- const removal=order(s,p,'remove');finish(s,removal);assert.equal(tile.building,null);assert.equal(tile.terrain,'floor');assert.deepEqual(tile.materials,{floor:'composite'});
+ begin();damage(s,s.sites.surface,tile,'structure',10,'debris');assert.equal(tile.hp,94);
+ const repair=order(s,p,'repair');assert.deepEqual(s.jobs.find(j=>j.id===repair.job).cost,{alloy:1,components:1});valid(s);finishRecorded(repair);assert.equal(tile.hp,100);assert.equal(materialId(tile,'structure'),'composite');
+ begin();const removal=order(s,p,'remove');finishRecorded(removal);assert.equal(tile.building,null);assert.equal(tile.terrain,'floor');assert.deepEqual(tile.materials,{floor:'composite'});
  assert.equal(totalResources(s).alloy,before.alloy-3);assert.equal(totalResources(s).components,before.components-3);valid(s);
- const log=exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>r.event).map(r=>r.event);
  assert.equal(log.filter(e=>e.id==='construction.material.installed').length,2);
  assert.ok(log.some(e=>e.id==='construction.material.removed'&&e.material==='composite'&&e.refund.components===0));
  assert.ok(log.some(e=>e.id==='structure.damaged'&&e.rawAmount===10&&e.amount===6&&e.material==='composite'));

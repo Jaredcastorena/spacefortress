@@ -1,3 +1,4 @@
+import {loadWater} from '../src/water-thermal.js';
 import { DIRECTIONS } from '../src/geometry.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -27,7 +28,7 @@ function fixture({backfeed = false} = {}) {
   const bank = install(s, 'battery', 9, 8), first = install(s, 'breaker', 10), second = install(s, 'breaker', 12);
   bank.charge = 30; site.energy.injected += 30;
   const faults = [at(site, 11, 9), at(site, 13, 8)];
-  for (const t of faults) { t.cable = {enabled:true, hp:100}; t.liquid = 2; site.liquids.released += 2; }
+  for (const t of faults) { t.cable = {enabled:true, hp:100}; loadWater(site,t,2,{floor:true}); site.liquids.released += 2; }
   let localBank = null;
   if (backfeed) { localBank = install(s, 'battery', 11, 8); localBank.charge = 10; site.energy.injected += 10; }
   refreshPower(s, site);

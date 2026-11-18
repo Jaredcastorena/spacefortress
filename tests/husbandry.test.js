@@ -5,7 +5,7 @@ import { createGame, at, step, order, cancelJob, serialize, deserialize, setLabo
 import { totalResources, syncResources } from '../src/inventory.js';
 import { setMachineEnabled } from '../src/industry.js';
 import { husbandryStatus } from '../src/husbandry.js';
-import { startRecording, exportRecording, observe } from '../src/telemetry.js';
+import { startRecording, stopRecording, exportRecording, observe } from '../src/telemetry.js';
 import { executeAction } from '../src/controls.js';
 const check=s=>{syncResources(s);return deserialize(serialize(s));};
 const until=(s,p,limit=240)=>{for(let i=0;i<limit&&!p();i++){step(s);check(s);}assert.ok(p(),`Condition missing at ${s.tick}`);};
@@ -91,6 +91,22 @@ test('invalid targets, duplicate post claims and malformed animal states are rej
 });
 
 test('stable animal actions and observations expose care, taming, ready product and collection events',()=>{
- const {s,a,h}=colony();startRecording(s,{maxRecords:10000,maxBytes:16000000});assert.ok(executeAction(s,'husbandry.assign',{creature:a.id,x:10,y:15},'agent').ok);until(s,()=>h.trust===100);h.product=99;until(s,()=>h.product<99);const entity=observe(s).entities[a.id];assert.equal(entity.husbandry.trust,100);assert.ok(entity.derived.husbandryStatus);
- const rows=exportRecording(s).trim().split('\n').map(JSON.parse);for(const name of ['animal.post.assigned','animal.care.completed','animal.tamed','animal.product.ready','animal.harvested'])assert.ok(rows.some(r=>r.event?.id===name),name);assert.ok(rows.some(r=>r.action?.id==='husbandry.assign'&&r.action.source==='agent'));
+ const {s,a,h}=colony(),limits={maxRecords:10000,maxBytes:16000000},rows=[];
+ const window=(label,run)=>{
+  assert.equal(startRecording(s,limits).active,true,`${label} recording must start within its original limits.`);
+  run();const recording=exportRecording(s).trim().split('\n').map(JSON.parse),footer=recording.at(-1);
+  assert.equal(footer.active,true,`${label} recording incomplete: ${footer.reason}`);assert.equal(footer.reason,null);assert.equal(footer.throughTick,s.tick);
+  rows.push(...recording.filter(row=>row.event||row.action));stopRecording(s);
+ };
+ const untilRecorded=(predicate,label,limit=240)=>{
+  // The original per-phase 240-tick cap and per-tick save check are unchanged.
+  // Every complete one-tick window retains the original recording limits.
+  for(let i=0;i<limit&&!predicate();i++)window(`${label} tick ${s.tick+1}`,()=>{step(s);check(s);});
+  assert.ok(predicate(),`Condition missing at ${s.tick}`);
+ };
+ window('assignment',()=>assert.ok(executeAction(s,'husbandry.assign',{creature:a.id,x:10,y:15},'agent').ok));
+ untilRecorded(()=>h.trust===100,'paid care and taming');
+ window('product setup',()=>{h.product=99;});untilRecorded(()=>h.product<99,'ready product and collection');
+ const entity=observe(s).entities[a.id];assert.equal(entity.husbandry.trust,100);assert.ok(entity.derived.husbandryStatus);
+ for(const name of ['animal.post.assigned','animal.care.completed','animal.tamed','animal.product.ready','animal.harvested'])assert.ok(rows.some(r=>r.event?.id===name),name);assert.ok(rows.some(r=>r.action?.id==='husbandry.assign'&&r.action.source==='agent'));
 });

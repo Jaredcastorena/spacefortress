@@ -11,19 +11,21 @@ import {newPipe,gasNode} from '../src/gas-networks.js';
 import {gasDetails} from '../src/gas-panels.js';
 import {executeAction,createAgentInterface} from '../src/controls.js';
 import {observe,startRecording,exportRecording} from '../src/telemetry.js';
+import {storedWaterHeat} from '../src/water-thermal.js';
+import {projectPreWaterVapor} from './helpers/legacy-projection.js';
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-7,`${a} != ${b}`);
-const stateHeat=site=>site.rooms.reduce((n,r)=>n+r.heat,0)+site.tiles.reduce((n,t)=>n+(gasNode(t)?.heat||0),0);
+const stateHeat=site=>site.rooms.reduce((n,r)=>n+r.heat,0)+site.tiles.reduce((n,t)=>n+(gasNode(t)?.heat||0),0)+storedWaterHeat(site);
 const oldBytes=()=>gunzipSync(readFileSync(new URL('./fixtures/gas-heat-schema77.json.gz',import.meta.url))).toString();
 
 test('genuine schema77 migration preserves physical owners, quantities and temperatures with an explicit energy baseline',()=>{
  const raw=oldBytes();assert.equal(createHash('sha256').update(raw).digest('hex'),'f49dcdde34be2e94098e7e3e11c10f74e16196b256308dfb3c281ffb3f2703e1');
- const old=JSON.parse(raw),s=deserialize(raw),projected=structuredClone(s);projected.version=77;
+ const old=JSON.parse(raw),s=deserialize(raw),projected=projectPreWaterVapor(s);projected.version=77;
  for(const [id,site] of Object.entries(s.sites)){
-  close(stateHeat(site),site.thermal.initial+site.thermal.gasInitial);
+  close(stateHeat(site),site.thermal.initial+site.thermal.gasInitial+site.thermal.waterInitial);
   for(let i=0;i<site.rooms.length;i++){const r=site.rooms[i],prior=old.sites[id].rooms[i];close(roomKelvin(r),prior.heat/(20*prior.volume));const p=projected.sites[id].rooms[i];delete p.gasThermal;p.heat=prior.heat;p.pressure=prior.pressure;p.air=prior.air;}
   projected.sites[id].air=old.sites[id].air;
-  for(const key of ['gasInitial','gasLoaded','gasVented'])delete projected.sites[id].thermal[key];
-  for(const tile of projected.sites[id].tiles)for(const node of [tile.pipe,tile.gasStore])if(node)delete node.heat;
+  for(const key of ['gasInitial','gasLoaded','gasVented','waterInitial','waterLoaded','waterRemoved'])delete projected.sites[id].thermal[key];
+  for(const tile of projected.sites[id].tiles){delete tile.liquidHeat;for(const node of [tile.pipe,tile.gasStore,tile.waterPipe,tile.waterStore])if(node)delete node.heat;}
  }
  assert.deepEqual(projected,old);assert.ok(serialize(deserialize(serialize(s)))===serialize(s),'exact save');
 });
@@ -53,7 +55,7 @@ test('suit releases have player-agent parity, finite imported heat and labeled o
  const a=deserialize(serialize(s)),b=deserialize(serialize(s));assert.equal(startRecording(a).active,true,'default recording budget admits the observation header');
  assert.ok(executeAction(a,'crew.suit.release',{crew:c.id,points:10},'player').ok);assert.ok(createAgentInterface(()=>b).act('crew.suit.release',{crew:c.id,points:10}).ok);assert.ok(serialize(a)===serialize(b),'player/agent exact physical parity');validateThermal(a);
  const event=exportRecording(a).split('\n').filter(Boolean).map(JSON.parse).find(row=>row.event?.id==='crew.suit.released').event;assert.ok(event.heat>0);
- const before=serialize(a),view=observe(a),roomEntity=Object.values(view.entities).find(e=>e.type==='room');assert.equal(view.schemaVersion,12);assert.ok(roomEntity.derived.heatCapacity>roomEntity.volume*20);assert.equal(serialize(a),before);
+ const before=serialize(a),view=observe(a),roomEntity=Object.values(view.entities).find(e=>e.type==='room');assert.equal(view.schemaVersion,16);assert.ok(roomEntity.derived.heatCapacity>roomEntity.volume*20);assert.equal(serialize(a),before);
 });
 
 test('gas inspection exposes cold and empty temperatures without changing the simulation',()=>{

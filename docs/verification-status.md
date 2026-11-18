@@ -1,6 +1,44 @@
 # Verification status
 
-Updated October 30, 2026. This is the compact evidence index for implemented and proposed systems. **Verified** means the named scope passed its stated check. **Pending** means evidence is not yet complete. **Failed** means a known check contradicts the requirement. None of these rows declares the whole game finished.
+Updated November 12, 2026. This is the compact evidence index for implemented and proposed systems. **Verified** means the named scope passed its stated check. **Pending** means evidence is not yet complete. **Failed** means a known check contradicts the requirement. None of these rows declares the whole game finished.
+
+## Water pipe expansion
+
+Five focused cases cover freezing through room contact, volume relief through pipes and risers, pump and intake limits, safe headroom, and burst persistence. In a saved colony, a player step and an agent step produced the same damage and water state. The pipe retained solid ice while liquid leaked on the correct deck. Affected plumbing, thermal, maintenance, riser and inspector checks passed across 91 cases. [Ice rules](water-phases.md) and [focused tests](../tests/ice-expansion.test.js).
+
+## Local gas compression — schema82 / observations16
+
+**Verified, focused scope:** 23 primitive cases and 19 integration/migration cases pass. The integrated model uses finite paid pump/vent/extractor allocations, limits useful work to 65%, retains work in receiving gas and settles the remaining motor heat at the actual drive room or space boundary. Vent pressure targets include the full paid heat allocation. Strict schema82 ledgers, authentic schema81 migration, named events and recording labels are implemented. Initial assertion-only rounding and undefined-value failures were corrected and the affected checks pass.
+
+**Verified, focused safety:** five cases cover humid exhaust with finite latent heat, smoke-only filtering, airlock pressure gaps, oxygen bounds and temperature admission. The initial humid-case failure used a rounded literal budget; the assertion now uses the exact paid allocation times 0.65 and all subsequent heat/latent/bank checks pass. No runtime change was needed. Five strict neutral compression-projection cases and seven affected vapor-projection cases also pass.
+
+**All 50 original compatibility failures have passing follow-up evidence.** The initial run counted 2,253 passes, 50 failures and one historical skip across 2,304 cases. Focused checks covered paid power, heat accounting, historical saves, observation versions and four local command-line tools. The exhaust target now includes the motor heat left in the source room.
+
+Two synthetic airlock journeys exercised the final boundaries. With 0.1 units of habitat gas and its heat initially stored in a separate room, a carrier's suit refill triggered a sealed correction on tick 19. The carrier delivered the parcel on tick 24. In the original freight setup, chamber oxygen fell below the 0.16 partial-pressure floor while the carrier stood in the doorway. Allocating one point of starting suit oxygen to the chamber let the crew complete the same finite freight round trip on tick 102, including suit release, gas capture, helper delivery and action replay. The original safe stop and the successful setup describe different initial conditions. These results cover bounded trips. Ordinary colony endurance remains open. [Compression rules](gas-compression.md).
+
+## Local water vapor — schema81 / observations15
+
+**Verified, focused scope:** 20 phase-equilibrium/rate/capacity cases, 15 mixed-gas transfer and safety cases, and 11 independent integration/migration cases pass. These cover finite combined water/energy, vacuum exports, actual-deck condensate custody, exact reload continuation, player/agent parity, stable observation/event owners and authentic schema80 migration. Initial zero-temperature equilibrium failures and one missing-deck synthetic fixture failure were preserved and repaired; affected follow-ups pass.
+
+**Compatibility repairs verified cumulatively:** the complete 2,255-case gate finished with 2,133 passes, 121 failures and one historical skip. Three targeted repair batches then ran 105, 49 and two selected cases, with 94, 47 and two passes respectively. Every original failure now has a passing targeted result; no new regressions remain in the selected checks. Named-case coverage was checked against each selection, and filtered skips were excluded. There was no second full-suite run.
+
+Repairs correct synthetic three-species gas fixtures, dry upstairs cells retaining cloned pond heat, and water comparisons that omitted explicit vapor exports. Longer recordings use complete bounded windows with the original per-window limits and scenario budgets. Complete deltas are reconstructed before successful windows are reduced to a labelled event/action index; failed windows retain their raw bytes. Aggregate artifact size and recording time can increase. Existing replay, physical custody, action limits, temperature thresholds and exact continuation checks remain intact; no additional full simulation replay was added for night recovery.
+
+Each run retained its starting inputs. The initial repairs also moved condensate diagnostics into the shared gas readout and added observational callbacks to the paid example/recovery helpers; affected checks cover those changes. The final two-case repair only changes test recording and adds a footer-count assertion. The physical model and [limits](water-vapor.md) are implemented locally. This evidence does not establish sustained ordinary habitation, browser performance or overall game completion.
+
+## Local condensed water phases — schema80 / observations14
+
+**Verified, bounded scope:** 10 enthalpy/equilibrium cases, 11 transfer cases, nine integration cases and three power-migration cases cover finite melting energy, immobile ice, retained capacity, mixing and transient phase events, actual-floor contacts, deterministic saves and player/agent parity. Earlier heat compatibility checks and explicitly warmed wet-fault/irrigation fixtures also pass. The full JavaScript gate completed 2,198 cases: 2,195 passed initially, two failed and one historical schema-capture case was skipped. Both failures now have passing targeted repairs, giving 2,197 unique passing cases and one skip. All 141 source files pass syntax checks.
+
+The two failures were missing final evidence after long test recordings reached their byte limits. Mining and delayed departure now collect complete recordings at existing stage boundaries. Each window retains its original byte/record bounds; paid supplies, physical carrying and staging, tick limits and exact save/reload assertions remain intact. The delayed-departure test explicitly checks recording completeness before reading events. Runtime source stayed unchanged during these repairs. Initial failures remain preserved; there was no second full-suite run.
+
+The model preserves stored water mass/energy through schema79 migration. It validates old wet-cable power readings before refreshing phase-aware derived readings without spending charge. Cold water can acquire a different equilibrium temperature; room/gas temperatures and physical inventories remain intact. Steam, condensation and vacuum evaporation were outside that checkpoint; see the newer vapor checkpoint above. Ice expansion and packaged phase histories were outside that checkpoint. No ordinary colony endurance claim is added.
+
+## Local water sensible heat — schema79 / observations13
+
+**Verified, focused scope:** 4 parcel tests, 13 transfer cases and 11 water integration cases cover finite mixing, pumps, leaks, stairs, risers, package/biology/fire boundaries, actual-floor thermal exchange, enclosed partitions, authentic schema78 migration, current-state corruption rejection, deterministic saves, inspector readings and recording/player-agent parity. Nine existing gas integration cases also pass with the expanded thermal domain. The full JavaScript gate ran 2,165 cases across 213 files: initially 2,148 passed, 16 failed and one historical case was skipped. All 16 failures have passing targeted follow-ups, yielding coverage of 2,164 passing cases and one existing skip. Twelve failures came from synthetic dry tiles missing the new heat field or the long fuel test exhausting its bounded recording window; four CLI failures were sandbox `EPERM` errors. The dry fixtures now declare zero heat, the fuel test records its asserted production window, and unchanged CLI checks pass outside the process sandbox. No simulation rule was changed to obtain those passes. All 140 source files also pass syntax checks.
+
+These checks use bounded fixtures. At this checkpoint, freezing/thawing, steam/condensation, latent energy, compression work, packaged thermal histories and ordinary settlement endurance remained unfinished. Later checkpoint scopes appear above. First failed fixture assertions and their repairs are retained; no supply or safety requirement was relaxed.
 
 ## Local gas-carried heat — schema78 / observations12
 
@@ -10,7 +48,7 @@ Independent review found that pipes embedded in internal walls were incorrectly 
 
 Genuine schemas 77, 74 and 59 fixtures preserve physical owners, gas quantities and structural temperatures. Explicit energy baselines account for gas that old formats did not track; exact current save continuation passes. Short native tick checks and supplied synthetic airlock cycles establish these mechanics, not ordinary colony endurance. Eight browser-export checks pass. A native browser rendered the actual inspector with empty, −100°C and 100°C synthetic pipe contents: the same two gas units displayed 47.3% and 101.8% nominal pressure respectively, without observed JavaScript errors or inspection mutations.
 
-[Gas heat rules](gas-heat.md) describe the combined ledger and explicit 20°C packaged-gas/suit boundary. Compression work, species-specific capacities, water/steam phases, packaged-cargo thermal histories and sustained ordinary habitation remain pending.
+[Gas heat rules](gas-heat.md) describe the combined ledger and explicit 20°C packaged-gas/suit boundary. At this checkpoint, compression work, species-specific capacities, water/steam phases, packaged-cargo thermal histories and sustained ordinary habitation remained pending. Later checkpoint scopes appear above.
 
 ## Local surveyed-sector travel — schema77 / observations11
 

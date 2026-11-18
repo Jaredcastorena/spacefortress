@@ -24,7 +24,7 @@ const withRoomRoundoff=(actual,expected)=>withThermalRoundoff({sites:{surface:{r
 // movement system or supported multi-deck save is implied by this fixture.
 function stacked() {
   const size=7,site={id:'surface',size,levels:[{z:0},{z:7}],tiles:[],rooms:[],fireSafety:{smokeVented:0,smokeCleared:0}};
-  for(const {z} of site.levels)for(let y=0;y<size;y++)for(let x=0;x<size;x++)site.tiles.push({x,y,z,terrain:'ground',building:null,hp:100,powered:false});
+  for(const {z} of site.levels)for(let y=0;y<size;y++)for(let x=0;x<size;x++)site.tiles.push({x,y,z,terrain:'ground',building:null,hp:100,powered:false,liquid:0,liquidHeat:0});
   const perimeter=neighbors(3,3),door=perimeter[0];
   for(const {z} of site.levels){tileAt(site,{x:3,y:3,z}).terrain='floor';for(const [x,y] of perimeter)tileAt(site,{x,y,z}).building='wall';}
   updateRooms(site);const s={tick:0,sites:{surface:site},crew:[]};

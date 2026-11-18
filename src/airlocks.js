@@ -1,3 +1,4 @@
+import { addGas } from './gas-species.js';
 import { tileAt, positionOf, sameCell } from './spatial.js';
 import { airlockConfig, airlockCells } from './airlock-locations.js';
 import { emitEvent } from './telemetry.js';
@@ -52,7 +53,8 @@ function partyBlock(s,site,t) {
 }
 function predictedRefill(layout,q,target) {
  const room=layout.room,plan=airlockFillPlan(room,q,target),total=q.supply,mix={...room.gas};let smoke=room.smoke||0;
- if(total>0)for(const t of q.refill){const n=node(t);for(const k of ['oxygen','inert','co2'])mix[k]+=n.gas[k]*plan.amount/total;smoke+=n.smoke*plan.amount/total;}
+ addGas(mix,plan.gas);
+ if(total>0)for(const t of q.refill){const n=node(t);smoke+=n.smoke*plan.amount/total;}
  return {...airlockRoomReading({...room,gas:mix,smoke,heat:room.heat+plan.heat}),fillAmount:plan.amount,fillHeat:plan.heat,targetReachable:plan.reachable};
 }
 function refillTarget(layout,q=quantities(layout)) {

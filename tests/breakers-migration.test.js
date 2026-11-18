@@ -1,3 +1,4 @@
+import {loadWater} from '../src/water-thermal.js';
 import { assertSquareProtected } from './helpers/legacy-square.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -37,7 +38,7 @@ function fixture({ wet = true, closed = true } = {}) {
   const load = install(s, 'waterPump', 13, 9);
   if (wet) {
     const moved = extract(at(site, 8, 10).stock, { water: 2 });
-    fault.liquid = moved.water; site.liquids.released += moved.water;
+    loadWater(site,fault,moved.water,{floor:true}); site.liquids.released += moved.water;
   }
   refreshPower(s, site); syncResources(s);
   const configured = executeAction(s, 'power.breaker', {

@@ -26,6 +26,15 @@ test('setup is collapsed, bounded and includes all seven coordinate pairs',()=>{
   assert.doesNotMatch(html,/airlock-release|airlock-enable/);
 });
 
+test('the controller identifies a chamber oxygen hold even when the displayed percentage rounds to 16',()=>{
+  const {s, site, t} = fixture();
+  t.airlock.reason = 'contaminated_mix';
+  Object.assign(site.rooms[0].gas, {oxygen: 1.59983, inert: 8.40017});
+  const before = structuredClone(s);
+  assert.match(airlockDetails(s, site, t), /Chamber oxygen partial pressure is below 16% of nominal pressure/);
+  assert.deepEqual(s, before);
+});
+
 test('configured observations show measured stores, queue and blocker without side effects',()=>{
   const {s,site,t}=fixture();t.airlock.queue.push({crew:'crew-0',patient:null,direction:'outward',emergency:true});
   const before=structuredClone(s),html=airlockDetails(s,site,t);

@@ -8,18 +8,30 @@ import {roomHeatCapacity,gasQuantity,exportRoomHeat} from '../src/gas-thermal.js
 import {productionEligibility,validateProduction} from '../src/production.js';
 import {refillSuitFromSupply} from '../src/suit-supply.js';
 import {executeAction} from '../src/controls.js';
-import {startRecording,exportRecording,recordingStatus} from '../src/telemetry.js';
+import {startRecording,stopRecording,exportRecording,recordingStatus} from '../src/telemetry.js';
 import {distance} from '../src/geometry.js';
 const at=(site,x,y,z=0)=>tileAt(site,{x,y,z});
 // Missing records must not masquerade as stalled physical work.
 const record=s=>{startRecording(s);assert.equal(recordingStatus(s).active,true);};
 const events=s=>{assert.equal(recordingStatus(s).reason,null,'The bounded recording must retain every asserted event.');return exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>r.event).map(r=>r.event);};
+// Complete default-budget windows preserve the original waits and physical checks.
+function boundedRecording(s){
+ const limits={maxRecords:2000,maxBytes:16_000_000},retained=[];let ticks=0;
+ const checkpoint=(restart=true)=>{
+  const rows=exportRecording(s).trim().split('\n').map(JSON.parse),footer=rows.at(-1);
+  assert.equal(footer.active,true,`Recording through tick ${s.tick} incomplete: ${footer.reason}`);assert.equal(footer.reason,null);assert.equal(footer.throughTick,s.tick);
+  retained.push(...rows.filter(row=>row.event).map(row=>row.event));
+  if(restart){assert.equal(startRecording(s,limits).active,true);ticks=0;}else stopRecording(s);
+ };
+ assert.equal(startRecording(s,limits).active,true);
+ return {tick:()=>{if(++ticks===4)checkpoint();},events:()=>{checkpoint(false);return retained;}};
+}
 // Synthetic declared floor. Canonical saves still accept only deck zero.
 function fixture(){
  const s=createGame(74219),site=s.sites.surface;
  site.levels.push({z:7,name:'Upper test deck'});
  // Natural ground conditions and pond water do not become an upstairs reservoir.
- site.tiles.push(...site.tiles.map(t=>{const upper={...structuredClone(t),z:7,liquid:0,wetShort:false};for(const key of ['biome','temperatureOffset','basin','initialWater'])delete upper[key];return upper;}));
+ site.tiles.push(...site.tiles.map(t=>{const upper={...structuredClone(t),z:7,liquid:0,liquidHeat:0,wetShort:false};for(const key of ['biome','temperatureOffset','basin','initialWater'])delete upper[key];return upper;}));
  updateRooms(site);for(const r of site.rooms){
   const before=r.heat;fillRoom(r);const gasDelta=r.heat-before;site.thermal[gasDelta>=0?'gasLoaded':'gasVented']+=Math.abs(gasDelta);
   const heat=(20+273.15)*roomHeatCapacity(r),delta=heat-r.heat;site.thermal[delta>=0?'heating':'cooling']+=Math.abs(delta);r.heat=heat;
@@ -30,16 +42,16 @@ function fixture(){
  const machine=at(site,13,10,7),ground=at(site,13,10),store=at(site,8,10,7),lowerStore=at(site,8,10);
  refreshAtmosphere(site);refreshPower(s,site);return {s,site,c,machine,ground,store,lowerStore};
 }
-function until(f,p,limit=60){for(let n=0;n<limit&&!p();n++){const before=positionOf(f.c);step(f.s);assert.equal(f.c.z,7);assert.ok(distance([before.x,before.y],[f.c.x,f.c.y])<=1);}assert.ok(p(),`Stopped at tick ${f.s.tick}: ${f.c.activity}`);}
+function until(f,p,limit=60,afterStep=()=>{}){for(let n=0;n<limit&&!p();n++){const before=positionOf(f.c);step(f.s);afterStep();assert.equal(f.c.z,7);assert.ok(distance([before.x,before.y],[f.c.x,f.c.y])<=1);}assert.ok(p(),`Stopped at tick ${f.s.tick}: ${f.c.activity}`);}
 function enable(f){f.c.labors.production=true;f.machine.machine.enabled=true;f.machine.machine.input={ore:1};f.machine.machine.order={mode:'batches',limit:1,remaining:1,priority:3};refreshPower(f.s,f.site);}
 const operate=s=>order(s,'surface',13,10,'operate',null,7);
 
 test('an upstairs operator walks to a powered machine and converts one delivered batch',()=>{
- const f=fixture();enable(f);const {status:lowerStatus,...lower}=structuredClone(f.ground.machine);record(f.s);
- step(f.s);assert.ok(f.s.jobs.some(j=>j.kind==='operate'&&j.z===7));assert.equal(f.machine.machine.progress,0);
- until(f,()=>f.machine.machine.completed===1);assert.equal(f.machine.machine.input.ore||0,0);assert.deepEqual(f.machine.machine.batch,{});assert.ok(f.machine.machine.output.alloy>0);const {status,...lowerAfter}=f.ground.machine;assert.deepEqual(lowerAfter,lower);
+ const f=fixture();enable(f);const {status:lowerStatus,...lower}=structuredClone(f.ground.machine);const trace=boundedRecording(f.s);
+ step(f.s);trace.tick();assert.ok(f.s.jobs.some(j=>j.kind==='operate'&&j.z===7));assert.equal(f.machine.machine.progress,0);
+ until(f,()=>f.machine.machine.completed===1,60,trace.tick);assert.equal(f.machine.machine.input.ore||0,0);assert.deepEqual(f.machine.machine.batch,{});assert.ok(f.machine.machine.output.alloy>0);const {status,...lowerAfter}=f.ground.machine;assert.deepEqual(lowerAfter,lower);
  assert.equal(distance([f.c.x,f.c.y],[13,10]),1);assert.equal(f.machine.machine.order.remaining,0);
- for(const id of ['production.batch.started','production.batch.completed'])assert.equal(events(f.s).find(e=>e.id===id).entity,'tile:surface:13:10:7');
+ const traceEvents=trace.events();for(const id of ['production.batch.started','production.batch.completed'])assert.equal(traceEvents.find(e=>e.id===id).entity,'tile:surface:13:10:7');
 });
 
 test('production readiness and ordering cannot borrow workers or supplies from downstairs',()=>{

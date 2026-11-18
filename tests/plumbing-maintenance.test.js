@@ -1,3 +1,4 @@
+import {loadWater} from '../src/water-thermal.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, at, step, order, cancelJob, setLabor, serialize, deserialize } from '../src/simulation.js';
@@ -9,8 +10,10 @@ import { newPipe } from '../src/gas-networks.js';
 import { totalResources, syncResources } from '../src/inventory.js';
 import { refreshPower } from '../src/power.js';
 import { startRecording, exportRecording } from '../src/telemetry.js';
+import { vaporWaterExports } from './helpers/vapor-accounting.js';
 
 const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-7, `${a} != ${b}`);
+const resourceBalance=s=>{const totals=totalResources(s);totals.water+=vaporWaterExports(s);return totals;};
 const check = s => deserialize(serialize(s));
 const until = (s, condition, limit = 120) => {
   for (let i = 0; i < limit && !condition(); i++) step(s);
@@ -28,7 +31,7 @@ function fixture() {
 }
 function seedWater(s, t, amount) {
   at(s.sites.surface, 8, 10).stock.water -= amount;
-  t.waterPipe.water += amount;
+  loadWater(s.sites.surface,t.waterPipe,amount);
   s.sites.surface.plumbing.loaded += amount;
   syncResources(s);
 }
@@ -105,12 +108,12 @@ test('water-pipe repair rejects missing material without creating a job or resto
 test('cancelling water-pipe repair preserves reserved, carried and delivered alloy', () => {
   for (const phase of ['reserved', 'carried', 'delivered']) {
     const { s, t } = fixture(); t.waterPipe.hp = 65; t.waterPipe.open = false; seedWater(s, t, 1);
-    const before = totalResources(s), j = order(s, 'surface', t.x, t.y, 'repairWaterPipe').job;
+    const before = resourceBalance(s), j = order(s, 'surface', t.x, t.y, 'repairWaterPipe').job;
     assert.ok(j);
     if (phase === 'carried') until(s, () => s.crew.some(c => c.delivery?.job === j.id));
     if (phase === 'delivered') until(s, () => j.materials.alloy === 1);
     assert.equal(t.waterPipe.hp, 65); cancelJob(s, j.id);
-    close(totalResources(s).alloy, before.alloy); close(totalResources(s).water, before.water);
+    close(totalResources(s).alloy, before.alloy); close(resourceBalance(s).water, before.water);
     assert.equal(t.waterPipe.hp, 65); assert.equal(t.waterPipe.water, 1);
     assert.ok(!s.jobs.includes(j)); assert.ok(!s.crew.some(c => c.delivery?.job === j.id)); check(s);
   }
@@ -118,13 +121,13 @@ test('cancelling water-pipe repair preserves reserved, carried and delivered all
 
 test('water-pipe removal recovers stored water and a finite refund without removing other assets', () => {
   const { s, site, t } = fixture(); t.waterPipe.open = false; seedWater(s, t, 2);
-  const before = totalResources(s), pipe = structuredClone(t.pipe), cable = structuredClone(t.cable);
+  const before = resourceBalance(s), pipe = structuredClone(t.pipe), cable = structuredClone(t.cable);
   const j = order(s, 'surface', t.x, t.y, 'removeWaterPipe').job;
   assert.ok(j); assert.equal(laborFor(j), 'construction'); assert.deepEqual(j.cost, {}); assert.equal(j.work, 3);
   until(s, () => !!j.worker); const worker = s.crew.find(c => c.id === j.worker);
   until(s, () => !s.jobs.includes(j));
   assert.equal(t.waterPipe, null); assert.equal(t.building, 'commons'); assert.deepEqual(t.pipe, pipe); assert.deepEqual(t.cable, cable);
-  close(totalResources(s).water, before.water); close(totalResources(s).alloy, before.alloy + .5);
+  close(resourceBalance(s).water, before.water); close(totalResources(s).alloy, before.alloy + .5);
   close(at(site, worker.x, worker.y).drop.water, 2); close(site.plumbing.delivered, 2); check(s);
 });
 

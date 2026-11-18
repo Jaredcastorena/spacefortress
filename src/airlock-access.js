@@ -1,3 +1,4 @@
+import { gasAmount, emptyGas, addGas, gasPortion, mix } from './gas-species.js';
 // Pure airlock observations and movement guards. Planning reads declared
 // topology; observing or planning never changes a cycle.
 import { DIRECTIONS, step, opposite, directionBetween, tileAt as legacyTileAt } from './geometry.js';
@@ -6,7 +7,7 @@ import { airlockCells, airlockCellFromKey } from './airlock-locations.js';
 import {walkingNeighbors} from './vertical.js';
 import { breathable } from './atmosphere.js';
 import { roomPressure, roomOxygenPressure, gasAtRoomPressure } from './room-pressure.js';
-import { GAS_HEAT_CAPACITY, GAS_REFERENCE_KELVIN, nodeKelvin, parcelHeat, roomFillAmount, pressureAfterGas, roomHeatCapacity } from './gas-thermal.js';
+import { GAS_REFERENCE_KELVIN, nodeKelvin, parcelHeat, roomFillAmount, pressureAfterGas, roomHeatCapacity } from './gas-thermal.js';
 import { temperature, thermalSafe } from './thermal.js';
 export const AIRLOCK_PHASES = ['idle','prepare_entry','admit','seal_entry','recover','refill','release','paused'];
 export const AIRLOCK_DIRECTIONS = Object.freeze(Object.fromEntries(DIRECTIONS.map(direction=>[direction,true])));
@@ -19,9 +20,10 @@ const hexStep = (p,d) => {const [x,y]=step(p.x,p.y,d);return {x,y,z:p.z};};
 const hexDirection = (a,b) => a.z===b.z?directionBetween([a.x,a.y],[b.x,b.y]):null;
 export const airlockRoom = (site,p) => p&&site.rooms.find(r=>(r.z??0)===p.z&&r.cells.includes(`${p.x},${p.y}`));
 export const airlockNode = t => t?.pipe||t?.gasStore||null;
-export const airlockGas = gas => (gas?.oxygen||0)+(gas?.inert||0)+(gas?.co2||0);
+export const airlockGas = gasAmount;
 export const airlockPayload = t => {const n=airlockNode(t);return n?airlockGas(n.gas)+(n.smoke||0):0;};
 export const airlockCapacity = t => ['gasReservoir','gasTank'].includes(t?.building)?80:10;
+const airlockFree = t => Math.max(0,airlockCapacity(t)-airlockPayload(t)-(airlockNode(t)?.condensate?.water||0));
 export const airlockOpen = (site,t) => !!t&&(t.hp<=0||t.doorMode==='open'||t.doorMode!=='closed'&&t.doorUntil>(site.atmosphere?.tick||0));
 export const airlockWalkable = (site,p) => {const t=tileAt(site,p);return !!t&&!t.fire&&!['void','rock'].includes(t.terrain)&&t.building!=='wall'&&!(t.building==='fence'&&t.hp>0)&&!(t.building==='door'&&t.hp>0&&t.doorMode==='closed');};
 export function airlockPhysicalPath(site,from,to) {
@@ -108,16 +110,16 @@ export function airlockLayout(site,t,checkOwnership=true) {
 // The finite reserve is mixed by its actual species and energy. Packaged tank
 // input is not a reserve parcel until the network physically loads it at 20C.
 export function airlockFillPlan(room,q,target) {
- const inletKelvin=q.supply>0?q.supplyHeat/(GAS_HEAT_CAPACITY*q.supply):GAS_REFERENCE_KELVIN;
- const amount=roomFillAmount(room,target,inletKelvin,q.supply),heat=parcelHeat(amount,inletKelvin);
- return {amount,heat,reachable:pressureAfterGas(room,amount,heat)>=target-1e-9};
+ const supplyGas=q.supplyGas||mix(q.supply),inletKelvin=nodeKelvin({gas:supplyGas,heat:q.supplyHeat})??GAS_REFERENCE_KELVIN;
+ const amount=roomFillAmount(room,target,inletKelvin,q.supply,supplyGas),gas=gasPortion(supplyGas,amount),heat=parcelHeat(gas,inletKelvin);
+ return {amount,heat,gas,reachable:pressureAfterGas(room,gas,heat)>=target-1e-9};
 }
 export function airlockGasQuantities(layout) {
  const {recover,refill}=layout.phaseNodes;
  const room=layout.room,amount=airlockGas(room.gas),residual=gasAtRoomPressure(room,1);
  const recovered=roomPressure(room)<=1?0:Math.max(0,amount-residual);
- const q={recover,refill,headroom:recover.reduce((n,t)=>n+Math.max(0,airlockCapacity(t)-airlockPayload(t)),0),recoverNeeded:recovered*(amount?(amount+(room.smoke||0))/amount:1),supply:0,supplyHeat:0};
- for(const t of refill){const n=airlockNode(t),quantity=airlockGas(n.gas);q.supply+=quantity;if(quantity>0)q.supplyHeat+=parcelHeat(quantity,nodeKelvin(n));}
+ const q={recover,refill,headroom:recover.reduce((n,t)=>n+airlockFree(t),0),recoverNeeded:recovered*(amount?(amount+(room.smoke||0))/amount:1),supply:0,supplyHeat:0,supplyGas:emptyGas()};
+ for(const t of refill){const n=airlockNode(t),quantity=airlockGas(n.gas);q.supply+=quantity;addGas(q.supplyGas,n.gas);if(quantity>0)q.supplyHeat+=parcelHeat(n.gas,nodeKelvin(n));}
  const plan=airlockFillPlan(room,q,Math.max(0,roomPressure(layout.habitat)-2));
  return {...q,fillNeeded:plan.amount,fillReachable:plan.reachable};
 }
@@ -172,6 +174,6 @@ export function airlockDoorPermit(site,c,from,to) {
 }
 export function airlockStatus(s,site,t) {
  if(!t?.airlock)return null;const a=t.airlock,route=airlockRouteInfo(site,t),layout=airlockLayout(site,t),tank=tileAt(site,a.config.reservoir),node=airlockNode(tank),side=airlockPermittedSide(site,t);
- const result={entity:airlockId(site,t),site:site.id,...a,route,chamber:airlockRoomReading(airlockRoom(site,a.config.chamber)),habitat:route?airlockRoomReading(airlockRoom(site,route.inner.outside)):null,reservoir:node?{gas:{...node.gas},smoke:node.smoke,payload:airlockPayload(tank),capacity:airlockCapacity(tank),free:Math.max(0,airlockCapacity(tank)-airlockPayload(tank))}:null,powered:!!t.powered,blocker:a.reason||layout.reason,permissions:{inner:side==='inner',outer:side==='outer'},doors:Object.fromEntries(['inner','outer'].map(k=>{const d=tileAt(site,a.config[k]);return [k,{tile:{...a.config[k]},open:airlockOpen(site,d),intact:d?.building==='door'&&d.hp===100}];}))};
+ const result={entity:airlockId(site,t),site:site.id,...a,route,chamber:airlockRoomReading(airlockRoom(site,a.config.chamber)),habitat:route?airlockRoomReading(airlockRoom(site,route.inner.outside)):null,reservoir:node?{gas:{...node.gas},smoke:node.smoke,payload:airlockPayload(tank),condensate:{...node.condensate},capacity:airlockCapacity(tank),free:airlockFree(tank)}:null,powered:!!t.powered,blocker:a.reason||layout.reason,permissions:{inner:side==='inner',outer:side==='outer'},doors:Object.fromEntries(['inner','outer'].map(k=>{const d=tileAt(site,a.config[k]);return [k,{tile:{...a.config[k]},open:airlockOpen(site,d),intact:d?.building==='door'&&d.hp===100}];}))};
  return JSON.parse(JSON.stringify(result));
 }

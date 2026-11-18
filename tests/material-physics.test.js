@@ -11,7 +11,7 @@ const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-7,`${a} != ${b}`);
 // or an ordinary habitat/endurance claim. The native suite owns paid assembly.
 function fixture(){
  const size=7,site={id:'surface',size,levels:[{z:0},{z:1}],tiles:[],rooms:[],incidents:[],verticalLinks:[],fireSafety:{smokeVented:0,smokeCleared:0}};
- for(const {z} of site.levels)for(let y=0;y<size;y++)for(let x=0;x<size;x++)site.tiles.push({x,y,z,terrain:'ground',building:null,hp:100,powered:false});
+ for(const {z} of site.levels)for(let y=0;y<size;y++)for(let x=0;x<size;x++)site.tiles.push({x,y,z,terrain:'ground',building:null,hp:100,powered:false,liquid:0,liquidHeat:0});
  for(const {z} of site.levels){tileAt(site,{x:3,y:3,z}).terrain='floor';for(const [x,y] of neighbors(3,3))tileAt(site,{x,y,z}).building='wall';}
  updateRooms(site);const s={tick:0,sites:{surface:site},crew:[],log:[]};initializeThermal(s);
  return {s,site,lower:roomAt(site,3,3,0),upper:roomAt(site,3,3,1),slab:tileAt(site,{x:3,y:3,z:1}),wall:tileAt(site,{x:neighbors(3,3)[0][0],y:neighbors(3,3)[0][1],z:0})};

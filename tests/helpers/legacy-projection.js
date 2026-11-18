@@ -4,11 +4,83 @@ import {createGame} from '../../src/simulation.js';
 import {validateRegion} from '../../src/region.js';
 import {validateMaterials} from '../../src/materials.js';
 
+// Earlier schemas cannot retain compression history. Only a complete pair of
+// explicit zero additions is neutral; never hide paid work or malformed fields.
+export function projectPreCompression(state){
+  const projected=structuredClone(state);
+  const fields=['allocated','work','motorRoom','motorSpace'];
+  for(const [id,site] of Object.entries(projected.sites)){
+    const hasWork=Object.hasOwn(site,'gasWork');
+    const hasHeat=site.thermal&&Object.hasOwn(site.thermal,'compression');
+    if(!hasWork&&!hasHeat)continue;
+    const ledger=site.gasWork;
+    if(!hasWork||!hasHeat||!ledger||typeof ledger!=='object'
+      ||![Object.prototype,null].includes(Object.getPrototypeOf(ledger))
+      ||Object.keys(ledger).length!==fields.length
+      ||!fields.every(key=>Object.hasOwn(ledger,key)&&ledger[key]===0)
+      ||site.thermal.compression!==0)
+      throw new Error(`Cannot project nonempty or malformed gas compression history at ${id} into an older schema.`);
+    delete site.gasWork;delete site.thermal.compression;
+  }
+  return projected;
+}
+
+// Earlier schemas have no vapor ownership or phase history. Only the explicit
+// empty additions are neutral; never discard water, energy or recorded work.
+export function projectPreWaterVapor(state){
+  const projected=projectPreCompression(state);
+  const counters=['initial','floorEvaporated','floorCondensed','nodeEvaporated','nodeCondensed','vacuumEvaporated','condensateReleased','condensateLost'];
+  const emptyRecord=(record,keys)=>record&&typeof record==='object'&&[Object.prototype,null].includes(Object.getPrototypeOf(record))&&Object.keys(record).length===keys.length&&keys.every(key=>Object.hasOwn(record,key)&&record[key]===0);
+  const removeVapor=(gas,owner)=>{
+    if(!Object.hasOwn(gas,'vapor'))return;
+    if(gas.vapor!==0)throw new Error(`Cannot project nonzero or malformed water vapor at ${owner} into an older schema.`);
+    delete gas.vapor;
+  };
+  for(const [id,site] of Object.entries(projected.sites)){
+    if(Object.hasOwn(site,'vapor')){
+      if(!emptyRecord(site.vapor,counters))throw new Error(`Cannot project nonempty or malformed water vapor history at ${id} into an older schema.`);
+      delete site.vapor;
+    }
+    for(const [index,room] of site.rooms.entries())removeVapor(room.gas,`${id}.rooms[${index}]`);
+    for(const [index,tile] of site.tiles.entries())for(const slot of ['pipe','gasStore']){
+      const node=tile[slot];if(!node)continue;
+      const owner=`${id}.tiles[${index}].${slot}`;
+      removeVapor(node.gas,owner);
+      if(Object.hasOwn(node,'condensate')){
+        if(!emptyRecord(node.condensate,['water','heat']))throw new Error(`Cannot project nonempty or malformed condensate at ${owner} into an older schema.`);
+        delete node.condensate;
+      }
+    }
+    for(const key of ['injected','vented'])removeVapor(site.atmosphere[key],`${id}.atmosphere.${key}`);
+    for(const key of ['loaded','extracted','delivered','vented'])removeVapor(site.gasNetwork[key],`${id}.gasNetwork.${key}`);
+  }
+  return projected;
+}
+
+// Synthetic earlier fixtures cannot represent water energy. Preserve the
+// already-exchanged room energy while removing only the new thermal domain.
+export function projectPreWaterHeat(state){
+  const projected=projectPreWaterVapor(state);
+  for(const site of Object.values(projected.sites)){
+    let omitted=0;
+    for(const tile of site.tiles){
+      omitted+=tile.liquidHeat??0;delete tile.liquidHeat;
+      for(const node of [tile.waterPipe,tile.waterStore])if(node&&Object.hasOwn(node,'heat')){omitted+=node.heat;delete node.heat;}
+    }
+    if(Object.hasOwn(site.thermal,'waterInitial')){
+      const correction=site.thermal.waterInitial+site.thermal.waterLoaded-site.thermal.waterRemoved-omitted;
+      if(Math.abs(correction)>Number.EPSILON*Math.max(1,Math.abs(site.thermal.initial))*4)site.thermal.initial+=correction;
+      delete site.thermal.waterInitial;delete site.thermal.waterLoaded;delete site.thermal.waterRemoved;
+    }
+  }
+  return projected;
+}
+
 // Synthetic historical fixtures retain structural heat while omitting gas
 // energy that those formats could not represent. Adjust only their baseline;
 // all recorded transfers and physical gas quantities remain explicit.
 export function projectPreGasHeat(state){
-  const projected=structuredClone(state);
+  const projected=projectPreWaterHeat(state);
   for(const site of Object.values(projected.sites)){
     let omitted=0;
     for(const room of site.rooms){if(room.gasThermal===true){const structural=roomStructureCapacity(room)*roomKelvin(room);omitted+=room.heat-structural;room.heat=structural;delete room.gasThermal;}}
@@ -81,7 +153,7 @@ export function projectPreRegion(state, {allowUnvisited = false} = {}) {
 // strip the topology marker or relabel a hex state as a legacy fixture.
 export function projectPreAirlock(state, version = state.version) {
   if (state.grid === 'hex-odd-q-v1' && version < 40) throw new Error('Cannot project a hex colony into a legacy square save.');
-  const projected = structuredClone(state);
+  const projected = projectPreWaterVapor(state);
   projected.version = version;
   if(version>=39)return projected;
   for (const crew of projected.crew) delete crew.airlockTraversal;

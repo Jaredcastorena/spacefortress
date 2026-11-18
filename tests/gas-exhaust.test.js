@@ -5,11 +5,14 @@ import {createGame, at, step, order, serialize, deserialize, pathTo} from '../sr
 import {initializeStorage, totalResources, syncResources} from '../src/inventory.js';
 import {initializeElectrical, refreshPower, updatePower} from '../src/power.js';
 import {haul} from '../src/industry.js';
-import {GASES, GAS_PER_TILE, emptyGas, gasAmount, roomAt, refreshAtmosphere} from '../src/atmosphere.js';
+import {GASES, emptyGas, gasAmount, roomAt, refreshAtmosphere} from '../src/atmosphere.js';
+import {gasAtRoomPressure} from '../src/room-pressure.js';
 import {GAS_NETWORK, gasPayload, gasStatus, updateGasNetworks, setGasValve, setGasExtractor} from '../src/gas-networks.js';
 
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-7,`${a} != ${b}`);
-const check=s=>{syncResources(s);return deserialize(serialize(s));};
+const check=s=>{syncResources(s);for(const site of Object.values(s.sites))refreshPower(s,site,false);return deserialize(serialize(s));};
+// One existing finite native allocation per intended operating pulse.
+function paidGasPass(s,site){updatePower(s,site);updateGasNetworks(s);refreshPower(s,site,false);}
 function base(){
  const s=createGame(),site=s.sites.surface;
  for(const t of site.tiles)if(t.machine)t.machine.enabled=false;
@@ -69,17 +72,17 @@ test('filter captures a finite CO2 and smoke payload while preserving room oxyge
  close(room.gas.oxygen,initial.oxygen);close(room.gas.inert,initial.inert);close(room.gas.co2,4.5);close(room.smoke,1.5);
  close(site.gasNetwork.extracted.co2,1.5);close(site.gasNetwork.smoke.captured,.5);
  close(site.fireSafety.smokeCleared,0);close(site.fireSafety.smokeVented,0);
- for(let i=0;i<8;i++)updateGasNetworks(s);
+ for(let i=0;i<8;i++)paidGasPass(s,site);
  close(room.gas.co2,0);close(room.smoke,0);close(gasPayload(extractor),8);
  assert.ok(gasStatus(site,extractor).blocked);check(s);
 });
 
 test('a full extractor stops capture until its retained contents have an outlet',()=>{
  const {s,site,extractor,room}=fixture();pollute(site,room,18,6);
- for(let i=0;i<8;i++)updateGasNetworks(s);
+ for(let i=0;i<8;i++)paidGasPass(s,site);
  close(gasPayload(extractor),GAS_NETWORK.pipeCapacity);assert.match(gasStatus(site,extractor).blocked,/full/i);
  const retained=structuredClone(extractor.gasStore),remaining={gas:{...room.gas},smoke:room.smoke};
- for(let i=0;i<8;i++)updateGasNetworks(s);
+ for(let i=0;i<8;i++)paidGasPass(s,site);
  assert.deepEqual(extractor.gasStore,retained);assert.deepEqual({gas:room.gas,smoke:room.smoke},remaining);check(s);
 });
 
@@ -87,8 +90,9 @@ test('exhaust removes the room mixture proportionally and stops exactly at its t
  const {s,site,extractor,room}=fixture();pollute(site,room,8,4);
  const target=99,amount=gasAmount(room.gas),initial={...room.gas},smoke=room.smoke;
  assert.ok(setGasExtractor(s,'surface',11,9,true,'exhaust',target).ok);
- for(let i=0;i<8;i++)updateGasNetworks(s);
- const expected=amount-room.volume*GAS_PER_TILE*target/100;
+ for(let i=0;i<8&&room.pressure>target+1e-9;i++)paidGasPass(s,site);
+ // Paid source-room heat changes the retained amount at the same exact target.
+ const expected=amount-gasAtRoomPressure(room,target);
  for(const k of GASES)close(extractor.gasStore.gas[k],initial[k]*expected/amount);
  close(extractor.gasStore.smoke,smoke*expected/amount);close(room.pressure,target);
  assert.match(gasStatus(site,extractor).blocked,/target pressure/i);
@@ -97,9 +101,9 @@ test('exhaust removes the room mixture proportionally and stops exactly at its t
 
 test('exhaust at target does not remove smoke, while filter mode can collect it',()=>{
  const {s,site,extractor,room}=fixture();pollute(site,room,0,4);
- setGasExtractor(s,'surface',11,9,true,'exhaust',100);updateGasNetworks(s);
+ setGasExtractor(s,'surface',11,9,true,'exhaust',100);paidGasPass(s,site);
  close(gasPayload(extractor),0);close(room.smoke,4);
- setGasExtractor(s,'surface',11,9,true,'filter',100);updateGasNetworks(s);
+ setGasExtractor(s,'surface',11,9,true,'filter',100);paidGasPass(s,site);
  close(gasAmount(extractor.gasStore.gas),0);close(extractor.gasStore.smoke,2);close(room.smoke,2);check(s);
 });
 
@@ -109,20 +113,20 @@ test('disabled, isolated and unpowered extractors stop capture and expose their 
  const used=site.energy.consumed;updatePower(s,site);close(site.energy.consumed,used);close(site.power.demand,0);
  updateGasNetworks(s);close(gasPayload(extractor),0);assert.match(gasStatus(site,extractor).blocked,/disabled/i);
  setGasExtractor(s,'surface',11,9,true,'filter',100);setGasValve(s,'surface',11,9,false);
- updateGasNetworks(s);close(gasPayload(extractor),0);assert.match(gasStatus(site,extractor).blocked,/valve closed/i);
+ paidGasPass(s,site);close(gasPayload(extractor),0);assert.match(gasStatus(site,extractor).blocked,/valve closed/i);
  setGasValve(s,'surface',11,9,true);extractor.cable.enabled=false;refreshPower(s,site);
- updateGasNetworks(s);close(gasPayload(extractor),0);assert.match(gasStatus(site,extractor).blocked,/no power/i);
- extractor.cable.enabled=true;refreshPower(s,site);updateGasNetworks(s);close(gasPayload(extractor),2);check(s);
+ paidGasPass(s,site);close(gasPayload(extractor),0);assert.match(gasStatus(site,extractor).blocked,/no power/i);
+ extractor.cable.enabled=true;paidGasPass(s,site);close(gasPayload(extractor),2);check(s);
 });
 
 test('damaged extractor throughput scales with condition without granting replacement gas',()=>{
  const {s,site,extractor,room}=fixture();pollute(site,room);extractor.hp=50;
- updateGasNetworks(s);close(gasPayload(extractor),GAS_NETWORK.extract*.5);
+ paidGasPass(s,site);close(gasPayload(extractor),GAS_NETWORK.extract*.5);
  close(extractor.gasStore.gas.co2,.75);close(extractor.gasStore.smoke,.25);check(s);
 });
 
 test('dismantling an isolated extractor releases its retained contaminants into the compartment',()=>{
- const {s,site,extractor,room}=fixture();pollute(site,room,3,1);updateGasNetworks(s);
+ const {s,site,extractor,room}=fixture();pollute(site,room,3,1);paidGasPass(s,site);
  const gas={...extractor.gasStore.gas},smoke=extractor.gasStore.smoke;
  setGasExtractor(s,'surface',11,9,false,'filter',100);setGasValve(s,'surface',11,9,false);
  assert.ok(order(s,'surface',11,9,'remove').ok);until(s,()=>extractor.building===null);

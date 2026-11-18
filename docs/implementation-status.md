@@ -1,10 +1,16 @@
 # Implementation status and next depth pass
 
-Updated October 30, 2026.
+Updated November 12, 2026.
+
+## Current source and verification
+
+Published v0.1.13 includes larger procedural worlds, paid satellite surveys, persistent supplied sector visits, durable browser saves and finite gas heat. Version 0.1.14 (save82 and observation16) adds finite water heat, freezing/thawing, [water vapor](water-vapor.md) and [paid gas compression](gas-compression.md). Pumps, vents and extractors retain useful work in receiving gas and account for the entire paid allocation as work or motor heat. Twenty-three primitive, nineteen compression integration/migration and five safety cases pass. Focused follow-ups resolved all 50 failures from the initial compatibility run. The preceding vapor checkpoint completed its focused checks and targeted compatibility repairs. See [current verification](verification-status.md) and the [roadmap](../ROADMAP.md) for exact scope.
+
+[Ice expansion](water-phases.md) can burst a crowded pipe and release liquid on its own deck. Packaged-cargo thermal histories, remote-to-remote travel, sustained ordinary habitation and broader universe/history remain unfinished. Compression uses a normalized game approximation. The earlier checkpoint descriptions below retain historical implementation and verification scopes.
 
 ## Local after v0.1.12: procedural maps and satellite survey
 
-New colonies use seeded 48×48 home maps and 32×32 remote maps, with existing landing equipment preserved. Five biomes supply distinct plants, wildlife, finite ore/ice/pond water and local thermal conditions. Existing colonies retain their original dimensions. Supplied satellite assembly uses ordinary hauling and engineering, then unlocks a 24×12 planetary atlas: known landing readings follow actual depletion and life, while unvisited sectors are explicitly initial survey previews. Shared actions, events and observations expose the new systems. See [rules and limits](procedural-maps.md) and [current verification](verification-status.md). Remote sector travel, liquid phase changes and ordinary colony endurance remain unfinished.
+New colonies use seeded 48×48 home maps and 32×32 remote maps, with existing landing equipment preserved. Five biomes supply distinct plants, wildlife, finite ore/ice/pond water and local thermal conditions. Existing colonies retain their original dimensions. Supplied satellite assembly uses ordinary hauling and engineering, then unlocks a 24×12 planetary atlas: known landing readings follow actual depletion and life, while unvisited sectors are explicitly initial survey previews. Shared actions, events and observations expose the new systems. See [rules and limits](procedural-maps.md) and [current verification](verification-status.md). Remote sector travel and liquid phases were unfinished at that checkpoint; the current source summary above supersedes those limits. Ordinary colony endurance remains unfinished.
 
 ## Local after v0.1.12: depot delivery limits
 

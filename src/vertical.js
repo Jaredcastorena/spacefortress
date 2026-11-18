@@ -76,7 +76,7 @@ export function commissionStairwell(s,site,job){
  const {upper}=result;
  if(!tileAt(site,upper)){
   site.levels.push({z:upper.z,name:`Deck ${upper.z}`});
-  for(let y=0;y<site.size;y++)for(let x=0;x<site.size;x++)site.tiles.push({x,y,z:upper.z,terrain:'void',building:null,hp:100,drop:null,variant:(y*site.size+x)%4,powered:false,cable:null,circuit:null,powerStatus:null,wetShort:false,liquid:0,pipe:null,waterPipe:null});
+  for(let y=0;y<site.size;y++)for(let x=0;x<site.size;x++)site.tiles.push({x,y,z:upper.z,terrain:'void',building:null,hp:100,drop:null,variant:(y*site.size+x)%4,powered:false,cable:null,circuit:null,powerStatus:null,wetShort:false,liquid:0,liquidHeat:0,pipe:null,waterPipe:null});
  }
  const link={id:`vertical-${s.nextId++}`,kind:'stairwell',lower:positionOf(job),upper,hp:100,mode:'auto',openUntil:0};site.verticalLinks.push(link);
  for(const p of [link.lower,link.upper]){const t=tileAt(site,p);t.terrain='floor';t.verticalLink=link.id;}

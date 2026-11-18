@@ -1,4 +1,7 @@
+import {waterKelvin,waterPhase} from './water-thermal.js';
+import {KELVIN_ZERO} from './thermal-units.js';
 import {roomHeatCapacity} from './gas-thermal.js';
+import {roomVaporStatus} from './water-vapor.js';
 import { populationStatus } from './population.js';
 import {materialStatus} from './materials.js';
 import { outpostSiteIds, planetDefinitions, siteDefinition } from './region.js';
@@ -43,7 +46,7 @@ import { resourceEntries } from './inventory.js';
 import { RESOURCES } from './data.js';
 import { depotUsage, depotResourceUsage } from './storage.js';
 // Local, opt-in recordings. WeakMap ownership keeps instrumentation out of game saves/RNG.
-export const TELEMETRY_VERSION = 12;
+export const TELEMETRY_VERSION = 16;
 const sessions = new WeakMap();
 const clone = value => JSON.parse(JSON.stringify(value));
 export { tileEntityId } from './spatial.js';
@@ -83,11 +86,12 @@ export function observe(s) {
       const cultivation=t.terrain==='ground'||t.building==='planter'||flora?Object.fromEntries(Object.values(FLORA).filter(def=>def.foodKind).map(def=>[def.id,{planting:plantingEligibility(s,site,t,def.id),watering:wateringEligibility(s,site,t,def.id)}])):null;
       const materials=materialStatus(t),hasMaterials=Object.keys(materials).length>0;
       const depot=t.building==='stockpile'?{...depotUsage(s,site.id,t),resources:Object.fromEntries(RESOURCES.map(resource=>[resource,depotResourceUsage(s,site.id,t,resource)]))}:null;
-      const derived=depot||hasMaterials||extraction||solar||plumbing||electrical||airlock||owned||production||flora||cultivation?{...previousDerived,...(depot?{depot}:{}),...(hasMaterials?{materials}:{}),...(extraction?{extraction}:{}),...(solar?{solar}:{}),...(flora?{flora}:{}),...(cultivation?{cultivation}:{}),...(production?{production}:{}),...(plumbing?{plumbing}:{}),...(electrical?{electrical}:{}),...(airlock?{airlock}:{}),...(owned?{airlockOwnership:ownership}:{})}:previousDerived;
+      const water=t.liquid>0?{...waterPhase(t,{floor:true}),temperature:waterKelvin(t,{floor:true})-KELVIN_ZERO,heat:t.liquidHeat}:null;
+      const derived=water||depot||hasMaterials||extraction||solar||plumbing||electrical||airlock||owned||production||flora||cultivation?{...previousDerived,...(water?{water}:{}),...(depot?{depot}:{}),...(hasMaterials?{materials}:{}),...(extraction?{extraction}:{}),...(solar?{solar}:{}),...(flora?{flora}:{}),...(cultivation?{cultivation}:{}),...(production?{production}:{}),...(plumbing?{plumbing}:{}),...(electrical?{electrical}:{}),...(airlock?{airlock}:{}),...(owned?{airlockOwnership:ownership}:{})}:previousDerived;
       entities[tileEntityId(site.id,t.x,t.y,t.z)]={type:'tile',site:site.id,...t,...(derived?{derived}:{})};
     }
     for(const r of rooms) {
-      entities[roomEntityId(site.id,r)]={type:'room',site:site.id,...r,derived:{purpose:roomStatus(s,site,r),comfort:roomComfort(s,site,r),temperature:temperature(r),heatCapacity:roomHeatCapacity(r),breathable:breathable(r),breathing:breathingStatus(r)}};
+      entities[roomEntityId(site.id,r)]={type:'room',site:site.id,...r,derived:{purpose:roomStatus(s,site,r),comfort:roomComfort(s,site,r),temperature:temperature(r),heatCapacity:roomHeatCapacity(r),vapor:roomVaporStatus(r),breathable:breathable(r),breathing:breathingStatus(r)}};
     }
   }
   for(const site of Object.values(sites))for(const t of site.tiles)if(t.fire)entities[t.fire.id]={type:'fire',...t.fire,tile:tileEntityId(site.id,t.x,t.y,t.z)};
@@ -114,6 +118,7 @@ export function observe(s) {
 }
 export function systemFor(type,path) {
   const root=path[0];
+  if(type==='site'&&(root==='gasWork'||root==='thermal'&&path[1]==='compression'))return 'gas_compression';
   if(root==='airlock'||root==='airlockOwner'||root==='airlockTraversal'||root==='pipe'&&path[1]==='airlockOwner')return 'airlocks';
   if(type==='tile'&&root==='derived'&&path[1]==='solar')return 'power';
   if(type==='tile'&&root==='derived'&&path[1]==='extraction')return 'geology';
@@ -129,11 +134,11 @@ export function systemFor(type,path) {
   if(type==='pasture')return 'pastures';
   if(type==='meal_batch')return 'food';
   if(type==='crew')return ({possessions:'possessions',memories:'memory',relationships:'relationships',housing:'housing',medical:'medicine',sanitation:'sanitation',life:'crew_life',intent:'intent',carry:'inventory',delivery:'logistics',skills:'skills',labors:'labor',thermalStress:'temperature',health:'health',oxygen:'atmosphere',energy:'needs',hunger:'needs',morale:'morale',x:'movement',y:'movement',site:'movement'})[root] || 'crew';
-  if(type==='tile')return ({materials:'construction',flora:'flora',protection:'power',waterPipe:'plumbing',waterStore:'plumbing',waterDevice:'plumbing',pipe:'gas_networks',gasStore:'gas_networks',gasDevice:'gas_networks',liquid:'liquids',tank:'liquids',wetShort:'power',reactor:'power',radiator:'temperature',fire:'fire',fireFault:'fire',deposit:'geology',stock:'inventory',drop:'inventory',imports:'inventory',machine:'production',building:'construction',hp:'condition',cable:'power',charge:'power',powered:'power',powerPriority:'power',circuit:'power',powerStatus:'power',maintenance:'maintenance',sanitary:'sanitation',climate:'temperature',gateMode:'pastures',doorMode:'doors',doorUntil:'doors'})[root] || 'terrain';
+  if(type==='tile')return ({materials:'construction',flora:'flora',protection:'power',waterPipe:'plumbing',waterStore:'plumbing',waterDevice:'plumbing',pipe:'gas_networks',gasStore:'gas_networks',gasDevice:'gas_networks',liquid:'liquids',liquidHeat:'temperature',tank:'liquids',wetShort:'power',reactor:'power',radiator:'temperature',fire:'fire',fireFault:'fire',deposit:'geology',stock:'inventory',drop:'inventory',imports:'inventory',machine:'production',building:'construction',hp:'condition',cable:'power',charge:'power',powered:'power',powerPriority:'power',circuit:'power',powerStatus:'power',maintenance:'maintenance',sanitary:'sanitation',climate:'temperature',gateMode:'pastures',doorMode:'doors',doorUntil:'doors'})[root] || 'terrain';
   if(type==='room')return root==='smoke'?'fire':root==='heat'?'temperature':root==='cells'||root==='volume'?'room_topology':'atmosphere';
   if(type==='job')return 'jobs';
   if(type==='creature')return root==='death'?'animal_carcasses':root==='genetics'||root==='lifecycle'&&path[1]==='brood'&&path[2]==='inheritance'?'animal_genetics':root==='condition'?'animal_health':'wildlife';
-  return ({cultivation:'flora',plumbing:'plumbing',gasNetwork:'gas_networks',liquids:'liquids',reactorLedger:'power',fireSafety:'fire',waterSupply:'water',outposts:'outposts',mission:'expedition',departure:'departure',shuttle:'shuttle',resources:'inventory',anomaly:'anomaly',comet:'orbit',debris:'hazards',designations:'room_purpose',thermal:'temperature',power:'power',circuits:'power',energy:'power',atmosphere:'atmosphere',foodSpoiled:'food',log:'narrative',objectives:'objectives'})[root] || 'state';
+  return ({cultivation:'flora',plumbing:'plumbing',gasNetwork:'gas_networks',vapor:'water_phase',liquids:'liquids',reactorLedger:'power',fireSafety:'fire',waterSupply:'water',outposts:'outposts',mission:'expedition',departure:'departure',shuttle:'shuttle',resources:'inventory',anomaly:'anomaly',comet:'orbit',debris:'hazards',designations:'room_purpose',thermal:'temperature',power:'power',circuits:'power',energy:'power',atmosphere:'atmosphere',foodSpoiled:'food',log:'narrative',objectives:'objectives'})[root] || 'state';
 }
 export function changesBetween(before,after) {
   const changes=[];

@@ -2,7 +2,7 @@
 
 ## Current systems work
 
-v0.1.13 (2026-10-31) uses colony save78, region3 and observation/recording12. Completed entries below describe bounded implementations; open acceptance work remains visible.
+v0.1.14 (2026-11-17) uses colony save82, region3 and observation/recording16. Completed entries below describe bounded implementations; open acceptance work remains visible.
 
 - [x] v0.1.13: move browser colony saves to IndexedDB, with ordered transactional writes, preserved legacy saves and commit-aware save/import controls. This supports larger persistent worlds and the supplied sector travel below.
 - [x] v0.1.13: generate 48 × 48 home and 32 × 32 remote maps with connected terrain, native ecology, finite ore/ice/water and local exterior temperatures. Save76/region3 preserves existing worlds without regeneration.
@@ -12,7 +12,12 @@ v0.1.13 (2026-10-31) uses colony save78, region3 and observation/recording12. Co
 
 - [x] v0.1.13: couple room pressure to temperature across breathing, gas flow, life support, vents, exhaust, suit transfers, airlocks, fire and reactor cooling. Schema75 preserves old physical state and updates derived readings. Automatic supplies batch tiny deficits while retaining finite partial deliveries.
 - [x] v0.1.13: carry finite gas energy through rooms, pipes, tanks, vents, exhaust and leaks; couple node pressure and airlock predictions to actual temperature. Save78 preserves prior physical quantities and room temperatures; observation12 exposes thermal diagnostics. [Model and limits](docs/gas-heat.md).
-- [ ] Add finite water heat and phase changes, compression work and thermal histories of packaged cargo.
+- [x] v0.1.14: carry finite sensible water heat through floors, pipes, reservoirs, pumps, leaks and stair/riser transfers; exchange with actual rooms/exterior and preserve energy through save79. Observation13 adds temperatures and carried heat. [Rules and limits](docs/water-heat.md).
+- [x] v0.1.14: freeze and thaw condensed water through finite latent energy; keep ice in its actual owner, include it in capacity, and allow only liquid flow/consumption. Save80 preserves mass/energy; observation14 records phase and named transitions. [Rules](docs/water-phases.md).
+- [x] v0.1.14: integrate vapor, finite evaporation/condensation and vacuum loss into room/gas heat and water custody. Gas equipment retains liquid/ice; save81 and observation15 preserve owners and conversions. Focused checks and targeted compatibility repairs pass; all 121 original full-gate failures are resolved. [Rules](docs/water-vapor.md).
+- [x] v0.1.14: apply finite paid compression to gas pumps, vents and extractors, retain useful work in receiving gas and account for the entire drive allocation as work or motor heat. Save82 and observation16 retain strict ledgers and named events. Twenty-three primitive, nineteen integration/migration and five safety cases pass. Focused follow-ups resolved all 50 failures from the initial compatibility run. [Rules and limits](docs/gas-compression.md).
+- [x] v0.1.14: model ice expansion in rigid water pipes, relief through open connections, rupture damage and thaw leaks. [Freezing and thawing](docs/water-phases.md).
+- [ ] Track the thermal history of packaged cargo.
 
 Release v0.1.13 builds on v0.1.12’s engineering kits and three-planet, eight-site system. It combines larger maps, paid surveys and persistent sector visits with durable saves, finite gas heat, routed protection, recruitment, depot limits, herd warnings, power-cell installation and staffed fuel synthesis. Existing colony worlds remain intact. Next checkpoints include wider industry, bounded upstairs habitation and sustained outpost supply.
 

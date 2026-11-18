@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame } from '../src/simulation.js';
-import { tileAt } from '../src/spatial.js';
+import { tileAt, positionOf, horizontalNeighbors } from '../src/spatial.js';
+import { BUILDINGS } from '../src/data.js';
+import { initializeElectrical, initializePower, refreshPower, updatePower } from '../src/power.js';
+import { initializeStorage } from '../src/inventory.js';
 import { GASES, emptyGas, gasAmount, mix, roomAt, refreshAtmosphere } from '../src/atmosphere.js';
 import { GAS_REFERENCE_KELVIN, gasEnergy, roomHeatCapacity, roomKelvin, nodeKelvin, parcelHeat } from '../src/gas-thermal.js';
 import { roomPressure } from '../src/room-pressure.js';
@@ -31,7 +34,26 @@ function seed(site,t,gas,kelvin,smoke=0){
 function roomState(site,t,amount,kelvin,smoke=0){
  const room=roomAt(site,t.x,t.y,t.z);room.gas=mix(amount);room.smoke=smoke;room.heat=roomHeatCapacity(room)*kelvin;refreshAtmosphere(site);return room;
 }
-const energy=site=>site.rooms.reduce((n,r)=>n+r.heat,0)+site.tiles.reduce((n,t)=>n+(gasNode(t)?.heat||0),0)+site.thermal.gasVented-site.thermal.gasLoaded;
+// Explicit paid-drive fixture, configured before the measured transfer. Only
+// this drive can consume the finite bank; no charge is added during acceptance.
+function funding(s,site,drive){
+ for(const t of site.tiles){
+  if(t.machine)t.machine.enabled=false;
+  if(t.climate)t.climate.enabled=false;
+  if(t.gasDevice&&t!==drive)t.gasDevice.enabled=false;
+  if(t.building==='solar')t.hp=0;
+ }
+ const bank=horizontalNeighbors(positionOf(drive)).map(p=>tileAt(site,p)).find(t=>t&&!t.building&&!gasNode(t)&&t.terrain==='floor');
+ assert.ok(bank);bank.building='battery';bank.hp=100;initializeElectrical(bank);initializeStorage(bank);
+ initializePower(s,site,0);bank.charge=12;site.energy.initial+=12;refreshPower(s,site);
+ return ()=>{
+  const charge=bank.charge,consumed=site.energy.consumed;updatePower(s,site);assert.equal(drive.powered,true);
+  close(charge-bank.charge,BUILDINGS[drive.building].demand);close(site.energy.consumed-consumed,BUILDINGS[drive.building].demand);
+ };
+}
+// Physical heat plus explicit exports, minus imported gas and the entire paid
+// drive envelope. Compression work and room motor heat are already in owners.
+const energy=site=>site.rooms.reduce((n,r)=>n+r.heat,0)+site.tiles.reduce((n,t)=>n+(gasNode(t)?.heat||0),0)+site.thermal.gasVented-site.thermal.gasLoaded+site.gasWork.motorSpace-site.gasWork.allocated;
 function species(site){
  const total={...site.gasNetwork.vented};for(const r of site.rooms)plus(total,r.gas);for(const t of site.tiles)if(gasNode(t))plus(total,gasNode(t).gas);return total;
 }
@@ -45,7 +67,7 @@ test('empty nodes have no temperature and occupied node pressure uses stored ene
 });
 
 test('passive flow follows hot gas pressure and conserves each species and heat',()=>{
- const {s,site}=fixture(),a=pipe(site,9,9),b=pipe(site,10,9);seed(site,a,mix(2),600);seed(site,b,{oxygen:0,inert:3,co2:1},100);
+ const {s,site}=fixture(),a=pipe(site,9,9),b=pipe(site,10,9);seed(site,a,mix(2),600);seed(site,b,{oxygen:0,inert:3,co2:1,vapor:0},100);
  const before=species(site),heat=energy(site);assert.ok(gasPressure(a)>gasPressure(b));updateGasNetworks(s);
  assert.ok(gasAmount(a.pipe.gas)<2);assert.ok(gasAmount(b.pipe.gas)>4);assert.ok(gasAmount(b.pipe.gas)-4<=2);conserved(site,before);close(energy(site),heat);validateGasNetworks(s);
 });
@@ -64,28 +86,37 @@ test('isothermal passive transfer preserves both node temperatures',()=>{
 
 test('pumps carry proportional gas energy while respecting payload rate and destination capacity',()=>{
  const {s,site}=fixture(),tank=device(site,'gasTank',11,8),pump=device(site,'gasPump',12,9),out=pipe(site,13,9);
- pump.gasDevice.direction='se';seed(site,tank,mix(4),600,2);seed(site,out,mix(8),100);const before=energy(site),gasBefore=species(site);
- assert.ok(gasPressure(tank)<gasPressure(out));record(s);updateGasNetworks(s);
- close(gasPayload(out),10);close(gasPayload(tank),4);close(out.pipe.heat,320);close(tank.gasStore.heat,320);close(energy(site),before);conserved(site,gasBefore);
- const event=events(s).find(e=>e.id==='gas.transferred'&&e.reason==='pump');assert.ok(event);close(event.amount,2);close(event.smoke,2/3);close(event.heat,160);validateGasNetworks(s);
+ pump.gasDevice.direction='se';seed(site,tank,mix(4),600,2);seed(site,out,mix(8),100);const pay=funding(s,site,pump),before=energy(site),gasBefore=species(site);
+ assert.ok(gasPressure(tank)<gasPressure(out));record(s);
+ // The original two-unit headroom needs several finite work allowances. Keep
+ // the exact final capacity/material boundary and at most four paid pulses.
+ for(let i=0;i<4&&gasPayload(out)<10-1e-9;i++){
+  const payload=gasPayload(out),work=site.gasWork.work;pay();updateGasNetworks(s);
+  assert.ok(gasPayload(out)>payload);assert.ok(gasPayload(out)-payload<=2);assert.ok(site.gasWork.work<=work+3*.65);
+ }
+ close(gasPayload(out),10);close(gasPayload(tank),4);close(out.pipe.heat,320+site.gasWork.work);close(tank.gasStore.heat,320);close(energy(site),before);conserved(site,gasBefore);
+ const moved=events(s).filter(e=>e.id==='gas.transferred'&&e.reason==='pump');assert.ok(moved.length>0);close(moved.reduce((n,e)=>n+e.amount,0),2);close(moved.reduce((n,e)=>n+e.smoke,0),2/3);close(moved.reduce((n,e)=>n+e.heat,0),160);validateGasNetworks(s);
 });
 
 for(const kelvin of [100,800])test(`vent at ${kelvin} K reaches target using final room temperature and finite gas`,()=>{
  const {s,site}=fixture(),vent=device(site,'gasVent'),room=roomAt(site,vent.x,vent.y,vent.z);
- roomState(site,vent,room.volume*10-.5,GAS_REFERENCE_KELVIN);seed(site,vent,mix(4),kelvin,1);const before=species(site),heat=energy(site),temperature=roomKelvin(room);
- updateGasNetworks(s);close(roomPressure(room),100);assert.ok(gasPayload(vent)>2);assert.ok(kelvin<temperature?roomKelvin(room)<temperature:roomKelvin(room)>temperature);
+ roomState(site,vent,room.volume*10-.5,GAS_REFERENCE_KELVIN);seed(site,vent,mix(4),kelvin,1);const pay=funding(s,site,vent),before=species(site),heat=energy(site),temperature=roomKelvin(room);
+ pay();updateGasNetworks(s);close(roomPressure(room),100);assert.ok(gasPayload(vent)>2);assert.ok(kelvin<temperature?roomKelvin(room)<temperature:roomKelvin(room)>temperature);
  close(energy(site),heat);conserved(site,before);assert.match(gasStatus(site,vent).blocked,/target pressure/);validateGasNetworks(s);
 });
 
 test('warm inlet gas heats a zero-K room within the finite vent rate',()=>{
- const {s,site}=fixture(),vent=device(site,'gasVent'),room=roomState(site,vent,0,0);seed(site,vent,mix(4),500,1);const heat=energy(site);
- assert.equal(gasStatus(site,vent).blocked,null);updateGasNetworks(s);close(gasPayload(vent),3);close(gasAmount(room.gas),1.6);assert.ok(roomKelvin(room)>0);assert.ok(roomPressure(room)>0);close(energy(site),heat);
+ const {s,site}=fixture(),vent=device(site,'gasVent'),room=roomState(site,vent,0,0);seed(site,vent,mix(4),500,1);const pay=funding(s,site,vent),heat=energy(site);
+ assert.equal(gasStatus(site,vent).blocked,null);pay();updateGasNetworks(s);close(gasPayload(vent),3);close(gasAmount(room.gas),1.6);assert.ok(roomKelvin(room)>0);assert.ok(roomPressure(room)>0);close(energy(site),heat);
 });
 
-for(const mode of ['filter','exhaust'])test(`${mode} extraction carries only gas energy and preserves source temperature`,()=>{
+for(const mode of ['filter','exhaust'])test(`${mode} extraction preserves parcel energy and accounts for source motor heating`,()=>{
  const {s,site}=fixture(),extractor=device(site,'gasExtractor'),room=roomAt(site,extractor.x,extractor.y,extractor.z);extractor.gasDevice.mode=mode;
  roomState(site,extractor,room.volume*10,420,2);if(mode==='filter'){room.gas.oxygen-=2;room.gas.co2+=2;}
- const before=species(site),heat=energy(site);updateGasNetworks(s);close(gasPayload(extractor),2);close(roomKelvin(room),420);close(nodeKelvin(extractor.gasStore),420);close(energy(site),heat);conserved(site,before);validateGasNetworks(s);
+ const pay=funding(s,site,extractor),before=species(site),heat=energy(site),motor=site.gasWork.motorRoom;pay();updateGasNetworks(s);
+ close(gasPayload(extractor),2);close(site.gasWork.work,0);close(site.gasWork.motorRoom-motor,3);
+ close(roomKelvin({...room,heat:room.heat-(site.gasWork.motorRoom-motor)}),420);assert.ok(roomKelvin(room)>420);
+ close(nodeKelvin(extractor.gasStore),420);close(energy(site),heat);conserved(site,before);validateGasNetworks(s);
 });
 
 test('full wall-pipe release divides heat between actual room and exterior and empties exactly',()=>{

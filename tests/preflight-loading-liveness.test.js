@@ -1,6 +1,7 @@
+import { beginJourneyRecording, beforeJourneyAction, journeyRecording, journeyStep as step } from './helpers/journey-recording-windows.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, step, serialize, deserialize } from '../src/simulation.js';
+import { createGame, serialize, deserialize } from '../src/simulation.js';
 import { executeAction } from '../src/controls.js';
 import { departureCrew, refillMix } from '../src/preflight.js';
 import { totalResources, quantity } from '../src/inventory.js';
@@ -8,6 +9,7 @@ import { startRecording, exportRecording } from '../src/telemetry.js';
 
 const crewIds = ['crew-0', 'crew-6'];
 function act(s, id, args = {}) {
+  beforeJourneyAction(s);
   const result = executeAction(s, id, args, 'test');
   assert.equal(result.ok, true, `${id}: ${JSON.stringify(result)}`);
   return result;
@@ -23,7 +25,7 @@ function delayedDeparture({ record = false } = {}) {
   for (const [x, y] of [[17, 7], [18, 8]]) act(s, 'job.order', { site: 'surface', x, y, kind: 'mine' });
   step(s, 80);
   act(s, 'expedition.launch', { site: 'wreck', crewIds });
-  if (record) startRecording(s, { maxRecords: 10000, maxBytes: 32_000_000 });
+  if (record) beginJourneyRecording(s, { limits: { maxRecords: 10000, maxBytes: 32_000_000 }, maxTicks: 10, tickLimit: 570, stageLimit: 2, stage: 'delay', event: e => e.id.startsWith('expedition.') });
   step(s, 170);
   assert.equal(s.mission, null);
   assert.equal(quantity(s.shuttle.supplies), 0);
@@ -36,12 +38,20 @@ function resumeHauling(s) {
 }
 const loading = s => s.jobs.find(j => j.kind === 'loadShuttle');
 const carrying = s => s.crew.find(c => c.delivery?.kind === 'job' && c.delivery.job === loading(s)?.id && c.carry);
+function recordedEvents(s, complete = false) {
+  const recorder = journeyRecording(s);
+  const rows = complete ? recorder.finish() : recorder.checkpoint('resume');
+  return rows.filter(row => row.event);
+}
 
 test('delayed physical loading catches real suit consumption with paid batches and deterministic reload', () => {
   const s = delayedDeparture({ record: true }), restored = deserialize(serialize(s));
   // Count the buffered top-ups during the entire physical loading delay. Hex
   // routes can finish the resumed hauls before another reserve is needed.
-  const delayedChanges = exportRecording(s).trim().split('\n').map(JSON.parse).filter(row => row.event?.id === 'expedition.preparation.supplies_changed');
+  const delayedEvents = recordedEvents(s);
+  const delayedChanges = delayedEvents.filter(row => row.event.id === 'expedition.preparation.supplies_changed');
+  // Keep each stage inside the original recording bounds as observations grow.
+  // The completed delay window continues from the exact resume seam.
   resumeHauling(s); resumeHauling(restored);
   const fuelBefore = totalResources(s).fuel;
   let sawCarry = false, sawStaging = false, previousTarget = s.departure.target.air, targetChanges = delayedChanges.length;
@@ -63,7 +73,7 @@ test('delayed physical loading catches real suit consumption with paid batches a
   assert.ok(s.crew.filter(c => crewIds.includes(c.id)).every(c => c.site === 'transit' && c.oxygen === 100));
   assert.equal(totalResources(s).fuel, fuelBefore - 1, 'outbound consumes the existing half-route fuel cost');
   assert.equal(s.shuttle.supplies.fuel, s.mission.returnFuel, 'the other leg remains physically aboard');
-  const rows = exportRecording(s).trim().split('\n').map(JSON.parse);
+  const rows = recordedEvents(s, true);
   const changes = rows.filter(row => row.event?.id === 'expedition.preparation.supplies_changed');
   assert.equal(changes.length, targetChanges);
   assert.ok(changes.every(row => row.event.resource === 'air' && row.event.next >= row.event.previous + 9 && row.event.crewIds.join() === crewIds.join()));

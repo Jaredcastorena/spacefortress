@@ -14,6 +14,7 @@ import {foodOfKind} from '../src/food-lots.js';
 import {floraDetails} from '../src/flora-panels.js';
 import {updateFlora,validateCultivation,validateFlora,floraStatus,completeGathering,absorbCultivationWater} from '../src/flora.js';
 import {flowLiquids} from '../src/liquids.js';
+import {loadWater} from '../src/water-thermal.js';
 import {damage} from '../src/maintenance.js';
 import {startRecording,exportRecording} from '../src/telemetry.js';
 
@@ -99,7 +100,7 @@ test('native dismantling returns bed moisture and preserves the constructed uppe
 // Pure ecology boundary: finite declared initial biomass/water, no colony ticks.
 function biology(species='fungalcap'){
  const s=createGame(),site=s.sites.surface;site.size=3;site.levels=[0,1,2].map(z=>({z,name:`Floor ${z}`}));site.rooms=[];site.verticalLinks=[];site.thermal.ambient=8;
- site.tiles=Array.from({length:27},(_,i)=>({x:i%3,y:Math.floor(i/3)%3,z:Math.floor(i/9),terrain:i<18?'floor':'void',building:null,hp:100,liquid:0}));
+ site.tiles=Array.from({length:27},(_,i)=>({x:i%3,y:Math.floor(i/3)%3,z:Math.floor(i/9),terrain:i<18?'floor':'void',building:null,hp:100,liquid:0,liquidHeat:0}));
  const t=tileAt(site,{x:1,y:1,z:1});t.building='planter';t.flora={[species]:{biomass:20,harvests:0,origin:'cultivated',generation:'job-1',moisture:1.5}};
  Object.assign(site.cultivation[species],{propagules:1,planted:20,delivered:1.5});return {s,site,t,patch:t.flora[species],species};
 }
@@ -114,7 +115,7 @@ test('upper bed growth and harvest conserve finite moisture and leave the same-c
 test('floor irrigation only transfers available liquid and overhead terrain blocks sunberry growth',()=>{
  const {s,site,t,patch}=biology('sunberry');patch.moisture=1.4;site.cultivation.sunberry.delivered=1.4;
  // The liquid ledger represents the explicitly supplied initial spill.
- for(const tile of site.tiles.filter(t=>t.z===1)){tile.liquid=.1;site.liquids.released+=.1;}
+ for(const tile of site.tiles.filter(t=>t.z===1)){loadWater(site,tile,.1,{floor:true});site.liquids.released+=.1;}
  const before=totalResources(s).water;flowLiquids(s);close(totalResources(s).water+site.liquids.lost,before);assert.ok(patch.moisture>1.4);assert.ok(site.liquids.absorbed>0);validateCultivation(s);
  const roof=tileAt(site,{x:1,y:1,z:2});roof.terrain='floor';s.tick=30;const biomass=patch.biomass;updateFlora(s);assert.equal(patch.biomass,biomass);assert.match(floraStatus(s,site,t)[0].growthReason,/overhead/);
  roof.terrain='void';s.tick=60;updateFlora(s);assert.ok(patch.biomass>biomass);const liquid=t.liquid;assert.ok(absorbCultivationWater(s,site,t,100)<=liquid);validateCultivation(s);

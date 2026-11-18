@@ -1,3 +1,4 @@
+import {loadWater,unloadCondensedWater} from '../src/water-thermal.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -18,7 +19,7 @@ import {fireDetails} from '../src/fire-panels.js';
 const raw=gunzipSync(readFileSync(new URL('./fixtures/extraction-schema62.json.gz',import.meta.url))).toString();
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} != ${b}`);
 const events=s=>exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>r.event).map(r=>r.event);
-function wet(site,t){const added=Math.max(0,LIQUID.wet-t.liquid);t.liquid+=added;site.liquids.released+=added;}
+function wet(site,t){const added=Math.max(0,LIQUID.wet-t.liquid);loadWater(site,t,added,{floor:true});site.liquids.released+=added;}
 function fixture(sourceZ=0){
  const s=deserialize(raw),site=s.sites.surface,link=site.verticalLinks[0];
  const lower=tileAt(site,{x:9,y:7,z:0}),upper=tileAt(site,{x:8,y:8,z:1});
@@ -80,7 +81,7 @@ test('flames cannot skip a landing neighbor to reach distant fittings in the oth
 
 test('horizontal spread retains priority and a source creates at most one fire per interval',()=>{
  const f=fixture(),next=tileAt(f.site,{x:10,y:7,z:0});
- f.site.liquids.released-=next.liquid;next.liquid=0;
+ f.site.liquids.released-=next.liquid;unloadCondensedWater(f.site,next,next.liquid,{floor:true});
  const records=burn(f),ignitions=records.filter(e=>e.id==='fire.ignited');
  assert.equal(ignitions.length,1);assert.equal(ignitions[0].cause,'spread');
  assert.equal(ignitions[0].connection,undefined);assert.ok(next.fire);assert.equal(f.target.fire,undefined);
@@ -108,7 +109,7 @@ test('cross-floor ignition preserves save continuation, observation purity and e
 
 test('a distant source cannot reach the stair opening through an otherwise shared room',()=>{
  const f=fixture(),far=tileAt(f.site,{x:10,y:7,z:0});
- extinguish(f.s,f.site,f.source,'suppressed');f.site.liquids.released-=far.liquid;far.liquid=0;
+ extinguish(f.s,f.site,f.source,'suppressed');f.site.liquids.released-=far.liquid;unloadCondensedWater(f.site,far,far.liquid,{floor:true});
  for(const p of horizontalNeighbors(far)){const t=tileAt(f.site,p);if(combustible(t))wet(f.site,t);}
  assert.ok(ignite(f.s,f.site,far));far.fire.started=f.s.tick-29;far.fire.age=29;far.fire.intensity=60;
  burn(f);assert.equal(f.target.fire,undefined);

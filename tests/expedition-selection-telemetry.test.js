@@ -139,8 +139,23 @@ test('preparation start and cancellation remain named transitions even when the 
 
 test('a real selected expedition records loading, salvage, return and refit with deterministic replay and unchanged RNG', () => {
   const a = createGame(), b = deserialize(serialize(a));
-  startRecording(a,{maxRecords:30000,maxBytes:64000000});
+  const limits={maxRecords:30000,maxBytes:64000000},eventRows=[];
+  let windowTick=a.tick,windowStage=a.mission?.phase||'home',replay=null,reconstructed=null,actions=0,recordedActions=0;
+  const finishWindow=()=>{
+    const window=rows(a),header=window[0],footer=window.at(-1);
+    assert.equal(footer.active,true,`Incomplete expedition recording: ${footer.reason}`);assert.equal(footer.throughTick,a.tick);
+    assert.equal(footer.maxRecords,limits.maxRecords);assert.equal(footer.maxBytes,limits.maxBytes);
+    if(!replay)replay=deserialize(JSON.stringify(header.initialState));
+    else {assert.deepEqual(replay,header.initialState);assert.deepEqual(reconstructed,header.observation);}
+    for(const row of window)if(row.kind==='action.requested'){assert.ok(executeAction(replay,row.action.id,row.action.args,'test').ok);recordedActions++;}
+    reconstructed=reconstruct(window);assert.deepEqual(reconstructed,observe(a));assert.deepEqual(replay,a);
+    eventRows.push(...window.filter(row=>row.event));
+  };
+  startRecording(a,limits);
   const run = (id,args={}) => {
+    const stage=a.mission?.phase||'home';
+    if(stage!==windowStage||a.tick-windowTick>=20){finishWindow();startRecording(a,limits);windowTick=a.tick;windowStage=stage;}
+    actions++;
     const first = executeAction(a,id,args), second = executeAction(b,id,args);
     assert.ok(first.ok,`${id}: ${first.message}`); assert.deepEqual(first,second); return first;
   };
@@ -156,9 +171,11 @@ test('a real selected expedition records loading, salvage, return and refit with
   until(()=>!a.jobs.some(job=>job.id===refit.job));
   assert.equal(a.shuttle.fit,'cargo');
   assert.deepEqual(a,b); assert.equal(serialize(a),serialize(b));
-  const recording = rows(a), expected = ['expedition.preparation.started','shuttle.supplies.loaded','expedition.preparation.stage_changed','expedition.departed','expedition.arrived','expedition.salvage.picked_up','expedition.salvage.delivered','expedition.recalled','expedition.return.departed','expedition.returned','shuttle.refit.completed'];
-  let sequence=0;
-  for(const id of expected){const event=recording.find(row=>row.event?.id===id&&row.sequence>sequence);assert.ok(event,id);sequence=event.sequence;}
+  finishWindow();assert.equal(recordedActions,actions);
+  const recording = eventRows, expected = ['expedition.preparation.started','shuttle.supplies.loaded','expedition.preparation.stage_changed','expedition.departed','expedition.arrived','expedition.salvage.picked_up','expedition.salvage.delivered','expedition.recalled','expedition.return.departed','expedition.returned','shuttle.refit.completed'];
+  // Windows retain local sequence IDs; their append order proves the full journey order.
+  let eventIndex=-1;
+  for(const id of expected){const next=recording.findIndex((row,index)=>index>eventIndex&&row.event?.id===id);assert.ok(next>eventIndex,id);eventIndex=next;}
   for(const id of ['expedition.departed','expedition.arrived','expedition.recalled','expedition.returned']) {
     const event=recording.find(row=>row.event?.id===id);
     assert.deepEqual(event.event.crewIds,['crew-1','crew-0']);
@@ -167,9 +184,7 @@ test('a real selected expedition records loading, salvage, return and refit with
     assert.ok(event.event.reason);
   }
   assert.ok(recording.some(row=>row.event?.id==='expedition.upgrade.unlocked'));
-  assert.deepEqual(reconstruct(recording),observe(a));
-  const replay=deserialize(JSON.stringify(recording[0].initialState));
-  for(const row of recording)if(row.kind==='action.requested')assert.ok(executeAction(replay,row.action.id,row.action.args,'test').ok);
+  assert.deepEqual(reconstructed,observe(a));
   assert.deepEqual(replay,a);
   assert.equal(recordingStatus(replay).reason,'not_started');
 });

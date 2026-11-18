@@ -1,3 +1,4 @@
+import { beginJourneyRecording, beforeJourneyAction, journeyRecording, journeyStep as step } from './helpers/journey-recording-windows.js';
 import {withTemperaturePressureReadings,withLegacyDensityReadings,withThermalRoundoff} from './helpers/pressure-migration.js';
 import {projectPreGasHeat} from './helpers/legacy-projection.js';
 import {VERSION} from '../src/data.js';
@@ -6,7 +7,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {gunzipSync} from 'node:zlib';
 import {createHash} from 'node:crypto';
-import {createGame,serialize,deserialize,step} from '../src/simulation.js';
+import {createGame,serialize,deserialize} from '../src/simulation.js';
 import {executeAction,createAgentInterface,actionCatalog} from '../src/controls.js';
 import {makeRegion,siteDefinitions,siteDefinition,routeDefinition,outpostSiteIds} from '../src/region.js';
 import {regionOverview,siteSurvey} from '../src/region-panels.js';
@@ -18,9 +19,9 @@ import {routeFuel} from '../src/expedition.js';
 import {observe,startRecording,exportRecording} from '../src/telemetry.js';
 const legacy=gunzipSync(readFileSync(new URL('./fixtures/region-schema64.json.gz',import.meta.url))).toString();
 const generated=s=>Object.values(siteDefinitions(s)).filter(d=>d.template);
-const action=(s,id,args={})=>{const r=executeAction(s,id,args);assert.equal(r.ok,true,`${id}: ${r.message}`);return r;};
+const action=(s,id,args={})=>{beforeJourneyAction(s);const r=executeAction(s,id,args);assert.equal(r.ok,true,`${id}: ${r.message}`);return r;};
 const check=s=>{syncResources(s);const raw=serialize(s);assert.ok(serialize(deserialize(raw))===raw,'exact region save roundtrip');};
-function until(s,label,p,limit=200){for(let n=0;n<limit&&!p();n++)step(s);assert.ok(p(),`${label} stopped at ${s.tick}: ${s.crew.map(c=>c.activity).join('; ')}; ${s.departure?.status||s.mission?.phase||'idle'}`);}
+function until(s,label,p,limit=200){journeyRecording(s)?.checkpoint(label);for(let n=0;n<limit&&!p();n++)step(s);assert.ok(p(),`${label} stopped at ${s.tick}: ${s.crew.map(c=>c.activity).join('; ')}; ${s.departure?.status||s.mission?.phase||'idle'}`);}
 const events=s=>exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>r.event).map(r=>r.event);
 
 test('genuine schema64 migration keeps four physical sites and all prior state without spawning resources',()=>{
@@ -63,7 +64,7 @@ function travelFixture(destination){
 for(const {id:destination,template} of Object.values(makeRegion(74219).sites).filter(d=>d.template))test(`native supplied visit, extraction, construction, return and persistent revisit at generated ${destination}`,()=>{
  const {s,definition,ids,site}=travelFixture(destination),fuel=totalResources(s).fuel;
  const untouched=generated(s).filter(d=>d.id!==definition.id),others=()=>JSON.stringify(untouched.map(d=>[d.id,s.sites[d.id].tiles.map(t=>({terrain:t.terrain,building:t.building,deposit:t.deposit}))])),otherBefore=others();
- startRecording(s,{maxRecords:10000,maxBytes:32_000_000});
+ const recorder=beginJourneyRecording(s,{limits:{maxRecords:10000,maxBytes:32_000_000},maxTicks:10,tickLimit:1602,stageLimit:9,stage:'visit',event:e=>e.id==='resource.extracted'||e.id==='expedition.arrived'});
  // Idle production, including life support, leaves the finite starter air
  // available to haulers for this bounded route check; no endurance claim.
  action(s,'freight.load',{items:{alloy:1}});until(s,'freight loading',()=>s.shuttle.freight.alloy===1);check(s);
@@ -85,6 +86,6 @@ for(const {id:destination,template} of Object.values(makeRegion(74219).sites).fi
  assert.equal(JSON.stringify({terrain:target.terrain,building:target.building,deposit:target.deposit}),preserved);assert.equal(extractionStatus(target),null);
  assert.equal(others(),otherBefore);
  assert.ok(s.crew.every(c=>c.health>0));check(s);
- const log=events(s);assert.ok(log.some(e=>e.id==='resource.extracted'&&e.entity===`tile:${site.id}:${target.x}:${target.y}`));
+ const log=recorder.finish().filter(row=>row.event).map(row=>row.event);assert.ok(log.some(e=>e.id==='resource.extracted'&&e.entity===`tile:${site.id}:${target.x}:${target.y}`));
  assert.ok(log.some(e=>e.id==='expedition.arrived'&&e.to===`site:${site.id}`&&e.route===routeDefinition(s,site.id).id));
 });

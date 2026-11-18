@@ -180,10 +180,10 @@ test('smoke-only diffusion, pumping and release events name their physical endpo
   assert.equal(pump.powered, true);
   startRecording(s);
   updateGasNetworks(s);
-  updateGasNetworks(s);
+  updatePower(s,site); updateGasNetworks(s);
   assert.ok(receiver.gasStore.smoke > 0);
   releaseGas(s, site, receiver, Infinity, 'damaged');
-  refreshAtmosphere(site);
+  refreshAtmosphere(site); refreshPower(s,site,false);
   const recording = rows(s), events = recording.filter(row => row.event?.id === 'gas.transferred');
   const diffused = events.find(row => row.event.reason === 'smoke_diffusion');
   const pumped = events.find(row => row.event.reason === 'pump');

@@ -2,6 +2,17 @@
 
 SPACEFORTRESS is an early playable colony simulator. Release entries describe completed changes within their stated scope.
 
+## v0.1.14 — 2026-11-17
+
+- Freezing water now takes up extra space in rigid pipes. Open routes can relieve a crowded pipe. A burst pipe leaks liquid and leaves frozen contents in place until they thaw. Airlock inspectors identify the room and breathing limit when air quality holds a door shut.
+- Add finite paid gas compression to pumps, vents and extractors. Useful work is limited to 65% of actual paid allocation and heats receiving gas; the remaining allocation heats the drive's actual room or is explicitly exported to space. Vents include the whole paid heat allocation in their pressure target. Save82 adds strict cumulative work ledgers and neutral older-save migration; observation16 adds named events and compression labels. Focused follow-ups resolved all 50 initial compatibility failures. The model uses normalized game units. [Rules and limits](docs/gas-compression.md).
+- Add water vapor, finite evaporation/condensation and vacuum cooling, retained gas-node liquid/ice and humidity diagnostics. Save81 preserves older physical quantities and energy through neutral migration; observation15 exposes phase owners and transitions. Focused checks and targeted repairs resolved all 121 original compatibility failures at that checkpoint. [Rules](docs/water-vapor.md) and [verification scope](docs/verification-status.md).
+
+- Add finite water freezing/thawing, liquid-only flows and consumption, frozen-source diagnostics, icy map surfaces and phase events. Save80 retains previous water mass/energy; observation14 adds phase quantities. Vapor follows in save81; packaged thermal histories remain unfinished.
+
+- Add finite water heat to floor liquid, pipes and reservoirs, conservative parcel transfers and bounded room/exterior exchange. Water inspectors show temperature; recorded transfers include carried heat.
+- Colony save79 migrates previously untracked water to an explicit baseline while preserving existing physical state and room temperatures. Observation/recording13 adds water thermal diagnostics. Freezing and vapor follow in save80/81; packaged water temperatures remain unfinished.
+
 ## v0.1.13 — 2026-10-31
 
 This release combines the updates since v0.1.12. The colony format is schema78, new worlds use region3, and observations/recordings use schema12. The independent elements laboratory remains schema3.
@@ -24,7 +35,7 @@ This release combines the updates since v0.1.12. The colony format is schema78, 
 - Add a staffed fuel synthesizer: one recovered solar cell and two delivered water produce two fuel through 40 work with 6 kW, safe air, 5–40 °C and a Production 2 operator. Shared construction, hauling, batch/stock controls, maintenance, artwork and events expose the physical costs and output.
 - Extend shared actions and observations with stable planets, canonical destination metadata, local animal targets and thermal diagnostics. Save migrations preserve valid older hex colonies without starter grants; square schemas1–39 remain unsupported.
 
-Verification covers focused mechanics, migrations, finite custody, saved continuation, browser storage and bounded supplied journeys. It does not establish the complete fresh-colony satellite-acquisition chain or sustained habitation. Direct remote travel, inter-site animal transport, broader discovery/history, water temperature and phases, compression work and packaged-cargo thermal histories remain unfinished. No new runtime dependency is required.
+Verification covers focused mechanics, migrations, finite custody, saved continuation, browser storage and bounded supplied journeys. It does not establish the complete fresh-colony satellite-acquisition chain or sustained habitation. At that release, direct remote travel, inter-site animal transport, broader discovery/history, water temperature and phases, compression work and packaged-cargo thermal histories remained unfinished; v0.1.14 supersedes those water and compression limits. No new runtime dependency is required.
 
 ## v0.1.12 — 2026-10-29
 

@@ -18,7 +18,7 @@ test('projected sector admission accounts for all declared floors and leaves the
   let bytes=0;
   outer:for(const site of Object.values(s.sites).filter(settlementSite))for(let z=1;z<8;z++){
     site.levels.push({z,name:`Storage check ${z}`});
-    for(let y=0;y<site.size;y++)for(let x=0;x<site.size;x++)site.tiles.push({x,y,z,terrain:'void',building:null,hp:100,drop:null,variant:(y*site.size+x)%4,powered:false,cable:null,circuit:null,powerStatus:null,wetShort:false,liquid:0,pipe:null,waterPipe:null});
+    for(let y=0;y<site.size;y++)for(let x=0;x<site.size;x++)site.tiles.push({x,y,z,terrain:'void',building:null,hp:100,drop:null,variant:(y*site.size+x)%4,powered:false,cable:null,circuit:null,powerStatus:null,wetShort:false,liquid:0,liquidHeat:0,pipe:null,waterPipe:null});
     bytes=Buffer.byteLength(serialize(s));if(bytes>=MAX_SAVE_BYTES-SECTOR_SAVE_HEADROOM)break outer;
   }
   assert.ok(bytes>=MAX_SAVE_BYTES-SECTOR_SAVE_HEADROOM&&bytes<MAX_SAVE_BYTES,`fixture size ${bytes}`);

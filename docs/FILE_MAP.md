@@ -4,7 +4,15 @@
 
 Navigation review of the tracked checkout at e330c6f. Text was fully decoded for structural extraction, with selected direct excerpts; compressed fixtures were decoded as JSON and PNG headers inspected. Roles are navigation aids, not proof of correctness. No test suite or browser was run. Private administration is not part of this public map. Read only the section and files needed for your task.
 
+## Water heat and phases
+
+[water-thermal.js](../src/water-thermal.js) owns parcel energy and thermal boundaries; [thermal.js](../src/thermal.js) handles compartment/exterior exchange and the combined ledger. [liquids.js](../src/liquids.js), [plumbing.js](../src/plumbing.js) and [flora.js](../src/flora.js) retain energy custody. [Heat rules](water-heat.md), [phase rules](water-phases.md), [phase events](../src/water-phase-events.js), [phase checks](../tests/water-phase.test.js), [primitive checks](../tests/water-thermal.test.js), [transfer checks](../tests/water-heat-transfers.test.js), [integration checks](../tests/water-heat-integration.test.js).
+
+[water-vapor.js](../src/water-vapor.js) owns finite phase equilibrium, vacuum evaporation and retained gas-node condensate. [gas-species.js](../src/gas-species.js) defines the shared four-species mixture. [Vapor rules](water-vapor.md), [phase checks](../tests/water-vapor-phase.test.js), [integration checks](../tests/water-vapor-integration.test.js) and [migration checks](../tests/water-vapor-migration.test.js) describe the save81/observation15 scope.
+
 ## Gas-carried heat
+
+[gas-work.js](../src/gas-work.js) plans finite pressure work and heated discharge; [power-work.js](../src/power-work.js) holds transient paid allowances; [gas-compression.js](../src/gas-compression.js) settles work/motor heat and validates cumulative ledgers. [gas-networks.js](../src/gas-networks.js) integrates pumps, vents and extractors. [Compression rules](gas-compression.md), [primitive checks](../tests/gas-work.test.js), [integration checks](../tests/gas-compression-integration.test.js) and [migration checks](../tests/gas-compression-migration.test.js) describe save82/observation16. Five [safety checks](../tests/gas-compression-safety.test.js) also pass. Focused follow-ups cover all 50 original compatibility failures. See [verification status](verification-status.md).
 
 [gas-thermal.js](../src/gas-thermal.js) defines finite energy, capacities and pressure predictions; [thermal.js](../src/thermal.js) handles structural/node exchange and accounting; [atmosphere.js](../src/atmosphere.js) and [gas-networks.js](../src/gas-networks.js) preserve gas-energy custody. [Rules](gas-heat.md), [core checks](../tests/gas-thermal.test.js), [network checks](../tests/gas-heat-network.test.js), [airlock checks](../tests/gas-heat-airlocks.test.js) and [integration checks](../tests/gas-heat-integration.test.js).
 

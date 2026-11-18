@@ -1,5 +1,5 @@
 import {roomPressure} from './room-pressure.js';
-import { SUIT_PER_POINT, gasAmount, roomAt, refreshAtmosphere } from './atmosphere.js';
+import { SUIT_PER_POINT, roomAt, refreshAtmosphere } from './atmosphere.js';
 import {parcelHeat,importRoomHeat,GAS_REFERENCE_KELVIN} from './gas-thermal.js';
 import { suitReleaseStatus } from './suit-release-status.js';
 import { tileAt, positionOf, sameCell } from './spatial.js';

@@ -1,0 +1,7 @@
+{
+  "source": "3cfb4b43f2e6a792365b479eb3800fe11788ce81",
+  "schema": 78,
+  "seed": 74261,
+  "sha256": "859539dba0d194752d180ce42d3d5e51cde55f18e5d9314c152d2dccf476d8d2",
+  "setup": "createGame(74261); first empty floor pipe holds 1 water, plumbing.loaded=1; syncResources; validated serialize/deserialize before implementation. Natural floor water from original generator remains."
+}

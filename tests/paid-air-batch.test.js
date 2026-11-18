@@ -1,3 +1,4 @@
+import { vaporWaterExports } from './helpers/vapor-accounting.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -57,8 +58,8 @@ function synthetic({ lowOxygen = false, farm = false, bank = 120, tick = 0 } = {
   }
   state.creatures = []; state.jobs = [];
   updateRooms(site); initializeThermal(state); fillRoom(roomAt(site, 10, 11));
-  const chamber = roomAt(site, 10, 13); chamber.gas = { oxygen: 0, inert: 0, co2: 0 };
-  if (lowOxygen) roomAt(site, 10, 11).gas = { oxygen: 52.8, inert: 277.0263378661494, co2: .051891004317951676 };
+  const chamber = roomAt(site, 10, 13); chamber.gas = { oxygen: 0, inert: 0, co2: 0, vapor: 0 };
+  if (lowOxygen) roomAt(site, 10, 11).gas = { oxygen: 52.8, inert: 277.0263378661494, co2: .051891004317951676, vapor: 0 };
   // Freeze the prepared gas and structure at 20C in one initial energy ledger.
   initializeThermal(state);
   refreshAtmosphere(site); initializePower(state, site, bank); refreshPower(state, site); syncResources(state);
@@ -76,7 +77,7 @@ async function preserve(name, output, input) {
 test('one paid water batch delivers exactly ten air through native hauling with an owned idle vacuum chamber', async () => {
   const state = synthetic({ tick: 190 });
   tileAt(state.sites.surface, 13, 9).machine.order.limit = 1; // Exhausted historical order.
-  const input = serialize(state), policies = state.crew.map(c => c.life.policy), output = runPaidAirBatch(state);
+  const input = serialize(state), policies = state.crew.map(c => c.life.policy), exportedBefore = vaporWaterExports(state), output = runPaidAirBatch(state);
   await preserve('success', output, input);
   assert.equal(output.summary.ok, true, JSON.stringify(output.summary.failure));
   assert.deepEqual(output.summary.recipes, { started: 1, completed: 1, waterConsumed: 1, waterCommitted: 0, airProduced: 10, duration: 25 });
@@ -94,7 +95,8 @@ test('one paid water batch delivers exactly ten air through native hauling with 
   assert.ok(Math.abs(output.summary.accounting.species.oxygenCo2Error) < 1e-7);
   assert.ok(Object.values(output.summary.accounting.energyErrors).every(n => Math.abs(n) < 1e-7));
   const water = owners => owners.reduce((n, row) => n + row.water, 0);
-  assert.equal(water(output.summary.accounting.materialsBefore) - water(physicalMaterialOwners(state)), 1);
+  const consumed = water(output.summary.accounting.materialsBefore) - water(physicalMaterialOwners(state)) - (vaporWaterExports(state) - exportedBefore);
+  assert.ok(Math.abs(consumed - 1) < 1e-7, `Paid batch water consumption ${consumed} != 1`);
   assert.equal(output.summary.inputSha256, hash(input)); assert.equal(output.summary.endpointSha256, hash(serialize(state)));
   assert.match(output.summary.sourceSha256, /^[a-f0-9]{64}$/); assert.equal(hash(serialize(deserialize(output.endpoint))), hash(output.endpoint));
   const records = output.recording.trim().split('\n').map(JSON.parse), events = records.filter(r => r.kind === 'event').map(r => r.event);

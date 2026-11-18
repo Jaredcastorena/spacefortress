@@ -11,6 +11,7 @@ import { materialsReady } from '../src/construction.js';
 import { setBunkOwner } from '../src/housing.js';
 import { setLifePolicy, leisure } from '../src/crew-life.js';
 import { setRoomDesignation } from '../src/rooms.js';
+import { vaporWaterExports } from './helpers/vapor-accounting.js';
 
 function fixture() {
   const s=createGame(),site=s.sites.surface,c=s.crew[0];
@@ -21,18 +22,24 @@ function place(site,x,y,building) { const t=at(site,x,y);spillStorage(t);t.build
 const comfort=(s,c=s.crew[0],x=c.x,y=c.y)=>roomComfort(s,s.sites.surface,roomAt(s.sites.surface,x,y),c);
 const until=(s,p,limit=180)=>{for(let i=0;i<limit&&!p();i++)step(s);assert.ok(p(),`Condition missing at tick ${s.tick}`);};
 const check=s=>{syncResources(s);return deserialize(serialize(s));};
+const resourceBalance=s=>{const totals=totalResources(s);totals.water+=vaporWaterExports(s);return totals;};
+function sameResources(actual,before){
+  assert.ok(Math.abs(actual.water-before.water)<1e-7,`Accounted water ${actual.water} != ${before.water}`);
+  // Only water's independently checked summation roundoff is normalized.
+  assert.deepEqual({...actual,water:before.water},before);
+}
 
 test('decorations require habitat floor, delivered supplies and actual construction work',()=>{
   const {s,site}=fixture();assert.equal(order(s,'surface',18,14,'build','sculpture').ok,false);
-  const before=totalResources(s),j=order(s,'surface',12,9,'build','holo').job;assert.ok(j);
+  const before=resourceBalance(s),j=order(s,'surface',12,9,'build','holo').job;assert.ok(j);
   assert.equal(at(site,12,9).building,null);assert.equal(comfort(s).art,0);
-  until(s,()=>s.crew.some(c=>c.delivery?.job===j.id));assert.equal(j.remaining,j.work);assert.equal(materialsReady(j),false);assert.deepEqual(totalResources(s),before);
+  until(s,()=>s.crew.some(c=>c.delivery?.job===j.id));assert.equal(j.remaining,j.work);assert.equal(materialsReady(j),false);sameResources(resourceBalance(s),before);
   until(s,()=>!s.jobs.includes(j));assert.equal(at(site,12,9).building,'holo');assert.equal(totalResources(s).alloy,before.alloy-3);assert.equal(totalResources(s).components,before.components-1);check(s);
 });
 
 test('cancelling a decoration with carried materials preserves them and grants no art',()=>{
-  const {s}=fixture(),before=totalResources(s),j=order(s,'surface',12,9,'build','sculpture').job;
-  until(s,()=>s.crew.some(c=>c.delivery?.job===j.id));cancelJob(s,j.id);assert.equal(comfort(s).art,0);assert.deepEqual(totalResources(s),before);check(s);
+  const {s}=fixture(),before=resourceBalance(s),j=order(s,'surface',12,9,'build','sculpture').job;
+  until(s,()=>s.crew.some(c=>c.delivery?.job===j.id));cancelJob(s,j.id);assert.equal(comfort(s).art,0);sameResources(resourceBalance(s),before);check(s);
 });
 
 test('art preference, furnishing condition and distinct styles determine comfort without stacking copies',()=>{

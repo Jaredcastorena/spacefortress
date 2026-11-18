@@ -1,0 +1,16 @@
+{
+  "schema": 81,
+  "seed": 74219,
+  "tick": 2,
+  "description": "Captured before compression integration from actual schema81 createGame plus two native ticks; no relabeling, direct resource grants or state edits.",
+  "sourceSha256": "4eb7bdf96e7ca7ed59ab644d10cf0c4b576d93d51b25601c21910af5c3f54b22",
+  "jsonSha256": "806069c873c67432876e0dff4ae833b8f4452a27e2ba55a7d5dcb36576bf5b3b",
+  "gzipSha256": "fe5377dc81199fff4fc0b590ac32ae93d95d3e246f74d5fbb2c2513367d9ac05",
+  "bytes": 58244,
+  "operations": [
+    {
+      "call": "step(state, 2)",
+      "ticks": 2
+    }
+  ]
+}

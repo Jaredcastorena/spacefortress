@@ -1,5 +1,7 @@
 # Floor water, leaks and recovery
 
+Local schema79 adds [finite sensible water heat](water-heat.md), carried through flow and recovery and exchanged with the actual compartment or exterior. The inspector shows water temperature. Local save80 adds [finite freezing/thawing](water-phases.md); ice stays in place and cannot feed pumps or wet-cable faults until it melts. Steam remains unfinished.
+
 Implemented September 16, 2026. This connects delivered water to the isometric colony environment: floor spreading, pressure-door containment, recovery pumps, wet wiring and fire suppression. It extends the existing compartment atmosphere and room heat model; the standalone side-view lab remains available separately.
 
 The schema 35 [closed plumbing](plumbing.md) extension is implemented and verified. It adds separate finite pipes/reservoirs and powered floor/inventory adapters. Its acceptance is tracked in [verification status](verification-status.md); the original floor-water evidence below is historical.

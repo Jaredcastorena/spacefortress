@@ -12,12 +12,16 @@ import { waterSupply, initializeWater } from '../src/water.js';
 import { startRecording, exportRecording, observe } from '../src/telemetry.js';
 import { executeAction } from '../src/controls.js';
 import { depart } from './helpers/depart.js';
+import { vaporWaterExports } from './helpers/vapor-accounting.js';
 
 const check = s => deserialize(serialize(s));
-const groundWater = s => Object.values(s.sites).reduce((n,site)=>n+site.tiles.reduce((m,t)=>m+(t.liquid||0),0),0);
+const resourceBalance=s=>{const totals=totalResources(s);totals.water+=vaporWaterExports(s);return totals;};
+// Phase transfers add fractional quantities; use the same finite 1e-7 water
+// comparison as the plumbing conservation suite, without changing paid doses.
+const closeWater=(actual,expected)=>assert.ok(Number.isFinite(actual)&&Number.isFinite(expected)&&Math.abs(actual-expected)<1e-7,`Accounted water ${actual} != ${expected}`);
 const iceReserves = site => site.tiles.reduce((n,t)=>n+(t.deposit?.resource==='ice'?t.deposit.remaining:0),0);
-const until = (s, predicate, limit = 220) => {
-  for (let i = 0; i < limit && !predicate(); i++) { step(s); check(s); }
+const until = (s, predicate, limit = 220, afterStep = () => {}) => {
+  for (let i = 0; i < limit && !predicate(); i++) { step(s); check(s); afterStep(); }
   assert.ok(predicate(), `Condition missing at tick ${s.tick}`);
 };
 function colony({ processor = true, hauling = true } = {}) {
@@ -52,9 +56,9 @@ test('mining cancellation preserves reserves; completed extraction leaves physic
 test('real extraction and hauling feed a processor before recovered water reaches crops', () => {
   const {s,site,depot,m}=colony(); depot.stock.water=0; syncResources(s);
   const farm=at(site,7,9);setMachineEnabled(s,'surface',7,9,true);setProductionOrder(s,'surface',7,9,'batches',1);setProductionOrder(s,'surface',12,10,'batches',1);
-  const before=totalResources(s);const j=order(s,'surface',17,14,'mine').job;assert.ok(j);
-  until(s,()=>m.progress>0);assert.equal(totalResources(s).water,before.water);assert.equal(totalResources(s).ice,6);assert.equal(farm.machine.completed,0);
-  until(s,()=>farm.machine.completed===1);assert.equal(m.completed,1);assert.equal(totalResources(s).ice,4);assert.equal(totalResources(s).water,before.water+1);assert.equal(totalResources(s).food,before.food+2);check(s);
+  const before=resourceBalance(s);const j=order(s,'surface',17,14,'mine').job;assert.ok(j);
+  until(s,()=>m.progress>0);closeWater(resourceBalance(s).water,before.water);assert.equal(totalResources(s).ice,6);assert.equal(farm.machine.completed,0);
+  until(s,()=>farm.machine.completed===1);assert.equal(m.completed,1);assert.equal(totalResources(s).ice,4);closeWater(resourceBalance(s).water,before.water+1);assert.equal(totalResources(s).food,before.food+2);check(s);
 });
 
 test('a processor waits for a full delivered batch and an adjacent operator',()=>{
@@ -65,9 +69,9 @@ test('a processor waits for a full delivered batch and an adjacent operator',()=
 });
 
 test('power loss preserves frozen ingredients and progress while thirsty crops wait',()=>{
-  const {s,site,depot,m}=colony();depot.stock.water=0;depot.stock.ice=2;syncResources(s);const natural=groundWater(s);const farm=at(site,7,9);setMachineEnabled(s,'surface',7,9,true);setProductionOrder(s,'surface',7,9,'batches',1);setProductionOrder(s,'surface',12,10,'batches',1);
+  const {s,site,depot,m}=colony();depot.stock.water=0;depot.stock.ice=2;syncResources(s);const baselineWater=resourceBalance(s).water;const farm=at(site,7,9);setMachineEnabled(s,'surface',7,9,true);setProductionOrder(s,'surface',7,9,'batches',1);setProductionOrder(s,'surface',12,10,'batches',1);
   until(s,()=>m.progress>2);const progress=m.progress;setCableEnabled(s,'surface',12,10,false);step(s,15);assert.equal(m.progress,progress);assert.deepEqual(m.batch,{ice:2});assert.equal(farm.machine.completed,0);assert.match(farm.machine.status,/water/);
-  setCableEnabled(s,'surface',12,10,true);until(s,()=>farm.machine.completed===1);assert.equal(m.completed,1);assert.equal(totalResources(s).ice,0);assert.equal(totalResources(s).water,natural+1);
+  setCableEnabled(s,'surface',12,10,true);until(s,()=>farm.machine.completed===1);assert.equal(m.completed,1);assert.equal(totalResources(s).ice,0);closeWater(resourceBalance(s).water,baselineWater+1);
 });
 
 test('ice output also supplies medicine, nutrient recycling and atmosphere production through depots',()=>{
@@ -90,14 +94,14 @@ test('blocked water storage fills output, halts new batches and resumes after ac
 });
 
 test('stock targets count promised water and pause/resume never duplicates a started batch',()=>{
-  const {s,depot,m}=colony();depot.stock.water=0;depot.stock.ice=8;syncResources(s);const natural=groundWater(s);setProductionOrder(s,'surface',12,10,'stock',4);
+  const {s,depot,m}=colony();depot.stock.water=0;depot.stock.ice=8;syncResources(s);const baselineWater=resourceBalance(s).water;setProductionOrder(s,'surface',12,10,'stock',4);
   until(s,()=>m.progress>0);setMachineEnabled(s,'surface',12,10,false);const batch=structuredClone(m.batch),progress=m.progress;step(s,8);assert.deepEqual(m.batch,batch);assert.equal(m.progress,progress);
-  setMachineEnabled(s,'surface',12,10,true);until(s,()=>m.completed===2);step(s,12);assert.equal(m.completed,2);assert.equal(totalResources(s).water,natural+4);assert.equal(totalResources(s).ice,4);assert.match(m.status,/Stock target/);
+  setMachineEnabled(s,'surface',12,10,true);until(s,()=>m.completed===2);step(s,12);assert.equal(m.completed,2);closeWater(resourceBalance(s).water,baselineWater+4);assert.equal(totalResources(s).ice,4);assert.match(m.status,/Stock target/);
 });
 
 test('dismantling a processor releases unfinished ice and completed water once',()=>{
   const {s,tile,m}=colony({hauling:false});m.input={ice:4};m.output={water:2};until(s,()=>m.progress>2);setMachineEnabled(s,'surface',12,10,false);
-  const before=totalResources(s),j=order(s,'surface',12,10,'remove').job;assert.ok(j);until(s,()=>!s.jobs.includes(j));assert.equal(tile.machine,undefined);assert.equal(totalResources(s).ice,before.ice);assert.equal(totalResources(s).water,before.water);assert.equal(tile.drop.ice,4);check(s);
+  const before=resourceBalance(s),j=order(s,'surface',12,10,'remove').job;assert.ok(j);until(s,()=>!s.jobs.includes(j));assert.equal(tile.machine,undefined);assert.equal(totalResources(s).ice,before.ice);closeWater(resourceBalance(s).water,before.water);assert.equal(tile.drop.ice,4);check(s);
 });
 
 test('comet ice is extracted, hauled into the hold, flown home and unloaded without becoming water',()=>{
@@ -125,9 +129,19 @@ test('invalid reserve quantities and malformed ice processing batches are reject
 
 test('agent extraction records action identity, output, reserve changes and depletion markers',()=>{
   const {s}=colony({processor:false,hauling:false}),initialIce=iceReserves(s.sites.surface);startRecording(s,{maxRecords:2000,maxBytes:16000000});
-  for(let i=0;i<2;i++){const result=executeAction(s,'job.order',{site:'surface',x:17,y:14,kind:'mine'},'agent');assert.ok(result.ok);until(s,()=>!s.jobs.some(j=>j.kind==='mine'));}
+  const recorded=[];let geology=false,agentOrder=false,windowStart=s.tick;
+  const captureWindow=()=>{
+    const rows=exportRecording(s).trim().split('\n').map(JSON.parse),footer=rows.at(-1);
+    assert.equal(footer.active,true,`ice extraction recording incomplete: ${footer.reason}`);assert.equal(footer.throughTick,s.tick);
+    recorded.push(...rows.filter(row=>row.event));geology ||= rows.some(r=>r.changes?.some(c=>c.system==='geology'));agentOrder ||= rows.some(r=>r.action?.source==='agent'&&r.action.id==='job.order');
+    startRecording(s,{maxRecords:2000,maxBytes:16000000});windowStart=s.tick;
+  };
+  for(let i=0;i<2;i++){
+    const result=executeAction(s,'job.order',{site:'surface',x:17,y:14,kind:'mine'},'agent');assert.ok(result.ok);
+    until(s,()=>!s.jobs.some(j=>j.kind==='mine'),220,()=>{if(s.tick-windowStart>=4&&s.jobs.some(j=>j.kind==='mine'))captureWindow();});captureWindow();
+  }
   const observation=observe(s);assert.equal(observation.entities['tile:surface:17:14'].deposit.remaining,0);assert.equal(observation.entities['site:surface'].waterSupply.unminedIce,initialIce-12);
-  const rows=exportRecording(s).trim().split('\n').map(JSON.parse);assert.equal(rows.filter(r=>r.event?.id==='resource.extracted').length,2);assert.equal(rows.filter(r=>r.event?.id==='deposit.depleted').length,1);assert.ok(rows.some(r=>r.changes?.some(c=>c.system==='geology')));assert.ok(rows.some(r=>r.action?.source==='agent'&&r.action.id==='job.order'));check(s);
+  assert.equal(recorded.filter(r=>r.event?.id==='resource.extracted').length,2);assert.equal(recorded.filter(r=>r.event?.id==='deposit.depleted').length,1);assert.ok(geology);assert.ok(agentOrder);check(s);
 });
 
 test('legacy square schema 23 is rejected before physical state migration',()=>{

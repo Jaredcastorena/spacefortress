@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, readFile, writeFile, chmod } from 'node:fs/promises';
 import { join } from 'node:path';
+import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { isDeepStrictEqual } from 'node:util';
 import { createHash } from 'node:crypto';
 import { createGame, serialize, deserialize } from '../src/simulation.js';
 import { tileAt } from '../src/geometry.js';
@@ -9,16 +12,16 @@ import { initializeStorage, syncResources } from '../src/inventory.js';
 import { initializeElectrical, initializePower, refreshPower } from '../src/power.js';
 import { initializeProduction } from '../src/production.js';
 import { initializeAirlocks } from '../src/airlock-persistence.js';
-import { updateRooms, roomAt, fillRoom, refreshAtmosphere } from '../src/atmosphere.js';
+import { SUIT_PER_POINT, updateRooms, roomAt, fillRoom, refreshAtmosphere } from '../src/atmosphere.js';
 import { initializeThermal } from '../src/thermal.js';
-import { roomHeatCapacity, GAS_REFERENCE_KELVIN } from '../src/gas-thermal.js';
+import { parcelHeat, roomHeatCapacity, GAS_REFERENCE_KELVIN } from '../src/gas-thermal.js';
 import { gasNode, newPipe } from '../src/gas-networks.js';
 import { executeAction } from '../src/controls.js';
 import { freightStatus } from '../src/freight.js';
 import { suitReleaseStatus } from '../src/suit-release-status.js';
 import { planCrewRoute } from '../src/navigation.js';
 import { airlockRoomReading, airlockTankMakeupAllowance } from '../src/airlock-access.js';
-import { startRecording, stopRecording, exportRecording, recordingStatus } from '../src/telemetry.js';
+import { observe, startRecording, stopRecording, exportRecording, recordingStatus } from '../src/telemetry.js';
 import { PLACEMENTS } from '../tools/paid-airlock-example.mjs';
 import { physicalBalances, physicalMaterialOwners } from '../tools/paid-air-recovery.mjs';
 import { commissionPaidAirlock, commissioningStatus } from '../tools/paid-airlock-commissioning.mjs';
@@ -75,11 +78,20 @@ function synthetic(nearThreshold, supplyTank = false) {
     const kelvin = site.thermal.ambient + 273.15;
     for (const room of site.rooms) room.heat = roomHeatCapacity(room) * kelvin;
     const habitat = roomAt(site, 10, 11), chamber = roomAt(site, 10, 13);
-    for (const [room, original] of [[habitat, { oxygen: 52.800000000000004, inert: 277.0263378661494, co2: .051891004317951676 }],
-      [chamber, { oxygen: 3.2000012535583635, inert: 16.789462193476677, co2: .0031412554525990922 }]]) {
+    for (const [room, original] of [[habitat, { oxygen: 52.800000000000004, inert: 277.0263378661494, co2: .051891004317951676, vapor: 0 }],
+      [chamber, { oxygen: 3.2000012535583635, inert: 16.789462193476677, co2: .0031412554525990922, vapor: 0 }]]) {
       room.gas = Object.fromEntries(Object.entries(original).map(([species, amount]) => [species, amount / (kelvin / GAS_REFERENCE_KELVIN)]));
       room.heat = roomHeatCapacity(room) * kelvin;
     }
+    // One point of the starting suit stock is packaged in the chamber instead.
+    // The doorway stays open across ticks, during which diffusion and cooling
+    // can consume the original mixture's minute oxygen-pressure margin.
+    const helper = state.crew.find(c => c.id === 'crew-2');
+    helper.oxygen -= 1;
+    chamber.gas.oxygen += SUIT_PER_POINT;
+    chamber.heat += parcelHeat(SUIT_PER_POINT, GAS_REFERENCE_KELVIN);
+    const initialReading = airlockRoomReading(chamber);
+    assert.ok(initialReading.oxygenPressure > .16 && initialReading.oxygenPressure < .17);
     site.thermal.initial = site.rooms.reduce((sum, room) => sum + room.heat, 0);
   }
   refreshAtmosphere(site); initializePower(state, site, 120); refreshPower(state, site); syncResources(state);
@@ -113,8 +125,110 @@ async function freeze(name, text) {
   return { path, sha256, bytes: Buffer.byteLength(text) };
 }
 
+// Evidence windows change no scenario action or budget. Stage changes and
+// declared ten-tick boundaries keep each original recording limit finite.
+function freightRecordingWindows(state, recordingLimits, stages, scenarioLimits) {
+  const directory = mkdtempSync(join(tmpdir(), 'spacefortress-freight-recording-'));
+  const windows = [], events = [], requested = [];
+  const totals = { ticks: 0, commands: 0, gasTicks: 0 };
+  const initialState = hash(serialize(state)), initialTick = state.tick;
+  let current = null, lastStage = -1;
+  function open(stage) {
+    const index = stages.indexOf(stage);
+    assert.ok(index >= lastStage && index >= 0, 'declared recording stages remain in order');
+    lastStage = index;
+    current = { stage, fromTick: state.tick, initialState: hash(serialize(state)), initialObservation: hash(JSON.stringify(observe(state))) };
+    if (windows.length) {
+      assert.equal(current.initialState, windows.at(-1).finalState, 'contiguous initial-state seam');
+      assert.equal(current.initialObservation, windows.at(-1).finalObservation, 'contiguous observation seam');
+    }
+    assert.equal(startRecording(state, recordingLimits).active, true, 'window header fits its original budget');
+  }
+  function close(reason) {
+    if (!current) return;
+    stopRecording(state);
+    const text = exportRecording(state), rows = text.trim().split('\n').map(JSON.parse);
+    const header = rows[0], footer = rows.at(-1), records = rows.slice(1, -1);
+    const window = { ...current, index: windows.length, reason, throughTick: state.tick,
+      finalState: hash(serialize(state)), finalObservation: hash(JSON.stringify(observe(state))),
+      sha256: hash(text), bytes: Buffer.byteLength(text), footer, complete: false };
+    writeFileSync(join(directory, `${window.index}.jsonl`), text);
+    windows.push(window); current = null;
+    // Preserve failed windows before checking them; never replace a truncated
+    // window with a fresh header or claim it is a completed interval.
+    assert.equal(header.kind, 'header'); assert.equal(footer.kind, 'footer');
+    assert.equal(footer.reason, 'stopped'); assert.equal(footer.active, false);
+    assert.equal(footer.lastSequence, records.length); assert.equal(footer.throughTick, state.tick);
+    assert.equal(footer.maxRecords, recordingLimits.maxRecords); assert.equal(footer.maxBytes, recordingLimits.maxBytes);
+    assert.ok(footer.records <= recordingLimits.maxRecords && footer.bytes <= recordingLimits.maxBytes);
+    assert.equal(header.initialState.tick, window.fromTick); assert.equal(header.observation.tick, window.fromTick);
+    assert.equal(hash(JSON.stringify(header.initialState)), window.initialState);
+    assert.equal(hash(JSON.stringify(header.observation)), window.initialObservation);
+    assert.ok(state.tick - window.fromTick <= 10, 'declared ten-tick window bound');
+    const reconstructed = copy(header.observation), replay = deserialize(JSON.stringify(header.initialState));
+    for (const [index, row] of records.entries()) {
+      assert.equal(row.sequence, index + 1); assert.notEqual(row.kind, 'external', 'no unwrapped state changes');
+      for (const change of row.changes || []) {
+        if (!change.path.length) {
+          if (change.op === 'remove') delete reconstructed.entities[change.entity];
+          else reconstructed.entities[change.entity] = copy(change.value);
+          continue;
+        }
+        let target = reconstructed.entities[change.entity];
+        for (const key of change.path.slice(0, -1)) target = target[key];
+        const key = change.path.at(-1);
+        if (change.op === 'remove') delete target[key]; else target[key] = copy(change.value);
+      }
+      if (row.fromTick !== undefined) reconstructed.tick = row.tick;
+      if (row.kind === 'simulation.tick') totals.ticks++;
+      if (row.kind === 'event') events.push(row.event);
+      if (row.kind !== 'action.requested') continue;
+      assert.equal(row.action.source, 'agent');
+      const { id, args } = row.action; requested.push({ id, args: copy(args) });
+      if (id === 'simulation.step') {
+        assert.equal(args.ticks, 1);
+        if (window.stage.endsWith('commission') || replay.sites.surface.tiles.some(tile => tile.gasDevice?.enabled)) totals.gasTicks++;
+      } else totals.commands++;
+      assert.equal(executeAction(replay, id, args, 'agent').ok, true, 'recorded shared action replays');
+    }
+    assert.ok(isDeepStrictEqual(reconstructed, observe(state)), 'every observation delta reconstructs the window endpoint');
+    assert.equal(hash(serialize(replay)), window.finalState, 'every recorded action replays the exact endpoint');
+    window.complete = true;
+  }
+  return {
+    events,
+    begin: open,
+    beforeAction(stage) {
+      assert.equal(recordingStatus(state).active, true, 'previous window was not truncated');
+      if (current.stage !== stage || state.tick - current.fromTick >= 10) { close(current.stage === stage ? 'ten_ticks' : 'stage'); open(stage); }
+    },
+    finish() { close('endpoint'); },
+    verify({ attempts, commands, gasTicks, actions, initialTick: expectedTick }) {
+      assert.ok(windows.length > 0 && windows.every(window => window.complete));
+      assert.ok(windows.length <= stages.length + Math.ceil(scenarioLimits.ticks / 10), 'total windows bounded by original scenario stages/ticks');
+      assert.equal(initialTick, expectedTick); assert.equal(windows[0].initialState, initialState);
+      assert.equal(windows.at(-1).finalState, hash(serialize(state)));
+      assert.equal(requested.length, attempts); assert.equal(totals.commands, commands); assert.equal(totals.gasTicks, gasTicks);
+      assert.equal(totals.ticks, state.tick - initialTick);
+      assert.ok(isDeepStrictEqual(requested, actions.map(({ id, args }) => ({ id, args }))), 'all scenario actions occur once across window seams');
+    },
+    async freeze(label) {
+      const manifest = { kind: 'freight-recording-windows', recordingLimits, maximumWindowTicks: 10,
+        maximumWindows: stages.length + Math.ceil(scenarioLimits.ticks / 10), totalBytes: windows.reduce((sum, window) => sum + window.bytes, 0),
+        initialTick, throughTick: state.tick, requested: requested.length, totals, windows: [] };
+      for (const window of windows) {
+        const text = readFileSync(join(directory, `${window.index}.jsonl`), 'utf8');
+        assert.equal(hash(text), window.sha256);
+        manifest.windows.push({ ...window, artifact: await freeze(`${label}-recording-window-${window.index}`, text) });
+      }
+      rmSync(directory, { recursive: true, force: true });
+      return manifest;
+    },
+  };
+}
+
 async function run(label, nearThreshold) {
-  let s, input, failure = null, commission = null, stage = 'fixture', recording = false;
+  let s, input, failure = null, commission = null, stage = 'fixture', recording = false, recorder = null;
   let attempts = 0, commands = 0, gasTicks = 0, initialTick = 0;
   let loadJob = null, unloadJob = null, startGas = null, originalModes = null;
   const actions = [], trace = [], operations = [];
@@ -142,6 +256,7 @@ async function run(label, nearThreshold) {
     if (id === 'simulation.step' && activeGas && gasTicks >= LIMITS.gasTicks) stop('gas_tick_limit', '160 active gas ticks reached.');
     attempts++; if (id !== 'simulation.step') commands++; else if (activeGas) gasTicks++;
     const entry = { tick: s.tick, id, args: copy(args) }; actions.push(entry);
+    recorder.beforeAction(stage);
     const result = executeAction(s, id, args, 'agent');
     Object.assign(entry, { postTick: s.tick, ok: result.ok, code: result.code, reason: result.reason, message: result.message, job: result.job });
     if (!result.ok) stop('action_rejected', `${id}: ${result.reason || result.code || result.message}`);
@@ -189,10 +304,11 @@ async function run(label, nearThreshold) {
     await freeze(`${label}-input`, input);
     assert.equal(freightStatus(s).usable, true); assert.equal(freightStatus(s).free, 18);
     assert.deepEqual(s.sites.surface.tiles.filter(t => t.building === 'door').map(t => [t.x, t.y]), [[10, 12], [12, 14]], 'same two existing door capabilities');
-    startRecording(s, { maxRecords: 12000, maxBytes: 128_000_000 }); recording = true;
+    recorder = freightRecordingWindows(s, { maxRecords: 12000, maxBytes: 128_000_000 }, ['commission','route_setup','load','unload','return','restore'], LIMITS);
+    recorder.begin('commission'); recording = true;
     startGas = physicalBalances(s).gas;
     stage = 'commission';
-    commission = commissionPaidAirlock(s, { record: false });
+    commission = commissionPaidAirlock(s, { record: false, beforeAction: () => recorder.beforeAction(stage) });
     attempts = commission.summary.attempts; commands = commission.summary.commands; gasTicks = commission.summary.gasTicks;
     actions.push(...commission.actions);
     if (!commission.summary.ok) stop('commissioning_failed', JSON.stringify(commission.summary.failure));
@@ -233,20 +349,11 @@ async function run(label, nearThreshold) {
     assert.equal(s.jobs.length, 0);
     stage = 'complete';
   } catch (error) { failure = { code: error.code || 'assertion_or_fixture', message: String(error.message).slice(0, 600), tick: s?.tick, stage }; }
-  if (recording) stopRecording(s);
-  const recordingText = recording ? exportRecording(s) : '';
-  let events = [];
-  if (recordingText) {
-    const rows = recordingText.trim().split('\n').map(row => JSON.parse(row));
-    events = rows.filter(row => row.kind === 'event').map(row => row.event);
-    if (!failure) try {
-      const records = rows.slice(1, -1);
-      records.forEach((row, i) => assert.equal(row.sequence, i + 1));
-      assert.equal(rows.at(-1).reason, 'stopped');
-      assert.equal(records.filter(row => row.kind === 'external').length, 0);
-      assert.equal(records.filter(row => row.kind === 'action.requested').length, attempts);
-      assert.equal(records.filter(row => row.kind === 'simulation.tick').length, s.tick - initialTick);
-      assert.ok(records.filter(row => row.kind === 'action.requested').every(row => row.action.source === 'agent'));
+  if (recording) try { recorder.finish(); }
+  catch (error) { failure ??= { code: 'recording_window', message: String(error.message).slice(0, 600), tick: s.tick, stage }; }
+  const events = recorder?.events || [];
+  if (recording && !failure) try {
+    recorder.verify({ attempts, commands, gasTicks, actions, initialTick });
       for (const [job, name] of [[loadJob, 'freight.loaded'], [unloadJob, 'freight.unloaded']]) {
         const event = events.find(e => e.id === name && e.entity === job);
         assert.equal(event?.cargo.alloy, 1); assert.equal(event.actor, 'crew-1');
@@ -258,8 +365,8 @@ async function run(label, nearThreshold) {
       }
       if (nearThreshold) { const releases = events.filter(e => e.id === 'crew.suit.released'); assert.equal(releases.length, 1); assert.equal(releases[0].points, 20); assert.equal(releases[0].oxygen, 2); assert.equal(actions.filter(a => a.id === 'crew.routine' && a.args.crew === 'crew-2' && ['work','rest'].includes(a.args.policy)).length, 3); }
       assert.equal(s.shuttle.freight.alloy || 0, 0); assert.equal(t(8, 10).stock.alloy, 1);
-    } catch (error) { failure = { code: 'proof_invariant', message: String(error.message).slice(0, 600), tick: s.tick, stage }; }
-  }
+  } catch (error) { failure = { code: 'proof_invariant', message: String(error.message).slice(0, 600), tick: s.tick, stage }; }
+  const recordingText = recorder ? JSON.stringify(await recorder.freeze(label)) : '';
   const refs = {};
   for (const [name, text] of Object.entries({ operations: JSON.stringify(operations), source: await readFile(new URL(import.meta.url), 'utf8'), actions: JSON.stringify(actions), trace: JSON.stringify(trace), endpoint: s ? serialize(s) : '', recording: recordingText, events: JSON.stringify(events.filter(e => e.id.startsWith('freight.') || e.id.startsWith('airlock.') || e.id === 'crew.suit.released' || e.id === 'gas.extracted')) })) refs[name] = await freeze(`${label}-${name}`, text);
   const summary = { label, strategy: nearThreshold ? 'finite-suit-makeup-and-native-resupply' : 'paused-scrubber-through-cargo', synthetic: true, ordinaryFeasibilityProved: false, ok: !failure, failure, initialTick, tick: s?.tick, addedTicks: s ? s.tick - initialTick : 0, attempts, commands, gasTicks, limits: LIMITS, loadJob, unloadJob, operations, commission: commission?.summary, inputSha256: input ? hash(input) : null, refs };
@@ -267,13 +374,13 @@ async function run(label, nearThreshold) {
   return summary;
 }
 
-test('synthetic native freight round trips with finite operations', async () => {
-  for (const [label, nearThreshold] of [['synthetic-rich-gas-roundtrip', false], ['synthetic-near-threshold-roundtrip', true]]) {
+for (const [label, nearThreshold] of [['synthetic-rich-gas-roundtrip', false], ['synthetic-near-threshold-roundtrip', true]]) {
+  test(`native freight round trip with finite operations (${label})`, async () => {
     const output = await run(label, nearThreshold);
     assert.equal(output.ok, true, JSON.stringify(output.failure));
     assert.ok(output.addedTicks <= LIMITS.ticks && output.attempts <= LIMITS.attempts && output.commands <= LIMITS.commands && output.gasTicks <= LIMITS.gasTicks);
-  }
-});
+  });
+}
 
 // One fixed-resource SYNTHETIC trial: tank deliveries and both cargo rounds use
 // full shared-engine steps. The ordinary colony endpoint is never loaded.
@@ -281,7 +388,7 @@ async function runRepeatedTankCargo() {
   const label = 'synthetic-rich-tank-two-rounds';
   const limits = Object.freeze({ ticks: 260, attempts: 340, commands: 80, gasTicks: 220 });
   const config = { site: 'surface', x: 10, y: 10, chamber: [10, 13], inner: [10, 12], outer: [12, 14], extractor: [10, 13], pump: [10, 15], reservoir: [10, 16], vent: [11, 13] };
-  let s, input, baseline, originalModes, commission, failure = null, stage = 'fixture', recording = false;
+  let s, input, baseline, originalModes, commission, failure = null, stage = 'fixture', recording = false, recorder = null;
   let attempts = 0, commands = 0, gasTicks = 0, initialTick = 0, round = 0, sawPickup = false;
   const actions = [], trace = [], rounds = [], operations = [];
   const t = (x, y) => tileAt(s.sites.surface, x, y);
@@ -326,6 +433,7 @@ async function runRepeatedTankCargo() {
     if (id === 'simulation.step' && activeGas && gasTicks >= limits.gasTicks) stop('gas_tick_limit', '220 gas-active ticks reached.');
     attempts++; if (id !== 'simulation.step') commands++; else if (activeGas) gasTicks++;
     const entry = { tick: s.tick, stage, round, id, args: copy(args) }; actions.push(entry);
+    recorder.beforeAction(`${round}:${stage}`);
     const result = executeAction(s, id, args, 'agent');
     Object.assign(entry, { postTick: s.tick, ok: result.ok, code: result.code, reason: result.reason, message: result.message, job: result.job });
     if (!result.ok) stop('action_rejected', `${id}: ${result.reason || result.code || result.message}`);
@@ -337,11 +445,12 @@ async function runRepeatedTankCargo() {
     s = synthetic(false, true); initialTick = s.tick; input = serialize(s);
     await freeze(`${label}-input`, input);
     assert.equal(s.tick, 0); assert.equal(t(10, 16).building, 'gasTank'); assert.equal(t(10, 16).machine.enabled, false);
-    assert.deepEqual(t(10, 16).machine.input, {}); assert.deepEqual(gasNode(t(10, 16)).gas, { oxygen: 0, inert: 0, co2: 0 });
+    assert.deepEqual(t(10, 16).machine.input, {}); assert.deepEqual(gasNode(t(10, 16)).gas, { oxygen: 0, inert: 0, co2: 0, vapor: 0 });
     baseline = { gas: physicalBalances(s).gas, species: speciesBalance() };
-    startRecording(s, { maxRecords: 20000, maxBytes: 128_000_000 }); recording = true;
+    recorder = freightRecordingWindows(s, { maxRecords: 20000, maxBytes: 128_000_000 }, ['0:commission','0:tank_enable','0:tank_delivery','0:supply_return','1:load','1:unload','1:return','2:load','2:unload','2:return','3:restore'], limits);
+    recorder.begin('0:commission'); recording = true;
     inspect(); stage = 'commission';
-    commission = commissionPaidAirlock(s, { record: false });
+    commission = commissionPaidAirlock(s, { record: false, beforeAction: () => recorder.beforeAction(`${round}:${stage}`) });
     attempts = commission.summary.attempts; commands = commission.summary.commands; gasTicks = commission.summary.gasTicks;
     actions.push(...commission.actions);
     if (!commission.summary.ok) stop('commissioning_failed', JSON.stringify(commission.summary.failure));
@@ -393,17 +502,11 @@ async function runRepeatedTankCargo() {
     assert.deepEqual(modes(), originalModes); assert.equal(t(8, 10).stock.alloy, 1); assert.equal(s.shuttle.freight.alloy || 0, 0);
     stage = 'complete';
   } catch (error) { failure = { code: error.code || 'assertion_or_fixture', message: String(error.message).slice(0, 600), tick: s?.tick, stage, round }; }
-  if (recording) stopRecording(s);
-  const recordingText = recording ? exportRecording(s) : '';
-  const rows = recordingText ? recordingText.trim().split('\n').map(JSON.parse) : [];
-  const events = rows.filter(row => row.kind === 'event').map(row => row.event);
-  if (!failure) try {
-    const records = rows.slice(1, -1);
-    records.forEach((row, i) => assert.equal(row.sequence, i + 1));
-    assert.equal(rows.at(-1).reason, 'stopped'); assert.equal(records.filter(row => row.kind === 'external').length, 0);
-    const requested = records.filter(row => row.kind === 'action.requested');
-    assert.equal(requested.length, attempts); assert.ok(requested.every(row => row.action.source === 'agent'));
-    assert.equal(records.filter(row => row.kind === 'simulation.tick').length, s.tick - initialTick);
+  if (recording) try { recorder.finish(); }
+  catch (error) { failure ??= { code: 'recording_window', message: String(error.message).slice(0, 600), tick: s.tick, stage, round }; }
+  const events = recorder?.events || [];
+  if (recording && !failure) try {
+    recorder.verify({ attempts, commands, gasTicks, actions, initialTick });
     assert.equal(rounds.length, 2); assert.equal(new Set(rounds.flatMap(row => [row.loadJob, row.unloadJob])).size, 4);
     for (const proof of rounds) {
       for (const [job, id] of [[proof.loadJob, 'freight.loaded'], [proof.unloadJob, 'freight.unloaded']]) { const event = events.find(event => event.id === id && event.entity === job); assert.equal(event?.cargo.alloy, 1); assert.equal(event.actor, 'crew-1'); }
@@ -420,6 +523,7 @@ async function runRepeatedTankCargo() {
     assert.equal(events.filter(event => event.id === 'crew.suit.released').length, 0);
     assert.ok(!actions.some(action => action.id === 'production.enable' && action.args.x === 13 && action.args.y === 9 && action.args.enabled));
   } catch (error) { failure = { code: 'proof_invariant', message: String(error.message).slice(0, 600), tick: s.tick, stage, round }; }
+  const recordingText = recorder ? JSON.stringify(await recorder.freeze(label)) : '';
   const refs = {};
   for (const [name, text] of Object.entries({ source: await readFile(new URL(import.meta.url), 'utf8'), actions: JSON.stringify(actions), trace: JSON.stringify(trace), endpoint: s ? serialize(s) : '', recording: recordingText, events: JSON.stringify(events) })) refs[name] = await freeze(`${label}-${name}`, text);
   const summary = { label, synthetic: true, ordinaryFeasibilityProved: false, ok: !failure, failure, stage, initialTick, tick: s?.tick, addedTicks: s ? s.tick - initialTick : 0, attempts, commands, gasTicks, limits, rounds, operations, commission: commission?.summary, inputSha256: input ? hash(input) : null, refs };

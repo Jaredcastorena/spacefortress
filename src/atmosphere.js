@@ -1,3 +1,5 @@
+import { GASES, emptyGas, gasAmount, dryGasAmount, mix, gasPortion, addGas } from './gas-species.js';
+export { GASES, emptyGas, gasAmount, mix } from './gas-species.js';
 import { roomPressure, roomOxygenPressure, roomPressureFactor, gasAtRoomPressure } from './room-pressure.js';
 import {roomKelvin,roomHeatCapacity,roomEqualizeAmount,parcelHeat,roomFillAmount,exportRoomHeat,importRoomHeat,GAS_REFERENCE_KELVIN} from './gas-thermal.js';
 export { GAS_PER_TILE } from './room-pressure.js';
@@ -10,15 +12,10 @@ import { remapThermal } from './thermal.js';
 import { immobile, impaired } from './mobility.js';
 import { airlockDoorPermit, airlockControlOwner } from './airlock-access.js';
 // Game-scale gas units, not a chemistry or engineering model.
-export const GASES = ['oxygen', 'inert', 'co2'];
 export const SUIT_PER_POINT = .1;
-export const emptyGas = () => ({ oxygen: 0, inert: 0, co2: 0 });
-export const gasAmount = gas => GASES.reduce((n, k) => n + gas[k], 0);
-export const mix = amount => ({ oxygen: amount * .21, inert: amount * .79, co2: 0 });
 const key = (x, y) => `${x},${y}`;
 const adjacent = neighbors;
 const at = (site,x,y,z=0) => tileAt(site,{x,y,z});
-const addGas = (to, gas, factor = 1) => { for (const k of GASES) to[k] += gas[k] * factor; };
 export function initializeAtmosphere(site) {
   if (!site.atmosphere) site.atmosphere = { tick: 0, vented: emptyGas(), injected: emptyGas(), breathed: 0, refilled: 0 };
   for (const t of site.tiles) if (t.building === 'door') { t.doorMode ??= 'auto'; t.doorUntil ??= 0; }
@@ -27,7 +24,7 @@ export function refreshRoom(r) {
   const amount = gasAmount(r.gas);
   r.pressure = roomPressure(r);
   r.oxygenFraction = amount ? r.gas.oxygen / amount : 0;
-  r.co2Fraction = amount ? r.gas.co2 / amount : 0;
+  r.co2Fraction = dryGasAmount(r.gas) ? r.gas.co2 / dryGasAmount(r.gas) : 0;
   r.air = Math.max(0, Math.min(100, r.pressure, roomOxygenPressure(r) / .21 * 100, (1 - r.co2Fraction / .04) * 100));
   if ((r.smoke||0)/r.volume>=FIRE.smokeLimit)r.air=0;
   if (r.pressure > 150 || roomOxygenPressure(r) > .3) r.air = 0;
@@ -43,7 +40,7 @@ export function breathingBlock(r) {
   if (!(pressure <= 150)) return 'high_pressure';
   if (!(oxygenPressure >= minimumOxygenPressure)) return 'low_oxygen';
   if (!(oxygenPressure <= .3)) return 'high_oxygen';
-  const amount=gasAmount(r.gas),co2Fraction=amount?r.gas.co2/amount:0;
+  const amount=dryGasAmount(r.gas),co2Fraction=amount?r.gas.co2/amount:0;
   if (!(co2Fraction <= .02)) return 'high_co2';
   return null;
 }
@@ -171,7 +168,7 @@ function flow(site, links) {
     const total = gasAmount(snapshot[a]);
     const moved = amount * Math.min(1, total * .5 / outgoing[a]);
     const portion = moved / total;
-    const heat=parcelHeat(moved,kelvins[a]);site.rooms[a].heat-=heat;
+    const heat=parcelHeat(gasPortion(snapshot[a],moved),kelvins[a]);site.rooms[a].heat-=heat;
     if(b===null)site.thermal.gasVented+=heat;else site.rooms[b].heat+=heat;
     addGas(site.rooms[a].gas, snapshot[a], -portion);
     const smoke=smokeSnapshot[a]*portion;site.rooms[a].smoke-=smoke;if(b===null){if(site.fireSafety)site.fireSafety.smokeVented+=smoke;}else site.rooms[b].smoke+=smoke;
@@ -212,9 +209,9 @@ export function updateAtmosphere(s) {
 // rounds outward, reduce the transfer rather than repairing stored gas afterward.
 function safeOxygenBudget(r, requested, breathing) {
   if (!breathable(r)) return 0;
-  const amount = gasAmount(r.gas);
+  const amount = gasAmount(r.gas),dryAmount=dryGasAmount(r.gas);
   const maximum = Math.max(0, Math.min(requested, r.gas.oxygen - gasAtRoomPressure(r,16),
-    breathing ? amount * .02 - r.gas.co2 : amount - r.gas.co2 / .02,
+    breathing ? dryAmount * .02 - r.gas.co2 : dryAmount - r.gas.co2 / .02,
     breathing ? Infinity : amount - gasAtRoomPressure(r,55)));
   const safe = transfer => {
     const probe = { ...r, gas: { ...r.gas, oxygen: r.gas.oxygen - transfer,
@@ -275,7 +272,7 @@ export function breatheBatch(site, crew) {
     const requested = occupants.reduce((sum, entry) => sum + request(entry), 0);
     const refilled = shareOxygen(occupants, 'refillOxygen', safeOxygenBudget(r, requested, false), request);
     for (const { c, result } of occupants) c.oxygen = Math.min(100, c.oxygen + result.refillOxygen / SUIT_PER_POINT);
-    exportRoomHeat(site,r,refilled,{boundary:true});r.gas.oxygen -= refilled; site.atmosphere.refilled += refilled;
+    exportRoomHeat(site,r,{...emptyGas(),oxygen:refilled},{boundary:true});r.gas.oxygen -= refilled; site.atmosphere.refilled += refilled;
     refreshRoom(r);
   }
   return new Map(entries.map(({ c, result }) => [c.id, result]));

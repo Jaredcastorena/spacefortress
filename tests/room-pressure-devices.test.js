@@ -9,10 +9,14 @@ import { initializeGasTile, gasNode, gasPressure, gasStatus, updateGasNetworks }
 import { suitReleaseStatus } from '../src/suit-release-status.js';
 import { releaseSuitOxygen } from '../src/suit-supply.js';
 import { tileAt } from '../src/spatial.js';
+import { initializeElectrical, initializePower, updatePower, refreshPower } from '../src/power.js';
+import { availablePowerWork } from '../src/power-work.js';
+import { validateGasWork } from '../src/gas-compression.js';
 
 const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-8, `${a} != ${b}`);
 // Synthetic finite subsystem boundary: only temperature, existing gas and installed
-// equipment are specified. Each assertion measures native transfers from there.
+// equipment and one finite 12-unit bank are specified before acceptance.
+// Each operating assertion uses native paid allocation on the actual deck.
 function heat(site, room, factor) {
   const value = roomHeatCapacity(room) * REFERENCE_KELVIN * factor;
   const delta = value - room.heat;
@@ -33,13 +37,30 @@ function fixture({ building = 'gasVent', factor = 1, upper = false } = {}) {
   }
   const z = upper ? 1 : 0, tile = tileAt(site, { x: 11, y: 9, z });
   assert.equal(tile.building, null);
-  tile.building = building; tile.hp = 100; tile.powered = true;
-  initializeGasTile(tile);
+  for(const current of site.tiles){
+    if(current.machine)current.machine.enabled=false;
+    if(current.climate)current.climate.enabled=false;
+    if(current.gasDevice)current.gasDevice.enabled=false;
+    if(current.building==='solar')current.hp=0;
+  }
+  tile.building = building; tile.hp = 100;
+  initializeElectrical(tile);initializeGasTile(tile);
+  const bank=tileAt(site,{x:12,y:9,z});assert.equal(bank.building,null);
+  bank.building='battery';bank.hp=100;initializeElectrical(bank);
+  initializePower(s,site,0);bank.charge=12;site.energy.initial+=12;refreshPower(s,site);
+  assert.equal(tile.powered,true,'the same-deck finite bank can fund this device');
   if (building === 'gasExtractor') tile.gasDevice.mode = 'exhaust';
   const room = roomAt(site, tile.x, tile.y, z), c = s.crew[0];
   Object.assign(c, { x: tile.x, y: tile.y, z, oxygen: 20 });
   heat(site, room, factor);
   return { s, site, tile, room, c };
+}
+function paidGasPass(s,site,tile){
+  const allocated=tile.building==='gasVent'?2:3,bank=tileAt(site,{x:12,y:9,z:tile.z??0});
+  const charge=bank.charge,consumed=site.energy.consumed,before=site.gasWork.allocated;
+  updatePower(s,site);close(availablePowerWork(s,site,tile),allocated);
+  updateGasNetworks(s);close(bank.charge,charge-allocated);close(site.energy.consumed-consumed,allocated);
+  close(site.gasWork.allocated-before,allocated);close(availablePowerWork(s,site,tile),0);validateGasWork(s);
 }
 const combined = (room, tile) => Object.fromEntries(GASES.map(k => [k, room.gas[k] + gasNode(tile).gas[k]]));
 function conserved(before, room, tile) {
@@ -56,12 +77,12 @@ for (const factor of [.5, 2]) test(`vent reaches its pressure target at temperat
   assert.equal(gasStatus(site, tile).blocked, null);
   assert.deepEqual(s, state, 'readiness must remain pure despite stale pressure');
   close(pipePressure, 160, 'supplied gas begins at reference temperature');
-  updateGasNetworks(s);
+  paidGasPass(s,site,tile);
   const moved=gasAmount(room.gas)-initialAmount;close(roomPressure(room),100);
   assert.ok(moved>0&&moved*1.25<=2);assert.ok(factor<1?moved<.75:moved>.75,'inlet heat changes the finite gas requirement');
   close(gasAmount(tile.gasStore.gas),4-moved);close(room.smoke,moved/4);
-  close(room.smoke+tile.gasStore.smoke,1);close(room.heat+tile.gasStore.heat,storedHeat+storedGasHeat);
-  close(room.heat-storedHeat,parcelHeat(moved,REFERENCE_KELVIN));
+  close(room.smoke+tile.gasStore.smoke,1);close(room.heat+tile.gasStore.heat,storedHeat+storedGasHeat+2);
+  close(room.heat-storedHeat,parcelHeat(moved,REFERENCE_KELVIN)+2);
   conserved(before, room, tile);
   assert.match(gasStatus(site, tile).blocked, /target pressure/);
   const stopped = structuredClone(room.gas); updateGasNetworks(s); assert.deepEqual(room.gas, stopped);
@@ -73,12 +94,17 @@ for (const factor of [.5, 2]) test(`exhaust reaches its pressure target at tempe
   room.gas = mix(total); room.smoke = total / 4; room.pressure = 0;heat(site,room,factor);
   const before = combined(room, tile), storedHeat = room.heat, smoke = room.smoke, state = structuredClone(s);
   assert.equal(gasStatus(site, tile).blocked, null); assert.deepEqual(s, state);
-  updateGasNetworks(s);
-  close(gasAmount(room.gas), target); close(roomPressure(room), 100);
-  close(gasAmount(tile.gasStore.gas), .75); close(tile.gasStore.smoke, .1875);
-  close(room.smoke+tile.gasStore.smoke,smoke);close(room.heat+tile.gasStore.heat,storedHeat);
-  close(roomKelvin(room),REFERENCE_KELVIN*factor);close(nodeKelvin(tile.gasStore),REFERENCE_KELVIN*factor);
-  close(tile.gasStore.heat,parcelHeat(.75,REFERENCE_KELVIN*factor));
+  paidGasPass(s,site,tile);
+  // Final source temperature includes retained paid motor heat. The pressure
+  // target remains exact; fixed .75 removal is no longer the same boundary.
+  const finalTarget=gasAtRoomPressure(room,100),moved=total-finalTarget,work=site.gasWork.work,motor=3-work;
+  close(gasAmount(room.gas),finalTarget);close(roomPressure(room),100);
+  assert.ok(moved>.75&&moved*1.25<=2,'source motor heat requires a finite extra withdrawal within the original cap');
+  close(gasAmount(tile.gasStore.gas),moved);close(tile.gasStore.smoke,moved/4);
+  close(room.smoke+tile.gasStore.smoke,smoke);close(room.heat+tile.gasStore.heat,storedHeat+3);
+  close(roomKelvin(room),REFERENCE_KELVIN*factor+motor/roomHeatCapacity(room));
+  close(nodeKelvin(tile.gasStore),REFERENCE_KELVIN*factor+work/(GAS_HEAT_CAPACITY*moved));
+  close(tile.gasStore.heat,parcelHeat(moved,REFERENCE_KELVIN*factor)+work);
   conserved(before, room, tile);
   assert.match(gasStatus(site, tile).blocked, /target pressure/);
 });
@@ -90,7 +116,7 @@ test('temperature-dependent target conversions preserve physical vent and exhaus
     room.gas = mix(target + (building === 'gasVent' ? -10 : 10)); room.smoke = 0;heat(site,room,2);
     if (building === 'gasVent') supply(site,tile,4);
     const before = gasAmount(room.gas);
-    updateGasNetworks(s);
+    paidGasPass(s,site,tile);
     close(Math.abs(gasAmount(room.gas) - before), 2);
   }
 });
@@ -99,16 +125,25 @@ test('zero-K room venting uses finite warm gas and exhaust requires no gas remov
   for (const building of ['gasVent', 'gasExtractor']) {
     const { s, site, tile, room } = fixture({ building, factor: 0 });
     supply(site,tile,4);room.pressure=100;
-    const initial=structuredClone(s),before=combined(room,tile),heatBefore=room.heat+tile.gasStore.heat;
+    // Test the zero-K/zero-target guard while the physical room is still at 0 K,
+    // before a paid blocked drive legitimately warms it without moving gas.
+    close(roomPressure(room),0);assert.equal(room.heat,0);assert.equal(gasAtRoomPressure(room,100),null);
+    tile.gasDevice.target=0;assert.match(gasStatus(site,tile).blocked,/target pressure/);tile.gasDevice.target=100;
+    const initial=structuredClone(s),before=combined(room,tile),heatBefore=room.heat+tile.gasStore.heat,gasBefore=gasAmount(room.gas);
     if(building==='gasVent')assert.equal(gasStatus(site,tile).blocked,null);
     else assert.match(gasStatus(site,tile).blocked,/target pressure/);
-    assert.deepEqual(s,initial);updateGasNetworks(s);conserved(before,room,tile);
-    close(room.heat+tile.gasStore.heat,heatBefore);
+    assert.deepEqual(s,initial);paidGasPass(s,site,tile);conserved(before,room,tile);
+    close(room.heat+tile.gasStore.heat,heatBefore+(building==='gasVent'?2:3));
     if(building==='gasVent'){
-      close(gasAmount(tile.gasStore.gas),2);close(room.heat,parcelHeat(2,REFERENCE_KELVIN));
+      close(gasAmount(tile.gasStore.gas),2);close(room.heat,parcelHeat(2,REFERENCE_KELVIN)+2);
       assert.ok(roomPressure(room)>0&&roomPressure(room)<100);assert.ok(Number.isFinite(roomKelvin(room)));
-    }else{close(gasAmount(tile.gasStore.gas),4);close(roomPressure(room),0);assert.equal(room.heat,0);}
-    tile.gasDevice.target=0;assert.match(gasStatus(site,tile).blocked,/target pressure/);
+      tile.gasDevice.target=0;assert.match(gasStatus(site,tile).blocked,/target pressure/);
+    }else{
+      close(gasAmount(tile.gasStore.gas),4);close(gasAmount(room.gas),gasBefore);
+      close(room.heat,3);close(site.gasWork.work,0);close(site.gasWork.motorRoom,3);
+      close(roomKelvin(room),3/roomHeatCapacity(room));assert.ok(roomPressure(room)>0&&roomPressure(room)<100);
+      assert.match(gasStatus(site,tile).blocked,/target pressure/);
+    }
   }
 });
 
@@ -146,15 +181,15 @@ test('upper-floor vent and suit release use upper temperature and retain upper d
   const ground = roomAt(site, tile.x, tile.y, 0), lower = structuredClone(ground);
   room.gas = mix(gasAtRoomPressure(room, 100) - .75); room.smoke = 0;heat(site,room,2);
   const initialAmount=gasAmount(room.gas),initialHeat=room.heat,initialCapacity=roomHeatCapacity(room);
-  supply(site,tile,.4);updateGasNetworks(s);close(gasAmount(room.gas),initialAmount+.4);close(tile.gasStore.heat,0);
+  supply(site,tile,.4);paidGasPass(s,site,tile);close(gasAmount(room.gas),initialAmount+.4);close(tile.gasStore.heat,0);
   const status = suitReleaseStatus(s, c.id);
   assert.equal(status.maxPoints, 3);
   assert.equal(status.destination.tile, 'tile:surface:11:9:1');
   assert.equal(status.destination.room, 'room:surface:7,7:1');
   assert.equal(executeAction(s, 'crew.suit.release', { crew: c.id, points: 3 }).ok, true);
   assert.deepEqual(ground, lower);
-  close(gasAmount(room.gas),initialAmount+.7);close(room.heat,initialHeat+parcelHeat(.7,REFERENCE_KELVIN));
-  const finalKelvin=(initialHeat+parcelHeat(.7,REFERENCE_KELVIN))/(initialCapacity+GAS_HEAT_CAPACITY*.7);
+  close(gasAmount(room.gas),initialAmount+.7);close(room.heat,initialHeat+parcelHeat(.7,REFERENCE_KELVIN)+2);
+  const finalKelvin=(initialHeat+parcelHeat(.7,REFERENCE_KELVIN)+2)/(initialCapacity+GAS_HEAT_CAPACITY*.7);
   close(roomPressure(room),100*(initialAmount+.7)/(10*room.volume)*finalKelvin/REFERENCE_KELVIN);
   assert.ok(roomPressure(room)<=100);assert.equal(suitReleaseStatus(s,c.id).maxPoints,0);
   refreshAtmosphere(site); assert.deepEqual(ground, lower);

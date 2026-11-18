@@ -8,8 +8,10 @@ import {initializePlumbingTile, newWaterPipe, setWaterIntake, setWaterOutlet} fr
 import {wetCable} from '../src/liquids.js';
 import {haul, setMachineEnabled} from '../src/industry.js';
 import {setProductionOrder} from '../src/production.js';
+import {vaporWaterExports} from './helpers/vapor-accounting.js';
 
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-7,`${a} != ${b}`);
+const waterBalance=(s,site)=>totalResources(s).water+site.liquids.lost+site.liquids.quenched+vaporWaterExports(s);
 function until(s,p,limit=120){for(let i=0;i<limit&&!p();i++)step(s);assert.ok(p(),`Condition not reached at tick ${s.tick}`);}
 function balance(s,site){
  const e=site.energy,stored=site.tiles.reduce((sum,t)=>sum+(t.building==='battery'?t.charge:0),0);
@@ -57,13 +59,13 @@ function discharge(f){
 }
 
 test('a real water discharge trips its branch, preserves life support, and permits supplied production after flow is stopped and the contact reset',()=>{
- const f=fixture(),{s,site,breaker,life,factory,wet}=f,water=totalResources(s).water;discharge(f);
+ const f=fixture(),{s,site,breaker,life,factory,wet}=f,water=waterBalance(s,site);discharge(f);
  const energy=site.liquids.faultEnergy,hp=wet.cable.hp,cleared=site.fireSafety.smokeCleared;
  assert.equal(breakerConditions(s,site,breaker).wouldTrip,true);step(s);
  assert.equal(breaker.protection.tripped,true);assert.equal(breaker.protection.cause,'wet_fault');
  assert.equal(life.powered,true);assert.equal(factory.powered,false);assert.equal(wet.cable.enabled,true);
  assert.ok(site.fireSafety.smokeCleared>cleared,'Powered life support must still perform filtration');
- close(site.liquids.faultEnergy,energy);close(wet.cable.hp,hp);close(totalResources(s).water+site.liquids.lost+site.liquids.quenched,water);
+ close(site.liquids.faultEnergy,energy);close(wet.cable.hp,hp);close(waterBalance(s,site),water);
  assert.equal(factory.machine.completed,0);assert.deepEqual(factory.machine.batch,{});
  assert.ok(setWaterIntake(s,'surface',10,10,false,'n','inventory').ok);
  assert.ok(setWaterOutlet(s,'surface',11,8,false,'se','floor').ok);
@@ -76,7 +78,7 @@ test('a real water discharge trips its branch, preserves life support, and permi
  const worker=s.crew[1];worker.labors.production=true;until(s,()=>factory.machine.completed===1);
  close(factory.machine.output.alloy,2);close(totalResources(s).alloy,alloy+2);close(totalResources(s).ore,0);
  assert.equal(breaker.protection.tripped,false);assert.equal(life.powered,true);close(site.liquids.faultEnergy,energy);
- close(totalResources(s).water+site.liquids.lost+site.liquids.quenched,water);balance(s,site);check(s);
+ close(waterBalance(s,site),water);balance(s,site);check(s);
 });
 
 test('a physical bypass keeps a flooded branch powered and manual opening never disables remote cable',()=>{
@@ -96,10 +98,10 @@ test('a physical bypass keeps a flooded branch powered and manual opening never 
 test('a downstream battery continues supplying a real wet fault after its upstream breaker trips',()=>{
  const f=fixture(),{s,site,breaker,wet,life,factory}=f;discharge(f);
  const bank=install(s,'battery',13,11);bank.charge=20;site.energy.injected+=20;refreshPower(s,site);
- const before=site.liquids.faultEnergy,hp=wet.cable.hp,charge=bank.charge,water=totalResources(s).water;
+ const before=site.liquids.faultEnergy,hp=wet.cable.hp,charge=bank.charge,water=waterBalance(s,site);
  assert.equal(breakerConditions(s,site,breaker).wouldTrip,true);step(s);
  assert.equal(breaker.protection.tripped,true);assert.equal(life.powered,true);assert.equal(factory.powered,true);
  close(site.liquids.faultEnergy-before,5);close(wet.cable.hp,hp-.25);close(bank.charge,charge-10);
  assert.equal(wet.cable.enabled,true);assert.ok(breakerConditions(s,site,breaker).sourceEntities.includes('tile:surface:13:11'));
- close(totalResources(s).water+site.liquids.lost+site.liquids.quenched,water);balance(s,site);check(s);
+ close(waterBalance(s,site),water);balance(s,site);check(s);
 });

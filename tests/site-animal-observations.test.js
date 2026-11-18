@@ -45,7 +45,7 @@ function fixture() {
 
 test('observations expose canonical sector metadata and separate same-coordinate pastures without mutation',()=>{
   const f=fixture(),before=digest(f.s),o=observe(f.s);
-  assert.equal(TELEMETRY_VERSION,12);assert.equal(o.schemaVersion,TELEMETRY_VERSION);
+  assert.equal(TELEMETRY_VERSION,16);assert.equal(o.schemaVersion,TELEMETRY_VERSION);
   assert.deepEqual(o.entities[`site:${f.site.id}`].definition,siteDefinition(f.s,f.site.id));
   assert.deepEqual(o.entities[`site:${f.site.id}`].definition.sector,f.definition.sector);
   assert.deepEqual(o.entities[`site:${f.site.id}`].definition.landing,f.definition.landing);

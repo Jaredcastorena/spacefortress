@@ -5,7 +5,7 @@ import {executeAction} from '../src/controls.js';
 import {positionOf, tileAt} from '../src/spatial.js';
 import {totalResources, syncResources} from '../src/inventory.js';
 import {itemOwners} from '../src/item-lots.js';
-import {startRecording, exportRecording, observe} from '../src/telemetry.js';
+import {startRecording, stopRecording, exportRecording, observe} from '../src/telemetry.js';
 import {injure} from '../src/medicine.js';
 
 const act=(s,id,args={})=>{const r=executeAction(s,id,args);assert.equal(r.ok,true,`${id}: ${r.message}`);return r;};
@@ -22,14 +22,25 @@ function recruit(s){act(s,'population.contact');act(s,'population.respond',{offe
 // Native player actions, original supplies and ordinary ticks only. No spawned equipment,
 // granted resources, moved people, repaired health or changed needs in this scenario.
 test('a newcomer lands, eats finite food, owns a bunk and manufactures through paid industry',()=>{
-  const s=createGame(74251);quietIndustry(s);startRecording(s);
+  const s=createGame(74251);quietIndustry(s);
+  const windowLimits={maxRecords:2000,maxBytes:16_000_000},recordedRows=[];let recordedTicks=0,firstHeader;
+  const finishWindow=(restart=true)=>{
+   const chunk=exportRecording(s).trim().split('\n').map(JSON.parse),footer=chunk.at(-1);
+   assert.equal(footer.active,true,`Recording through tick ${s.tick} incomplete: ${footer.reason}`);assert.equal(footer.reason,null);assert.equal(footer.throughTick,s.tick);
+   firstHeader??=chunk[0];recordedRows.push(...chunk.filter(row=>row.event||row.action));
+   if(restart){assert.equal(startRecording(s,windowLimits).active,true);recordedTicks=0;}else stopRecording(s);
+  };
+  const recordedStep=(ticks=1)=>{for(let n=0;n<ticks;n++){step(s);if(++recordedTicks===4)finishWindow();}};
+  assert.equal(startRecording(s,windowLimits).active,true);
+  const recordedEvents=()=>{finishWindow();return recordedRows.filter(row=>row.event).map(row=>row.event);};
+  const untilRecorded=(label,p,limit=180)=>{for(let n=0;n<limit&&!p();n++)recordedStep();assert.ok(p(),`${label} missing at tick ${s.tick}: ${s.crew.at(-1).activity}`);};
   for(const c of s.crew)act(s,'crew.labor',{crew:c.id,labor:'production',enabled:false});
   const before=totalResources(s);
   for(const [x,building] of [[11,'toolbench'],[12,'galley']])act(s,'job.order',{site:'surface',x,y:8,z:0,kind:'build',building});
   recruit(s);
   let configured=0;
   for(let n=0;n<30;n++){
-    step(s);
+    recordedStep();
     for(const [index,x] of [11,12].entries())if(!(configured&(1<<index))&&at(s,x,8).machine){
       act(s,'production.order',{site:'surface',x,y:8,z:0,mode:'batches',limit:1});configured|=1<<index;
     }
@@ -37,17 +48,17 @@ test('a newcomer lands, eats finite food, owns a bunk and manufactures through p
   assert.equal(configured,3,'both paid workstations constructed before landing');
   const c=s.crew[7];assert.equal(c.id,'crew-7');assert.equal(s.crew.length,8);
   assert.equal(c.health,100);assert.equal(c.site,'surface');
-  const arrivals=events(s).filter(e=>e.id==='crew.arrived');assert.equal(arrivals.length,1);
+  const arrivals=recordedEvents().filter(e=>e.id==='crew.arrived');assert.equal(arrivals.length,1);
   assert.deepEqual(arrivals[0].landing,{x:16,y:11,z:0});assert.equal(arrivals[0].actor,c.id);
   assert.equal(arrivals[0].target,'tile:surface:16:11');
   act(s,'housing.assign',{site:'surface',x:9,y:7,z:0,crew:c.id});
   exact(s);
-  until(s,'newcomer finishes first meal',()=>c.hunger>35&&c.intent?.type!=='meal',70);
+  untilRecorded('newcomer finishes first meal',()=>c.hunger>35&&c.intent?.type!=='meal',70);
   assert.ok(c.hunger>35);assert.ok(c.x!==16||c.y!==11,'walked away from the landing pad');
-  const portions=events(s).filter(e=>e.id==='meal.portion.eaten'&&e.actor===c.id);
+  const portions=recordedEvents().filter(e=>e.id==='meal.portion.eaten'&&e.actor===c.id);
   assert.equal(portions.reduce((sum,e)=>sum+e.food,0),1,'eight finite portions consumed');
-  until(s,'newcomer completes both production batches',()=>at(s,11,8).machine.completed===1&&at(s,12,8).machine.completed===1,180);
-  for(const id of ['tool.crafted','meal.prepared'])assert.ok(events(s).some(e=>e.id===id&&e.actor===c.id),id);
+  untilRecorded('newcomer completes both production batches',()=>at(s,11,8).machine.completed===1&&at(s,12,8).machine.completed===1,180);
+  for(const id of ['tool.crafted','meal.prepared'])assert.ok(recordedEvents().some(e=>e.id===id&&e.actor===c.id),id);
   assert.equal(totalResources(s).alloy,before.alloy-14);assert.equal(totalResources(s).components,before.components-3);
   assert.ok(totalResources(s).food<=before.food-1,'cooking did not create extra rations');
   assert.deepEqual(c.housing.bunk,{x:9,y:7,z:0});
@@ -60,9 +71,9 @@ test('a newcomer lands, eats finite food, owns a bunk and manufactures through p
     forge(bad);assert.ok(changed,`${field} maker exists`);assert.throws(()=>deserialize(JSON.stringify(bad)),/meal|item|provenance/i);
   }
   for(const peer of s.crew)act(s,'crew.routine',{crew:peer.id,policy:'rest'});
-  until(s,'newcomer forms a social bond',()=>Object.values(c.relationships).some(b=>b.interactions>0),90);
+  untilRecorded('newcomer forms a social bond',()=>Object.values(c.relationships).some(b=>b.interactions>0),90);
   const [peerId,bond]=Object.entries(c.relationships).find(([,b])=>b.interactions>0);
-  assert.ok(bond.affinity>0);assert.ok(s.crew.find(peer=>peer.id===peerId).relationships[c.id].interactions>0);exact(s);
+  assert.ok(bond.affinity>0);assert.ok(s.crew.find(peer=>peer.id===peerId).relationships[c.id].interactions>0);exact(s);finishWindow(false);
 });
 
 test('a recruited patient uses a paid cot and existing medicine custody',()=>{

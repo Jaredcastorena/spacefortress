@@ -1,3 +1,4 @@
+import {loadWater} from '../src/water-thermal.js';
 import test from 'node:test';
 import { DIRECTIONS, step as hexStep, opposite } from '../src/geometry.js';
 import assert from 'node:assert/strict';
@@ -84,7 +85,7 @@ test('an external bypass remains live after manual opening and cannot be falsely
   const { s, site } = grid(), bank = device(site, 4, 6, 'battery', 30);
   const b = breaker(site, 5, 5, 'ne', true, 'wet_fault'), load = device(site, 6, 5, 'farm');
   for (const x of [4, 5, 6]) wire(site, x, 6);
-  const fault = at(site, 6, 6); fault.liquid = .25;
+  const fault = at(site, 6, 6); loadWater(site,fault,.25,{floor:true});site.liquids.released+=.25;
   refreshPower(s, site);
   const status = breakerConditions(s, site, b);
   assert.equal(status.bypassed, true); assert.equal(status.blocked, 'bypassed'); assert.equal(status.wouldTrip, false);
@@ -184,8 +185,8 @@ test('physical breaker repair preserves requested contact and trip state without
 
 test('no-breaker topology and allocator retain deterministic hex BFS, fault order, life-support tie and disabled-overlay behavior', () => {
   const { s, site } = grid();
-  device(site, 1, 1, 'solar'); const firstFault = wire(site, 2, 1); firstFault.liquid = .25;
-  const firstBank = device(site, 3, 1, 'battery', 2), secondFault = wire(site, 2, 2); secondFault.liquid = .25;
+  device(site, 1, 1, 'solar'); const firstFault = wire(site, 2, 1); loadWater(site,firstFault,.25,{floor:true});site.liquids.released+=.25;
+  const firstBank = device(site, 3, 1, 'battery', 2), secondFault = wire(site, 2, 2); loadWater(site,secondFault,.25,{floor:true});site.liquids.released+=.25;
   device(site, 4, 1, 'farm');
   device(site, 10, 1, 'solar'); const refinery = device(site, 11, 1, 'refinery'), scrubber = device(site, 12, 1, 'scrubber');
   scrubber.powerPriority = 3; device(site, 13, 1, 'farm'); const chargingBank = device(site, 11, 2, 'battery');

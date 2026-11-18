@@ -1,3 +1,4 @@
+import { beginJourneyRecording, journeyStep as step } from './helpers/journey-recording-windows.js';
 import { distance } from '../src/geometry.js';
 import { roomHeatCapacity } from '../src/gas-thermal.js';
 import { currentOutpost as field } from './helpers/current-outpost.js';
@@ -5,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
-import { createGame, at, step, serialize, deserialize, updateRooms, recall } from '../src/simulation.js';
+import { createGame, at, serialize, deserialize, updateRooms, recall } from '../src/simulation.js';
 import { setReturnCrew } from '../src/expedition.js';
 import { add, extract, initializeStorage, syncResources, totalResources, resourceEntries } from '../src/inventory.js';
 import { initializeElectrical, refreshPower } from '../src/power.js';
@@ -94,7 +95,7 @@ test('a prior resident is physically rescued for pickup while the resident helpe
   p.x = 10; p.y = 10; helper.x = 9; helper.y = 10; injure(s, p, 65, 'test impact'); p.medical.bed = { x: 10, y: 10, z: 0 };
   assert.equal(arrivals.includes(p.id), false);
   assert.ok(setReturnCrew(s, [arrivals[0], p.id]).ok); assert.ok(s.outposts.wreck.residents.includes(p.id));
-  startRecording(s); assert.ok(recall(s).ok);
+  const recorder = beginJourneyRecording(s, { tickLimit: 326, stageLimit: 2, stage: 'rescue', event: e => e.id.startsWith('care.rescue.') }); assert.ok(recall(s).ok);
   until(s, () => carriedBy(s, p)); assert.equal(p.site, 'wreck'); assert.equal(carriedBy(s, p), helper);
   const carried = checkpoint(s); step(s); step(carried); assert.deepEqual(carried, s);
   until(s, () => s.mission?.phase === 'returning');
@@ -102,10 +103,11 @@ test('a prior resident is physically rescued for pickup while the resident helpe
   assert.equal(p.site, 'transit'); assert.equal(p.medical.bed, null); assert.equal(helper.rescue, null);
   assert.equal(helper.site, 'wreck'); assert.equal(stayingArrival.site, 'wreck');
   assert.deepEqual(s.outposts.wreck.residents, [helper.id, stayingArrival.id]);
-  const delivered = events(s).filter(e => e.id === 'care.rescue.delivered' && e.entity === p.id);
+  const delivered = recorder.checkpoint('return').filter(row => row.event).map(row => row.event).filter(e => e.id === 'care.rescue.delivered' && e.entity === p.id);
   assert.equal(delivered.length, 1); assert.equal(delivered[0].reason, 'patient_boarded'); assert.equal(delivered[0].site, 'site:wreck');
   const copy = checkpoint(s); step(s, 25); step(copy, 25); assert.deepEqual(copy, s);
   assert.equal(s.mission, null); assert.equal(p.site, 'surface'); assert.equal(helper.site, 'wreck');
+  recorder.finish();
 });
 
 test('remote feeding and treatment physically consume local finite rations and medicine, surviving reload', () => {
@@ -138,7 +140,7 @@ test('local shortages cannot borrow surface food or medicine for a dependent res
 
 test('resident rescuer carries a stranded patient to local shelter without an absent shuttle', () => {
   const { s, site, p, helper } = clinic(); p.x = 5; p.y = 10; injure(s, p, 65, 'test impact');
-  startRecording(s); assert.equal(s.mission, null);
+  const recorder = beginJourneyRecording(s, { tickLimit: 313, stage: 'shelter', event: e => e.id.startsWith('care.rescue.') }); assert.equal(s.mission, null);
   until(s, () => carriedBy(s, p));
   assert.equal(carriedBy(s, p), helper); const before = [p.x, p.y]; step(s);
   assert.ok(distance([p.x,p.y],before) <= 1);
@@ -146,7 +148,7 @@ test('resident rescuer carries a stranded patient to local shelter without an ab
   const copy = checkpoint(s); step(s, 12); step(copy, 12); assert.deepEqual(copy, s);
   until(s, () => atCot(s, p) && !carriedBy(s, p));
   assert.deepEqual([p.x, p.y], [10, 10]); assert.ok(breathable(roomAt(site, p.x, p.y)));
-  const rescueEvents = events(s).filter(e => e.id.startsWith('care.rescue.'));
+  const rescueEvents = recorder.finish().filter(row => row.event).map(row => row.event).filter(e => e.id.startsWith('care.rescue.'));
   assert.deepEqual(rescueEvents.map(e => e.id), ['care.rescue.assigned', 'care.rescue.picked_up', 'care.rescue.delivered']);
   for (const e of rescueEvents) { assert.equal(e.entity, p.id); assert.equal(e.actor, helper.id); assert.equal(e.site, 'site:wreck'); }
   assert.equal(rescueEvents.at(-1).reason, 'cot_reached');

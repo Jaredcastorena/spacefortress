@@ -10,11 +10,11 @@ import { createGame, at, step, serialize, deserialize, dischargeCell, cancelJob 
 import { executeAction } from '../src/controls.js';
 import { initializeElectrical, refreshPower, releaseBatteryEnergy, CELL_CHARGE } from '../src/power.js';
 import { initializeStorage, syncResources, totalResources } from '../src/inventory.js';
-import { startRecording, exportRecording } from '../src/telemetry.js';
+import { startRecording, stopRecording, exportRecording } from '../src/telemetry.js';
 import { VERSION } from '../src/data.js';
 
-const until = (s, label, predicate, limit = 800) => {
-  for (let n = 0; n < limit && !predicate(); n++) step(s);
+const until = (s, label, predicate, limit = 800, advance = step) => {
+  for (let n = 0; n < limit && !predicate(); n++) advance(s);
   assert.ok(predicate(), label);
 };
 function bankReady(s) {
@@ -25,20 +25,39 @@ function bankReady(s) {
   return { site, bank, depot };
 }
 
+function completeWindowRows(s, fromTick) {
+  stopRecording(s);
+  const parsed = exportRecording(s).trim().split('\n').map(JSON.parse);
+  const header = parsed[0], footer = parsed.at(-1), records = parsed.slice(1, -1);
+  assert.equal(header.kind, 'header'); assert.equal(header.initialState.tick, fromTick);
+  assert.equal(footer.kind, 'footer'); assert.equal(footer.reason, 'stopped'); assert.equal(footer.active, false);
+  assert.equal(footer.throughTick, s.tick); assert.equal(footer.records, records.length); assert.equal(footer.lastSequence, records.length);
+  assert.equal(footer.maxRecords, 2000); assert.equal(footer.maxBytes, 16_000_000);
+  assert.ok(footer.records <= footer.maxRecords && footer.bytes <= footer.maxBytes);
+  assert.ok(s.tick - fromTick <= 4, 'at most four ticks per original-budget window');
+  assert.equal(records.filter(r => r.kind === 'simulation.tick').length, s.tick - fromTick);
+  records.forEach((r, i) => assert.equal(r.sequence, i + 1));
+  return records;
+}
+
 test('installation reserves one cell and injects 100 kJ only when haulers finish', () => {
   const s = createGame(), { site, bank, depot } = bankReady(s);
   const before = { cells: totalResources(s).cells, injected: site.energy.injected, charge: bank.charge };
-  startRecording(s);
-  const ordered = dischargeCell(s, bank.x, bank.y, bank.z);
+  const recorded = [];
+  function recordWindow(action) {
+    const fromTick = s.tick; assert.equal(startRecording(s).active, true);
+    const result = action(); recorded.push(...completeWindowRows(s, fromTick)); return result;
+  }
+  const ordered = recordWindow(() => dischargeCell(s, bank.x, bank.y, bank.z));
   assert.equal(ordered.ok, true); assert.equal(ordered.job.kind, 'chargeCell'); assert.equal(ordered.job.priority, 5);
   assert.equal(bank.charge, before.charge); assert.equal(site.energy.injected, before.injected);
   assert.equal(totalResources(s).cells, before.cells); assert.equal(depot.stock.cells || 0, 0);
   const copy = deserialize(serialize(s));
   assert.equal(serialize(copy), serialize(s));
-  until(s, 'cell installed', () => bank.charge === before.charge + CELL_CHARGE);
+  until(s, 'cell installed', () => bank.charge === before.charge + CELL_CHARGE, 800, () => recordWindow(() => step(s)));
   assert.equal(site.energy.injected, before.injected + CELL_CHARGE);
   assert.equal(totalResources(s).cells, before.cells - 1);
-  assert.equal(exportRecording(s).includes('"id":"power.cell.installed"'), true);
+  assert.equal(recorded.some(r => r.event?.id === 'power.cell.installed'), true);
   assert.equal(serialize(deserialize(serialize(s))), serialize(s));
 });
 

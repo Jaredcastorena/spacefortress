@@ -6,7 +6,7 @@ import { BREEDING,newLifecycle,breedingStatus,updateBreeding } from '../src/bree
 import { executeAction } from '../src/controls.js';
 import { totalResources } from '../src/inventory.js';
 import { setMachineEnabled } from '../src/industry.js';
-import { startRecording,exportRecording,observe } from '../src/telemetry.js';
+import { startRecording,stopRecording,exportRecording,observe } from '../src/telemetry.js';
 import { inheritGenome } from '../src/animal-traits.js';
 const check=s=>deserialize(serialize(s));
 const until=(s,p,max=400)=>{for(let i=0;i<max&&!p();i++)step(s);assert.ok(p(),`Condition missing at ${s.tick}`);return check(s);};
@@ -21,6 +21,11 @@ function pen(){
 }
 const children=s=>s.creatures.filter(a=>a.lifecycle?.born!==null&&a.lifecycle);
 const events=s=>exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>r.event).map(r=>r.event);
+const completeEvents=(s,label)=>{
+ const recording=exportRecording(s).trim().split('\n').map(JSON.parse),footer=recording.at(-1);
+ assert.equal(footer.active,true,`${label} recording incomplete: ${footer.reason}`);assert.equal(footer.throughTick,s.tick);
+ stopRecording(s);return recording.filter(row=>row.event).map(row=>row.event);
+};
 
 test('founders begin adult and breeding is off until explicitly enabled',()=>{
  const s=createGame(),founders=s.creatures.map(a=>a.id);assert.ok(s.creatures.every(a=>a.lifecycle.growth===600&&!a.lifecycle.enabled));step(s,100);assert.deepEqual(s.creatures.map(a=>a.id),founders);check(s);
@@ -68,7 +73,16 @@ test('carrier death loses its brood once while death of the mate preserves it',(
 test('juveniles graze, grow when nourished, and cannot produce curd before adulthood',()=>{
  const {s,a,b}=pen();step(s);a.lifecycle.enabled=b.lifecycle.enabled=false;until(s,()=>children(s).length===1);const child=children(s)[0];child.husbandry.trust=100;child.fed=100;
  step(s,100);assert.ok(child.lifecycle.growth>0&&child.lifecycle.growth<600);assert.equal(child.husbandry.product,0);
- child.health=30;const growth=child.lifecycle.growth;step(s,10);assert.equal(child.lifecycle.growth,growth);assert.equal(breedingStatus(s,child).reason,'growth_condition_low');child.health=100;child.fed=100;startRecording(s,{maxRecords:10000,maxBytes:64000000});until(s,()=>child.lifecycle.growth===600,650);assert.equal(events(s).filter(e=>e.id==='animal.matured'&&e.entity===child.id).length,1);step(s);assert.ok(child.husbandry.product>0);check(s);
+ child.health=30;const growth=child.lifecycle.growth;step(s,10);assert.equal(child.lifecycle.growth,growth);assert.equal(breedingStatus(s,child).reason,'growth_condition_low');child.health=100;child.fed=100;
+ const recorded=[];let ticks=0;
+ // Retain the original first maturity stop and single 650-tick ceiling.
+ while(ticks<650&&child.lifecycle.growth!==600){
+  startRecording(s,{maxRecords:10000,maxBytes:64000000});
+  for(let windowTicks=0;windowTicks<20&&ticks<650&&child.lifecycle.growth!==600;windowTicks++,ticks++)step(s);
+  recorded.push(...completeEvents(s,`maturation through tick ${s.tick}`));
+ }
+ assert.ok(child.lifecycle.growth===600,`Condition missing at ${s.tick}`);check(s);
+ assert.equal(recorded.filter(e=>e.id==='animal.matured'&&e.entity===child.id).length,1);step(s);assert.ok(child.husbandry.product>0);check(s);
 });
 
 test('a young animal can receive real handler feeding and trust before maturity',()=>{
@@ -94,7 +108,14 @@ test('animals, supplies, jobs and RNG reload exactly and reject a legacy schema 
 });
 
 test('partial broods and growing offspring reload deterministically and recording is observational',()=>{
- const {s}=pen();step(s,100);const copy=check(s);startRecording(s,{maxRecords:10000,maxBytes:64000000});step(s,300);step(copy,300);assert.deepEqual(s,copy);const child=children(s)[0];assert.ok(child);assert.equal(observe(s).entities[child.id].derived.breeding.phase,'juvenile');assert.ok(events(s).some(e=>e.id==='animal.born'&&e.entity===child.id));check(s);
+ const {s}=pen();step(s,100);const copy=check(s),recorded=[];
+ // Both colonies still receive exactly 300 continuation ticks. Every bounded
+ // window keeps the established record/byte limits and rejects truncation.
+ for(let ticks=0;ticks<300;ticks+=20){
+  startRecording(s,{maxRecords:10000,maxBytes:64000000});const amount=Math.min(20,300-ticks);step(s,amount);step(copy,amount);
+  recorded.push(...completeEvents(s,`brood continuation through tick ${s.tick}`));
+ }
+ assert.deepEqual(s,copy);const child=children(s)[0];assert.ok(child);assert.equal(observe(s).entities[child.id].derived.breeding.phase,'juvenile');assert.ok(recorded.some(e=>e.id==='animal.born'&&e.entity===child.id));check(s);
 });
 
 test('malformed lifecycle, impossible offspring and juvenile product are rejected',()=>{

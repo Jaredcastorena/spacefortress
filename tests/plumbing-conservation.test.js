@@ -1,4 +1,6 @@
+import {loadWater,unloadWater} from '../src/water-thermal.js';
 import { neighbors } from '../src/geometry.js';
+import { vaporWaterExports } from './helpers/vapor-accounting.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, at, step, serialize, deserialize } from '../src/simulation.js';
@@ -29,12 +31,12 @@ function install(s,kind,x,y) {
 function pipe(site,x,y) { const t=at(site,x,y); t.waterPipe=newWaterPipe(); return t; }
 function debit(s,n) { assert.ok(take(at(s.sites.surface,8,10).stock,{water:n})); syncResources(s); }
 function seedNode(s,t,n) {
-  debit(s,n); waterNode(t).water+=n; s.sites.surface.plumbing.loaded+=n;
+  debit(s,n); loadWater(s.sites.surface,waterNode(t),n); s.sites.surface.plumbing.loaded+=n;
 }
-function puddle(s,t,n) { debit(s,n); t.liquid+=n; s.sites.surface.liquids.released+=n; }
+function puddle(s,t,n) { debit(s,n); loadWater(s.sites.surface,t,n,{floor:true}); s.sites.surface.liquids.released+=n; }
 function buffer(s,t,n,slot='input') { debit(s,n); add(t.machine[slot],{water:n}); }
 function accounted(s) {
-  return totalResources(s).water+Object.values(s.sites).reduce((n,site)=>n+site.liquids.lost+site.liquids.quenched,0);
+  return totalResources(s).water+Object.values(s.sites).reduce((n,site)=>n+site.liquids.lost+site.liquids.quenched,0)+vaporWaterExports(s);
 }
 function conserved(s,before) {
   close(accounted(s),before,'all stored water plus explicit sinks');
@@ -88,7 +90,7 @@ test('damage behind a closed valve retains overflow when its own floor is satura
   close(t.waterPipe.water,2); close(t.liquid,4); close(site.plumbing.released,released); conserved(s,before);
   // Recovery elsewhere can make room; the next damaged leak releases only
   // that newly available floor capacity, without packaging or deleting water.
-  t.liquid-=.2; site.liquids.recovered+=.2; add(at(site,8,10).stock,{water:.2}); syncResources(s);
+  unloadWater(site,t,.2,{floor:true}); site.liquids.recovered+=.2; add(at(site,8,10).stock,{water:.2}); syncResources(s);
   flowPlumbing(s); close(t.waterPipe.water,1.8); close(t.liquid,4); close(site.plumbing.released,released+.2); conserved(s,before);
 });
 
@@ -102,7 +104,7 @@ test(`a ruptured water pipe under a ${boundary.name} uses open neighbor capacity
   assert.ok(targets.length>0); for(const n of targets) puddle(s,n,4);
   const before=accounted(s);
   flowPlumbing(s); close(t.waterPipe.water,2); close(t.liquid,0); conserved(s,before);
-  const free=targets[0]; free.liquid-=.125; site.liquids.recovered+=.125;
+  const free=targets[0]; unloadWater(site,free,.125,{floor:true}); site.liquids.recovered+=.125;
   add(at(site,8,10).stock,{water:.125}); syncResources(s);
   flowPlumbing(s); close(t.waterPipe.water,1.875); close(free.liquid,4); close(t.liquid,0); conserved(s,before);
 });

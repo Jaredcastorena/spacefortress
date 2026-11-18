@@ -5,11 +5,12 @@ import { initializeCultivation, plantingEligibility, wateringEligibility, cultiv
 import { initializeLiquids, flowLiquids, validateLiquids } from '../src/liquids.js';
 import { typedFood, foodOfKind } from '../src/food-lots.js';
 import { totalResources } from '../src/inventory.js';
+import { initializeWaterThermal, loadWater } from '../src/water-thermal.js';
 
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} != ${b}`);
 function fixture(){
   const site={id:'surface',size:5,rooms:[],thermal:{ambient:8},atmosphere:{tick:0},tiles:Array.from({length:25},(_,i)=>({x:i%5,y:Math.floor(i/5),terrain:'ground',building:null,drop:null,hp:100}))};
-  const s={seed:1728,rng:917,tick:0,nextId:1,sites:{surface:site},crew:[],jobs:[]};initializeLiquids(s);initializeCultivation(s);
+  const s={seed:1728,rng:917,tick:0,nextId:1,sites:{surface:site},crew:[],jobs:[]};initializeLiquids(s);initializeWaterThermal(s);initializeCultivation(s);
   return {s,site,tile:site.tiles[12]};
 }
 function plantJob(s,tile,species='fungalcap'){
@@ -54,7 +55,7 @@ test('dormant planting is allowed; permanent hazards and malformed job requireme
 
 test('finite paid watering conserves moisture and returns in-flight saturation surplus',()=>{
   const f=fixture(),{s,site,tile}=f,patch=plant(f);water(f);water(f);
-  const j=waterJob(s,tile);tile.liquid=.4;site.liquids.released=.4;close(absorbCultivationWater(s,site,tile,.4),.4);
+  const j=waterJob(s,tile);loadWater(site,tile,.4,{floor:true});site.liquids.released=.4;close(absorbCultivationWater(s,site,tile,.4),.4);
   assert.equal(cultivationJobValid(s,j),true);s.jobs=[j];const before=totalResources(s).water,paid=structuredClone(j.materials);
   const result=completeWatering(s,{id:'crew-0'},j);assert.equal(result.ok,true);close(result.transferred,.1);close(result.returned,.4);assert.deepEqual(j.materials,paid);s.jobs=[];
   close(totalResources(s).water,before);close(patch.moisture,1.5);close(tile.drop.water,.4);close(site.cultivation.fungalcap.delivered,1.5);close(site.cultivation.fungalcap.returned,.4);
@@ -94,11 +95,11 @@ test('replacement generations invalidate stale watering and gathering',()=>{
 test('floor absorption shares the original interior drainage budget and preserves edge losses',()=>{
   const f=fixture(),{s,site,tile}=f;plant(f);water(f);water(f);water(f);
   // Isolate the bed so floor leveling does not alter the drainage amount.
-  for(const other of site.tiles)if(other!==tile)other.terrain='rock';tile.liquid=.5;site.liquids.released=.5;
+  for(const other of site.tiles)if(other!==tile)other.terrain='rock';loadWater(site,tile,.5,{floor:true});site.liquids.released=.5;
   flowLiquids(s);close(site.liquids.absorbed,0);close(site.liquids.lost,.1);close(tile.liquid,.4);
   s.tick=30;updateFlora(s);const drained=1.5-tile.flora.fungalcap.moisture;flowLiquids(s);
   close(site.liquids.absorbed,drained);close(site.liquids.lost,.2-drained);close(tile.liquid,.3);validateLiquids(s);validateCultivation(s);
-  const edge=site.tiles[0];edge.terrain='ground';edge.flora=tile.flora;delete tile.flora;edge.liquid=.5;site.liquids.released+=.5;
+  const edge=site.tiles[0];edge.terrain='ground';edge.flora=tile.flora;delete tile.flora;loadWater(site,edge,.5,{floor:true});site.liquids.released+=.5;
   const absorption=site.liquids.absorbed,lost=site.liquids.lost;flowLiquids(s);close(site.liquids.absorbed,absorption);close(site.liquids.lost-lost,.6);validateLiquids(s);validateCultivation(s);
 });
 

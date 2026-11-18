@@ -10,13 +10,12 @@ import { executeAction } from '../src/controls.js';
 import { isDay } from '../src/power.js';
 import { tileAt } from '../src/geometry.js';
 import { tileAt as shipmentTile, sameCell } from '../src/spatial.js';
-import { roomAt, SUIT_PER_POINT } from '../src/atmosphere.js';
+import { roomAt } from '../src/atmosphere.js';
 import { temperature } from '../src/thermal.js';
-import { gasNode } from '../src/gas-networks.js';
 import { airThreshold } from '../src/crew.js';
 import { acceptsResource } from '../src/storage.js';
 import { airlockLayout, airlockRoomReading } from '../src/airlock-access.js';
-import { physicalBalances, physicalMaterialOwners } from './paid-air-recovery.mjs';
+import { physicalBalances, physicalDryGasSpecies as species } from './paid-air-recovery.mjs';
 import { startRecording, stopRecording, exportRecording, recordingStatus } from '../src/telemetry.js';
 
 export const LIMITS = Object.freeze({ ticks: 220, commands: 35, attempts: 260 });
@@ -28,12 +27,12 @@ const empty = inv => !Object.values(inv || {}).some(n => typeof n === 'number' &
 const near = (a, b) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) < 1e-7;
 class Stop extends Error { constructor(code, message) { super(message); this.code = code; } }
 function configuration(options) {
-  if (!options || typeof options !== 'object' || Array.isArray(options) || Object.keys(options).some(k => k !== 'limits')) throw new TypeError('Expected optional lowered limits.');
+  if (!options || typeof options !== 'object' || Array.isArray(options) || Object.keys(options).some(k => !['limits', 'record', 'beforeAction'].includes(k)) || options.record !== undefined && typeof options.record !== 'boolean' || options.beforeAction !== undefined && typeof options.beforeAction !== 'function' || options.record === false && typeof options.beforeAction !== 'function') throw new TypeError('Expected lowered limits, optional boolean record and observational beforeAction; external recording requires the callback.');
   const requested = options.limits ?? {};
   if (!requested || typeof requested !== 'object' || Array.isArray(requested) || Object.keys(requested).some(k => !Object.hasOwn(LIMITS, k))) throw new TypeError('Unknown night limit.');
   const limits = { ...LIMITS, ...requested };
   for (const [key, value] of Object.entries(limits)) if (!Number.isInteger(value) || value < 0 || value > LIMITS[key]) throw new TypeError(`${key} must be an integer from 0 to ${LIMITS[key]}.`);
-  return limits;
+  return { limits, record: options.record !== false, beforeAction: options.beforeAction };
 }
 function sourceFingerprint() {
   const root = new URL('../', import.meta.url);
@@ -51,26 +50,21 @@ function assembly(state) {
     machine: t.machine && { enabled: ['farm', 'scrubber'].includes(t.building) ? undefined : t.machine.enabled, order: t.machine.order, recipeId: t.machine.recipeId }
   })) })) }));
 }
-function species(state) {
-  const result = { oxygen: 0, inert: 0, co2: 0 }, add = gas => { for (const k of Object.keys(result)) result[k] += gas?.[k] || 0; };
-  const air = physicalMaterialOwners(state).reduce((n, row) => n + row.air, 0); add({ oxygen: air * .21, inert: air * .79 });
-  for (const site of Object.values(state.sites)) {
-    site.rooms.forEach(r => add(r.gas)); site.tiles.forEach(t => add(gasNode(t)?.gas)); add(site.atmosphere.vented); add(site.gasNetwork.vented);
-  }
-  add({ oxygen: state.crew.reduce((n, c) => n + c.oxygen * SUIT_PER_POINT, 0) }); return result;
-}
 function fertilizer(state) {
   const inv = Object.values(state.sites).flatMap(s => s.tiles.flatMap(t => [t.stock, t.drop, t.imports, t.machine?.input, t.machine?.output, t.machine?.batch, t.sanitary?.output]));
   inv.push(...state.crew.flatMap(c => [c.carry, c.possessions?.inventory]), ...state.jobs.flatMap(j => [j.materials, ...j.sources.map(s => s.items)]), state.mission?.cargo, state.shuttle?.supplies, state.shuttle?.freight);
   return inv.reduce((n, i) => n + amount(i, 'fertilizer'), 0);
 }
-const water = balances => balances.owners.reduce((n, row) => n + row.water, 0);
+// Retained water plus explicit vapor/condensate boundary losses stays conserved.
+const water = balances => balances.owners.reduce((n, row) => n + row.water, 0) + balances.waterExported;
 
 /** Mutates only through shared commands and full ticks. Failure retains the
  * exact first stopped paid state and temporary controls, without cleanup.
+ * record:false leaves recording ownership with the caller, which must verify
+ * complete bounded windows in beforeAction({stage,id,args}) and at the endpoint.
  */
 export function recoverPaidNight(state, options = {}) {
-  const limits = configuration(options), actions = [], transfers = [], tagged = new Map();
+  const { limits, record, beforeAction } = configuration(options), actions = [], transfers = [], tagged = new Map();
   let site, processor, farm, scrubber, controller, baseline, initialSpecies, farmBefore, processorBefore, initialFertilizer;
   let initialTick = state?.tick, inputSha256 = null, sourceSha256 = null, assemblySha256 = null, finalBalances = null, finalSpecies = null;
   let inputMode = null, deliveryTarget = 0, initialCarry = 0, initialOutput = 0, pickedUp = 0, delivered = 0, attempts = 0, commands = 0, stage = 'preflight', failure = null, recording = false, restored = false;
@@ -121,6 +115,8 @@ export function recoverPaidNight(state, options = {}) {
     if (id === 'simulation.step' && state.tick - initialTick >= limits.ticks) throw new Stop('tick_limit', 'Added tick cap reached.');
     if (attempts >= limits.attempts) throw new Stop('attempt_limit', 'Shared action attempt cap reached.');
     if (id !== 'simulation.step' && commands >= limits.commands) throw new Stop('command_limit', 'Command cap reached.');
+    beforeAction?.({ stage, id, args: copy(args) });
+    if (!recordingStatus(state).active) throw new Stop('recording_limit', 'The complete recording budget was exhausted.');
     const before = state.crew.map(c => ({ id: c.id, site: c.site, carry: copy(c.carry), delivery: copy(c.delivery), intent: copy(c.intent) }));
     attempts++; if (id !== 'simulation.step') commands++;
     const action = { tick: state.tick, id, args, ok: false, code: 'exception' }; actions.push(action);
@@ -149,7 +145,9 @@ export function recoverPaidNight(state, options = {}) {
     for (const c of state.crew) if (amount(c.carry, 'air')) { tagged.set(c.id, amount(c.carry, 'air')); transfers.push({ tick: state.tick, actor: c.id, amount: amount(c.carry, 'air'), from: 'initial-paid-carry', to: `${c.id}/carry` }); }
     baseline = physicalBalances(state); initialSpecies = species(state); initialFertilizer = fertilizer(state); farmBefore = farmCommitted(); processorBefore = JSON.stringify({ ...m, output: undefined, status: undefined }); assemblySha256 = assembly(state);
     // Output can change only by the native paid-air pickup tracked below.
-    startRecording(state, { maxRecords: 16000, maxBytes: 128_000_000 }); recording = true; inspect();
+    if (record) { startRecording(state, { maxRecords: 16000, maxBytes: 128_000_000 }); recording = true; }
+    else if (!recordingStatus(state).active) throw new Stop('recording_limit', 'An active externally managed complete recording is required.');
+    inspect();
     if (inputMode === 'night') {
       stage = 'pause'; enable(POINTS.farm, false); enable(POINTS.scrubber, false); act('airlock.enable', { site: 'surface', x: controller.x, y: controller.y, enabled: false });
       stage = 'delivery'; while (delivered !== deliveryTarget || !quiet() || pending() !== 0) act('simulation.step', { ticks: 1 });
@@ -171,7 +169,7 @@ export function recoverPaidNight(state, options = {}) {
     endpointSha256: endpoint && hash(endpoint), actionSha256: hash(JSON.stringify(actions)), recordingSha256: recorded && hash(recorded),
     delivery: { target: deliveryTarget, initialCarry, initialOutput, pickedUp, delivered, transfers }, checkpoint: baseline ? checkpoint() : null,
     farm: farmBefore && { before: farmBefore, after: farmCommitted(), nativeCompleted: farmCompleted },
-    accounting: finalBalances && { gasError: finalBalances.gas - baseline.gas, waterError: water(finalBalances) - water(baseline) + farmCompleted, fertilizerError: fertilizer(state) - initialFertilizer + farmCompleted * .25, energyErrors: finalBalances.energy,
+    accounting: finalBalances && { gasError: finalBalances.gas - baseline.gas, waterError: water(finalBalances) - water(baseline) + farmCompleted, waterExported: {before:baseline.waterExported,after:finalBalances.waterExported}, fertilizerError: fertilizer(state) - initialFertilizer + farmCompleted * .25, energyErrors: finalBalances.energy,
       species: { before: initialSpecies, after: finalSpecies, inertError: finalSpecies.inert - initialSpecies.inert, oxygenCo2Error: finalSpecies.oxygen + finalSpecies.co2 - initialSpecies.oxygen - initialSpecies.co2 }, materialsBefore: baseline.owners, materialsAfter: finalBalances.owners }, ...(failure ? { failure } : {}) };
   return { state, endpoint, summary, actions, ...(recorded ? { recording: recorded } : {}) };
 }

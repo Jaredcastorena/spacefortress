@@ -1,4 +1,5 @@
 import { roomPressure } from './room-pressure.js';
+import { roomVaporStatus } from './water-vapor.js';
 import { breathingStatus, doorOpen } from './atmosphere.js';
 import { airlockControlOwner } from './airlock-access.js';
 import { airlockOwnershipDetails } from './airlock-panels.js';
@@ -18,7 +19,8 @@ export function atmosphereDetails(room) {
   const status=breathingStatus(room),reason=status.block?`<dt class="breathing-limit">Breathing limit</dt><dd class="breathing-limit" data-breathing-block="${esc(status.block)}">${esc(breathingReasons[status.block])}</dd>`:'';
   if (!room) return `<dt>Atmosphere</dt><dd>Exterior · suit required</dd>${reason}`;
   const range=`${(status.minimumOxygenPressure*100).toFixed(0)}–${(status.maximumOxygenPressure*100).toFixed(0)}%`;
-  return `<dt>Breathing</dt><dd>${status.breathable ? 'Breathable' : 'Suit required'}</dd><dt title="Gas quantity and room temperature determine pressure.">Pressure</dt><dd>${roomPressure(room).toFixed(1)}% of nominal</dd><dt>Oxygen concentration</dt><dd>${(room.oxygenFraction * 100).toFixed(1)}%</dd><dt>Oxygen at this pressure</dt><dd>${(status.oxygenPressure*100).toFixed(2)}% of nominal · safe range ${range}</dd>${reason}<dt>Exhaled gas</dt><dd>${(room.co2Fraction * 100).toFixed(2)}%</dd><dt>Smoke</dt><dd>${((room.smoke||0)/room.volume).toFixed(3)} per tile</dd><dt>Compartment</dt><dd>${room.volume} tiles · ${room.sealed ? 'sealed' : 'open to exterior'}</dd>`;
+  const vapor=roomVaporStatus(room),humidity=vapor.relativeHumidity===null?'Unavailable':`${(vapor.relativeHumidity*100).toFixed(1)}%`;
+  return `<dt>Breathing</dt><dd>${status.breathable ? 'Breathable' : 'Suit required'}</dd><dt title="Gas quantity and room temperature determine pressure.">Pressure</dt><dd>${roomPressure(room).toFixed(1)}% of nominal</dd><dt>Oxygen concentration</dt><dd>${(room.oxygenFraction * 100).toFixed(1)}%</dd><dt>Oxygen at this pressure</dt><dd>${(status.oxygenPressure*100).toFixed(2)}% of nominal · safe range ${range}</dd>${reason}<dt>Exhaled gas (dry fraction)</dt><dd>${(room.co2Fraction * 100).toFixed(2)}%</dd><dt>Water vapor</dt><dd>${vapor.amount.toFixed(3)} units · ${(vapor.partialPressure*100).toFixed(2)}% nominal pressure</dd><dt>Relative humidity</dt><dd>${humidity}</dd><dt>Smoke</dt><dd>${((room.smoke||0)/room.volume).toFixed(3)} per tile</dd><dt>Compartment</dt><dd>${room.volume} tiles · ${room.sealed ? 'sealed' : 'open to exterior'}</dd>`;
 }
 export function doorDetails(t, tick, site=null) {
   if (t.building !== 'door') return '';

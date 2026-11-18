@@ -1,0 +1,7 @@
+{
+  "schema": 79,
+  "seed": 74262,
+  "source": "a2a9f101386c15296ca7b4039edb5d84f93531da8a9964683d9d5e84bd6c9da1",
+  "rawSha256": "405b28fc6630216298c87518fa3ad54f3088de4b9bed0f32186436cbd686f9bd",
+  "setup": "createGame(74262), 1 water in new first empty-floor pipe; explicitly remove heat to 200 in pre-phase model; syncResources and deserialize validate."
+}

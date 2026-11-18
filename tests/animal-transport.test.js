@@ -7,7 +7,7 @@ import {transportFor} from '../src/animal-transport.js';
 import {setMachineEnabled} from '../src/industry.js';
 import {totalResources} from '../src/inventory.js';
 import {executeAction} from '../src/controls.js';
-import {startRecording,exportRecording,observe} from '../src/telemetry.js';
+import {startRecording,stopRecording,exportRecording,observe} from '../src/telemetry.js';
 const check=s=>deserialize(serialize(s));
 const until=(s,p,max=240)=>{for(let i=0;i<max&&!p();i++){step(s);check(s);}assert.ok(p(),`Condition missing at ${s.tick}`);};
 function pen(){
@@ -20,6 +20,11 @@ function pen(){
 }
 const request=f=>{const result=transportAnimalToPost(f.s,f.a.id,6,19);assert.ok(result.ok,result.message);return result.job;};
 const events=s=>exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>r.event).map(r=>r.event);
+const completeEvents=(s,label)=>{
+ const recording=exportRecording(s).trim().split('\n').map(JSON.parse),footer=recording.at(-1);
+ assert.equal(footer.active,true,`${label} recording incomplete: ${footer.reason}`);assert.equal(footer.throughTick,s.tick);
+ stopRecording(s);return recording.filter(row=>row.event).map(row=>row.event);
+};
 
 test('orders reserve a post without teleporting, granting trust or changing assignment',()=>{
  const f=pen(),{s,a}=f,before=[a.x,a.y],supplies=totalResources(s),j=request(f);assert.deepEqual([a.x,a.y],before);assert.equal(a.husbandry.post,null);assert.equal(a.husbandry.trust,100);assert.deepEqual(totalResources(s),supplies);assert.equal(j.phase,'collect');check(s);
@@ -42,7 +47,11 @@ test('missing husbandry duty leaves a pending order without capturing the animal
 });
 
 test('disabling the handler duty interrupts at the current position and another handler resumes',()=>{
- const f=pen(),{s,a}=f,j=request(f);startRecording(s);until(s,()=>j.phase==='escort');const worker=j.worker,position=[a.x,a.y];setLabor(s,worker,'husbandry',false);assert.deepEqual([a.x,a.y],position);assert.equal(j.phase,'collect');assert.equal(j.worker,null);assert.equal(j.remaining,6);check(s);until(s,()=>!s.jobs.includes(j));assert.ok(events(s).some(e=>e.id==='animal.transport.interrupted'&&e.actor===worker));
+ const f=pen(),{s,a}=f,j=request(f);until(s,()=>j.phase==='escort');const worker=j.worker,position=[a.x,a.y];
+ // The bounded default-size window owns the interruption itself. Collection
+ // and the resumed journey retain their original separate 240-tick caps.
+ startRecording(s);setLabor(s,worker,'husbandry',false);assert.deepEqual([a.x,a.y],position);assert.equal(j.phase,'collect');assert.equal(j.worker,null);assert.equal(j.remaining,6);check(s);
+ const interruption=completeEvents(s,'handler duty interruption');until(s,()=>!s.jobs.includes(j));assert.ok(interruption.some(e=>e.id==='animal.transport.interrupted'&&e.actor===worker));
 });
 
 test('crew recovery interrupts transport rather than taking the animal to a bunk',()=>{
@@ -87,7 +96,17 @@ test('saved attached transports resume deterministically with optional records',
 });
 
 test('shared action and observation label the order and all physical stages',()=>{
- const {s,a}=pen();startRecording(s,{maxRecords:10000,maxBytes:32000000});const result=executeAction(s,'husbandry.transport',{creature:a.id,x:6,y:19},'agent');assert.ok(result.ok);assert.equal(observe(s).entities[a.id].derived.transport.job,result.job);until(s,()=>!transportFor(s,a));for(const id of ['animal.transport.ordered','animal.transport.attached','animal.transport.delivered'])assert.ok(events(s).some(e=>e.id===id),id);check(s);
+ const {s,a}=pen(),limits={maxRecords:10000,maxBytes:32000000},recorded=[];startRecording(s,limits);
+ const result=executeAction(s,'husbandry.transport',{creature:a.id,x:6,y:19},'agent');assert.ok(result.ok);assert.equal(observe(s).entities[a.id].derived.transport.job,result.job);
+ let windowTicks=0;
+ // Preserve the single original 240-tick journey cap and per-tick admission.
+ // Close windows at collection/escort transitions and at most every 20 ticks.
+ for(let ticks=0;ticks<240&&transportFor(s,a);ticks++){
+  const phase=transportFor(s,a).phase;step(s);check(s);windowTicks++;const current=transportFor(s,a);
+  if(!current||current.phase!==phase||windowTicks===20){recorded.push(...completeEvents(s,`${phase} through tick ${s.tick}`));windowTicks=0;if(current)startRecording(s,limits);}
+ }
+ assert.ok(!transportFor(s,a),`Condition missing at ${s.tick}`);
+ for(const id of ['animal.transport.ordered','animal.transport.attached','animal.transport.delivered'])assert.ok(recorded.some(e=>e.id===id),id);check(s);
 });
 
 test('hex saves preserve the colony and reject legacy labels and malformed escort ownership',()=>{

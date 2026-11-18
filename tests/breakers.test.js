@@ -1,3 +1,4 @@
+import {loadWater} from '../src/water-thermal.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createGame, at, step, order, serialize, deserialize} from '../src/simulation.js';
@@ -26,7 +27,7 @@ function fixture(){
  refreshPower(f.s,f.site);return {...f,source,breaker,load};
 }
 function wetFault(f){
- f.load.cable={enabled:true,hp:100};f.load.liquid=.5;f.site.liquids.released+=.5;
+ f.load.cable={enabled:true,hp:100};loadWater(f.site,f.load,.5,{floor:true});f.site.liquids.released+=.5;
  at(f.site,8,10).stock.water-=.5;syncResources(f.s);
  assert.ok(setBreaker(f.s,'surface',10,9,true,'ne','wet_fault').ok);updatePower(f.s,f.site);
  assert.equal(f.breaker.protection.tripped,true);assert.equal(f.breaker.protection.cause,'wet_fault');

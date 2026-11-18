@@ -1,7 +1,7 @@
 import { initializeBreakerTile } from './breakers.js';
 import { initializePlumbingTile, waterNode } from './plumbing.js';
 import { initializeGasTile, gasNode } from './gas-networks.js';
-import { gasAmount } from './atmosphere.js';
+import { dryGasAmount } from './gas-species.js';
 import { initializeLiquidTile } from './liquids.js';
 import { ITEM_RESOURCES, itemResource, validItemLots, takeItemLots } from './item-lots.js';
 import { foodLots, storeLots, takeFoodLots, planFoodSelection } from './food-lots.js';
@@ -94,10 +94,11 @@ export function reserve(s, cost, eligible = () => true, siteId = 'surface') {
 export const spend = (s, cost, eligible, siteId = 'surface') => reserve(s, cost, eligible, siteId) !== null;
 export function totalResources(s) {
   const total = Object.fromEntries(RESOURCES.map(r => [r, 0]));
+  for(const site of Object.values(s.sites))for(const room of site.rooms)total.water+=room.gas.vapor??0;
   for (const site of Object.values(s.sites)) for (const t of site.tiles) {
     total.water += (t.liquid || 0) + (waterNode(t)?.water || 0);
     for(const patch of Object.values(t.flora||{}))if(patch.origin==='cultivated')total.water+=patch.moisture;
-    if(gasNode(t))total.air+=gasAmount(gasNode(t).gas);
+    if(gasNode(t)){const node=gasNode(t);total.air+=dryGasAmount(node.gas);total.water+=(node.gas.vapor??0)+(node.condensate?.water??0);}
     addCounts(total, t.sanitary?.output || {});
     addCounts(total, t.drop || {}); addCounts(total, t.stock || {}); addCounts(total, t.imports || {});
     if (t.machine) for (const part of ['input', 'output', 'batch']) addCounts(total, t.machine[part]);

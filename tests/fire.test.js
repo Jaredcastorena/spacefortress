@@ -10,11 +10,18 @@ import {totalResources,syncResources} from '../src/inventory.js';
 import {pathTo} from '../src/navigation.js';
 import {startRecording,exportRecording,observe} from '../src/telemetry.js';
 import {executeAction} from '../src/controls.js';
+import {vaporWaterExports} from './helpers/vapor-accounting.js';
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-7,`${a} != ${b}`);
+const waterBalance=s=>totalResources(s).water+vaporWaterExports(s);
 const check=s=>{syncResources(s);return deserialize(serialize(s));};
-const until=(s,p,max=200)=>{for(let i=0;i<max&&!p();i++){step(s);check(s);}assert.ok(p(),`Condition missing at ${s.tick}`);};
+const until=(s,p,max=200,afterStep=()=>{})=>{for(let i=0;i<max&&!p();i++){step(s);check(s);afterStep();}assert.ok(p(),`Condition missing at ${s.tick}`);};
 function fixture(){const s=createGame(),site=s.sites.surface,t=at(site,11,9);t.building='commons';setFireResponse(s,'surface',false);for(const t of site.tiles)if(t.machine)setMachineEnabled(s,'surface',t.x,t.y,false);for(const c of s.crew)setLabor(s,c.id,'hauling',false);return {s,site,t,r:roomAt(site,11,9)};}
 const events=s=>exportRecording(s).trim().split('\n').map(JSON.parse).filter(r=>r.event).map(r=>r.event);
+const completeEvents=(s,label)=>{
+ const rows=exportRecording(s).trim().split('\n').map(JSON.parse),footer=rows.at(-1);
+ assert.equal(footer.active,true,`${label} recording incomplete: ${footer.reason}`);assert.equal(footer.throughTick,s.tick);
+ return rows.filter(row=>row.event).map(row=>row.event);
+};
 const gas=s=>totalResources(s).air+s.crew.reduce((n,c)=>n+c.oxygen*.1,0)+Object.values(s.sites).reduce((n,site)=>n+gasAmount(site.atmosphere.vented)+site.rooms.reduce((n,r)=>n+gasAmount(r.gas),0),0);
 
 test('damaged powered equipment ignites after sustained fault time, and isolation resets it',()=>{
@@ -30,7 +37,7 @@ test('oxygen-poor rooms and exposed terrain cannot ignite, and existing flames s
 });
 
 test('fire spreads to adjacent combustible fittings and records parent fire identity',()=>{
- const {s,site,t}=fixture(),n=at(site,12,9);n.building='commons';startRecording(s);ignite(s,site,t);const id=t.fire.id;step(s,30);assert.ok(n.fire);assert.equal(n.fire.age,0);assert.ok(events(s).some(e=>e.id==='fire.ignited'&&e.cause==='spread'&&e.parent===id));check(s);
+ const {s,site,t}=fixture(),n=at(site,12,9);n.building='commons';startRecording(s);ignite(s,site,t);const id=t.fire.id,recorded=[];for(let ticks=0;ticks<30;ticks+=4){step(s,Math.min(4,30-ticks));recorded.push(...completeEvents(s,'fire spread'));if(ticks+4<30)startRecording(s);}assert.ok(n.fire);assert.equal(n.fire.age,0);assert.ok(recorded.some(e=>e.id==='fire.ignited'&&e.cause==='spread'&&e.parent===id));check(s);
 });
 
 test('a consumed fitting extinguishes without removing its inventory or room volume',()=>{
@@ -54,7 +61,7 @@ test('splitting, merging and deleting room volume preserve or account for smoke'
 });
 
 test('suppression requires physically delivered water and actual engineering work',()=>{
- const {s,site,t}=fixture(),before=totalResources(s).water;ignite(s,site,t);const j=order(s,'surface',t.x,t.y,'extinguish','commons').job;assert.ok(j);assert.equal(j.building,null);assert.equal(j.materials.water,undefined);assert.ok(t.fire);until(s,()=>j.materials.water===2);assert.ok(t.fire);assert.equal(totalResources(s).water,before);until(s,()=>!t.fire);assert.equal(totalResources(s).water,before-2);assert.ok(!s.jobs.includes(j));check(s);
+ const {s,site,t}=fixture(),before=waterBalance(s);ignite(s,site,t);const j=order(s,'surface',t.x,t.y,'extinguish','commons').job;assert.ok(j);assert.equal(j.building,null);assert.equal(j.materials.water,undefined);assert.ok(t.fire);until(s,()=>j.materials.water===2);assert.ok(t.fire);close(waterBalance(s),before);until(s,()=>!t.fire);close(waterBalance(s),before-2);assert.ok(!s.jobs.includes(j));check(s);
 });
 
 test('automatic response creates urgent jobs and missing duty or water leaves labeled obstructions',()=>{
@@ -67,7 +74,7 @@ test('cancellation preserves water and delays automatic retry; a manual order by
 });
 
 test('a fire ending during delivery cancels only its own job and preserves reserved water',()=>{
- const {s,site,t}=fixture();ignite(s,site,t);const j=order(s,'surface',t.x,t.y,'extinguish').job;until(s,()=>!!j.materials.water);const water=totalResources(s).water;extinguish(s,site,t,'oxygen_starved');step(s);assert.ok(!s.jobs.includes(j));assert.equal(totalResources(s).water,water);check(s);
+ const {s,site,t}=fixture();ignite(s,site,t);const j=order(s,'surface',t.x,t.y,'extinguish').job;until(s,()=>!!j.materials.water);const water=waterBalance(s);extinguish(s,site,t,'oxygen_starved');step(s);assert.ok(!s.jobs.includes(j));close(waterBalance(s),water);check(s);
 });
 
 test('burning tiles block routes and ordinary work; a crew member standing there is injured and escapes',()=>{
@@ -75,7 +82,7 @@ test('burning tiles block routes and ordinary work; a crew member standing there
 });
 
 test('suppression interrupted by recovery retains its delivered supplies and can finish later',()=>{
- const {s,site,t}=fixture();ignite(s,site,t);const j=order(s,'surface',t.x,t.y,'extinguish').job;until(s,()=>!!j.materials.water);const c=s.crew.find(c=>c.id===j.worker),water=totalResources(s).water;c.energy=0;step(s);assert.equal(totalResources(s).water,water);until(s,()=>!t.fire);assert.equal(totalResources(s).water,water-2);check(s);
+ const {s,site,t}=fixture();ignite(s,site,t);const j=order(s,'surface',t.x,t.y,'extinguish').job;until(s,()=>!!j.materials.water);const c=s.crew.find(c=>c.id===j.worker),water=waterBalance(s);c.energy=0;step(s);close(waterBalance(s),water);until(s,()=>!t.fire);close(waterBalance(s),water-2);check(s);
 });
 
 test('burning production stops while retaining batch ingredients',()=>{
@@ -92,5 +99,5 @@ test('legacy square fire state and malformed current fire ledgers and orders are
 });
 
 test('shared response controls and normalized fire entities carry stable labels',()=>{
- const {s,site,t}=fixture();startRecording(s);assert.ok(executeAction(s,'fire.response',{site:'surface',enabled:true},'player').ok);ignite(s,site,t);const id=t.fire.id;assert.equal(observe(s).entities[id].tile,`tile:surface:${t.x}:${t.y}`);until(s,()=>!t.fire);for(const id of ['fire.ignited','fire.burned','structure.damaged','fire.extinguished'])assert.ok(events(s).some(e=>e.id===id),id);assert.equal(observe(s).entities[id],undefined);check(s);
+ const {s,site,t}=fixture();startRecording(s);assert.ok(executeAction(s,'fire.response',{site:'surface',enabled:true},'player').ok);ignite(s,site,t);const id=t.fire.id;assert.equal(observe(s).entities[id].tile,`tile:surface:${t.x}:${t.y}`);const recorded=[];let windowTicks=0;until(s,()=>!t.fire,200,()=>{if(++windowTicks===4&&t.fire){recorded.push(...completeEvents(s,'fire response'));startRecording(s);windowTicks=0;}});recorded.push(...completeEvents(s,'fire extinguished'));for(const id of ['fire.ignited','fire.burned','structure.damaged','fire.extinguished'])assert.ok(recorded.some(e=>e.id===id),id);assert.equal(observe(s).entities[id],undefined);check(s);
 });

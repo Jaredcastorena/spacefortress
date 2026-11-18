@@ -1,8 +1,14 @@
 # Closed water plumbing
 
+The current simulation accounts for ice expansion in rigid water pipes. Use
+the inspector's **Volume filled** reading to check available space. A burst is
+recorded as `plumbing.pipe_burst` with the tile, occupied volume, capacity,
+ice amount and previous condition. [Freezing and thawing](water-phases.md).
+
+
 **Implemented and verified — schema 35.** Root accepted 65 new cases, the 672-test full suite and scoped Firefox controls/art/save checks on September 16, 2026. The [implementation contract](plumbing-design.md) describes the mechanics; [verification status](verification-status.md) records the evidence and its limits.
 
-Plumbing connects existing water supplies, floor recovery and consuming machines through physical routes. It retains the existing abstract `water` resource; it does not add water purity, temperature, steam or hydraulic pressure.
+Plumbing connects existing water supplies, floor recovery and consuming machines through physical routes. It retains the existing abstract `water` resource. Local schema79 adds [finite water temperature and heat](water-heat.md); Local save80 adds [freezing/thawing](water-phases.md), with liquid-only transport and ice retained in storage. Water purity, steam and hydraulic pressure remain unfinished.
 
 ## Build a route
 

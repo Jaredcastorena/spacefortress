@@ -8,7 +8,13 @@ import { setMachineEnabled, spillStorage, haul } from '../src/industry.js';
 import { refreshPower } from '../src/power.js';
 import { medicalRest, injure } from '../src/medicine.js';
 import { acceptsResource, setDepotAccepted } from '../src/storage.js';
+import { vaporWaterExports } from './helpers/vapor-accounting.js';
 const check = s => { syncResources(s); return deserialize(serialize(s)); };
+const resourceBalance=s=>{const totals=totalResources(s);totals.water+=vaporWaterExports(s);return totals;};
+function sameResources(actual,before){
+  assert.ok(Number.isFinite(actual.water)&&Math.abs(actual.water-before.water)<1e-7,`Accounted water ${actual.water} != ${before.water}`);
+  assert.deepEqual({...actual,water:before.water},before);
+}
 function clear(t) { spillStorage(t); t.building=null;delete t.maintenance;delete t.powerPriority; }
 function fixture(split = true) {
   const s=createGame(),site=s.sites.surface;
@@ -69,9 +75,9 @@ test('greenhouse contamination pauses a paid crop and cleaning resumes its origi
 });
 
 test('room storage rules preserve filters and existing stock while rejected waste is physically relocated',()=>{
-  const {s,site,depot}=fixture();const refuse=at(site,12,10);refuse.building='stockpile';initializeStorage(refuse);depot.stock.waste=2;const filters=[...depot.storage.accepted],before=totalResources(s);
+  const {s,site,depot}=fixture();const refuse=at(site,12,10);refuse.building='stockpile';initializeStorage(refuse);depot.stock.waste=2;const filters=[...depot.storage.accepted],before=resourceBalance(s);
   setRoomDesignation(s,'surface',8,8,'quarters');setRoomDesignation(s,'surface',12,8,'waste');assert.deepEqual(depot.storage.accepted,filters);assert.equal(depot.stock.waste,2);assert.equal(acceptsResource(depot,'waste',site),false);assert.equal(acceptsResource(refuse,'food',site),false);assert.equal(acceptsResource(refuse,'medicine',site),false);
-  setLabor(s,s.crew[4].id,'hauling',true);until(s,()=>refuse.stock.waste===2);assert.equal(depot.stock.waste||0,0);assert.deepEqual(totalResources(s),before);
+  setLabor(s,s.crew[4].id,'hauling',true);until(s,()=>refuse.stock.waste===2);assert.equal(depot.stock.waste||0,0);sameResources(resourceBalance(s),before);
 });
 
 test('in-flight supplies reroute when the receiving room changes purpose',()=>{

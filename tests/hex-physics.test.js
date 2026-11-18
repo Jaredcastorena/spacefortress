@@ -1,3 +1,4 @@
+import {loadWater,unloadCondensedWater} from '../src/water-thermal.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DIRECTIONS, neighbors, step, opposite, tileAt } from '../src/geometry.js';
@@ -7,6 +8,7 @@ import { WATER_DIRECTIONS, PLUMBING, initializePlumbing, initializePlumbingTile,
 import { LIQUID, initializeLiquids, flowLiquids, pumpLiquids, validateLiquids } from '../src/liquids.js';
 import { initializeThermal, updateThermal, validateThermal } from '../src/thermal.js';
 import { gasEnergy, GAS_REFERENCE_KELVIN } from '../src/gas-thermal.js';
+import {initializeElectrical,initializePower,updatePower} from '../src/power.js';
 import { radiatorTargets, REACTOR, initializeReactors, updateReactorCooling } from '../src/reactors.js';
 import { initializeFire, ignite, updateFire, validateFire } from '../src/fire.js';
 
@@ -28,8 +30,8 @@ function fillFixtureRoom(site,room) {
   const before=room.heat;fillRoom(room);const delta=room.heat-before;
   site.thermal[delta>=0?'gasLoaded':'gasVented']+=Math.abs(delta);
 }
-function seedWater(site,t,n) {t.waterPipe.water=n;site.plumbing.loaded+=n;}
-function seedLiquid(site,t,n) {t.liquid=n;site.liquids.released+=n;}
+function seedWater(site,t,n) {loadWater(site,t.waterPipe,n);site.plumbing.loaded+=n;}
+function seedLiquid(site,t,n) {loadWater(site,t,n,{floor:true});site.liquids.released+=n;}
 
 test('physical direction catalogs and fresh device controls share the ordered six hex IDs',()=>{
   for(const catalog of [GAS_DIRECTIONS,WATER_DIRECTIONS]) {
@@ -44,13 +46,16 @@ test('gas and water pumps use opposite six-direction ports at both column pariti
   for(const x of [5,6])for(const direction of DIRECTIONS) {
     for(const kind of ['gas','water']) {
       const {s,site}=fixture(),pump=at(site,[x,6]),input=at(site,step(x,6,opposite(direction))),output=at(site,step(x,6,direction));
-      pump.building=kind==='gas'?'gasPump':'waterPump';pump.powered=true;
+      pump.building=kind==='gas'?'gasPump':'waterPump';
+      // Each synthetic case funds one real operating pulse from a finite bank.
+      const bank=neighbors(x,6).map(p=>at(site,p)).find(t=>t!==input&&t!==output);
+      bank.building='battery';initializeElectrical(bank);initializePower(s,site,3);
       if(kind==='gas') {
-        initializeGasTile(pump);pump.gasDevice.direction=direction;input.pipe=newPipe();output.pipe=newPipe();seedGas(site,input,{oxygen:3,inert:4,co2:1},1);
-        assert.deepEqual(pumpPorts(site,pump),{input,output});updateGasNetworks(s);close(gasAmount(output.pipe.gas)+output.pipe.smoke,GAS_NETWORK.pump);validateGasNetworks(s);
+        initializeGasTile(pump);pump.gasDevice.direction=direction;input.pipe=newPipe();output.pipe=newPipe();seedGas(site,input,{oxygen:3,inert:4,co2:1,vapor:0},1);
+        assert.deepEqual(pumpPorts(site,pump),{input,output});updatePower(s,site);updateGasNetworks(s);close(bank.charge,0);close(gasAmount(output.pipe.gas)+output.pipe.smoke,GAS_NETWORK.pump);validateGasNetworks(s);
       } else {
         initializePlumbingTile(pump);pump.waterDevice.direction=direction;input.waterPipe=newWaterPipe();output.waterPipe=newWaterPipe();seedWater(site,input,2);
-        assert.deepEqual(waterPorts(site,pump),{input,output});operatePlumbing(s);close(output.waterPipe.water,PLUMBING.pump);validatePlumbing(s);
+        assert.deepEqual(waterPorts(site,pump),{input,output});updatePower(s,site);operatePlumbing(s);close(bank.charge,0);close(output.waterPipe.water,PLUMBING.pump);validatePlumbing(s);
       }
     }
   }
@@ -108,7 +113,7 @@ test('bilge recovery and fire spread reach every hex side without creating water
     const {s,site}=fixture(),center=at(site,[x,6]),target=at(site,step(x,6,direction));
     center.building='bilgePump';center.powered=true;center.machine={enabled:true,output:{}};seedLiquid(site,target,1);pumpLiquids(s);
     close(center.machine.output.water,LIQUID.pump);close(target.liquid,1-LIQUID.pump);validateLiquids(s);
-    center.building='bunk';center.powered=false;target.building='bunk';target.liquid=0;site.liquids.quenched+=1-LIQUID.pump;
+    center.building='bunk';center.powered=false;target.building='bunk';unloadCondensedWater(site,target,target.liquid,{floor:true});site.liquids.quenched+=1-LIQUID.pump;
     fillFixtureRoom(site,site.rooms[0]);assert.ok(ignite(s,site,center));center.fire.age=29;center.fire.intensity=60;s.tick=30;updateFire(s);
     assert.ok(target.fire,`${direction} from column ${x}`);validateFire(s);validateThermal(s);
   }

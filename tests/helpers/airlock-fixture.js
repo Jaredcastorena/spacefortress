@@ -19,7 +19,7 @@ export const STAGING = {inner:[5,8],outer:[10,6]};
 export const WALLS = [[9,5],[7,6],[8,6],[5,7],[6,7],[9,7],[10,7],[4,8],[7,8],[8,8],[4,9],[5,9],[6,9]];
 export const PIPE_CELLS = [[7,6],[8,6],[7,4]];
 export const PUMP_DIRECTION = 'n';
-const finiteMix = amount => ({oxygen:amount*.21,inert:amount*.785,co2:amount*.005});
+const finiteMix = amount => ({oxygen:amount*.21,inert:amount*.785,co2:amount*.005,vapor:0});
 export const TARGET = {site:'surface',x:5,y:5};
 export const digest = value => createHash('sha256').update(typeof value==='string'?value:JSON.stringify(value)).digest('hex');
 export const close = (actual, expected, label='quantity') => assert.ok(Math.abs(actual-expected)<1e-7,`${label}: ${actual} != ${expected}`);
@@ -98,4 +98,4 @@ export function ledger(f) {
  return {...gas,smoke,energy:e.initial+e.generated+e.injected-e.consumed-e.curtailed-e.discarded-stored};
 }
 export function assertLedger(f,before) {const after=ledger(f);for(const k of Object.keys(before))close(after[k],before[k],k);}
-export function setRoomGas(room,gas,smoke=room.smoke) {room.gas={...gas};room.smoke=smoke;refreshRoom(room);}
+export function setRoomGas(room,gas,smoke=room.smoke) {room.gas={vapor:0,...gas};room.smoke=smoke;refreshRoom(room);}
